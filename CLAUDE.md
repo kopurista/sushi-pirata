@@ -25,12 +25,33 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 - `--script` NO carga autoloads (`GameState`), así que no sirve para probar
   escenas que dependan de ellos; usa el helper inyectado en su lugar.
 - **Lanzar el juego** para el usuario: `"…/Godot_v4.7.1-stable_win64.exe" .` en background.
+- Existe el MCP **GodotIQ** (`godotiq_*`) pero se desconecta a ratos; cuando no
+  esté, se editan `.tscn`/`.gd` con las herramientas nativas (el `.tscn` ya se
+  guardó alguna vez desde el editor: trae `uid`/`unique_id`, respétalos).
+- El input usa eventos **táctiles** (`InputEventScreenTouch`/`ScreenDrag`) porque
+  `project.godot` tiene `pointing/emulate_touch_from_mouse=true`.
+
+## Contratos entre archivos (señales) — leer antes de editar
+
+- `prep_board.gd` → `dish_served(recipe_id: String)`: un plato sale a la cinta.
+- `prep_board.gd` → `craft_event(kind: String, stage_id: String)`: cada gesto
+  del jugador; `level.gd` lo usa para animar al chef y mostrar la etapa en su mesa.
+  `kind` ∈ tap/cut/swipe/hold/drag/stage/done/select/cancel/serve.
+- `client.gd` → `finished(report: Dictionary)`: al irse; el diccionario lleva
+  `type, money, tip, satisfaction, eaten (ids), satiety_eaten, satiety_needed`.
+- `level.gd` accede a `prep_board.instant_recipes / skip_next_cooldown /
+  easy_next / double_next / stack_max / cooldown_mult` para aplicar potenciadores.
 
 ## Arquitectura (archivos y responsabilidad)
 
 - `scripts/recipe_data.gd` — datos const de las 6 recetas: nivel, saciedad,
-  cooldown, precio, `steps` (secuencia de gestos) y `stages` (sprite por paso).
-  También ingredientes y helpers `get_dish_texture` / `get_stage_texture`.
+  cooldown, precio, `free_uses` (maestría), `steps` (secuencia de gestos) y
+  `stages` (sprite por paso). Ingredientes y helpers `get_dish_texture` /
+  `get_stage_texture`. **Tipos de paso**: `tap_ingredient` {ingredient},
+  `tap_board` {count, cutting?}, `drag_ingredient` {ingredient},
+  `swipe_board` {count, direction: up/down}, `hold_board` {duration}. `stages`
+  tiene un id de sprite por paso ("" = ninguno); el último stage no-vacío se
+  descarta al emplatar (el plato final es el mismo voxel que el emplatado).
 - `scripts/powerup_data.gd` — catálogo de potenciadores (`manual` = el jugador
   elige cuándo; si no, automático).
 - `scripts/game_state.gd` — **autoload** `GameState`: recetas elegidas, dinero,
@@ -72,7 +93,16 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   arrastre real (>24 px), nunca con un toque.
 - **Mano de gestos**: `HAND_TIP` ancla la mano **por encima** del objetivo.
   Los pasos sobre la tabla apuntan al **centro del sprite de etapa**, sin
-  desplazamientos fijos.
+  desplazamientos fijos. Los deslizamientos llevan además una `flecha.png`.
+- **Layout móvil (importante)**: en la tabla inferior las **recetas van abajo**
+  y la **tabla de manipulación arriba**, a propósito: un gesto de deslizar de
+  abajo hacia arriba pegado al borde inferior del móvil cierra la app.
+- **Maestría (`free_uses`)**: al hacer manualmente una receta con `free_uses`
+  (makis/futomaki), las N siguientes salen instantáneas — se muestra "xN" en el
+  botón. El potenciador "Reciclaje" añade +1 uso cuando un plato se desecha.
+- **Guardado por pilas**: cada caja apila hasta `stack_max` (3, o 5 con "Más
+  almacén") platos IGUALES; el mismo plato nunca ocupa dos cajas. Potenciador
+  "Doble plato" crea 2 platos en la tabla a la vez.
 
 ## Balance actual (para no re-litigar)
 
