@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__godotiq__godotiq_ping",
+      "mcp__godotiq__godotiq_editor_context",
+      "mcp__godotiq__godotiq_project_summary",
+      "Bash(python3 -c ' *)",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
+    ]
+  }
+}

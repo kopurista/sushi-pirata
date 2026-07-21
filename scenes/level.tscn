@@ -1,0 +1,408 @@
+[gd_scene format=3 uid="uid://djkumjtpkemkp"]
+
+[ext_resource type="Script" uid="uid://b00tvx24adyaq" path="res://scripts/level.gd" id="1"]
+[ext_resource type="Script" uid="uid://bqn8ayv2l7wcv" path="res://scripts/prep_board.gd" id="2"]
+[ext_resource type="Texture2D" uid="uid://ctqt7keyxci7o" path="res://assets/scenery/cubierta.webp" id="3"]
+[ext_resource type="Texture2D" uid="uid://wqeky3l1c7uv" path="res://assets/characters/chef.webp" id="4"]
+[ext_resource type="Texture2D" uid="uid://dwlvitgy04kvr" path="res://assets/props/mesa_chef.png" id="5"]
+[ext_resource type="Texture2D" uid="uid://cpsh4ka6wv2uh" path="res://assets/ui/moneda.png" id="6"]
+[ext_resource type="Texture2D" uid="uid://c3opeed4th4ta" path="res://assets/ui/reloj.png" id="7"]
+[ext_resource type="Texture2D" uid="uid://cqhjryy77isvq" path="res://assets/ui/bolsa.png" id="8"]
+[ext_resource type="Texture2D" uid="uid://chapgnvwjeux8" path="res://assets/props/tabla_cortar.png" id="9"]
+[ext_resource type="Texture2D" uid="uid://x5eoc1mnn322" path="res://assets/props/cinta_trad_banda.png" id="10"]
+[ext_resource type="Texture2D" path="res://assets/characters/grumete.webp" id="12"]
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_tabla"]
+texture = ExtResource("9")
+
+[node name="Level" type="Node2D" unique_id=1348205824]
+script = ExtResource("1")
+
+[node name="Background" type="ColorRect" parent="." unique_id=2070472533]
+z_index = -10
+offset_right = 720.0
+offset_bottom = 1280.0
+color = Color(0.06, 0.12, 0.2, 1)
+
+[node name="Deck" type="Sprite2D" parent="." unique_id=1167336536]
+z_index = -5
+position = Vector2(361, 536.49994)
+scale = Vector2(1.1067709, 0.9680059)
+texture = ExtResource("3")
+
+[node name="Belt" type="Path2D" parent="." unique_id=620205360]
+
+[node name="Chef" type="Sprite2D" parent="." unique_id=483907875]
+position = Vector2(334, 398)
+scale = Vector2(0.108, 0.108)
+texture = ExtResource("4")
+flip_h = true
+
+[node name="ChefTable" type="Sprite2D" parent="." unique_id=471973840]
+position = Vector2(380, 452)
+scale = Vector2(0.16, 0.16)
+texture = ExtResource("5")
+
+[node name="ChefProp" type="Sprite2D" parent="." unique_id=1145601238]
+visible = false
+position = Vector2(382, 428)
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=1033132234]
+
+[node name="TopBar" type="ColorRect" parent="HUD"]
+anchor_right = 1.0
+offset_bottom = 110.0
+color = Color(0.13, 0.09, 0.05, 1)
+
+[node name="TopEdge" type="ColorRect" parent="HUD"]
+anchor_right = 1.0
+offset_top = 104.0
+offset_bottom = 110.0
+color = Color(0.5, 0.36, 0.14, 1)
+
+[node name="TopRow" type="HBoxContainer" parent="HUD"]
+anchor_right = 1.0
+offset_left = 28.0
+offset_top = 12.0
+offset_right = -28.0
+offset_bottom = 98.0
+theme_override_constants/separation = 14
+
+[node name="TimeBox" type="HBoxContainer" parent="HUD/TopRow"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TimeIcon" type="TextureRect" parent="HUD/TopRow/TimeBox"]
+custom_minimum_size = Vector2(54, 64)
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("7")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="TimeLabel" type="Label" parent="HUD/TopRow/TimeBox"]
+layout_mode = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 42
+text = "4:00"
+vertical_alignment = 1
+
+[node name="Spacer1" type="Control" parent="HUD/TopRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MoneyBox" type="VBoxContainer" parent="HUD/TopRow"]
+layout_mode = 2
+theme_override_constants/separation = 2
+alignment = 1
+
+[node name="MoneyRow" type="HBoxContainer" parent="HUD/TopRow/MoneyBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+alignment = 1
+
+[node name="MoneyIcon" type="TextureRect" parent="HUD/TopRow/MoneyBox/MoneyRow"]
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("6")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="MoneyLabel" type="Label" parent="HUD/TopRow/MoneyBox/MoneyRow"]
+layout_mode = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 5
+theme_override_font_sizes/font_size = 34
+text = "$0"
+vertical_alignment = 1
+
+[node name="JarRow" type="HBoxContainer" parent="HUD/TopRow/MoneyBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+alignment = 1
+
+[node name="JarIcon" type="TextureRect" parent="HUD/TopRow/MoneyBox/JarRow"]
+custom_minimum_size = Vector2(30, 30)
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("8")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="JarLabel" type="Label" parent="HUD/TopRow/MoneyBox/JarRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.88, 0.45, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 21
+text = "$0 / $10"
+vertical_alignment = 1
+
+[node name="Spacer2" type="Control" parent="HUD/TopRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ClientsBox" type="HBoxContainer" parent="HUD/TopRow"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ClientsIcon" type="TextureRect" parent="HUD/TopRow/ClientsBox"]
+custom_minimum_size = Vector2(48, 64)
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("12")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="ClientsLabel" type="Label" parent="HUD/TopRow/ClientsBox"]
+layout_mode = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 40
+text = "0/10"
+vertical_alignment = 1
+
+[node name="PrepBoard" type="Control" parent="HUD"]
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -490.0
+offset_bottom = 0.0
+script = ExtResource("2")
+
+[node name="Backing" type="ColorRect" parent="HUD/PrepBoard"]
+anchor_right = 1.0
+offset_bottom = 490.0
+color = Color(0.16, 0.11, 0.07, 1)
+
+[node name="BackingEdge" type="ColorRect" parent="HUD/PrepBoard"]
+anchor_right = 1.0
+offset_bottom = 6.0
+color = Color(0.34, 0.23, 0.13, 1)
+
+[node name="ServeSlot" type="Control" parent="HUD/PrepBoard"]
+anchor_right = 1.0
+offset_top = 8.0
+offset_bottom = 80.0
+
+[node name="BeltSprite" type="TextureRect" parent="HUD/PrepBoard/ServeSlot" unique_id=1939901789]
+texture_repeat = 2
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("10")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="BoardPanel" type="Panel" parent="HUD/PrepBoard" unique_id=816136461]
+layout_mode = 0
+offset_top = 88.0
+offset_right = 496.0
+offset_bottom = 320.0
+theme_override_styles/panel = SubResource("StyleBoxTexture_tabla")
+
+[node name="Ingredients" type="HBoxContainer" parent="HUD/PrepBoard/BoardPanel" unique_id=405134099]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 6.0
+offset_right = 488.0
+offset_bottom = 78.0
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="TapBar" type="ProgressBar" parent="HUD/PrepBoard/BoardPanel" unique_id=1836556615]
+visible = false
+layout_mode = 0
+offset_left = 26.0
+offset_top = 84.0
+offset_right = 470.0
+offset_bottom = 104.0
+show_percentage = false
+
+[node name="StageRect" type="TextureRect" parent="HUD/PrepBoard/BoardPanel" unique_id=587399830]
+visible = false
+layout_mode = 0
+offset_left = 118.0
+offset_top = 110.0
+offset_right = 378.0
+offset_bottom = 230.0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="TapZone" type="Control" parent="HUD/PrepBoard/BoardPanel" unique_id=1017133059]
+anchors_preset = 0
+offset_left = 4.0
+offset_top = 106.0
+offset_right = 492.0
+offset_bottom = 316.0
+
+[node name="StorageBox" type="GridContainer" parent="HUD/PrepBoard" unique_id=2004014537]
+layout_mode = 0
+offset_left = 504.0
+offset_top = 88.0
+offset_right = 712.0
+offset_bottom = 296.0
+columns = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+
+[node name="CancelButton" type="Button" parent="HUD/PrepBoard" unique_id=212480050]
+visible = false
+layout_mode = 0
+offset_left = 566.0
+offset_top = 14.0
+offset_right = 710.0
+offset_bottom = 62.0
+theme_override_font_sizes/font_size = 20
+text = "Cancelar"
+
+[node name="Buttons" type="HBoxContainer" parent="HUD/PrepBoard" unique_id=678456777]
+layout_mode = 0
+offset_left = 6.0
+offset_top = 328.0
+offset_right = 714.0
+offset_bottom = 486.0
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="Instruction" type="Label" parent="HUD/PrepBoard" unique_id=1463494631]
+visible = false
+layout_mode = 0
+offset_left = 20.0
+offset_top = 260.0
+offset_right = 490.0
+offset_bottom = 292.0
+theme_override_font_sizes/font_size = 19
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PhaseLabel" type="Label" parent="HUD" unique_id=1359775385]
+offset_left = 60.0
+offset_top = 120.0
+offset_right = 660.0
+offset_bottom = 175.0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 34
+text = "¡Tiempo de preparación!"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ManualPowerups" type="HBoxContainer" parent="HUD" unique_id=121034567]
+offset_left = 200.0
+offset_top = 732.0
+offset_right = 520.0
+offset_bottom = 780.0
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="PowerupPanel" type="Panel" parent="HUD" unique_id=569879364]
+process_mode = 3
+visible = false
+offset_left = 30.0
+offset_top = 300.0
+offset_right = 690.0
+offset_bottom = 1000.0
+
+[node name="VBox" type="VBoxContainer" parent="HUD/PowerupPanel" unique_id=1856293454]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 66.0
+offset_top = 72.0
+offset_right = -66.0
+offset_bottom = -60.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 18
+
+[node name="Title" type="Label" parent="HUD/PowerupPanel/VBox" unique_id=957064338]
+layout_mode = 2
+theme_override_font_sizes/font_size = 30
+text = "¡Bote lleno! Elige un potenciador"
+horizontal_alignment = 1
+
+[node name="Options" type="VBoxContainer" parent="HUD/PowerupPanel/VBox" unique_id=1918375236]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 18
+
+[node name="ResultsPanel" type="Panel" parent="HUD" unique_id=698144497]
+process_mode = 3
+visible = false
+offset_left = 8.0
+offset_top = 104.0
+offset_right = 712.0
+offset_bottom = 1210.0
+
+[node name="VBox" type="VBoxContainer" parent="HUD/ResultsPanel" unique_id=1917716475]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 66.0
+offset_top = 72.0
+offset_right = -66.0
+offset_bottom = -60.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="HUD/ResultsPanel/VBox" unique_id=1437029098]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+text = "Fin del nivel"
+horizontal_alignment = 1
+
+[node name="StarsLabel" type="Label" parent="HUD/ResultsPanel/VBox" unique_id=619277838]
+layout_mode = 2
+theme_override_font_sizes/font_size = 52
+text = "☆☆☆"
+horizontal_alignment = 1
+
+[node name="ScoreLabel" type="Label" parent="HUD/ResultsPanel/VBox" unique_id=475606335]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Puntuación: 0%"
+horizontal_alignment = 1
+
+[node name="EarnLabel" type="Label" parent="HUD/ResultsPanel/VBox" unique_id=422495328]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Dinero ganado: $0"
+horizontal_alignment = 1
+
+[node name="Scroll" type="ScrollContainer" parent="HUD/ResultsPanel/VBox" unique_id=1223273172]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Breakdown" type="VBoxContainer" parent="HUD/ResultsPanel/VBox/Scroll" unique_id=973223090]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="BtnBox" type="HBoxContainer" parent="HUD/ResultsPanel/VBox" unique_id=764563519]
+layout_mode = 2
+theme_override_constants/separation = 30
+alignment = 1
+
+[node name="RetryButton" type="Button" parent="HUD/ResultsPanel/VBox/BtnBox" unique_id=2060363974]
+custom_minimum_size = Vector2(200, 80)
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Repetir"
+
+[node name="MenuButton" type="Button" parent="HUD/ResultsPanel/VBox/BtnBox" unique_id=1960487020]
+custom_minimum_size = Vector2(200, 80)
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Menú"

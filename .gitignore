@@ -1,0 +1,11 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# Secreto local del puente GodotIQ (NO subir)
+.godotiq/bridge_token
+
+# Builds exportadas (se regeneran; no son código fuente)
+/sushiBeta/
+*.pck
+*.wasm
