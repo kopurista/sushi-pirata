@@ -10,7 +10,7 @@
 [ext_resource type="Texture2D" uid="uid://cqhjryy77isvq" path="res://assets/ui/bolsa.png" id="8"]
 [ext_resource type="Texture2D" uid="uid://chapgnvwjeux8" path="res://assets/props/tabla_cortar.png" id="9"]
 [ext_resource type="Texture2D" uid="uid://x5eoc1mnn322" path="res://assets/props/cinta_trad_banda.png" id="10"]
-[ext_resource type="Texture2D" path="res://assets/characters/grumete.webp" id="12"]
+[ext_resource type="Texture2D" uid="uid://3wgsmpyj0j6y" path="res://assets/characters/grumete.webp" id="12"]
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_tabla"]
 texture = ExtResource("9")
@@ -49,18 +49,21 @@ position = Vector2(382, 428)
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=1033132234]
 
-[node name="TopBar" type="ColorRect" parent="HUD"]
+[node name="TopBar" type="ColorRect" parent="HUD" unique_id=1682732178]
+anchors_preset = 10
 anchor_right = 1.0
 offset_bottom = 110.0
 color = Color(0.13, 0.09, 0.05, 1)
 
-[node name="TopEdge" type="ColorRect" parent="HUD"]
+[node name="TopEdge" type="ColorRect" parent="HUD" unique_id=1491447272]
+anchors_preset = 10
 anchor_right = 1.0
 offset_top = 104.0
 offset_bottom = 110.0
 color = Color(0.5, 0.36, 0.14, 1)
 
-[node name="TopRow" type="HBoxContainer" parent="HUD"]
+[node name="TopRow" type="HBoxContainer" parent="HUD" unique_id=1919628412]
+anchors_preset = 10
 anchor_right = 1.0
 offset_left = 28.0
 offset_top = 12.0
@@ -68,11 +71,11 @@ offset_right = -28.0
 offset_bottom = 98.0
 theme_override_constants/separation = 14
 
-[node name="TimeBox" type="HBoxContainer" parent="HUD/TopRow"]
+[node name="TimeBox" type="HBoxContainer" parent="HUD/TopRow" unique_id=326660229]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="TimeIcon" type="TextureRect" parent="HUD/TopRow/TimeBox"]
+[node name="TimeIcon" type="TextureRect" parent="HUD/TopRow/TimeBox" unique_id=1976499242]
 custom_minimum_size = Vector2(54, 64)
 layout_mode = 2
 mouse_filter = 2
@@ -80,29 +83,29 @@ texture = ExtResource("7")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="TimeLabel" type="Label" parent="HUD/TopRow/TimeBox"]
+[node name="TimeLabel" type="Label" parent="HUD/TopRow/TimeBox" unique_id=1496064917]
 layout_mode = 2
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 6
 theme_override_font_sizes/font_size = 42
-text = "4:00"
+text = "2:30"
 vertical_alignment = 1
 
-[node name="Spacer1" type="Control" parent="HUD/TopRow"]
+[node name="Spacer1" type="Control" parent="HUD/TopRow" unique_id=418785072]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="MoneyBox" type="VBoxContainer" parent="HUD/TopRow"]
+[node name="MoneyBox" type="VBoxContainer" parent="HUD/TopRow" unique_id=2033937754]
 layout_mode = 2
 theme_override_constants/separation = 2
 alignment = 1
 
-[node name="MoneyRow" type="HBoxContainer" parent="HUD/TopRow/MoneyBox"]
+[node name="MoneyRow" type="HBoxContainer" parent="HUD/TopRow/MoneyBox" unique_id=1077778216]
 layout_mode = 2
 theme_override_constants/separation = 6
 alignment = 1
 
-[node name="MoneyIcon" type="TextureRect" parent="HUD/TopRow/MoneyBox/MoneyRow"]
+[node name="MoneyIcon" type="TextureRect" parent="HUD/TopRow/MoneyBox/MoneyRow" unique_id=1532150955]
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 mouse_filter = 2
@@ -110,7 +113,7 @@ texture = ExtResource("6")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="MoneyLabel" type="Label" parent="HUD/TopRow/MoneyBox/MoneyRow"]
+[node name="MoneyLabel" type="Label" parent="HUD/TopRow/MoneyBox/MoneyRow" unique_id=837742567]
 layout_mode = 2
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 5
@@ -118,12 +121,12 @@ theme_override_font_sizes/font_size = 34
 text = "$0"
 vertical_alignment = 1
 
-[node name="JarRow" type="HBoxContainer" parent="HUD/TopRow/MoneyBox"]
+[node name="JarRow" type="HBoxContainer" parent="HUD/TopRow/MoneyBox" unique_id=1464117605]
 layout_mode = 2
 theme_override_constants/separation = 6
 alignment = 1
 
-[node name="JarIcon" type="TextureRect" parent="HUD/TopRow/MoneyBox/JarRow"]
+[node name="JarIcon" type="TextureRect" parent="HUD/TopRow/MoneyBox/JarRow" unique_id=35359461]
 custom_minimum_size = Vector2(30, 30)
 layout_mode = 2
 mouse_filter = 2
@@ -131,7 +134,7 @@ texture = ExtResource("8")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="JarLabel" type="Label" parent="HUD/TopRow/MoneyBox/JarRow"]
+[node name="JarLabel" type="Label" parent="HUD/TopRow/MoneyBox/JarRow" unique_id=891477878]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.88, 0.45, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
@@ -140,15 +143,15 @@ theme_override_font_sizes/font_size = 21
 text = "$0 / $10"
 vertical_alignment = 1
 
-[node name="Spacer2" type="Control" parent="HUD/TopRow"]
+[node name="Spacer2" type="Control" parent="HUD/TopRow" unique_id=902940086]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="ClientsBox" type="HBoxContainer" parent="HUD/TopRow"]
+[node name="ClientsBox" type="HBoxContainer" parent="HUD/TopRow" unique_id=383895699]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="ClientsIcon" type="TextureRect" parent="HUD/TopRow/ClientsBox"]
+[node name="ClientsIcon" type="TextureRect" parent="HUD/TopRow/ClientsBox" unique_id=269483600]
 custom_minimum_size = Vector2(48, 64)
 layout_mode = 2
 mouse_filter = 2
@@ -156,7 +159,7 @@ texture = ExtResource("12")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="ClientsLabel" type="Label" parent="HUD/TopRow/ClientsBox"]
+[node name="ClientsLabel" type="Label" parent="HUD/TopRow/ClientsBox" unique_id=1941770252]
 layout_mode = 2
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 6
@@ -164,25 +167,29 @@ theme_override_font_sizes/font_size = 40
 text = "0/10"
 vertical_alignment = 1
 
-[node name="PrepBoard" type="Control" parent="HUD"]
+[node name="PrepBoard" type="Control" parent="HUD" unique_id=1392863573]
+layout_mode = 3
+anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_top = -490.0
-offset_bottom = 0.0
 script = ExtResource("2")
 
-[node name="Backing" type="ColorRect" parent="HUD/PrepBoard"]
+[node name="Backing" type="ColorRect" parent="HUD/PrepBoard" unique_id=1231579443]
+layout_mode = 0
 anchor_right = 1.0
 offset_bottom = 490.0
 color = Color(0.16, 0.11, 0.07, 1)
 
-[node name="BackingEdge" type="ColorRect" parent="HUD/PrepBoard"]
+[node name="BackingEdge" type="ColorRect" parent="HUD/PrepBoard" unique_id=268383698]
+layout_mode = 0
 anchor_right = 1.0
 offset_bottom = 6.0
 color = Color(0.34, 0.23, 0.13, 1)
 
-[node name="ServeSlot" type="Control" parent="HUD/PrepBoard"]
+[node name="ServeSlot" type="Control" parent="HUD/PrepBoard" unique_id=94641060]
+anchors_preset = 0
 anchor_right = 1.0
 offset_top = 8.0
 offset_bottom = 80.0
@@ -249,9 +256,9 @@ offset_left = 504.0
 offset_top = 88.0
 offset_right = 712.0
 offset_bottom = 296.0
-columns = 2
 theme_override_constants/h_separation = 8
 theme_override_constants/v_separation = 8
+columns = 2
 
 [node name="CancelButton" type="Button" parent="HUD/PrepBoard" unique_id=212480050]
 visible = false
@@ -348,10 +355,10 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 66.0
-offset_top = 72.0
-offset_right = -66.0
-offset_bottom = -60.0
+offset_left = 98.0
+offset_top = 82.0
+offset_right = -98.0
+offset_bottom = -70.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 12

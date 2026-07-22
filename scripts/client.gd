@@ -1,29 +1,38 @@
 extends Node2D
 ## Cliente pirata: entra andando desde la zona superior del barco, se sienta,
 ## coge platos de la cinta (con animación), come y se marcha andando.
-## Su estado de ánimo se muestra en un bocadillo: triste (no ha comido),
-## neutral (a medias) o feliz (último plato / saciado).
+## Se queda hasta que su barra de PACIENCIA se agota (no hay saciedad objetivo):
+## cada plato comido recarga paciencia según su nivel, así que darle de comer
+## es lo que alarga su estancia — pero repetirle el mismo plato rinde cada vez
+## menos. La propina depende del Nº DE PLATOS comidos (ver TIP_RULES).
 
 signal finished(report: Dictionary)
+## Se emite al terminar CADA plato: el precio del plato y la propina de ese
+## plato (0 si no la deja). El nivel suma ambos al instante, no al marcharse.
+signal plate_served(food: int, tip: int)
 
 enum State { ARRIVING, WAITING, EATING, LEAVING, DONE }
 
 const WALK_SPEED := 190.0
 
-## Probabilidad de coger un plato según tipo de cliente y saciedad del plato.
+## Probabilidad de coger un plato según tipo de cliente y nivel del plato.
+## Los piratas pican bastante con nivel 1 y los capitanes con nivel 2.
 const TAKE_CHANCES: Dictionary = {
 	"E": { 1: 0.95, 2: 0.15, 3: 0.10 },
-	"A": { 1: 0.25, 2: 0.92, 3: 0.25 },
-	"G": { 1: 0.0, 2: 0.50, 3: 0.95 },
+	"A": { 1: 0.45, 2: 0.92, 3: 0.25 },
+	"G": { 1: 0.0, 2: 0.70, 3: 0.95 },
 }
 
 const FAVORITE_TIER: Dictionary = { "E": 1, "A": 2, "G": 3 }
 
-## Rango de tiempo de comida por plato según tipo (segundos).
+## Rango de tiempo de comida (s) por tipo de cliente Y nivel del plato:
+##  - Grumete: rápido con nivel 1, lento con los superiores.
+##  - Pirata: menos con nivel 1 que con nivel 2; nivel 3 más que nivel 2.
+##  - Capitán: muy poco con nivel 1, algo más con nivel 2, normal con nivel 3.
 const EAT_TIMES: Dictionary = {
-	"E": [3.0, 5.0],
-	"A": [5.0, 8.0],
-	"G": [8.0, 12.0],
+	"E": { 1: [3.0, 5.0], 2: [7.0, 10.0], 3: [11.0, 15.0] },
+	"A": { 1: [3.5, 5.5], 2: [5.0, 8.0], 3: [9.0, 12.0] },
+	"G": { 1: [2.0, 3.5], 2: [4.0, 6.5], 3: [8.0, 12.0] },
 }
 
 const TYPE_SPRITES: Dictionary = {
@@ -34,8 +43,26 @@ const TYPE_SPRITES: Dictionary = {
 
 const TYPE_SCALES: Dictionary = { "E": 0.095, "A": 0.115, "G": 0.13 }
 
-## Al recibir un plato la paciencia sube un poco (fracción del máximo).
-const PATIENCE_REWARD := 0.15
+## Al recibir un plato la paciencia sube (fracción del máximo) según el nivel
+## del plato: los de nivel alto alargan mucho más la estancia del cliente.
+const PATIENCE_FOOD: Dictionary = { 1: 0.12, 2: 0.30, 3: 0.50 }
+## Si el MISMO plato se repite seguido, cada repetición recarga la mitad que
+## la anterior (el cliente se aburre del plato). Cambiar de plato NO reinicia
+## del todo: retrocede UN nivel de aburrimiento (ver `boredom` en _start_eating).
+const REPEAT_DECAY := 0.5
+## Cada plato comido acelera el drenaje de paciencia en este factor (x0.025).
+const PATIENCE_DRAIN_PER_PLATE := 0.025
+
+## Propina, según el nº de platos comidos por el cliente:
+##  - desde "start" platos ya puede haber propina, con "base" de probabilidad;
+##  - hasta "ramp" platos la probabilidad se mantiene en "base";
+##  - a partir de "ramp" sube "step" por cada "every" platos, con tope "max".
+##  - "pct": cuantía de la propina = ese % del precio del plato.
+const TIP_RULES: Dictionary = {
+	"E": { "start": 1, "ramp": 3, "every": 1, "base": 0.20, "step": 0.01, "max": 0.65, "pct": 0.15 },
+	"A": { "start": 1, "ramp": 3, "every": 1, "base": 0.23, "step": 0.015, "max": 0.60, "pct": 0.16 },
+	"G": { "start": 1, "ramp": 3, "every": 1, "base": 0.25, "step": 0.02, "max": 0.50, "pct": 0.18 },
+}
 
 var client_type: String = "E"
 var patience_scale: float = 1.0
@@ -48,12 +75,16 @@ var route: Array = []
 var state: State = State.ARRIVING
 var patience_max: float = 55.0
 var patience: float = 55.0
-var satiety_needed: int = 2
-var satiety_left: int = 2
 var satiety_eaten: int = 0
+## Último plato comido y nivel de "aburrimiento" (0 = plato fresco, recarga
+## plena): sube +1 al repetir el mismo plato y baja -1 al cambiar de plato.
+var last_dish_id: String = ""
+var boredom: int = 0
 var money_earned: int = 0
 var eat_timer: float = 0.0
 var eat_duration: float = 1.0
+## Propina acumulada (suma de las propinas de cada plato), para el desglose final.
+var tips_earned: int = 0
 var current_price: int = 0
 var current_satiety: int = 0
 var current_id: String = ""
@@ -71,7 +102,6 @@ var held_dish: Sprite2D = null
 var belt_point_global := Vector2.ZERO
 
 @onready var body: Sprite2D = $Body
-@onready var bubble: TextureRect = $Bubble
 @onready var patience_bar: ProgressBar = $PatienceBar
 @onready var eat_bar: ProgressBar = $EatBar
 @onready var zone: Area2D = $Zone
@@ -80,16 +110,10 @@ var belt_point_global := Vector2.ZERO
 func _ready() -> void:
 	add_to_group("clients")
 	level_ref = get_parent()
-	patience_max = randf_range(50.0, 65.0) * patience_scale
+	# Paciencia base ajustada a partidas de 2:30 (antes 4 min): estancias más
+	# cortas para que la rotación de clientes siga teniendo ritmo.
+	patience_max = randf_range(30.0, 40.0) * patience_scale
 	patience = patience_max
-	match client_type:
-		"E":
-			satiety_needed = randi_range(2, 3)
-		"A":
-			satiety_needed = randi_range(4, 5)
-		"G":
-			satiety_needed = 5
-	satiety_left = satiety_needed
 	var tex_path: String = TYPE_SPRITES.get(client_type, "")
 	if tex_path != "" and ResourceLoader.exists(tex_path):
 		body.texture = load(tex_path)
@@ -98,7 +122,6 @@ func _ready() -> void:
 	body.flip_h = face_flip
 	eat_bar.visible = false
 	patience_bar.visible = false
-	bubble.visible = false
 	patience_bar.max_value = patience_max
 	patience_bar.value = patience
 	zone.monitoring = false
@@ -144,8 +167,6 @@ func _seat() -> void:
 	zone.position = belt_point_global - position
 	zone.monitoring = true
 	patience_bar.visible = true
-	bubble.visible = true
-	_update_bubble()
 
 
 ## Guarda el punto de la cinta; la zona se coloca al llegar al asiento.
@@ -167,7 +188,10 @@ func _process(delta: float) -> void:
 		return
 	match state:
 		State.WAITING:
-			patience -= delta
+			# Cuanto más ha comido el cliente, más rápido se le agota la
+			# paciencia: cada plato acelera el drenaje (+PATIENCE_DRAIN_PER_PLATE).
+			var drain := 1.0 + PATIENCE_DRAIN_PER_PLATE * eaten_ids.size()
+			patience -= delta * drain
 			patience_bar.value = patience
 			if patience <= 0.0:
 				_leave()
@@ -176,25 +200,6 @@ func _process(delta: float) -> void:
 			eat_bar.value = maxf(eat_timer, 0.0)
 			if eat_timer <= 0.0:
 				_finish_plate()
-
-
-## Bocadillo de ánimo:
-##  triste  → aún no ha comido nada
-##  feliz   → está comiendo el plato que le sacia (o ya está saciado)
-##  neutral → ha comido algo pero le falta
-func _update_bubble() -> void:
-	var tex_name := "bubble_neutral"
-	if satiety_eaten <= 0 and state != State.EATING:
-		tex_name = "bubble_triste"
-	elif state == State.EATING and satiety_left - current_satiety <= 0:
-		tex_name = "bubble_feliz"
-	elif satiety_left <= 0:
-		tex_name = "bubble_feliz"
-	elif satiety_eaten == 0:
-		tex_name = "bubble_triste"
-	var path := "res://assets/ui/%s.png" % tex_name
-	if ResourceLoader.exists(path):
-		bubble.texture = load(path)
 
 
 func _on_zone_area_entered(area: Area2D) -> void:
@@ -231,14 +236,29 @@ func _on_zone_area_entered(area: Area2D) -> void:
 ## Animación de coger el plato de la cinta y comérselo.
 func _start_eating(plate_global: Vector2) -> void:
 	state = State.EATING
-	eat_duration = randf_range(EAT_TIMES[client_type][0], EAT_TIMES[client_type][1])
+	var recipe := RecipeData.get_recipe(current_id)
+	var range_s: Array = EAT_TIMES[client_type].get(current_satiety, EAT_TIMES[client_type][1])
+	# "eat_mult": algunos platos (p. ej. la sopa de miso) se comen más despacio.
+	eat_duration = randf_range(range_s[0], range_s[1]) * float(recipe.get("eat_mult", 1.0))
 	eat_timer = eat_duration
 	eat_bar.max_value = eat_duration
 	eat_bar.value = eat_duration
 	eat_bar.visible = true
 	patience_bar.visible = false
-	patience = minf(patience + PATIENCE_REWARD * patience_max, patience_max)
-	_update_bubble()
+	# La comida recarga paciencia según el nivel del plato. Repetirle el MISMO
+	# plato aburre (sube el nivel y recarga la mitad cada vez); cambiar de plato
+	# NO reinicia del todo, solo retrocede un nivel de aburrimiento. Ej.: mismo
+	# plato 12%→6%→3%; al cambiar sube a 6%, y otro cambio vuelve a 12%.
+	if current_id == last_dish_id:
+		boredom += 1
+	else:
+		boredom = maxi(boredom - 1, 0)
+	last_dish_id = current_id
+	# "patience_mult": los makis/futomaki recargan x0.2 menos; la sopa de miso
+	# y el gunkan de tartar recargan de más.
+	var pat_mult := float(recipe.get("patience_mult", 1.0))
+	var boost: float = PATIENCE_FOOD.get(current_satiety, 0.12) * pow(REPEAT_DECAY, boredom) * pat_mult
+	patience = minf(patience + boost * patience_max, patience_max)
 
 	# El plato viaja de la cinta a las manos del cliente...
 	held_dish = Sprite2D.new()
@@ -275,19 +295,57 @@ func _time_frozen() -> bool:
 	return level_ref != null and "frozen" in level_ref and level_ref.frozen
 
 
+## Sin saciedad objetivo: el cliente NUNCA se va por comer; vuelve a esperar
+## y solo se marcha cuando la paciencia se agota. El pago del plato y su posible
+## propina se abonan al nivel AQUÍ mismo (no al marcharse).
 func _finish_plate() -> void:
 	satiety_eaten += current_satiety
-	satiety_left -= current_satiety
 	money_earned += current_price
 	eaten_ids.append(current_id)
+	var tip := _roll_plate_tip()
+	tips_earned += tip
+	plate_served.emit(current_price, tip)
+	# Aviso flotante: precio del plato en amarillo y, si la deja, la propina en
+	# verde justo encima.
+	_float_text("+$%d" % current_price, Color(1.0, 0.86, 0.2))
+	if tip > 0:
+		_float_text("+$%d" % tip, Color(0.4, 1.0, 0.45), -50.0)
 	_stop_eating_anim()
 	eat_bar.visible = false
-	if satiety_left <= 0:
-		_leave()
-	else:
-		state = State.WAITING
-		patience_bar.visible = true
-		_update_bubble()
+	state = State.WAITING
+	patience_bar.visible = true
+
+
+## Texto flotante que PARPADEA sobre el cliente y sube desvaneciéndose. Se usa
+## para el precio cobrado por cada plato (amarillo) y la propina (verde).
+func _float_text(text: String, color: Color, y_offset: float = 0.0) -> void:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.custom_minimum_size = Vector2(140, 0)
+	lbl.position = Vector2(-70, -96.0 + y_offset)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.add_theme_font_size_override("font_size", 34)
+	lbl.add_theme_color_override("font_color", color)
+	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.92))
+	lbl.add_theme_constant_override("outline_size", 7)
+	lbl.z_index = 40
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.pivot_offset = Vector2(70, 18)
+	add_child(lbl)
+	lbl.scale = Vector2(0.5, 0.5)
+	var tw := lbl.create_tween()
+	# Aparición con "pop".
+	tw.tween_property(lbl, "scale", Vector2.ONE, 0.14) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	# Parpadeo.
+	for i in 2:
+		tw.tween_property(lbl, "modulate:a", 0.25, 0.09)
+		tw.tween_property(lbl, "modulate:a", 1.0, 0.09)
+	# Sube y se desvanece.
+	tw.tween_property(lbl, "position:y", lbl.position.y - 66.0, 0.7) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(lbl, "modulate:a", 0.0, 0.7)
+	tw.tween_callback(lbl.queue_free)
 
 
 func force_leave() -> void:
@@ -300,26 +358,17 @@ func _leave() -> void:
 	if walk_tween != null:
 		walk_tween.kill()
 	_stop_eating_anim()
-	var ratio := clampf(float(satiety_eaten) / float(satiety_needed), 0.0, 1.0)
-	var satisfaction := 1.0 + 4.0 * ratio
-	var tip := 0
-	if satiety_left <= 0:
-		tip = _roll_tip()
 	finished.emit({
 		"type": client_type,
 		"money": money_earned,
-		"tip": tip,
-		"satisfaction": satisfaction,
+		"tip": tips_earned,
 		"eaten": eaten_ids.duplicate(),
 		"satiety_eaten": satiety_eaten,
-		"satiety_needed": satiety_needed,
-		"filled": satiety_left <= 0,
 	})
 	state = State.LEAVING
 	zone.monitoring = false
 	patience_bar.visible = false
 	eat_bar.visible = false
-	bubble.visible = false
 	_walk_out()
 
 
@@ -339,41 +388,39 @@ func _walk_out() -> void:
 	walk_tween.finished.connect(queue_free)
 
 
-## Propina según tipo y exceso de saciedad (surplus = comido - necesitado).
-func _roll_tip() -> int:
-	var surplus := satiety_eaten - satiety_needed
-	var tip_chance := 0.0
-	var tip_pct := 0.3
-	match client_type:
-		"E":
-			tip_pct = 0.1
-			if surplus >= 1:
-				tip_chance = 0.55
-			else:
-				tip_chance = 0.35
-		"A":
-			if surplus >= 2:
-				tip_chance = 1.0
-				tip_pct = 0.35
-			elif surplus == 1:
-				tip_chance = 0.4
-				tip_pct = 0.3
-			else:
-				tip_chance = 0.35
-				tip_pct = 0.2
-		"G":
-			if surplus >= 1:
-				tip_chance = 1.0
-				tip_pct = 0.5
-			else:
-				tip_chance = 0.45
-				tip_pct = 0.3
+## Propina de UN plato (se tira al terminar cada plato). La probabilidad crece
+## con el nº de platos comidos por este cliente (ver TIP_RULES) hasta su tope;
+## la cuantía es un % del dinero ACUMULADO que lleva gastado el cliente (no del
+## precio de este plato suelto), así que crece con la cuenta total. Debe
+## llamarse DESPUÉS de sumar current_price a money_earned y de añadir el plato
+## a eaten_ids, para que ambos incluyan el plato recién comido.
+func _roll_plate_tip() -> int:
+	var rules: Dictionary = TIP_RULES.get(client_type, {})
+	var plates := eaten_ids.size()
+	if rules.is_empty() or plates < int(rules.start):
+		return 0
+	# La probabilidad no crece hasta "ramp" platos; antes se queda en "base".
+	var ramp: int = int(rules.get("ramp", rules.start))
+	var extra_steps := maxi(plates - ramp, 0) / int(rules.every)
+	var tip_chance: float = minf(float(rules.base) + float(rules.step) * extra_steps, float(rules.max))
 	var amount_mult := 1.0
 	if level_ref != null:
 		if "tip_chance_bonus" in level_ref:
 			tip_chance += level_ref.tip_chance_bonus
 		if "tip_amount_mult" in level_ref:
 			amount_mult = level_ref.tip_amount_mult
+	# Bono de propina por platos especiales (recetas con "tip_chance_bonus", como
+	# el tartar): la 1ª vez que este cliente comió el plato suma su bono entero,
+	# y cada repetición del MISMO plato suma la MITAD que la anterior
+	# (3% > 1.5% > 0.75% ...).
+	var seen := {}
+	for id in eaten_ids:
+		var rb: float = RecipeData.get_recipe(id).get("tip_chance_bonus", 0.0)
+		if rb <= 0.0:
+			continue
+		var n: int = seen.get(id, 0)
+		tip_chance += rb * pow(0.5, n)
+		seen[id] = n + 1
 	if randf() < tip_chance:
-		return maxi(int(round(money_earned * tip_pct * amount_mult)), 1)
+		return maxi(int(round(money_earned * float(rules.pct) * amount_mult)), 1)
 	return 0

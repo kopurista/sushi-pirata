@@ -11,6 +11,9 @@ signal craft_event(kind: String, stage_id: String)
 enum State { IDLE, CRAFTING, READY }
 
 const SWIPE_THRESHOLD := 70.0
+## Recorrido horizontal (px) que debe cubrir el corte lento, de izquierda a
+## derecha, por todo el ancho de la tabla.
+const SLICE_SWEEP := 340.0
 const DISH_SIZE := Vector2(120, 110)
 
 var state := State.IDLE
@@ -25,6 +28,33 @@ var holding := false
 var swipe_active := false
 var swipe_counted := false
 var swipe_start := Vector2.ZERO
+## stir_board: vueltas completadas y ángulo acumulado de la vuelta en curso.
+var stir_turns: int = 0
+var stir_angle: float = 0.0
+var stir_last_angle: float = 0.0
+var stirring := false
+## slice_board: cortes hechos y datos del corte en curso (inicio y tiempo).
+var slices_done: int = 0
+var slice_active := false
+var slice_start := Vector2.ZERO
+var slice_start_ms := 0
+## Avance horizontal (px) del corte lento en curso, para llenar la barra.
+var slice_progress: float = 0.0
+## Mensaje momentáneo sobre la tabla ("¡Más lento!").
+var message_label: Label = null
+var message_tween: Tween = null
+## drag_stage: fantasma del sprite de etapa mientras se arrastra al prop.
+## Igual que en las cajas: exige arrastre real, un toque no completa el paso.
+var stage_ghost: Control = null
+var stage_drag_start := Vector2.ZERO
+var stage_drag_moved := false
+## Utensilio (sartén, arroz moldeado...) que aparece a la derecha de la tabla
+## en los pasos drag_stage.
+var prop_rect: TextureRect = null
+var prop_tween: Tween = null
+## Posición final del prop (el sprite entra animado; la mano de gestos debe
+## apuntar aquí, no a la posición intermedia de la animación).
+var prop_target := Vector2.ZERO
 
 var cooldowns: Dictionary = {}
 ## Elaboraciones instantáneas restantes por receta dominada (id → usos).
@@ -123,20 +153,40 @@ static func skin_button(b: Button) -> void:
 
 
 ## Fila de estrellas con las imágenes propias del juego (llenas y vacías).
-static func make_star_row(count: int, total: int, star_size: float) -> HBoxContainer:
+## Con shadow=true cada estrella lleva una sombra leve desplazada, para
+## diferenciarla del fondo.
+static func make_star_row(count: int, total: int, star_size: float, shadow := false) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 4)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for i in total:
-		var ic := TextureRect.new()
-		ic.texture = load("res://assets/ui/estrella_llena.png" if i < count
+		var tex: Texture2D = load("res://assets/ui/estrella_llena.png" if i < count
 				else "res://assets/ui/estrella_vacia.png")
-		ic.custom_minimum_size = Vector2(star_size, star_size)
+		var holder := Control.new()
+		holder.custom_minimum_size = Vector2(star_size, star_size)
+		holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if shadow:
+			var sh := TextureRect.new()
+			sh.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			sh.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			sh.texture = tex
+			sh.set_anchors_preset(Control.PRESET_FULL_RECT)
+			sh.offset_left = 2.0
+			sh.offset_top = 3.0
+			sh.offset_right = 2.0
+			sh.offset_bottom = 3.0
+			sh.modulate = Color(0, 0, 0, 0.38)
+			sh.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			holder.add_child(sh)
+		var ic := TextureRect.new()
 		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.texture = tex
+		ic.set_anchors_preset(Control.PRESET_FULL_RECT)
 		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(ic)
+		holder.add_child(ic)
+		row.add_child(holder)
 	return row
 
 
@@ -159,6 +209,30 @@ func _ready() -> void:
 		_add_storage_panel()
 	skin_button(cancel_button)
 	cancel_button.pressed.connect(_cancel_prep)
+	# Al desaparecer un ingrediente ya usado, la fila se reordena y los que
+	# quedan se desplazan; hay que recolocar la mano de gestos sobre el nuevo
+	# objetivo o quedaría desajustada (recetas con 3+ ingredientes).
+	ingredients_row.sort_children.connect(_on_ingredients_sorted)
+	# Utensilio de los pasos drag_stage (se crea antes que la mano para que
+	# los indicadores queden por encima).
+	prop_rect = TextureRect.new()
+	prop_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	prop_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	prop_rect.size = Vector2(150, 120)
+	prop_rect.visible = false
+	prop_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(prop_rect)
+	# Mensaje momentáneo sobre la tabla (p. ej. "¡Más lento!" al cortar rápido).
+	message_label = Label.new()
+	message_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	message_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	message_label.add_theme_font_size_override("font_size", 40)
+	message_label.add_theme_color_override("font_color", Color(1.0, 0.86, 0.3))
+	message_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	message_label.add_theme_constant_override("outline_size", 8)
+	message_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	message_label.visible = false
+	add_child(message_label)
 	# Sin textos ni contadores: todo se comunica con indicadores visuales.
 	instruction_label.visible = false
 	# Mano de gestos: pequeña y semitransparente para no tapar la interfaz.
@@ -217,32 +291,35 @@ func _ready() -> void:
 func _build_recipe_button(id: String) -> void:
 	var data := RecipeData.get_recipe(id)
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(170, 154)
-	skin_button(b)
+	b.custom_minimum_size = Vector2(170, 156)
+	# Fondo de pergamino desgastado (en lugar de madera) para que el plato y
+	# las estrellas destaquen.
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	b.add_child(make_nine_patch("res://assets/ui/panel.png", 34))
 
-	var vb := VBoxContainer.new()
-	vb.set_anchors_preset(Control.PRESET_FULL_RECT)
-	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vb.alignment = BoxContainer.ALIGNMENT_CENTER
-	vb.add_theme_constant_override("separation", 0)
-
+	# El plato ocupa casi todo el botón (grande y uniforme), dejando abajo una
+	# franja para las estrellas.
 	var tex := RecipeData.get_dish_texture(id)
 	if tex != null:
 		var ic := TextureRect.new()
-		ic.texture = tex
-		ic.custom_minimum_size = Vector2(0, 108)
 		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.texture = tex
+		ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+		ic.offset_left = 8.0
+		ic.offset_top = 8.0
+		ic.offset_right = -8.0
+		ic.offset_bottom = -34.0
 		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		vb.add_child(ic)
-	b.add_child(vb)
+		b.add_child(ic)
 
-	# Estrellas ancladas cerca del borde inferior, pero subidas para que no
-	# queden pegadas al marco y se vean bien.
-	var stars := make_star_row(int(data.get("level", 1)), int(data.get("level", 1)), 28)
+	# Estrellas en la franja inferior, algo subidas y con sombra leve para
+	# que se distingan bien del pergamino.
+	var stars := make_star_row(int(data.get("level", 1)), int(data.get("level", 1)), 26, true)
 	stars.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	stars.offset_top = -42.0
-	stars.offset_bottom = -12.0
+	stars.offset_top = -40.0
+	stars.offset_bottom = -14.0
 	b.add_child(stars)
 
 	# Insignia de maestría/reciclaje: "x2", "x3"...
@@ -386,13 +463,14 @@ func _start_prep(id: String) -> void:
 	_reset_step_progress()
 	_set_stage("")
 	_build_ingredients(id)
+	_update_prop()
 	craft_event.emit("select", "")
 	_update_ui()
 
 
-## Cancelable solo mientras no se haya completado el primer paso.
+## Cancelable en cualquier momento mientras se está elaborando.
 func _can_cancel() -> bool:
-	return state == State.CRAFTING and step_index == 0
+	return state == State.CRAFTING
 
 
 func _cancel_prep() -> void:
@@ -402,8 +480,16 @@ func _cancel_prep() -> void:
 	current_recipe = ""
 	steps = []
 	_reset_step_progress()
+	# Limpia cualquier arrastre de ejemplo en curso.
+	if ghost != null:
+		ghost.queue_free()
+		ghost = null
+	if stage_ghost != null:
+		stage_ghost.queue_free()
+		stage_ghost = null
 	_set_stage("")
 	_clear_ingredients()
+	_update_prop()
 	craft_event.emit("cancel", "")
 	_update_ui()
 
@@ -427,6 +513,12 @@ func _reset_step_progress() -> void:
 	holding = false
 	swipe_active = false
 	swipe_counted = false
+	stir_turns = 0
+	stir_angle = 0.0
+	stirring = false
+	slices_done = 0
+	slice_active = false
+	slice_progress = 0.0
 
 
 func _clear_ingredients() -> void:
@@ -474,6 +566,17 @@ func _prune_ingredients() -> void:
 			tw.tween_callback(node.queue_free)
 
 
+## La fila de ingredientes se ha reordenado (uno desapareció y los demás se
+## desplazan): si el paso actual apunta a un ingrediente, recolocamos la mano
+## sobre su nueva posición. Diferido para leer los rects ya reposicionados.
+func _on_ingredients_sorted() -> void:
+	if state != State.CRAFTING:
+		return
+	var t: String = _current_step().get("type", "")
+	if t == "tap_ingredient" or t == "drag_ingredient":
+		call_deferred("_refresh_indicator")
+
+
 ## Cambia el sprite de la etapa en la tabla con una animación de aparición.
 func _set_stage(stage_id: String) -> void:
 	var tex := RecipeData.get_stage_texture(stage_id)
@@ -513,6 +616,7 @@ func _advance_step() -> void:
 	var stages: Array = RecipeData.get_recipe(current_recipe).get("stages", [])
 	var stage_id: String = stages[step_index - 1] if step_index - 1 < stages.size() else ""
 	_set_stage(stage_id)
+	_update_prop()
 	craft_event.emit("stage", stage_id)
 	_update_ui()
 
@@ -563,8 +667,11 @@ func _continue_dish_drag(event: InputEvent) -> void:
 				_store_dish(d, slot)
 			else:
 				d.position = _dish_rest_position(dishes.find(d))
-		elif serve_slot.get_global_rect().has_point(center):
-			# La cinta solo si se suelta sobre su tramo (lejos de las cajas).
+		elif center.y <= serve_slot.get_global_rect().end.y:
+			# La cinta está en el borde superior de la tabla: soltar sobre su
+			# tramo O en cualquier zona por encima (la cubierta) cuenta como
+			# servir. El guardado ya se comprobó antes, así que aquí solo llega
+			# lo que se suelta lejos de las cajas.
 			_serve_dish(d)
 		else:
 			d.position = _dish_rest_position(dishes.find(d))
@@ -670,8 +777,10 @@ func _continue_stack_drag(event: InputEvent) -> void:
 	elif event is InputEventScreenTouch and not event.pressed:
 		var i := stack_drag_index
 		stack_drag_index = -1
-		# Solo se sirve si hubo arrastre real Y el dedo terminó en la cinta.
-		var served: bool = stack_drag_moved 				and serve_slot.get_global_rect().has_point(event.position)
+		# Solo se sirve si hubo arrastre real Y el dedo terminó sobre la cinta
+		# o por encima de ella (la cubierta).
+		var served: bool = stack_drag_moved \
+				and event.position.y <= serve_slot.get_global_rect().end.y
 		stack_ghost.queue_free()
 		stack_ghost = null
 		if served:
@@ -720,6 +829,12 @@ func _handle_craft_input(event: InputEvent) -> void:
 			_handle_swipe(event, step)
 		"drag_ingredient":
 			_handle_ingredient_drag(event, step)
+		"stir_board":
+			_handle_stir(event, step)
+		"slice_board":
+			_handle_slice(event, step)
+		"drag_stage":
+			_handle_stage_drag(event)
 
 
 func _handle_swipe(event: InputEvent, step: Dictionary) -> void:
@@ -770,6 +885,180 @@ func _handle_ingredient_drag(event: InputEvent, step: Dictionary) -> void:
 		ghost.global_position = event.position - ghost.size / 2.0
 
 
+## stir_board: remover en círculos manteniendo pulsado sobre la tabla.
+## Se acumula el ángulo recorrido alrededor del centro de la etapa; cada
+## vuelta completa (en cualquier sentido) cuenta una.
+func _handle_stir(event: InputEvent, step: Dictionary) -> void:
+	if event is InputEventScreenTouch:
+		if event.pressed and tap_zone.get_global_rect().has_point(event.position):
+			stirring = true
+			stir_angle = 0.0
+			stir_last_angle = _angle_around_stage(event.position)
+		elif not event.pressed:
+			stirring = false
+	elif event is InputEventScreenDrag and stirring:
+		var ang := _angle_around_stage(event.position)
+		stir_angle += wrapf(ang - stir_last_angle, -PI, PI)
+		stir_last_angle = ang
+		if absf(stir_angle) >= TAU:
+			stir_angle = 0.0
+			stir_turns += 1
+			craft_event.emit("stir", _current_stage_id())
+			_bump_stage(8.0)
+			if stir_turns >= int(step.get("count", 1)):
+				_advance_step()
+				return
+		_update_tap_bar()
+
+
+func _angle_around_stage(pos: Vector2) -> float:
+	return (pos - stage_rect.get_global_rect().get_center()).angle()
+
+
+## slice_board: corte LENTO de izquierda a derecha que puede empezar en
+## CUALQUIER punto de la tabla (no solo sobre el bloque). La barra se llena
+## entera con cada corte y se vacía para el siguiente. El recorrido completo
+## debe tardar AL MENOS "duration" s; si va más rápido aparece "¡Más lento!"
+## y hay que repetir. Tras cada corte intermedio se muestra "cut_stage"
+## (p. ej. el bloque con una lámina ya cortada).
+func _handle_slice(event: InputEvent, step: Dictionary) -> void:
+	if event is InputEventScreenTouch:
+		if event.pressed and board_panel.get_global_rect().has_point(event.position):
+			slice_active = true
+			slice_start = event.position
+			slice_start_ms = Time.get_ticks_msec()
+			slice_progress = 0.0
+		elif not event.pressed:
+			slice_active = false
+			slice_progress = 0.0
+			_update_tap_bar()
+	elif event is InputEventScreenDrag and slice_active:
+		# Retroceso a la izquierda: el corte se reinicia desde aquí.
+		if event.position.x < slice_start.x:
+			slice_start = event.position
+			slice_start_ms = Time.get_ticks_msec()
+			slice_progress = 0.0
+			_update_tap_bar()
+			return
+		slice_progress = event.position.x - slice_start.x
+		if slice_progress < SLICE_SWEEP:
+			_update_tap_bar()
+			return
+		# Recorrido completo: se evalúa la velocidad.
+		slice_active = false
+		slice_progress = 0.0
+		var elapsed := (Time.get_ticks_msec() - slice_start_ms) / 1000.0
+		if elapsed < float(step.get("duration", 0.7)):
+			_flash_message("¡Más lento!")
+			_slice_fail_feedback()
+			_update_tap_bar()
+			return
+		slices_done += 1
+		craft_event.emit("slice", _current_stage_id())
+		if slices_done >= int(step.get("count", 1)):
+			_advance_step()
+		else:
+			# Corte intermedio: se ve la lámina ya cortada junto al bloque.
+			var cut_stage: String = step.get("cut_stage", "")
+			if cut_stage != "":
+				_set_stage(cut_stage)
+			else:
+				_bump_stage(-6.0)
+			_update_ui()
+
+
+## Muestra un mensaje grande sobre el centro de la tabla que se desvanece.
+func _flash_message(text: String) -> void:
+	message_label.text = text
+	message_label.reset_size()
+	var center := board_panel.position + board_panel.size / 2.0
+	message_label.position = center - message_label.size / 2.0 - Vector2(0, 20)
+	message_label.modulate = Color(1, 1, 1, 1)
+	message_label.scale = Vector2(0.7, 0.7)
+	message_label.pivot_offset = message_label.size / 2.0
+	message_label.visible = true
+	if message_tween != null:
+		message_tween.kill()
+	message_tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	message_tween.tween_property(message_label, "scale", Vector2.ONE, 0.18)
+	message_tween.tween_interval(0.5)
+	message_tween.tween_property(message_label, "modulate:a", 0.0, 0.3)
+	message_tween.tween_callback(func() -> void: message_label.visible = false)
+
+
+## Corte demasiado rápido: sacudida y destello rojo de la etapa.
+func _slice_fail_feedback() -> void:
+	if not stage_rect.visible:
+		return
+	stage_rect.pivot_offset = stage_rect.size / 2.0
+	if stage_tween != null:
+		stage_tween.kill()
+	stage_rect.modulate = Color(1.0, 0.45, 0.45)
+	stage_rect.rotation_degrees = -4.0
+	stage_tween = create_tween()
+	stage_tween.tween_property(stage_rect, "rotation_degrees", 4.0, 0.06)
+	stage_tween.tween_property(stage_rect, "rotation_degrees", 0.0, 0.08)
+	stage_tween.tween_property(stage_rect, "modulate", Color.WHITE, 0.25)
+
+
+## drag_stage: arrastrar el sprite de etapa (cuenco, gamba...) hasta el prop.
+## Exige arrastre REAL (>24 px) y soltar el dedo sobre el prop: un simple
+## toque sobre la etapa no debe completar el paso.
+func _handle_stage_drag(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		if event.pressed and stage_rect.visible and stage_ghost == null \
+				and stage_rect.get_global_rect().has_point(event.position):
+			stage_ghost = TextureRect.new()
+			stage_ghost.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			stage_ghost.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			stage_ghost.texture = stage_rect.texture
+			stage_ghost.size = stage_rect.size
+			stage_ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			add_child(stage_ghost)
+			stage_ghost.global_position = event.position - stage_ghost.size / 2.0
+			stage_rect.visible = false
+			stage_drag_start = event.position
+			stage_drag_moved = false
+		elif not event.pressed and stage_ghost != null:
+			var hit: bool = stage_drag_moved and prop_rect.visible \
+					and prop_rect.get_global_rect().grow(20.0).has_point(event.position)
+			stage_ghost.queue_free()
+			stage_ghost = null
+			if hit:
+				craft_event.emit("drag", _current_stage_id())
+				_advance_step()
+			else:
+				stage_rect.visible = true
+	elif event is InputEventScreenDrag and stage_ghost != null:
+		stage_ghost.global_position = event.position - stage_ghost.size / 2.0
+		if event.position.distance_to(stage_drag_start) > 24.0:
+			stage_drag_moved = true
+
+
+## Muestra u oculta el utensilio del paso actual (clave "prop"). Entra
+## animado desde abajo hasta su sitio en la esquina derecha de la tabla.
+func _update_prop() -> void:
+	var prop_id: String = _current_step().get("prop", "") if state == State.CRAFTING else ""
+	var tex := RecipeData.get_stage_texture(prop_id)
+	if tex == null:
+		if prop_tween != null:
+			prop_tween.kill()
+			prop_tween = null
+		prop_rect.visible = false
+		return
+	prop_rect.texture = tex
+	var target := board_panel.position + board_panel.size - prop_rect.size - Vector2(8, 10)
+	prop_target = target
+	prop_rect.position = target + Vector2(0, 240)
+	prop_rect.modulate.a = 0.0
+	prop_rect.visible = true
+	if prop_tween != null:
+		prop_tween.kill()
+	prop_tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	prop_tween.tween_property(prop_rect, "position", target, 0.45)
+	prop_tween.parallel().tween_property(prop_rect, "modulate:a", 1.0, 0.3)
+
+
 ## Copia del ingrediente que sigue al dedo mientras se arrastra.
 func _make_ghost(ing_id: String) -> Control:
 	var g := Control.new()
@@ -808,6 +1097,7 @@ func _finish_prep(grant_mastery: bool) -> void:
 		if uses > 0:
 			free_uses[ready_recipe] = uses
 	_set_stage("")
+	_update_prop()
 	var count := 2 if double_next else 1
 	double_next = false
 	for i in count:
@@ -919,6 +1209,17 @@ func _refresh_indicator() -> void:
 			ghost_hint.texture = _ingredient_texture(step.get("ingredient", ""))
 			ghost_hint.size = Vector2(76, 66)
 			_hand_drag(_local_center(node), stage_center)
+		"stir_board":
+			_hand_circle_at(stage_center)
+		"slice_board":
+			# Corte lento de izquierda a derecha: deslizar pausado y ancho.
+			_hand_swipe(board_center, Vector2(1, 0), 1.2, 150.0)
+		"drag_stage":
+			if not prop_rect.visible:
+				return
+			ghost_hint.texture = stage_rect.texture
+			ghost_hint.size = stage_rect.size
+			_hand_drag(stage_center, prop_target + prop_rect.size / 2.0)
 
 
 ## Plato listo: la mano arrastra un fantasma del plato hasta la cinta.
@@ -982,10 +1283,11 @@ func _hand_drag(from_pos: Vector2, to_pos: Vector2) -> void:
 	indicator_tween.parallel().tween_property(ghost_hint, "modulate:a", 0.0, 0.2)
 
 
-## Deslizamiento: dedo abajo y movimiento rápido en la dirección dada.
-func _hand_swipe(center: Vector2, dir: Vector2) -> void:
-	var a := center - dir * 70.0
-	var b := center + dir * 70.0
+## Deslizamiento: dedo abajo y movimiento en la dirección dada (rápido por
+## defecto; travel_time/span mayores para los cortes lentos).
+func _hand_swipe(center: Vector2, dir: Vector2, travel_time := 0.4, span := 70.0) -> void:
+	var a := center - dir * span
+	var b := center + dir * span
 	_hand_begin(a, true)
 	# La flecha propia apunta en la dirección del gesto y viaja con la mano.
 	arrow_hint.rotation = dir.angle() + PI / 2.0
@@ -999,9 +1301,9 @@ func _hand_swipe(center: Vector2, dir: Vector2) -> void:
 		arrow_hint.position = _hand_at(a) + arrow_off
 		arrow_hint.modulate.a = 0.7)
 	indicator_tween.tween_interval(0.15)
-	indicator_tween.tween_property(hand, "position", _hand_at(b), 0.4) \
+	indicator_tween.tween_property(hand, "position", _hand_at(b), travel_time) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	indicator_tween.parallel().tween_property(arrow_hint, "position", _hand_at(b) + arrow_off, 0.4) \
+	indicator_tween.parallel().tween_property(arrow_hint, "position", _hand_at(b) + arrow_off, travel_time) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	indicator_tween.tween_property(hand, "modulate:a", 0.0, 0.15)
 	indicator_tween.parallel().tween_property(arrow_hint, "modulate:a", 0.0, 0.15)
@@ -1032,5 +1334,16 @@ func _update_tap_bar() -> void:
 			tap_bar.visible = true
 			tap_bar.max_value = step.get("duration", 1.0)
 			tap_bar.value = hold_time
+		"stir_board":
+			tap_bar.visible = true
+			tap_bar.max_value = int(step.get("count", 1))
+			# Progreso continuo: vueltas completas más la fracción en curso.
+			tap_bar.value = stir_turns + absf(stir_angle) / TAU
+		"slice_board":
+			# La barra representa SOLO el corte en curso: se llena entera con
+			# cada corte y vuelve a vaciarse para el siguiente.
+			tap_bar.visible = true
+			tap_bar.max_value = 1.0
+			tap_bar.value = clampf(slice_progress / SLICE_SWEEP, 0.0, 1.0)
 		_:
 			tap_bar.visible = false

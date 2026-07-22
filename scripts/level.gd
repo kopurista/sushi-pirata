@@ -6,7 +6,15 @@ const PLATE_SCENE := preload("res://scenes/plate.tscn")
 const CLIENT_SCENE := preload("res://scenes/client.tscn")
 
 const TOTAL_CLIENTS := 10
-const TIME_LIMIT := 240.0
+## Duración de una partida (2 min 30 s). El reloj no corre durante la fase de
+## preparación inicial.
+const TIME_LIMIT := 150.0
+## Margen antes del final en el que ya no llega ningún cliente (para que el
+## último tenga tiempo de comer antes de que suene la campana).
+const ARRIVAL_TAIL := 22.0
+## Umbrales de dinero para 1★/2★/3★ en el modo prueba (en aventura los define
+## cada nivel de la campaña con "star_money").
+const DEFAULT_STAR_MONEY := [16, 30, 45]
 ## Incrementos del bote de propinas: el primer potenciador cuesta 10$, y cada
 ## siguiente exige más (acumulado: 10, 22, 36, 52, 70, 90, 114...). Al agotar
 ## la lista, cada potenciador extra cuesta +60$.
@@ -52,10 +60,8 @@ var elapsed := 0.0
 var money_earned := 0
 var clients_spawned := 0
 var clients_finished := 0
-var satisfactions: Array[float] = []
 ## Resumen de cada cliente que ha venido (para el desglose final).
 var client_reports: Array = []
-var all_fed := true
 var seat_clients: Array = []
 ## Horario aleatorio de llegadas (el último siempre antes de T-45 s).
 var arrival_queue: Array[float] = []
@@ -75,6 +81,14 @@ var belt_tile_px := 1.0
 var belt_scroll := 0.0
 var total_clients := TOTAL_CLIENTS
 var time_limit := TIME_LIMIT
+## Umbrales de dinero por estrella y mezcla de clientes del nivel en curso
+## (los fija la campaña; vacío = valores del modo prueba).
+var star_money: Array = DEFAULT_STAR_MONEY
+var client_weights: Dictionary = {}
+## Cola EXACTA de tipos del nivel (de "client_mix", barajada): garantiza el
+## recuento pedido por el nivel (p. ej. 5 grumetes y 3 piratas), a diferencia
+## de los pesos aleatorios. Vacía = usar client_weights / mezcla de prueba.
+var type_queue: Array[String] = []
 ## Tipos forzados pendientes de spawn (potenciadores de clientes extra).
 var forced_types: Array[String] = []
 
@@ -135,14 +149,41 @@ func _ready() -> void:
 	powerup_panel.visible = false
 	_skin_panels()
 	GameState.reset_run()
+	# Configuración del nivel de campaña (clientes, ritmo, umbrales de dinero).
+	var arrival_scale := 1.0
+	if GameState.is_adventure():
+		var port := CampaignData.get_port(GameState.current_port)
+		time_limit = float(port.get("time_limit", TIME_LIMIT))
+		patience_mult = float(port.get("patience_mult", 1.0))
+		arrival_scale = float(port.get("arrival_scale", 1.0))
+		star_money = port.get("star_money", DEFAULT_STAR_MONEY)
+		client_weights = port.get("client_weights", {})
+		# "client_mix" define el recuento EXACTO de cada tipo: se construye una
+		# cola barajada y total_clients sale de la suma.
+		var mix: Dictionary = port.get("client_mix", {})
+		if mix.is_empty():
+			total_clients = int(port.get("total_clients", TOTAL_CLIENTS))
+		else:
+			type_queue.clear()
+			for t in mix:
+				for i in int(mix[t]):
+					type_queue.append(t)
+			type_queue.shuffle()
+			total_clients = type_queue.size()
+		# Jugar un nivel consume 1 uso de cada ingrediente de las recetas
+		# elegidas; si no alcanzan (p. ej. al reintentar), vuelta a la selección.
+		if not GameState.consume_ingredients_for_level(GameState.selected_recipes):
+			get_tree().change_scene_to_file.call_deferred("res://scenes/prep_screen.tscn")
+			return
 	# Llegadas escalonadas con azar: cada cliente tiene una franja centrada y
-	# aplica jitter. Así el primero llega pronto (~6 s) y hay ritmo constante,
-	# pero el orden y los momentos exactos varían. El último nunca con <45 s.
-	var last := TIME_LIMIT - 45.0
-	var step := (last - 6.0) / float(TOTAL_CLIENTS - 1)
-	for i in TOTAL_CLIENTS:
-		var center := 6.0 + i * step
-		arrival_queue.append(clampf(center + randf_range(-8.0, 8.0), 2.0, last))
+	# aplica jitter. Así el primero llega pronto (~5 s) y hay ritmo constante,
+	# pero el orden y los momentos exactos varían. Nadie llega en los últimos
+	# ARRIVAL_TAIL s. "arrival_scale" (<1) comprime el horario: vienen más juntos.
+	var last := (time_limit - ARRIVAL_TAIL) * arrival_scale
+	var step := (last - 5.0) / float(total_clients - 1)
+	for i in total_clients:
+		var center := 5.0 + i * step
+		arrival_queue.append(clampf(center + randf_range(-6.0, 6.0) * arrival_scale, 2.0, last))
 	arrival_queue.sort()
 	_update_hud()
 
@@ -192,13 +233,17 @@ func _on_craft_event(kind: String, stage_id: String) -> void:
 			# Cortar: golpe de cuchillo (giro seco).
 			tw.tween_property(chef, "rotation_degrees", -9.0, 0.06)
 			tw.tween_property(chef, "rotation_degrees", 0.0, 0.12)
+		"slice":
+			# Corte lento de sashimi: giro amplio y pausado.
+			tw.tween_property(chef, "rotation_degrees", -7.0, 0.25)
+			tw.tween_property(chef, "rotation_degrees", 0.0, 0.3)
 		"swipe":
 			# Enrollar: balanceo lateral.
 			tw.tween_property(chef, "rotation_degrees", 7.0, 0.1)
 			tw.tween_property(chef, "rotation_degrees", -7.0, 0.14)
 			tw.tween_property(chef, "rotation_degrees", 0.0, 0.1)
-		"hold":
-			# Remover la olla: vaivén suave.
+		"hold", "stir":
+			# Remover la olla o batir el cuenco: vaivén suave.
 			tw.tween_property(chef, "rotation_degrees", 4.0, 0.3)
 			tw.tween_property(chef, "rotation_degrees", -4.0, 0.3)
 			tw.tween_property(chef, "rotation_degrees", 0.0, 0.2)
@@ -398,6 +443,7 @@ func _try_spawn_client() -> bool:
 	add_child(c)
 	c.set_belt_point(SEATS[idx].belt)
 	c.finished.connect(_on_client_finished.bind(idx))
+	c.plate_served.connect(_on_client_served)
 	seat_clients[idx] = c
 	clients_spawned += 1
 	return true
@@ -415,29 +461,49 @@ func _route_for_seat(idx: int) -> Array:
 	]
 
 
-## Mezcla de tipos para esta prueba: 60% estudiante, 30% adulto, 10% gourmet.
+## Tipo de cliente: primero la cola exacta del nivel (client_mix); si no hay,
+## pesos del nivel de campaña, o la mezcla del modo prueba (60% grumete,
+## 30% pirata, 10% capitán).
 func _pick_client_type() -> String:
-	var r := randf()
-	if r < 0.6:
-		return "E"
-	elif r < 0.9:
-		return "A"
-	return "G"
+	if not type_queue.is_empty():
+		return type_queue.pop_front()
+	if client_weights.is_empty():
+		var r := randf()
+		if r < 0.6:
+			return "E"
+		elif r < 0.9:
+			return "A"
+		return "G"
+	var total := 0.0
+	for t in client_weights:
+		total += float(client_weights[t])
+	var pick := randf() * maxf(total, 0.0001)
+	for t in ["E", "A", "G"]:
+		pick -= float(client_weights.get(t, 0.0))
+		if pick <= 0.0:
+			return t
+	return "E"
 
 
+## El dinero y las propinas ya se abonaron plato a plato (_on_client_served);
+## al marcharse solo se registra el resumen del cliente para el desglose final.
 func _on_client_finished(report: Dictionary, seat_idx: int) -> void:
 	seat_clients[seat_idx] = null
-	money_earned += report.money + report.tip
-	satisfactions.append(report.satisfaction)
 	client_reports.append(report)
-	if report.satiety_eaten <= 0:
-		all_fed = false
-	if report.tip > 0:
-		_add_tip(report.tip)
 	clients_finished += 1
 	_update_hud()
 	if clients_finished >= total_clients:
 		_end_level()
+
+
+## Cada plato comido: solo el PRECIO del plato cuenta como dinero generado
+## (estrellas y monedero). La propina NO suma a ese dinero: va únicamente al
+## bote de propinas, que sirve para los potenciadores.
+func _on_client_served(food: int, tip: int) -> void:
+	money_earned += food
+	if tip > 0:
+		_add_tip(tip)
+	_update_hud()
 
 
 ## Umbral acumulado de propinas para el potenciador n+1.
@@ -599,79 +665,165 @@ func _end_level() -> void:
 	if ended:
 		return
 	ended = true
-	all_served_at_end = clients_finished >= total_clients
 	for i in SEATS.size():
 		var c = seat_clients[i]
 		if c != null:
 			c.force_leave()
 
 
-var all_served_at_end := false
-
-
+## Puntuación POR DINERO: cada umbral de "star_money" alcanzado da una estrella.
+## En aventura el dinero se suma al monedero persistente y se registra el nivel
+## (recompensas de campaña incluidas); en prueba no toca el progreso.
 func _finalize_results() -> void:
 	results_shown = true
-	var served := 0
-	for r in client_reports:
-		if r.satiety_eaten > 0:
-			served += 1
-
-	var score := 0.0
+	var total_money := money_earned
 	var stars := 0
-	var total_money := 0
-	# Sin ningún cliente atendido: 0 puntos, 0 estrellas y nada de dinero.
-	if served > 0:
-		while satisfactions.size() < total_clients:
-			satisfactions.append(1.0)
-		var avg := 0.0
-		for s in satisfactions:
-			avg += s
-		avg /= satisfactions.size()
+	for threshold in star_money:
+		if total_money >= int(threshold):
+			stars += 1
 
-		# Bonus de tiempo: requiere al menos 1 atendido, todos los que
-		# vinieron comieron algo, y todos atendidos antes del límite.
-		var bonus := 0.0
-		if all_served_at_end and all_fed:
-			var consumed := elapsed / time_limit
-			if consumed <= 0.5:
-				bonus = 0.20
-			elif consumed <= 0.75:
-				bonus = 0.15
-			elif consumed <= 0.9:
-				bonus = 0.10
-			else:
-				bonus = 0.05
-
-		score = 0.8 * (avg / 5.0) + bonus
-		stars = 1
-		if score >= 0.85:
-			stars = 3
-		elif score >= 0.5:
-			stars = 2
-		var star_money: int = [0, 10, 25, 50][stars]
-		total_money = money_earned + star_money
-
-	GameState.money += total_money
-	GameState.last_score = score
+	var new_recipes: Array = []
+	if GameState.is_adventure():
+		GameState.money += total_money
+		GameState.record_level_score(GameState.current_port, total_money)
+		new_recipes = GameState.complete_port(GameState.current_port, stars)
+		GameState.save_game()
+	GameState.last_score = float(total_money)
 	GameState.last_stars = stars
 	GameState.last_money_earned = total_money
-	_show_results(score, stars, total_money)
+	_show_results(stars, total_money, new_recipes)
 
 
 const TYPE_NAMES := { "E": "Grumete", "A": "Pirata", "G": "Capitán" }
 
 
-func _show_results(score: float, stars: int, total_money: int) -> void:
+func _show_results(stars: int, total_money: int, new_recipes: Array) -> void:
 	for c in stars_row.get_children():
 		c.queue_free()
 	stars_row.add_child(prep_board.make_star_row(stars, 3, 58))
-	# Con las estrellas basta: el porcentaje no se muestra.
-	score_label.visible = false
 	earn_label.text = "Dinero ganado: $%d" % total_money
+	# Las recetas nuevas ya NO se anuncian en texto: se muestran con una
+	# animación (ver _reveal_recipes). El score_label solo indica la próxima
+	# estrella que falta por dinero.
+	if stars < 3:
+		score_label.text = "Siguiente estrella: $%d" % int(star_money[stars])
+		score_label.visible = true
+	else:
+		score_label.visible = false
 	_build_breakdown()
 	powerup_panel.visible = false
 	results_panel.visible = true
 	get_tree().paused = true
+	_reveal_recipes(new_recipes)
+
+
+## Anuncia las recetas recién desbloqueadas con una animación, de una en una.
+## Un recuadro con el plato aparece con un "pop" sobre el panel de resultados;
+## al pulsar "Aceptar" pasa a la siguiente receta, y con la última se cierra.
+## Funciona con el árbol en pausa (process_mode ALWAYS).
+func _reveal_recipes(recipes: Array) -> void:
+	if recipes.is_empty():
+		return
+	var overlay := ColorRect.new()
+	overlay.name = "RecipeReveal"
+	overlay.color = Color(0, 0, 0, 0.0)
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.process_mode = Node.PROCESS_MODE_ALWAYS
+	overlay.z_index = 200
+	$HUD.add_child(overlay)
+	var fade := overlay.create_tween()
+	fade.tween_property(overlay, "color:a", 0.66, 0.2)
+	_show_next_recipe(overlay, recipes.duplicate())
+
+
+func _show_next_recipe(overlay: ColorRect, queue: Array) -> void:
+	for c in overlay.get_children():
+		c.queue_free()
+	if queue.is_empty():
+		var out := overlay.create_tween()
+		out.tween_property(overlay, "color:a", 0.0, 0.2)
+		out.tween_callback(overlay.queue_free)
+		return
+	var id: String = queue.pop_front()
+	var data := RecipeData.get_recipe(id)
+	var dark := Color(0.26, 0.16, 0.08)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(center)
+
+	var box := Control.new()
+	box.custom_minimum_size = Vector2(470, 580)
+	box.pivot_offset = Vector2(235, 290)
+	center.add_child(box)
+	box.add_child(prep_board.make_nine_patch("res://assets/ui/panel.png", 60))
+
+	var vb := VBoxContainer.new()
+	vb.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vb.offset_left = 58.0
+	vb.offset_top = 56.0
+	vb.offset_right = -58.0
+	vb.offset_bottom = -48.0
+	vb.add_theme_constant_override("separation", 12)
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(vb)
+
+	var title := Label.new()
+	title.text = "¡Nueva receta!"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 36)
+	title.add_theme_color_override("font_color", dark)
+	vb.add_child(title)
+
+	var dish := TextureRect.new()
+	dish.texture = RecipeData.get_dish_texture(id)
+	dish.custom_minimum_size = Vector2(0, 250)
+	dish.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	dish.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	dish.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	vb.add_child(dish)
+
+	var name_l := Label.new()
+	name_l.text = data.get("name", id)
+	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_l.add_theme_font_size_override("font_size", 30)
+	name_l.add_theme_color_override("font_color", dark)
+	vb.add_child(name_l)
+
+	var lvl := int(data.get("level", 1))
+	vb.add_child(prep_board.make_star_row(lvl, lvl, 34))
+
+	# Contador cuando hay varias recetas por anunciar.
+	if not queue.is_empty():
+		var counter := Label.new()
+		counter.text = "Quedan %d más" % queue.size()
+		counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		counter.add_theme_font_size_override("font_size", 20)
+		counter.add_theme_color_override("font_color", Color(0.5, 0.38, 0.22))
+		vb.add_child(counter)
+
+	var accept := Button.new()
+	accept.text = "Aceptar"
+	accept.custom_minimum_size = Vector2(210, 66)
+	accept.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	prep_board.skin_button(accept)
+	accept.add_theme_font_size_override("font_size", 26)
+	accept.process_mode = Node.PROCESS_MODE_ALWAYS
+	accept.pressed.connect(func() -> void: _show_next_recipe(overlay, queue))
+	vb.add_child(accept)
+
+	# Aparición con "pop" y una respiración suave para dar vida.
+	box.scale = Vector2(0.6, 0.6)
+	box.modulate.a = 0.0
+	var tw := box.create_tween()
+	tw.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(box, "scale", Vector2.ONE, 0.35)
+	tw.parallel().tween_property(box, "modulate:a", 1.0, 0.22)
+	tw.tween_callback(func() -> void:
+		var loop := box.create_tween().set_loops()
+		loop.tween_property(box, "scale", Vector2(1.03, 1.03), 0.9).set_trans(Tween.TRANS_SINE)
+		loop.tween_property(box, "scale", Vector2.ONE, 0.9).set_trans(Tween.TRANS_SINE))
 
 
 ## Desglose agrupado por tipo de cliente. Cada cabecera (Grumete, Pirata,
@@ -686,6 +838,7 @@ func _build_breakdown() -> void:
 		if r.satiety_eaten > 0:
 			served += 1
 	var header := Label.new()
+	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	header.add_theme_font_size_override("font_size", 22)
 	header.add_theme_color_override("font_color", Color(0.26, 0.16, 0.08))
 	header.text = "Clientes: %d · atendidos: %d" % [client_reports.size(), served]
@@ -743,23 +896,10 @@ func _build_breakdown() -> void:
 				scroll_skin.patch_margin_right = 190)
 
 
-## Fila de un cliente: estrellas + iconos de platos + dinero + propina.
+## Fila de un cliente: iconos de platos comidos + dinero + propina.
 func _breakdown_row(r: Dictionary) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
-
-	# Estado de ánimo final en bocadillo (triste/neutral/feliz).
-	var mood := "bubble_feliz"
-	if r.satisfaction < 2.5:
-		mood = "bubble_triste"
-	elif r.satisfaction < 4.5:
-		mood = "bubble_neutral"
-	var mood_icon := TextureRect.new()
-	mood_icon.texture = load("res://assets/ui/%s.png" % mood)
-	mood_icon.custom_minimum_size = Vector2(52, 52)
-	mood_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	mood_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	row.add_child(mood_icon)
 
 	var eaten: Array = r.eaten
 	if eaten.is_empty():
@@ -769,13 +909,16 @@ func _breakdown_row(r: Dictionary) -> Control:
 		none.add_theme_color_override("font_color", Color(0.45, 0.35, 0.25))
 		row.add_child(none)
 	else:
+		# Se agrupan los platos IGUALES en un icono con "xN": un cliente puede
+		# comer muchos platos y una fila de iconos sueltos se saldría del panel.
+		var counts: Dictionary = {}
+		var order: Array = []
 		for id in eaten:
-			var ic := TextureRect.new()
-			ic.texture = RecipeData.get_dish_texture(id)
-			ic.custom_minimum_size = Vector2(64, 64)
-			ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			row.add_child(ic)
+			if not id in counts:
+				order.append(id)
+			counts[id] = int(counts.get(id, 0)) + 1
+		for id in order:
+			row.add_child(_dish_count(id, counts[id]))
 
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -787,13 +930,34 @@ func _breakdown_row(r: Dictionary) -> Control:
 	return row
 
 
+## Icono de un plato seguido de "xN" (si se comió más de uno), en línea. Se
+## agrupan los iguales para que un cliente glotón no desborde la fila.
+func _dish_count(id: String, count: int) -> Control:
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	var ic := TextureRect.new()
+	ic.texture = RecipeData.get_dish_texture(id)
+	ic.custom_minimum_size = Vector2(44, 44)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	box.add_child(ic)
+	if count > 1:
+		var badge := Label.new()
+		badge.text = "x%d" % count
+		badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		badge.add_theme_font_size_override("font_size", 22)
+		badge.add_theme_color_override("font_color", Color(0.26, 0.16, 0.08))
+		box.add_child(badge)
+	return box
+
+
 func _icon_amount(icon_path: String, text: String) -> Control:
 	var box := HBoxContainer.new()
 	box.add_theme_constant_override("separation", 2)
 	var ic := TextureRect.new()
 	if ResourceLoader.exists(icon_path):
 		ic.texture = load(icon_path)
-	ic.custom_minimum_size = Vector2(34, 34)
+	ic.custom_minimum_size = Vector2(30, 30)
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	box.add_child(ic)
@@ -812,12 +976,13 @@ func _on_retry_pressed() -> void:
 
 func _on_menu_pressed() -> void:
 	get_tree().paused = false
-	get_tree().change_scene_to_file("res://scenes/prep_screen.tscn")
+	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 
 
 func _update_hud() -> void:
 	var remaining := maxf(time_limit - elapsed, 0.0)
 	time_label.text = "%d:%02d" % [int(remaining) / 60, int(remaining) % 60]
-	money_label.text = "$%d" % money_earned
+	# Se muestra también el objetivo de 3★ para jugar con la meta a la vista.
+	money_label.text = "$%d / $%d" % [money_earned, int(star_money.back())]
 	jar_label.text = "$%d / $%d" % [tips_total, _tip_threshold(powerups_claimed)]
 	clients_label.text = "%d/%d" % [clients_finished, total_clients]
