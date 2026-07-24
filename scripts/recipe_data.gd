@@ -35,19 +35,19 @@ class_name RecipeData
 ## vende ni consume usos).
 const INGREDIENTS: Dictionary = {
 	"arroz": { "name": "Arroz", "short": "Arroz", "color": Color(0.93, 0.92, 0.85), "cost": 0 },
-	"aguacate": { "name": "Aguacate", "short": "Aguac", "color": Color(0.45, 0.75, 0.35), "cost": 10 },
-	"salmon": { "name": "Salmón", "short": "Salm", "color": Color(1.0, 0.55, 0.45), "cost": 15 },
-	"wakame": { "name": "Wakame", "short": "Wak", "color": Color(0.2, 0.5, 0.35), "cost": 10 },
-	"atun": { "name": "Atún", "short": "Atún", "color": Color(0.85, 0.3, 0.35), "cost": 15 },
-	"agua": { "name": "Agua", "short": "Agua", "color": Color(0.45, 0.65, 1.0), "cost": 2 },
-	"miso": { "name": "Pasta miso", "short": "Miso", "color": Color(0.65, 0.5, 0.3), "cost": 5 },
-	"tofu": { "name": "Tofu", "short": "Tofu", "color": Color(0.97, 0.94, 0.86), "cost": 10 },
-	"huevo": { "name": "Huevo", "short": "Huevo", "color": Color(0.9, 0.78, 0.55), "cost": 2 },
-	"gamba": { "name": "Gamba", "short": "Gamba", "color": Color(1.0, 0.6, 0.45), "cost": 5 },
-	"tofu_frito": { "name": "Tofu frito", "short": "Inari", "color": Color(0.85, 0.65, 0.35), "cost": 3 },
-	"atun_rojo": { "name": "Atún rojo", "short": "AtRojo", "color": Color(0.55, 0.12, 0.18), "cost": 20 },
-	"nori": { "name": "Alga nori", "short": "Nori", "color": Color(0.12, 0.22, 0.14), "cost": 5 },
-	"pepino": { "name": "Pepino", "short": "Pepino", "color": Color(0.35, 0.62, 0.28), "cost": 5 },
+	"aguacate": { "name": "Aguacate", "short": "Aguac", "color": Color(0.45, 0.75, 0.35), "cost": 15 },
+	"salmon": { "name": "Salmón", "short": "Salm", "color": Color(1.0, 0.55, 0.45), "cost": 23 },
+	"wakame": { "name": "Wakame", "short": "Wak", "color": Color(0.2, 0.5, 0.35), "cost": 15 },
+	"atun": { "name": "Atún", "short": "Atún", "color": Color(0.85, 0.3, 0.35), "cost": 23 },
+	"agua": { "name": "Agua", "short": "Agua", "color": Color(0.45, 0.65, 1.0), "cost": 3 },
+	"miso": { "name": "Pasta miso", "short": "Miso", "color": Color(0.65, 0.5, 0.3), "cost": 8 },
+	"tofu": { "name": "Tofu", "short": "Tofu", "color": Color(0.97, 0.94, 0.86), "cost": 15 },
+	"huevo": { "name": "Huevo", "short": "Huevo", "color": Color(0.9, 0.78, 0.55), "cost": 3 },
+	"gamba": { "name": "Gamba", "short": "Gamba", "color": Color(1.0, 0.6, 0.45), "cost": 8 },
+	"tofu_frito": { "name": "Tofu frito", "short": "Inari", "color": Color(0.85, 0.65, 0.35), "cost": 5 },
+	"atun_rojo": { "name": "Atún rojo", "short": "AtRojo", "color": Color(0.55, 0.12, 0.18), "cost": 30 },
+	"nori": { "name": "Alga nori", "short": "Nori", "color": Color(0.12, 0.22, 0.14), "cost": 8 },
+	"pepino": { "name": "Pepino", "short": "Pepino", "color": Color(0.35, 0.62, 0.28), "cost": 8 },
 }
 
 const RECIPES: Dictionary = {

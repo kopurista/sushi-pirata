@@ -145,6 +145,82 @@ const PORTS: Array = [
 ]
 
 
+# --- Mapa marítimo (pantalla de selección de nivel) -------------------------
+#
+# El selector es un mar por el que navega el barco del jugador entre nodos.
+# Cada nivel es de un TIPO: "isla", "puerto" o "abordaje" (asaltar otro barco).
+# De momento el tipo es solo identidad visual; más adelante cada tipo dará una
+# característica única al nivel (añadir tipos nuevos = ampliar estos diccionarios).
+
+const KINDS: Dictionary = {
+	"nivel_1": "isla",
+	"nivel_2": "puerto",
+	"nivel_3": "isla",
+	"nivel_4": "isla",
+	"nivel_5": "puerto",
+	"nivel_6": "abordaje",
+	"nivel_7": "abordaje",
+	"nivel_8": "puerto",
+	"nivel_9": "abordaje",
+}
+
+const KIND_NAMES: Dictionary = {
+	"isla": "Isla",
+	"puerto": "Puerto",
+	"abordaje": "Abordaje",
+}
+
+const KIND_TEXTURES: Dictionary = {
+	"isla": "res://assets/map/isla.png",
+	"puerto": "res://assets/map/puerto.png",
+	"abordaje": "res://assets/map/barco_enemigo.png",
+}
+
+## Alto del lienzo del mapa (el ancho es el de la pantalla).
+##
+## La travesía va de ABAJO ARRIBA: el nivel 1 es el más bajo y el último el más
+## alto, así que el barco avanza hacia el norte a medida que progresas. Los
+## nodos alternan entre TRES carriles (izquierda, centro y derecha) para que la
+## ruta serpentee y no caiga siempre en el mismo lado.
+const MAP_HEIGHT := 1720
+
+const LANE_LEFT := 175.0
+const LANE_CENTER := 360.0
+const LANE_RIGHT := 545.0
+
+const MAP_POS: Dictionary = {
+	"nivel_1": Vector2(LANE_CENTER, 1560.0),
+	"nivel_2": Vector2(LANE_LEFT, 1390.0),
+	"nivel_3": Vector2(LANE_RIGHT, 1220.0),
+	"nivel_4": Vector2(LANE_CENTER, 1050.0),
+	"nivel_5": Vector2(LANE_LEFT, 880.0),
+	"nivel_6": Vector2(LANE_RIGHT, 710.0),
+	"nivel_7": Vector2(LANE_CENTER, 540.0),
+	"nivel_8": Vector2(LANE_LEFT, 370.0),
+	"nivel_9": Vector2(LANE_RIGHT, 200.0),
+}
+
+
+## Tipo de nivel ("isla", "puerto", "abordaje").
+static func get_kind(id: String) -> String:
+	return KINDS.get(id, "isla")
+
+
+## Nombre legible del tipo de nivel.
+static func kind_name(id: String) -> String:
+	return KIND_NAMES.get(get_kind(id), "Isla")
+
+
+## Textura del nodo en el mapa según el tipo.
+static func kind_texture(id: String) -> String:
+	return KIND_TEXTURES.get(get_kind(id), KIND_TEXTURES["isla"])
+
+
+## Posición del nivel en el lienzo del mapa.
+static func map_pos(id: String) -> Vector2:
+	return MAP_POS.get(id, Vector2.ZERO)
+
+
 ## Devuelve el diccionario del nivel con ese id, o {} si no existe.
 static func get_port(id: String) -> Dictionary:
 	for p in PORTS:

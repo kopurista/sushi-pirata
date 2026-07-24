@@ -109,7 +109,30 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   puntuación POR DINERO, panel de resultados (anuncia recetas desbloqueadas).
 - `scripts/main_menu.gd` — menú inicial (ESCENA PRINCIPAL): Aventura (campaña),
   Tienda y Prueba (partida libre con todas las recetas, sin tocar el progreso).
-- `scripts/level_select.gd` — lista de niveles con estrellas y bloqueo.
+- `scripts/level_select.gd` — **mapa marítimo**: el barco del jugador navega por
+  el mar entre los nodos de la campaña. Cada nivel es de un TIPO (`CampaignData.
+  KINDS`): "isla", "puerto" o "abordaje" (asaltar otro barco); de momento el tipo
+  es solo identidad visual, en el futuro dará una característica única al nivel
+  (para añadir tipos: ampliar `KINDS`/`KIND_NAMES`/`KIND_TEXTURES`). Cada nodo
+  lleva las estrellas conseguidas, el sprite isométrico del tipo y un cartel de
+  madera con el NÚMERO del nivel; al tocarlo el barco viaja hasta él (tween) y el
+  panel inferior despliega nombre, tipo y todas las características (clientes por
+  tipo, tiempo, objetivo, récord, recompensas). Posiciones en `CampaignData.
+  MAP_POS` sobre un lienzo de `MAP_HEIGHT`; los bloqueados no reciben al barco.
+  **La travesía va de ABAJO ARRIBA** (nivel 1 el más bajo) y los nodos alternan
+  entre TRES carriles (`LANE_LEFT/CENTER/RIGHT`) para que la ruta serpentee.
+  **Todo está animado**: el mar usa `shaders/water_map.gdshader` (repite la
+  textura y la hace derivar y ondular sin fin) y el barco pasa los 16 fotogramas
+  de `barco_anim.webp` (velas al viento, generado con Ludo `animateSprite` +
+  `editSpritesheet` en modo `fix_loop`), recortados con `AtlasTexture` de una
+  rejilla 4x4 (el tamaño de fotograma se deduce de la textura).
+  **Decisiones ya tomadas (no repetir):** el barco se reproduce en **ping-pong**
+  (0→15→0) porque el bucle directo daba un salto brusco en la sombra al
+  reiniciar. Y el mar NO se puede animar con Ludo: `animateSprite` siempre
+  recorta el fondo y en una textura de agua a sangre el azul *es* el fondo, así
+  que lo borra y deja solo la espuma; además la animación rompería la
+  continuidad de bordes y el mar tileado saldría con costuras. Por eso el
+  movimiento del agua va por shader (deriva + dos senos cruzados).
 - `scripts/shop_screen.gd` — tienda: compra de USOS de ingredientes (`cost` en
   `RecipeData.INGREDIENTS`); solo lista ingredientes de recetas desbloqueadas.
   Cada fila lleva un **selector de cantidad** (flechas ◄ N ►) y un botón
@@ -122,7 +145,10 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 - `scenes/*.tscn` — main_menu, level_select, shop_screen, level, prep_screen,
   client, plate. (main_menu/level_select/shop_screen son raíces vacías: toda su
   UI se construye por código en el script.)
-- `assets/` — dishes, characters, ingredients, stages, ui, props, scenery.
+- `assets/` — dishes, characters, ingredients, stages, ui, props, scenery, map
+  (`map/`: `mar.png` textura de agua tileable, `barco.png` del jugador estático
+  y `barco_anim.webp` su spritesheet 4x4 con las velas al viento, más los nodos
+  `isla.png` / `puerto.png` / `barco_enemigo.png`, todos isométricos).
   `art/concepts/` es solo referencia (tiene `.gdignore`).
 
 ## Convenciones y decisiones ya tomadas (NO reintroducir bugs resueltos)

@@ -9,3 +9,4 @@
 /sushiBeta/
 *.pck
 *.wasm
+/builds_antiguas/

@@ -6,7 +6,10 @@
       "mcp__godotiq__godotiq_project_summary",
       "Bash(python3 -c ' *)",
       "Skill(update-config)",
-      "Skill(update-config:*)"
+      "Skill(update-config:*)",
+      "Bash(rm -rf 'C:\\\\Users\\\\KOPURISTA/nltest2')",
+      "Bash(rm -f sushiBeta/netlify.toml)",
+      "Bash(cat)"
     ]
   }
 }
