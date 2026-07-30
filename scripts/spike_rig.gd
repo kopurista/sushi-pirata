@@ -66,8 +66,11 @@ func _setup_seat() -> void:
 		Color(0.88, 0.86, 0.82))
 	_anim.reset()
 
-	# Encuadre centrado en el torso del personaje sentado.
+	# Encuadre centrado en el torso. Se mira desde el OTRO costado (giro -45 en
+	# vez de 45) porque come con la derecha, y desde el lado de siempre ese
+	# brazo queda tapado por el cuerpo.
 	var cam: Camera3D = get_viewport().get_camera_3d()
+	cam.rotation_degrees = Vector3(-35.264, -45.0, 0.0)
 	cam.size = 4.2
 	cam.position = Vector3(0.0, hip.y + 0.10, 0.0) + cam.transform.basis.z * 20.0
 
