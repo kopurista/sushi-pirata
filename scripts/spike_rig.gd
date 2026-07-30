@@ -48,13 +48,16 @@ func _setup_seat() -> void:
 	_pivot.position.y = _anim.sit_offset(_model_scale)
 	_anim.sit()
 
-	# Taburete justo bajo la cadera.
+	# Taburete. El hueso de la cadera esta DENTRO del cuerpo, asi que el asiento
+	# no va a su altura sino algo mas abajo, donde apoyan los gluteos; si no,
+	# el taburete atraviesa al personaje.
 	var hip := _skel.global_transform * _skel.get_bone_global_pose(
 		_skel.find_bone("Pelvis")).origin
-	_box(Vector3(0.46, 0.07, 0.46), Vector3(hip.x, hip.y - 0.035, hip.z),
+	var seat_y := hip.y - 0.10
+	_box(Vector3(0.46, 0.07, 0.46), Vector3(hip.x, seat_y - 0.035, hip.z - 0.04),
 		Color(0.40, 0.26, 0.15))
-	_box(Vector3(0.10, hip.y - 0.07, 0.10),
-		Vector3(hip.x, (hip.y - 0.07) * 0.5, hip.z), Color(0.34, 0.22, 0.13))
+	_box(Vector3(0.10, seat_y - 0.07, 0.10),
+		Vector3(hip.x, (seat_y - 0.07) * 0.5, hip.z - 0.04), Color(0.34, 0.22, 0.13))
 
 	# El plato, en el punto que persigue la mano derecha.
 	var plate := _skel.global_transform * Vector3(-CharacterAnim.HAND_PLATE.x,

@@ -96,6 +96,12 @@ const CHEW_SPEED := 9.0       ## y a que ritmo
 const HAND_LAP := Vector3(0.135, 0.010, 0.120)    ## descansando en el muslo
 const HAND_PLATE := Vector3(0.105, 0.055, 0.235)  ## cogiendo del plato
 const HAND_MOUTH := Vector3(0.055, 0.250, 0.080)  ## delante de la boca
+## Cuanto se abre el codo hacia fuera. Con 0 el brazo se dobla en el plano
+## vertical y el codo acaba metido en el costado.
+const ELBOW_OUT := 1.3
+## Cuanto se le devuelve a la mano su orientacion de reposo (0 = hereda todo
+## el giro del brazo y llega retorcida a la boca, 1 = queda siempre igual).
+const WRIST_STEADY := 0.75
 
 var _skel: Skeleton3D
 var _idx := {}                ## nombre de hueso -> indice, solo los existentes
@@ -270,8 +276,33 @@ func _arm_ik(side: String, target: Vector3) -> void:
 	# encima del objetivo.
 	var wrist_bent := (el - sh) + elbow_rot * (wr - el)
 	var aim := Quaternion(wrist_bent.normalized(), to_target.normalized())
+
+	# Aim deja libre el giro del brazo ALREDEDOR del eje hombro-mano, y por su
+	# cuenta lo resuelve por el camino corto, que manda el codo hacia dentro
+	# del cuerpo. Aqui se fija a donde tiene que apuntar el codo: hacia fuera
+	# y hacia abajo, como en un brazo humano. Girar sobre ese eje no mueve la
+	# mano, asi que el objetivo se sigue cumpliendo.
+	var axis := to_target.normalized()
+	var out := 1.0 if side == "L" else -1.0
+	var pole := (Vector3(out, 0.0, 0.0) * ELBOW_OUT + Vector3(0.0, -1.0, 0.0)).normalized()
+	var elbow_now := (aim * (el - sh))
+	var cur := (elbow_now - axis * elbow_now.dot(axis))
+	var want := (pole - axis * pole.dot(axis))
+	if cur.length() > 0.0001 and want.length() > 0.0001:
+		cur = cur.normalized()
+		want = want.normalized()
+		var ang := atan2(cur.cross(want).dot(axis), cur.dot(want))
+		aim = Quaternion(axis, ang) * aim
+
 	_skel.set_bone_pose_rotation(_idx[names[0]],
 		_skel.get_bone_rest(_idx[names[0]]).basis.get_rotation_quaternion() * aim)
+
+	# La muñeca hereda todo el giro del brazo y la mano acaba retorcida al
+	# llegar a la boca. Se le devuelve parte de su orientacion de reposo.
+	var elbow_q := _skel.get_bone_global_pose(_idx[names[1]]).basis \
+		.orthonormalized().get_rotation_quaternion()
+	_skel.set_bone_pose_rotation(_idx[names[2]],
+		Quaternion.IDENTITY.slerp(elbow_q.inverse(), WRIST_STEADY))
 
 
 ## Devuelve todos los huesos a su pose de reposo.
@@ -516,9 +547,15 @@ func _rotate(bone: String, axis: Vector3, deg: float) -> void:
 		_rotate_bone(_idx[bone], axis, deg)
 
 
+## Gira un hueso ACUMULANDO sobre lo que ya tenga en este fotograma, no
+## sustituyendolo. Es importante: varios huesos reciben dos giros seguidos (la
+## cadera se dobla y ademas se abre, la clavicula va y viene y ademas se
+## encoge), y sustituyendo, el segundo borraba al primero en silencio. Como
+## reset() deja la pose en reposo al empezar cada fotograma, la primera
+## llamada parte siempre del reposo.
 func _rotate_bone(i: int, axis: Vector3, deg: float) -> void:
-	var rest := _skel.get_bone_rest(i).basis.get_rotation_quaternion()
-	_skel.set_bone_pose_rotation(i, rest * Quaternion(axis, deg_to_rad(deg)))
+	_skel.set_bone_pose_rotation(i,
+		_skel.get_bone_pose_rotation(i) * Quaternion(axis, deg_to_rad(deg)))
 
 
 func _translate(bone: String, offset: Vector3) -> void:
