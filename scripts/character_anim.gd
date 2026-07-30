@@ -95,11 +95,15 @@ const CHEW_SPEED := 9.0       ## y a que ritmo
 ## —el plato, la boca— y el hombro y el codo se resuelven solos.
 const HAND_LAP := Vector3(0.135, 0.010, 0.120)    ## descansando en el muslo
 const HAND_PLATE := Vector3(0.105, 0.055, 0.235)  ## cogiendo del plato
-const HAND_MOUTH := Vector3(0.075, 0.205, 0.075)  ## delante de la boca
+## Delante de la boca. La cabeza va de y=0.33 a y=0.49 en este rig, asi que la
+## mano se queda algo por debajo y los dedos apuntan hacia arriba, a la boca.
+## Va bastante separada del eje del cuerpo: con la mano pegada al centro, el
+## ANTEBRAZO cruza el pecho aunque la mano quede fuera.
+const HAND_MOUTH := Vector3(0.120, 0.280, 0.120)
 ## Punto de paso al BAJAR el brazo. Sin el, la mano vuelve de la boca al muslo
-## en linea recta y esa recta atraviesa el plato y el mostrador; con el, la
-## mano se retira primero hacia el cuerpo y hacia fuera, y baja ya despejada.
-const HAND_BACK := Vector3(0.215, 0.130, -0.020)
+## en linea recta y esa recta barre el plato y el mostrador. Va MUY hacia el
+## lado y algo adelantado: llevarlo hacia atras metia el antebrazo en el torso.
+const HAND_BACK := Vector3(0.265, 0.125, 0.090)
 ## Cuanto se abre el codo hacia fuera y hacia delante. Con poco, el brazo se
 ## dobla pegado al costado y se mete dentro del torso.
 const ELBOW_OUT := 2.8
@@ -108,7 +112,7 @@ const ELBOW_FWD := 0.5
 ## una mano de verdad. Los dedos miran al plato mientras lo coge y a la boca
 ## mientras se lleva la comida; sin esto la mano conserva la orientacion de
 ## brazo colgando y llega de lado a la cara.
-const MOUTH := Vector3(0.0, 0.290, 0.035)   ## donde esta la boca en el rig
+const MOUTH := Vector3(0.0, 0.355, 0.070)   ## donde esta la boca en el rig
 const LOOK_DOWN := Vector3(0.0, -0.25, 0.0) ## para que los dedos miren abajo
 
 var _skel: Skeleton3D

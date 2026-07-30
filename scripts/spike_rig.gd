@@ -34,6 +34,7 @@ func _ready() -> void:
 		push_error("el rig no trae huesos humanoides con nombre")
 	if MODE == "bite":
 		_setup_seat()
+		print(_bite_report())
 		return
 	_speed = _anim.ground_speed(_model_scale)
 	print(_gait_report())
@@ -76,6 +77,76 @@ func _setup_seat() -> void:
 	cam.rotation_degrees = Vector3(-35.264, -45.0, 0.0)
 	cam.size = 4.2
 	cam.position = Vector3(0.0, hip.y + 0.10, 0.0) + cam.transform.basis.z * 20.0
+
+
+## Mide si el codo o la mano se meten DENTRO del torso durante el bocado.
+## El torso se aproxima por la caja que envuelve la columna: si un hueso del
+## brazo cae dentro de esa caja, esta atravesando el cuerpo. Recorre el ciclo
+## entero y dice en que fase y cuanto se hunde.
+func _bite_report(samples := 90) -> String:
+	var sp1 := _skel.find_bone("Spine1")
+	var sp3 := _skel.find_bone("Spine3")
+	var elbow := _skel.find_bone("R_Elbow")
+	var wrist := _skel.find_bone("R_Wrist")
+	_anim.reset()
+	_anim.sit()
+	var a := _skel.get_bone_global_pose(sp1).origin
+	var b := _skel.get_bone_global_pose(sp3).origin
+	# Medio ancho y medio fondo del torso, deducidos del propio esqueleto.
+	var half_w: float = absf(_skel.get_bone_global_rest(
+		_skel.find_bone("R_Shoulder")).origin.x) * 0.72
+	var half_d := 0.085
+	var y_lo: float = minf(a.y, b.y) - 0.02
+	var y_hi: float = maxf(a.y, b.y) + 0.04
+	var mid_z := (a.z + b.z) * 0.5
+
+	var total: float = CharacterAnim.BITE_REACH + CharacterAnim.BITE_LIFT \
+		+ CharacterAnim.BITE_CHEW + CharacterAnim.BITE_LOWER
+	var worst := 0.0
+	var worst_at := 0.0
+	var worst_who := ""
+	var shoulder := _skel.find_bone("R_Shoulder")
+	# El brazo no es una linea: se muestrea A LO LARGO de cada tramo y se le
+	# suma su grosor, porque la carne del brazo entra en el cuerpo antes que
+	# el hueso.
+	const LIMB := 0.035
+	for i in samples:
+		var t := total * float(i) / float(samples)
+		_anim.reset()
+		_anim.bite(t)
+		var sp := _skel.get_bone_global_pose(shoulder).origin
+		var ep := _skel.get_bone_global_pose(elbow).origin
+		var wp := _skel.get_bone_global_pose(wrist).origin
+		for seg in [[sp, ep, "brazo"], [ep, wp, "antebrazo"], [wp, wp, "mano"]]:
+			for k in 6:
+				var p: Vector3 = (seg[0] as Vector3).lerp(seg[1], float(k) / 5.0)
+				if p.y < y_lo or p.y > y_hi:
+					continue
+				# Cuanto se ha metido por el lado y por delante, ya con grosor.
+				var in_side: float = half_w - absf(p.x) + LIMB
+				var in_depth: float = half_d - absf(p.z - mid_z) + LIMB
+				var deep: float = minf(in_side, in_depth)
+				if deep > worst:
+					worst = deep
+					worst_at = t / total
+					worst_who = seg[2]
+	_anim.reset()
+	var phase := "coger"
+	var r: float = CharacterAnim.BITE_REACH / total
+	var l: float = (CharacterAnim.BITE_REACH + CharacterAnim.BITE_LIFT) / total
+	var c: float = (CharacterAnim.BITE_REACH + CharacterAnim.BITE_LIFT
+		+ CharacterAnim.BITE_CHEW) / total
+	if worst_at > c:
+		phase = "bajar"
+	elif worst_at > l:
+		phase = "masticar"
+	elif worst_at > r:
+		phase = "subir"
+	if worst <= 0.0:
+		return "BOCADO: el brazo no toca el torso -> CORRECTO"
+	return ("BOCADO: el %s se mete %.3f u en el torso, en la fase '%s'\n"
+		+ "        (torso: medio ancho %.3f, medio fondo %.3f)\n"
+		+ "        -> REVISAR") % [worst_who, worst, phase, half_w, half_d]
 
 
 func _box(size: Vector3, pos: Vector3, color: Color) -> void:
