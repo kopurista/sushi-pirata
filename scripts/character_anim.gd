@@ -132,13 +132,25 @@ func _init(skeleton: Skeleton3D) -> void:
 	_skel = skeleton
 	for i in _skel.get_bone_count():
 		_idx[_skel.get_bone_name(i)] = i
+	# El auto-rig NO siempre nombra los huesos: de cinco personajes solo uno
+	# salio con nombres anatomicos y el resto con bone_0, bone_1... Asi que la
+	# anatomia se deduce de la FORMA del esqueleto y se registra bajo los
+	# nombres logicos que usa el resto del codigo. Si el rig ya venia nombrado,
+	# los nombres detectados coinciden con los suyos y no pasa nada.
+	_detect_bones()
 	for side in ["L", "R"]:
 		_cache_leg(side)
 		_cache_fingers(side)
 
 
 func has_humanoid_bones() -> bool:
-	return _legs.has("L") and _legs.has("R")
+	return _legs.has("L") and _legs.has("R") \
+		and _idx.has("L_Wrist") and _idx.has("R_Wrist")
+
+
+## Si la deteccion encontro ese hueso. Util para comprobar un rig nuevo.
+func resolved(logical_name: String) -> bool:
+	return _idx.has(logical_name)
 
 
 ## Ciclo de marcha. `t` es tiempo en segundos; el ciclo se repite solo.
@@ -380,6 +392,159 @@ func _cache_leg(side: String) -> void:
 		"shin_rest": _sag_angle(shin),
 		"ground": ankle.y,
 	}
+
+
+## Deduce que hueso es cada cosa mirando la FORMA del esqueleto, sin fiarse de
+## los nombres. Se apoya en rasgos que cumple cualquier bipedo:
+##   - de la raiz cuelgan dos cadenas que bajan hasta el suelo: las PIERNAS,
+##   - y una que sube: la COLUMNA,
+##   - la columna se bifurca arriba en dos ramas laterales (los BRAZOS) y una
+##     central que sigue subiendo (cuello y cabeza),
+##   - dentro de cada brazo, la MUÑECA es el hueso del que salen los dedos,
+##     que es el unico con tres o mas hijos.
+## El lado izquierdo es el de +X, como en el resto del codigo.
+func _detect_bones() -> void:
+	var root := -1
+	for i in _skel.get_bone_count():
+		if _skel.get_bone_parent(i) < 0:
+			root = i
+			break
+	if root < 0:
+		return
+	# Si la raiz es un nodo suelto sin carne, se baja al primer hueso con
+	# varias ramas, que es la cadera de verdad.
+	while _children(root).size() == 1:
+		root = _children(root)[0]
+	_idx["Pelvis"] = root
+
+	var down: Array[int] = []
+	var up := -1
+	var up_y := -INF
+	for c in _children(root):
+		var lo := _subtree_y(c, true)
+		var hi := _subtree_y(c, false)
+		if lo < _rest(root).y - 0.05:
+			down.append(c)
+		if hi > up_y:
+			up_y = hi
+			up = c
+	# Las dos ramas que mas bajan son las piernas.
+	down.sort_custom(func(a, b): return _subtree_y(a, true) < _subtree_y(b, true))
+	if down.size() >= 2:
+		for leg in [down[0], down[1]]:
+			var side := "L" if _rest(leg).x >= 0.0 else "R"
+			var chain := _chain(leg, 3)
+			var parts := ["%s_Hip" % side, "%s_Knee" % side, "%s_Ankle" % side]
+			for k in mini(chain.size(), 3):
+				_idx[parts[k]] = chain[k]
+
+	# La columna sube hasta bifurcarse; ahi salen los brazos y el cuello.
+	if up < 0:
+		return
+	var spine := _chain_to_branch(up)
+	for k in spine.size():
+		_idx["Spine%d" % (k + 1)] = spine[k]
+	var fork: int = spine[spine.size() - 1]
+	var arms: Array[int] = []
+	var neck := -1
+	var neck_lat := INF
+	for c in _children(fork):
+		var lat: float = absf(_rest(c).x - _rest(fork).x)
+		if lat < neck_lat:
+			neck_lat = lat
+			neck = c
+	for c in _children(fork):
+		if c != neck:
+			arms.append(c)
+	if neck >= 0:
+		_idx["Neck"] = neck
+		var head := _chain(neck, 9)
+		_idx["Head"] = head[head.size() - 1]
+
+	for arm in arms:
+		var side := "L" if _rest(arm).x >= _rest(fork).x else "R"
+		# La muñeca es el hueso del que salen los dedos.
+		var wrist := _find_hand(arm)
+		if wrist < 0:
+			continue
+		_idx["%s_Wrist" % side] = wrist
+		var elbow := _skel.get_bone_parent(wrist)
+		var shoulder := _skel.get_bone_parent(elbow)
+		_idx["%s_Elbow" % side] = elbow
+		_idx["%s_Shoulder" % side] = shoulder
+		var collar := _skel.get_bone_parent(shoulder)
+		if collar != fork:
+			_idx["%s_Collar" % side] = collar
+
+
+func _children(i: int) -> Array[int]:
+	var out: Array[int] = []
+	for j in _skel.get_bone_count():
+		if _skel.get_bone_parent(j) == i:
+			out.append(j)
+	return out
+
+
+func _rest(i: int) -> Vector3:
+	return _skel.get_bone_global_rest(i).origin
+
+
+## Altura minima (o maxima) que alcanza toda la rama que cuelga de este hueso.
+func _subtree_y(i: int, lowest: bool) -> float:
+	var best := _rest(i).y
+	for c in _children(i):
+		var v := _subtree_y(c, lowest)
+		best = minf(best, v) if lowest else maxf(best, v)
+	return best
+
+
+## Los primeros `n` huesos de una cadena, siguiendo siempre el hijo que mas
+## se aleja del padre (el que continua el miembro, no un apendice).
+func _chain(start: int, n: int) -> Array[int]:
+	var out: Array[int] = [start]
+	var cur := start
+	while out.size() < n:
+		var kids := _children(cur)
+		if kids.is_empty():
+			break
+		var next := kids[0]
+		var far := -1.0
+		for k in kids:
+			var d := _rest(k).distance_to(_rest(cur))
+			if d > far:
+				far = d
+				next = k
+		out.append(next)
+		cur = next
+	return out
+
+
+## Sube por la cadena hasta el hueso que se bifurca (donde nacen los brazos).
+func _chain_to_branch(start: int) -> Array[int]:
+	var out: Array[int] = [start]
+	var cur := start
+	while _children(cur).size() == 1:
+		cur = _children(cur)[0]
+		out.append(cur)
+	return out
+
+
+## Dentro de un brazo, el hueso del que salen los dedos: el primero con tres
+## o mas hijos. Si el rig no tiene dedos, el ultimo de la cadena.
+func _find_hand(start: int) -> int:
+	var stack: Array[int] = [start]
+	var deepest := start
+	var deep_y := INF
+	while not stack.is_empty():
+		var cur: int = stack.pop_back()
+		var kids := _children(cur)
+		if kids.size() >= 3:
+			return cur
+		if kids.is_empty() and _rest(cur).y < deep_y:
+			deep_y = _rest(cur).y
+			deepest = cur
+		stack.append_array(kids)
+	return _skel.get_bone_parent(deepest) if deepest != start else start
 
 
 ## Recoge los huesos de los dedos: todo lo que cuelga de la muñeca. Se busca

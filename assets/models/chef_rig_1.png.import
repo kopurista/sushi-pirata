@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bj1wdhaclm03u"
-path="res://.godot/imported/grumete_rig_0.png-7e2c1d4892e96a4ce0fbb45898b1be2e.ctex"
+uid="uid://1a1kxsfj0xjq"
+path="res://.godot/imported/chef_rig_1.png-6874b8555dc1ec3d3a6d9d47b9af3f56.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "c23df0d43ddce97dd673d2922fb2619f"
+"md5": "9ec3984eeacf25e0849a0454e8097ff1"
 }
 
 [deps]
 
-source_file="res://assets/models/grumete_rig_0.png"
-dest_files=["res://.godot/imported/grumete_rig_0.png-7e2c1d4892e96a4ce0fbb45898b1be2e.ctex"]
+source_file="res://assets/models/chef_rig_1.png"
+dest_files=["res://.godot/imported/chef_rig_1.png-6874b8555dc1ec3d3a6d9d47b9af3f56.ctex"]
 
 [params]
 

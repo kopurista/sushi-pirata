@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bj1wdhaclm03u"
-path="res://.godot/imported/grumete_rig_0.png-7e2c1d4892e96a4ce0fbb45898b1be2e.ctex"
+uid="uid://i86orc0l8g17"
+path="res://.godot/imported/pirata_rig_0.png-4a29261817e53f9cc41e2449f67b279a.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "c23df0d43ddce97dd673d2922fb2619f"
+"md5": "e165f3af8caf7fb0b1c9d7409b881318"
 }
 
 [deps]
 
-source_file="res://assets/models/grumete_rig_0.png"
-dest_files=["res://.godot/imported/grumete_rig_0.png-7e2c1d4892e96a4ce0fbb45898b1be2e.ctex"]
+source_file="res://assets/models/pirata_rig_0.png"
+dest_files=["res://.godot/imported/pirata_rig_0.png-4a29261817e53f9cc41e2449f67b279a.ctex"]
 
 [params]
 
