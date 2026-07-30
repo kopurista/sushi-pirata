@@ -95,15 +95,20 @@ const CHEW_SPEED := 9.0       ## y a que ritmo
 ## —el plato, la boca— y el hombro y el codo se resuelven solos.
 const HAND_LAP := Vector3(0.135, 0.010, 0.120)    ## descansando en el muslo
 const HAND_PLATE := Vector3(0.105, 0.055, 0.235)  ## cogiendo del plato
-const HAND_MOUTH := Vector3(0.055, 0.250, 0.080)  ## delante de la boca
-## Cuanto se abre el codo hacia fuera. Con 0 el brazo se dobla en el plano
-## vertical y el codo acaba metido en el costado.
-const ELBOW_OUT := 1.3
+const HAND_MOUTH := Vector3(0.075, 0.205, 0.075)  ## delante de la boca
+## Punto de paso al BAJAR el brazo. Sin el, la mano vuelve de la boca al muslo
+## en linea recta y esa recta atraviesa el plato y el mostrador; con el, la
+## mano se retira primero hacia el cuerpo y hacia fuera, y baja ya despejada.
+const HAND_BACK := Vector3(0.215, 0.130, -0.020)
+## Cuanto se abre el codo hacia fuera y hacia delante. Con poco, el brazo se
+## dobla pegado al costado y se mete dentro del torso.
+const ELBOW_OUT := 2.8
+const ELBOW_FWD := 0.5
 ## La mano no se deja a merced del giro del brazo: APUNTA a algo, igual que
 ## una mano de verdad. Los dedos miran al plato mientras lo coge y a la boca
 ## mientras se lleva la comida; sin esto la mano conserva la orientacion de
 ## brazo colgando y llega de lado a la cara.
-const MOUTH := Vector3(0.0, 0.335, 0.030)   ## donde esta la boca en el rig
+const MOUTH := Vector3(0.0, 0.290, 0.035)   ## donde esta la boca en el rig
 const LOOK_DOWN := Vector3(0.0, -0.25, 0.0) ## para que los dedos miren abajo
 
 var _skel: Skeleton3D
@@ -235,7 +240,9 @@ func bite(t: float) -> void:
 	else:
 		var w := smoothstep(0.0, 1.0,
 			(u - BITE_REACH - BITE_LIFT - BITE_CHEW) / BITE_LOWER)
-		hand = HAND_MOUTH.lerp(HAND_LAP, w)
+		# Curva de Bezier en vez de recta: la mano se retira hacia el cuerpo
+		# antes de bajar, y asi no barre el plato ni el mostrador.
+		hand = _bezier(HAND_MOUTH, HAND_BACK, HAND_LAP, w)
 		focus = MOUTH.lerp(HAND_LAP + LOOK_DOWN, w)
 	# Come con la derecha; la izquierda descansa en el muslo.
 	_arm_ik("R", Vector3(-hand.x, hand.y, hand.z),
@@ -299,7 +306,7 @@ func _arm_ik(side: String, target: Vector3, focus: Vector3) -> void:
 	# mano, asi que el objetivo se sigue cumpliendo.
 	var axis := to_target.normalized()
 	var out := 1.0 if side == "L" else -1.0
-	var pole := (Vector3(out, 0.0, 0.0) * ELBOW_OUT + Vector3(0.0, -1.0, 0.0)).normalized()
+	var pole := (Vector3(out * ELBOW_OUT, -1.0, ELBOW_FWD)).normalized()
 	var elbow_now := (aim * (el - sh))
 	var cur := (elbow_now - axis * elbow_now.dot(axis))
 	var want := (pole - axis * pole.dot(axis))
@@ -507,6 +514,11 @@ func _pelvis(phase: float) -> void:
 	# es el izquierdo, asi que se resta para que ese lado baje).
 	_roll("Pelvis", -cos(phase) * PELVIS_ROLL)
 	_translate("Pelvis", Vector3(-cos(phase) * PELVIS_SWAY, 0.0, 0.0))
+
+
+## Curva suave que pasa cerca de `via` al ir de `from` a `to`.
+func _bezier(from: Vector3, via: Vector3, to: Vector3, w: float) -> Vector3:
+	return from.lerp(via, w).lerp(via.lerp(to, w), w)
 
 
 ## Lo adelantada que va la pierna en este instante: +1 con el pie lo mas
