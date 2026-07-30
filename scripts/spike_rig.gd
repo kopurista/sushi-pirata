@@ -144,15 +144,52 @@ func _gait_report(samples := 72) -> String:
 			crossings += 1
 	var flex_min: float = flex.min()
 	var flex_max: float = flex.max()
+	var slide := _stance_slide(samples)
 	var ok := corr < -0.9 and minf(amp_l, amp_r) / maxf(amp_l, amp_r) > 0.9 \
-		and crossings >= 2 and flex_min > -3.0 and flex_max > 20.0
+		and crossings >= 2 and flex_min > -3.0 and flex_max > 20.0 \
+		and slide < 0.06
 	return ("CICLO DE MARCHA: recorrido pie L %.3f  pie R %.3f  elevacion %.3f\n"
 		+ "                 antifase %+.2f  cruces %d\n"
 		+ "                 rodilla: flexion de %+.1f a %+.1f grados%s\n"
+		+ "                 patinaje del pie apoyado: %.3f u\n"
 		+ "                 -> %s") % [
 		amp_l, amp_r, lift, corr, crossings, flex_min, flex_max,
 		"  (NEGATIVO = dobla al reves)" if flex_min < -3.0 else "",
-		"CORRECTO" if ok else "REVISAR"]
+		slide, "CORRECTO" if ok else "REVISAR"]
+
+
+## Cuanto se mueve por el suelo el pie que esta pisando, ya contando el avance
+## del cuerpo. En un andar bien resuelto tiene que ser casi cero: el pie se
+## queda clavado y es el cuerpo el que pasa por encima.
+func _stance_slide(samples: int) -> float:
+	var la := _skel.find_bone("L_Ankle")
+	var ra := _skel.find_bone("R_Ankle")
+	var worst := 0.0
+	var run := 0.0
+	var prev_z := 0.0
+	var prev_side := -1
+	for i in samples:
+		var t := CharacterAnim.WALK_PERIOD * float(i) / float(samples)
+		_anim.reset()
+		_anim.walk(t)
+		var lp := _skel.get_bone_global_pose(la).origin
+		var rp := _skel.get_bone_global_pose(ra).origin
+		var left_down := lp.y <= rp.y
+		var side := 0 if left_down else 1
+		# Posicion del pie en el MUNDO: lo que avanza el cuerpo mas donde
+		# queda el pie dentro del personaje.
+		var z: float = _anim.walk_advance(t, _model_scale) \
+			+ (lp.z if left_down else rp.z) * _model_scale
+		if side == prev_side:
+			# Deriva acumulada mientras siga pisando el mismo pie.
+			run += absf(z - prev_z)
+			worst = maxf(worst, run)
+		else:
+			run = 0.0
+		prev_z = z
+		prev_side = side
+	_anim.reset()
+	return worst
 
 
 func _pearson(a: Array[float], b: Array[float]) -> float:
@@ -181,9 +218,11 @@ func _process(delta: float) -> void:
 	_anim.reset()
 	_anim.walk(_t)
 	# Avanza de verdad por la cubierta, con el rebote del ciclo.
-	var travel := 0.0 if WALK_IN_PLACE else fmod(_t * _speed, 7.0) - 3.5
+	# El avance sale de las piernas, no de una velocidad impuesta.
+	var travel := 0.0 if WALK_IN_PLACE \
+		else fmod(_anim.walk_advance(_t, _model_scale), 7.0) - 3.5
 	var dir := Vector3(1.0, 0.0, -1.0).normalized()
-	_pivot.position = dir * travel + Vector3.UP * _anim.walk_bob(_t)
+	_pivot.position = dir * travel + Vector3.UP * _anim.walk_bob(_t, _model_scale)
 	_pivot.rotation_degrees.y = rad_to_deg(atan2(dir.x, dir.z))
 
 	if _idx < _shots.size() and _t >= _shots[_idx]:
