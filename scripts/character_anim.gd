@@ -829,6 +829,12 @@ func _arm(side: String, swing: float) -> void:
 func _fist(side: String) -> void:
 	if not _fingers.has(side):
 		return
+	# Si el auto-rig dejo la mano con menos dedos de los que se ven en la
+	# malla, cerrar los pocos que hay deforma el puño en vez de cerrarlo: la
+	# carne de los dedos sin hueso se queda estirada. En ese caso mas vale
+	# dejar la mano como se modelo. Al pirata le rigueo solo dos dedos.
+	if _fingers[side]["fingers"].size() < 6:
+		return
 	# Los cuatro dedos se alinean a lo largo de Z (la linea de los nudillos),
 	# asi que doblan girando sobre Z. Se cierran hacia la palma, que mira
 	# hacia dentro del cuerpo: en la mano izquierda eso es -X, giro negativo.
