@@ -105,9 +105,12 @@ func _gait_report(samples := 72) -> String:
 	var li := _skel.find_bone("L_Ankle")
 	var ri := _skel.find_bone("R_Ankle")
 	var pi := _skel.find_bone("Pelvis")
+	var hi := _skel.find_bone("L_Hip")
+	var ki := _skel.find_bone("L_Knee")
 	var lz: Array[float] = []
 	var rz: Array[float] = []
 	var ly: Array[float] = []
+	var flex: Array[float] = []
 	for i in samples:
 		var t := CharacterAnim.WALK_PERIOD * float(i) / float(samples)
 		_anim.reset()
@@ -116,6 +119,15 @@ func _gait_report(samples := 72) -> String:
 		lz.append(_skel.get_bone_global_pose(li).origin.z - hip.z)
 		rz.append(_skel.get_bone_global_pose(ri).origin.z - hip.z)
 		ly.append(_skel.get_bone_global_pose(li).origin.y - hip.y)
+		# Angulo con signo entre muslo y espinilla en el plano sagital. En una
+		# rodilla humana la espinilla SOLO puede ir hacia atras respecto al
+		# muslo: si este valor sale negativo, la rodilla dobla al reves.
+		var thigh := _skel.get_bone_global_pose(ki).origin \
+			- _skel.get_bone_global_pose(hi).origin
+		var shin := _skel.get_bone_global_pose(li).origin \
+			- _skel.get_bone_global_pose(ki).origin
+		flex.append(rad_to_deg(atan2(thigh.y * shin.z - thigh.z * shin.y,
+			thigh.y * shin.y + thigh.z * shin.z)))
 	_anim.reset()
 
 	var amp_l: float = lz.max() - lz.min()
@@ -126,11 +138,16 @@ func _gait_report(samples := 72) -> String:
 	for i in range(1, samples):
 		if (lz[i - 1] - rz[i - 1]) * (lz[i] - rz[i]) < 0.0:
 			crossings += 1
+	var flex_min: float = flex.min()
+	var flex_max: float = flex.max()
 	var ok := corr < -0.9 and minf(amp_l, amp_r) / maxf(amp_l, amp_r) > 0.9 \
-		and crossings >= 2
+		and crossings >= 2 and flex_min > -3.0 and flex_max > 20.0
 	return ("CICLO DE MARCHA: recorrido pie L %.3f  pie R %.3f  elevacion %.3f\n"
-		+ "                 antifase %+.2f  cruces %d  -> %s") % [
-		amp_l, amp_r, lift, corr, crossings,
+		+ "                 antifase %+.2f  cruces %d\n"
+		+ "                 rodilla: flexion de %+.1f a %+.1f grados%s\n"
+		+ "                 -> %s") % [
+		amp_l, amp_r, lift, corr, crossings, flex_min, flex_max,
+		"  (NEGATIVO = dobla al reves)" if flex_min < -3.0 else "",
 		"CORRECTO" if ok else "REVISAR"]
 
 

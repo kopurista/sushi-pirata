@@ -20,12 +20,21 @@ extends RefCounted
 ## rigs coincide con el eje lateral del esqueleto (bases identidad): rotar en
 ## X es cabecear hacia delante y hacia atras, que es lo que hacen piernas y
 ## brazos al andar.
+##
+## CONVENIO DE SIGNOS (importante, es facil equivocarse y flexionar al reves):
+## el personaje MIRA HACIA +Z (su lado izquierdo, L_Hip, cae en +X). Como una
+## rotacion positiva en X inclina el eje -Y hacia -Z, un angulo POSITIVO lleva
+## el miembro HACIA ATRAS y uno negativo hacia delante. Por tanto:
+##   - cadera: angulo negativo = pierna adelante,
+##   - rodilla: angulo POSITIVO = flexion natural (el talon sube hacia atras);
+##     en negativo la rodilla se dobla al reves,
+##   - codo: angulo NEGATIVO = flexion natural (la mano sube hacia delante).
 
 # --- Ciclo de marcha ---
 const WALK_PERIOD := 0.9      ## segundos por ciclo completo (dos pasos)
 const HIP_SWING := 26.0       ## amplitud del balanceo de cadera, grados
 const KNEE_BEND := 52.0       ## flexion maxima de rodilla en la fase de vuelo
-const KNEE_PEAK := TAU * 0.78 ## fase donde la rodilla flexiona mas (tras despegar)
+const KNEE_PEAK := TAU * 0.875 ## fase de flexion maxima (justo tras despegar)
 const ANKLE_KEEP := 0.35      ## cuanto contrarresta el tobillo para no arrastrar
 const ARM_SWING := 20.0       ## balanceo de hombro (opuesto a su pierna)
 const ELBOW_BEND := 14.0      ## flexion fija de codo, da naturalidad
@@ -80,8 +89,8 @@ func idle(t: float) -> void:
 	_pitch("Neck", -breath * IDLE_BREATH * 0.4)
 	_pitch("L_Shoulder", breath * 1.5)
 	_pitch("R_Shoulder", breath * 1.5)
-	_pitch("L_Elbow", ELBOW_BEND * 0.6)
-	_pitch("R_Elbow", ELBOW_BEND * 0.6)
+	_pitch("L_Elbow", -ELBOW_BEND * 0.6)
+	_pitch("R_Elbow", -ELBOW_BEND * 0.6)
 
 
 ## Devuelve todos los huesos a su pose de reposo.
@@ -92,20 +101,27 @@ func reset() -> void:
 
 # ------------------------------------------------------------------ internos
 
-## Una pierna completa. `phase` 0 = pie pasando bajo el cuerpo hacia delante.
+## Una pierna completa. `phase` = PI/2 es la zancada maxima hacia delante y
+## 3*PI/2 el despegue del pie hacia atras.
 func _leg(side: String, phase: float) -> void:
-	var swing := sin(phase)
-	_pitch("%s_Hip" % side, HIP_SWING * swing)
-	# La rodilla solo flexiona en la fase de vuelo (media onda centrada
-	# justo despues de despegar el pie); nunca se dobla hacia delante.
-	var bend: float = KNEE_BEND * maxf(0.0, cos(phase - KNEE_PEAK))
-	_pitch("%s_Knee" % side, -bend)
-	# El tobillo compensa para que la planta no atraviese el suelo.
-	_pitch("%s_Ankle" % side, (bend - HIP_SWING * swing) * ANKLE_KEEP)
+	# Negativo = pierna hacia delante (ver convenio de signos arriba).
+	var hip := -HIP_SWING * sin(phase)
+	# La rodilla solo flexiona en la fase de VUELO: media onda centrada justo
+	# despues de despegar el pie. Positiva, que es la flexion natural; en la
+	# fase de apoyo queda en cero y la pierna va recta.
+	var knee: float = KNEE_BEND * maxf(0.0, cos(phase - KNEE_PEAK))
+	_pitch("%s_Hip" % side, hip)
+	_pitch("%s_Knee" % side, knee)
+	# El tobillo contrarresta a cadera y rodilla para que la planta no gire
+	# de mas y el pie caiga plano.
+	_pitch("%s_Ankle" % side, -(hip + knee) * ANKLE_KEEP)
 
 
 func _arm(side: String, phase: float) -> void:
-	_pitch("%s_Shoulder" % side, ARM_SWING * sin(phase))
+	# Mismo convenio que la cadera: negativo = brazo hacia delante.
+	_pitch("%s_Shoulder" % side, -ARM_SWING * sin(phase))
+	# El codo siempre algo flexionado (negativo), un poco mas al ir el brazo
+	# hacia delante.
 	_pitch("%s_Elbow" % side, -ELBOW_BEND - maxf(0.0, sin(phase)) * ELBOW_BEND)
 
 
