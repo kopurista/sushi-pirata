@@ -45,13 +45,20 @@ const LIFT_PEAK_AT := 0.36
 ## que permite a la pierna ALCANZAR el suelo en la zancada abierta: si se sube
 ## STRIDE hay que subir esto, o la pierna se queda corta y el pie patina.
 const BODY_BOB := 0.022       ## sube y baja del cuerpo, unidades del rig
-const ARM_SWING := 14.0       ## balanceo de hombro (opuesto a su pierna)
-const ELBOW_BEND := 14.0      ## flexion fija de codo, da naturalidad
+## El cuerpo va SIEMPRE algo flexionado sobre las piernas. No es estetica: si
+## la pierna trabaja casi estirada, la cinematica inversa se vuelve inestable
+## —cerca de la extension total el acos tiene derivada infinita— y la rodilla
+## pega un CHASQUIDO en cada paso: se ve como un tiron al final de la zancada
+## y como un pisoton al apoyar. Con el cuerpo un poco mas bajo la rodilla
+## trabaja siempre en una zona estable y el paso sale suave.
+const CROUCH := 0.035
+const ARM_SWING := 22.0       ## balanceo de hombro (opuesto a su pierna)
+const ELBOW_BEND := 16.0      ## flexion fija de codo, da naturalidad
 ## La clavicula mueve el hombro entero, no solo el brazo: acompaña al brazo
 ## hacia delante y lo encoge un poco al ir hacia atras. Es sutil, pero es la
 ## diferencia entre un cuerpo vivo y un torso rigido con dos brazos colgando.
-const COLLAR_SWING := 4.0     ## el hombro va y viene con su brazo
-const COLLAR_LIFT := 2.2      ## y sube ligeramente al llevarlo atras
+const COLLAR_SWING := 9.0     ## el hombro va y viene con su brazo
+const COLLAR_LIFT := 4.5      ## y sube ligeramente al llevarlo atras
 const TORSO_TWIST := 5.0      ## contragiro del tronco
 ## Movimiento de cadera: gira acompañando a la pierna que avanza, cae un poco
 ## del lado de la pierna que va en el aire y el cuerpo se carga sobre la que
@@ -171,10 +178,12 @@ func _sag_angle(v: Vector2) -> float:
 
 
 func _bob_rig(cycle: float) -> float:
-	# Dos rebotes por ciclo: el cuerpo baja con las piernas abiertas y sube al
-	# pasar una junto a la otra. Ademas de dar vida, ese descenso es lo que
-	# permite a la pierna llegar al suelo con el paso abierto.
-	return -absf(sin(cycle * TAU)) * BODY_BOB
+	# Dos rebotes por ciclo sobre una flexion constante: el cuerpo baja con las
+	# piernas abiertas y sube al pasar una junto a la otra. Ademas de dar vida,
+	# ese descenso es lo que permite a la pierna llegar al suelo con el paso
+	# abierto. Como el objetivo del pie descuenta este valor y quien mueve al
+	# personaje lo aplica al pivote, los pies siguen pisando el suelo.
+	return -CROUCH - absf(sin(cycle * TAU)) * BODY_BOB
 
 
 ## Donde tiene que estar el pie en este instante del ciclo, en el plano

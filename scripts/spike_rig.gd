@@ -146,6 +146,14 @@ func _gait_report(samples := 72) -> String:
 	var flex_max: float = flex.max()
 	var slide := _stance_slide(samples)
 	var jerk := _toe_off_jerk()
+	# Velocidad angular maxima de la rodilla. Cerca de la extension completa
+	# la cinematica inversa se vuelve inestable (la derivada del acos se
+	# dispara) y la rodilla pega un chasquido: se ve aqui como un pico.
+	var knee_rate := 0.0
+	var dt_s := CharacterAnim.WALK_PERIOD / float(samples)
+	for i in samples:
+		knee_rate = maxf(knee_rate,
+			absf(flex[(i + 1) % samples] - flex[i]) / dt_s)
 	# La correlacion no llega a -1 aunque las piernas alternen perfectamente:
 	# solo una trayectoria SENOIDAL da -1, y la del pie no lo es (empuja al
 	# despegar y se recoge antes de posarse). Lo que garantiza la alternancia
@@ -158,10 +166,11 @@ func _gait_report(samples := 72) -> String:
 		+ "                 antifase %+.2f  cruces %d\n"
 		+ "                 rodilla: flexion de %+.1f a %+.1f grados%s\n"
 		+ "                 patinaje del pie apoyado: %.3f u   tiron: %.2f\n"
+		+ "                 chasquido de rodilla: %.0f grados/s\n"
 		+ "                 -> %s") % [
 		amp_l, amp_r, lift, corr, crossings, flex_min, flex_max,
 		"  (NEGATIVO = dobla al reves)" if flex_min < -3.0 else "",
-		slide, jerk, "CORRECTO" if ok else "REVISAR"]
+		slide, jerk, knee_rate, "CORRECTO" if ok else "REVISAR"]
 
 
 ## Salto de velocidad del pie en el instante en que deja de pisar y empieza a
@@ -196,21 +205,19 @@ func _stance_slide(samples: int) -> float:
 	# va de 0 a STANCE_FRAC. Deducirlo de "que pie esta mas bajo" engaña: al
 	# despegar suave el pie sigue cerca del suelo aunque ya vuele, y esos
 	# fotogramas se contaban como patinaje que no existe.
-	var lo := INF
-	var hi := -INF
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
 	var n := int(samples * CharacterAnim.STANCE_FRAC)
 	for i in n:
 		var t := CharacterAnim.WALK_PERIOD * float(i) / float(samples)
-		_anim.reset()
-		_anim.walk(t)
-		# Posicion del pie en el MUNDO: lo que avanza el cuerpo mas donde
-		# queda el pie dentro del personaje.
-		var z: float = _anim.walk_advance(t, _model_scale) \
-			+ _skel.get_bone_global_pose(la).origin.z * _model_scale
-		lo = minf(lo, z)
-		hi = maxf(hi, z)
+		# Posicion del pie en el MUNDO, avance y altura del cuerpo incluidos.
+		var p := _foot_at(la, t)
+		lo = lo.min(p)
+		hi = hi.max(p)
 	_anim.reset()
-	return hi - lo
+	# Se devuelve el mayor de los dos: da igual que el pie derrape hacia
+	# delante o que se hunda en la cubierta, las dos cosas se ven.
+	return maxf(hi.x - lo.x, hi.y - lo.y)
 
 
 func _pearson(a: Array[float], b: Array[float]) -> float:
