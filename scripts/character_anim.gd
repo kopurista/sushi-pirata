@@ -75,6 +75,28 @@ const PELVIS_SWAY := 0.003
 const IDLE_PERIOD := 3.4
 const IDLE_BREATH := 2.2
 
+# --- Sentado ---
+const SIT_HIP := 82.0         ## muslo casi horizontal hacia delante
+const SIT_KNEE := 84.0        ## espinilla de vuelta a la vertical
+const SIT_SPREAD := 5.0       ## las rodillas se abren un poco
+const SIT_LEAN := 6.0         ## el tronco se inclina algo hacia delante
+
+# --- Comer sentado, en cuatro fases ---
+## Duracion de cada fase, en segundos. Un bocado completo es la suma.
+const BITE_REACH := 0.55      ## 1. el brazo va al plato y coge la comida
+const BITE_LIFT := 0.40       ## 2. sube la mano a la boca
+const BITE_CHEW := 0.90       ## 3. mastica con la mano arriba
+const BITE_LOWER := 0.50      ## 4. baja el brazo a la postura de sentado
+const CHEW_ANGLE := 4.5       ## cuanto cabecea al masticar
+const CHEW_SPEED := 9.0       ## y a que ritmo
+## Por donde pasa la MANO, en coordenadas del esqueleto y para el brazo
+## izquierdo (el derecho usa lo mismo con la X cambiada de signo). Se anima la
+## mano y no los angulos del brazo: asi se puede apuntar a un sitio concreto
+## —el plato, la boca— y el hombro y el codo se resuelven solos.
+const HAND_LAP := Vector3(0.135, 0.010, 0.120)    ## descansando en el muslo
+const HAND_PLATE := Vector3(0.105, 0.055, 0.235)  ## cogiendo del plato
+const HAND_MOUTH := Vector3(0.055, 0.250, 0.080)  ## delante de la boca
+
 var _skel: Skeleton3D
 var _idx := {}                ## nombre de hueso -> indice, solo los existentes
 var _legs := {}               ## "L"/"R" -> geometria de reposo de esa pierna
@@ -146,6 +168,110 @@ func idle(t: float) -> void:
 	_pitch("R_Shoulder", breath * 1.5)
 	_pitch("L_Elbow", -ELBOW_BEND * 0.6)
 	_pitch("R_Elbow", -ELBOW_BEND * 0.6)
+
+
+## Postura de sentado: caderas y rodillas dobladas casi en angulo recto, con
+## las rodillas ligeramente abiertas y el tronco algo inclinado. No incluye los
+## brazos, que los pone quien llame (comer, esperar...).
+func sit() -> void:
+	for side in ["L", "R"]:
+		var out := 1.0 if side == "L" else -1.0
+		_pitch("%s_Hip" % side, -SIT_HIP)
+		_roll("%s_Hip" % side, out * SIT_SPREAD)
+		_pitch("%s_Knee" % side, SIT_KNEE)
+		# El pie queda plano en el suelo pese al giro de cadera y rodilla.
+		_pitch("%s_Ankle" % side, SIT_HIP - SIT_KNEE)
+	_pitch("Spine1", SIT_LEAN * 0.5)
+	_pitch("Spine2", SIT_LEAN * 0.5)
+
+
+## Cuanto hay que DESPLAZAR al personaje al sentarlo para que los pies sigan
+## tocando el suelo, en unidades de mundo (sale negativo: al doblar las piernas
+## los pies suben dentro del modelo, asi que el conjunto tiene que bajar).
+func sit_offset(model_scale: float) -> float:
+	var ankle := _skel.find_bone("L_Ankle")
+	if ankle < 0:
+		return 0.0
+	reset()
+	var standing: float = _skel.get_bone_global_pose(ankle).origin.y
+	sit()
+	var seated: float = _skel.get_bone_global_pose(ankle).origin.y
+	reset()
+	return (standing - seated) * model_scale
+
+
+## Un bocado completo, en las cuatro fases: coger del plato, subir a la boca,
+## masticar y bajar el brazo. Se repite solo mientras el cliente coma.
+func bite(t: float) -> void:
+	sit()
+	var total := BITE_REACH + BITE_LIFT + BITE_CHEW + BITE_LOWER
+	var u := fmod(t, total)
+	var hand: Vector3
+	var chew := 0.0
+	if u < BITE_REACH:
+		hand = HAND_LAP.lerp(HAND_PLATE, smoothstep(0.0, 1.0, u / BITE_REACH))
+	elif u < BITE_REACH + BITE_LIFT:
+		hand = HAND_PLATE.lerp(HAND_MOUTH,
+			smoothstep(0.0, 1.0, (u - BITE_REACH) / BITE_LIFT))
+	elif u < BITE_REACH + BITE_LIFT + BITE_CHEW:
+		hand = HAND_MOUTH
+		chew = sin((u - BITE_REACH - BITE_LIFT) * CHEW_SPEED) * CHEW_ANGLE
+	else:
+		var back := (u - BITE_REACH - BITE_LIFT - BITE_CHEW) / BITE_LOWER
+		hand = HAND_MOUTH.lerp(HAND_LAP, smoothstep(0.0, 1.0, back))
+	# Come con la derecha; la izquierda descansa en el muslo.
+	_arm_ik("R", Vector3(-hand.x, hand.y, hand.z))
+	_arm_ik("L", HAND_LAP)
+	# Al masticar la cabeza cabecea y la mandibula no existe en el rig, asi
+	# que el gesto se hace con el cuello.
+	_pitch("Neck", chew)
+	_fist("L")
+	_fist("R")
+
+
+## Sentado sin comer: respira y descansa las manos en los muslos.
+func sit_idle(t: float) -> void:
+	sit()
+	var breath := sin(t / IDLE_PERIOD * TAU) * IDLE_BREATH
+	_pitch("Spine2", SIT_LEAN * 0.5 + breath * 0.4)
+	_pitch("Neck", -breath * 0.3)
+	_arm_ik("L", HAND_LAP)
+	_arm_ik("R", Vector3(-HAND_LAP.x, HAND_LAP.y, HAND_LAP.z))
+	_fist("L")
+	_fist("R")
+
+
+## Coloca la MANO de ese brazo sobre un punto del espacio del esqueleto,
+## resolviendo hombro y codo. Es el mismo problema de dos huesos que la
+## pierna, pero en el espacio: la pierna solo cabecea, mientras que el brazo
+## tiene que cruzarse hacia el centro del cuerpo para llegar a la boca.
+func _arm_ik(side: String, target: Vector3) -> void:
+	var names := ["%s_Shoulder" % side, "%s_Elbow" % side, "%s_Wrist" % side]
+	for n in names:
+		if not _idx.has(n):
+			return
+	var sh := _skel.get_bone_global_rest(_idx[names[0]]).origin
+	var el := _skel.get_bone_global_rest(_idx[names[1]]).origin
+	var wr := _skel.get_bone_global_rest(_idx[names[2]]).origin
+	var l1 := sh.distance_to(el)
+	var l2 := el.distance_to(wr)
+
+	var to_target := target - sh
+	var d: float = clampf(to_target.length(), absf(l1 - l2) + 0.01, l1 + l2 - 0.005)
+	# Cuanto hay que doblar el codo respecto a tenerlo estirado, para que el
+	# brazo mida justo lo que hay hasta el objetivo.
+	var bend := acos(clampf((d * d - l1 * l1 - l2 * l2) / (2.0 * l1 * l2), -1.0, 1.0))
+	# El codo dobla hacia delante: en este rig eso es girar en X negativo.
+	var elbow_rot := Quaternion(Vector3(1, 0, 0), -bend)
+	_skel.set_bone_pose_rotation(_idx[names[1]],
+		_skel.get_bone_rest(_idx[names[1]]).basis.get_rotation_quaternion() * elbow_rot)
+
+	# Con el codo ya doblado, se gira el hombro para que la muñeca caiga
+	# encima del objetivo.
+	var wrist_bent := (el - sh) + elbow_rot * (wr - el)
+	var aim := Quaternion(wrist_bent.normalized(), to_target.normalized())
+	_skel.set_bone_pose_rotation(_idx[names[0]],
+		_skel.get_bone_rest(_idx[names[0]]).basis.get_rotation_quaternion() * aim)
 
 
 ## Devuelve todos los huesos a su pose de reposo.

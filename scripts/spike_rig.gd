@@ -12,6 +12,8 @@ const BODY_H := 1.75
 
 # true = anda sin avanzar, para comparar las piernas fotograma a fotograma.
 const WALK_IN_PLACE := false
+# "walk" = ciclo de marcha; "bite" = comer sentado en cuatro fases.
+const MODE := "bite"
 
 var _anim: CharacterAnim
 var _skel: Skeleton3D
@@ -30,9 +32,57 @@ func _ready() -> void:
 	_anim = CharacterAnim.new(_skel)
 	if not _anim.has_humanoid_bones():
 		push_error("el rig no trae huesos humanoides con nombre")
+	if MODE == "bite":
+		_setup_seat()
+		return
 	_speed = _anim.ground_speed(_model_scale)
 	print(_gait_report())
 	print("                 avance sin patinar: %.2f u/s" % _speed)
+
+
+## Taburete y mostrador con un plato. El plato se coloca EXACTAMENTE en el
+## punto al que apunta la mano, asi que si el brazo no llega se ve al instante.
+func _setup_seat() -> void:
+	# Al doblar las piernas los pies suben dentro del modelo: se baja al
+	# personaje para que sigan tocando el suelo.
+	_pivot.position.y = _anim.sit_offset(_model_scale)
+	_anim.sit()
+
+	# Taburete justo bajo la cadera.
+	var hip := _skel.global_transform * _skel.get_bone_global_pose(
+		_skel.find_bone("Pelvis")).origin
+	_box(Vector3(0.46, 0.07, 0.46), Vector3(hip.x, hip.y - 0.035, hip.z),
+		Color(0.40, 0.26, 0.15))
+	_box(Vector3(0.10, hip.y - 0.07, 0.10),
+		Vector3(hip.x, (hip.y - 0.07) * 0.5, hip.z), Color(0.34, 0.22, 0.13))
+
+	# El plato, en el punto que persigue la mano derecha.
+	var plate := _skel.global_transform * Vector3(-CharacterAnim.HAND_PLATE.x,
+		CharacterAnim.HAND_PLATE.y, CharacterAnim.HAND_PLATE.z)
+	# Repisa fina bajo el plato: da referencia de altura sin tapar las piernas.
+	_box(Vector3(1.2, 0.06, 0.34),
+		Vector3(0.0, plate.y - 0.09, plate.z + 0.05), Color(0.48, 0.33, 0.18))
+	_box(Vector3(0.24, 0.03, 0.18), Vector3(plate.x, plate.y - 0.05, plate.z),
+		Color(0.88, 0.86, 0.82))
+	_anim.reset()
+
+	# Encuadre centrado en el torso del personaje sentado.
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	cam.size = 4.2
+	cam.position = Vector3(0.0, hip.y + 0.10, 0.0) + cam.transform.basis.z * 20.0
+
+
+func _box(size: Vector3, pos: Vector3, color: Color) -> void:
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.position = pos
+	var m := StandardMaterial3D.new()
+	m.albedo_color = color
+	m.roughness = 0.95
+	mi.material_override = m
+	add_child(mi)
 
 
 # ---------------------------------------------------------------- escenario
@@ -244,6 +294,16 @@ func _pearson(a: Array[float], b: Array[float]) -> float:
 func _process(delta: float) -> void:
 	_t += delta
 	_anim.reset()
+	if MODE == "bite":
+		_anim.bite(_t)
+		if _idx < _shots.size() and _t >= _shots[_idx]:
+			get_viewport().get_texture().get_image().save_png(
+				"res://rig_shot_%d.png" % _idx)
+			_idx += 1
+			if _idx == _shots.size():
+				print("SHOTS OK")
+				get_tree().quit()
+		return
 	_anim.walk(_t)
 	# Avanza de verdad por la cubierta, con el rebote del ciclo.
 	# El avance sale de las piernas, no de una velocidad impuesta.
