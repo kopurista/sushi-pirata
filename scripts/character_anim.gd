@@ -99,9 +99,12 @@ const HAND_MOUTH := Vector3(0.055, 0.250, 0.080)  ## delante de la boca
 ## Cuanto se abre el codo hacia fuera. Con 0 el brazo se dobla en el plano
 ## vertical y el codo acaba metido en el costado.
 const ELBOW_OUT := 1.3
-## Cuanto se le devuelve a la mano su orientacion de reposo (0 = hereda todo
-## el giro del brazo y llega retorcida a la boca, 1 = queda siempre igual).
-const WRIST_STEADY := 0.75
+## La mano no se deja a merced del giro del brazo: APUNTA a algo, igual que
+## una mano de verdad. Los dedos miran al plato mientras lo coge y a la boca
+## mientras se lleva la comida; sin esto la mano conserva la orientacion de
+## brazo colgando y llega de lado a la cara.
+const MOUTH := Vector3(0.0, 0.335, 0.030)   ## donde esta la boca en el rig
+const LOOK_DOWN := Vector3(0.0, -0.25, 0.0) ## para que los dedos miren abajo
 
 var _skel: Skeleton3D
 var _idx := {}                ## nombre de hueso -> indice, solo los existentes
@@ -213,21 +216,31 @@ func bite(t: float) -> void:
 	var total := BITE_REACH + BITE_LIFT + BITE_CHEW + BITE_LOWER
 	var u := fmod(t, total)
 	var hand: Vector3
+	# `focus` es adonde miran los DEDOS: al plato al cogerlo, a la boca al
+	# llevarse la comida. Va interpolandose junto con la mano.
+	var focus: Vector3
 	var chew := 0.0
 	if u < BITE_REACH:
-		hand = HAND_LAP.lerp(HAND_PLATE, smoothstep(0.0, 1.0, u / BITE_REACH))
+		var w := smoothstep(0.0, 1.0, u / BITE_REACH)
+		hand = HAND_LAP.lerp(HAND_PLATE, w)
+		focus = (HAND_LAP + LOOK_DOWN).lerp(HAND_PLATE + LOOK_DOWN, w)
 	elif u < BITE_REACH + BITE_LIFT:
-		hand = HAND_PLATE.lerp(HAND_MOUTH,
-			smoothstep(0.0, 1.0, (u - BITE_REACH) / BITE_LIFT))
+		var w := smoothstep(0.0, 1.0, (u - BITE_REACH) / BITE_LIFT)
+		hand = HAND_PLATE.lerp(HAND_MOUTH, w)
+		focus = (HAND_PLATE + LOOK_DOWN).lerp(MOUTH, w)
 	elif u < BITE_REACH + BITE_LIFT + BITE_CHEW:
 		hand = HAND_MOUTH
+		focus = MOUTH
 		chew = sin((u - BITE_REACH - BITE_LIFT) * CHEW_SPEED) * CHEW_ANGLE
 	else:
-		var back := (u - BITE_REACH - BITE_LIFT - BITE_CHEW) / BITE_LOWER
-		hand = HAND_MOUTH.lerp(HAND_LAP, smoothstep(0.0, 1.0, back))
+		var w := smoothstep(0.0, 1.0,
+			(u - BITE_REACH - BITE_LIFT - BITE_CHEW) / BITE_LOWER)
+		hand = HAND_MOUTH.lerp(HAND_LAP, w)
+		focus = MOUTH.lerp(HAND_LAP + LOOK_DOWN, w)
 	# Come con la derecha; la izquierda descansa en el muslo.
-	_arm_ik("R", Vector3(-hand.x, hand.y, hand.z))
-	_arm_ik("L", HAND_LAP)
+	_arm_ik("R", Vector3(-hand.x, hand.y, hand.z),
+		Vector3(-focus.x, focus.y, focus.z))
+	_arm_ik("L", HAND_LAP, HAND_LAP + LOOK_DOWN)
 	# Al masticar la cabeza cabecea y la mandibula no existe en el rig, asi
 	# que el gesto se hace con el cuello.
 	_pitch("Neck", chew)
@@ -241,8 +254,9 @@ func sit_idle(t: float) -> void:
 	var breath := sin(t / IDLE_PERIOD * TAU) * IDLE_BREATH
 	_pitch("Spine2", SIT_LEAN * 0.5 + breath * 0.4)
 	_pitch("Neck", -breath * 0.3)
-	_arm_ik("L", HAND_LAP)
-	_arm_ik("R", Vector3(-HAND_LAP.x, HAND_LAP.y, HAND_LAP.z))
+	_arm_ik("L", HAND_LAP, HAND_LAP + LOOK_DOWN)
+	_arm_ik("R", Vector3(-HAND_LAP.x, HAND_LAP.y, HAND_LAP.z),
+		Vector3(-HAND_LAP.x, HAND_LAP.y, HAND_LAP.z) + LOOK_DOWN)
 	_fist("L")
 	_fist("R")
 
@@ -251,7 +265,8 @@ func sit_idle(t: float) -> void:
 ## resolviendo hombro y codo. Es el mismo problema de dos huesos que la
 ## pierna, pero en el espacio: la pierna solo cabecea, mientras que el brazo
 ## tiene que cruzarse hacia el centro del cuerpo para llegar a la boca.
-func _arm_ik(side: String, target: Vector3) -> void:
+## `target` es donde va la MANO y `focus` adonde miran los dedos.
+func _arm_ik(side: String, target: Vector3, focus: Vector3) -> void:
 	var names := ["%s_Shoulder" % side, "%s_Elbow" % side, "%s_Wrist" % side]
 	for n in names:
 		if not _idx.has(n):
@@ -297,12 +312,20 @@ func _arm_ik(side: String, target: Vector3) -> void:
 	_skel.set_bone_pose_rotation(_idx[names[0]],
 		_skel.get_bone_rest(_idx[names[0]]).basis.get_rotation_quaternion() * aim)
 
-	# La muñeca hereda todo el giro del brazo y la mano acaba retorcida al
-	# llegar a la boca. Se le devuelve parte de su orientacion de reposo.
+	# La muñeca no se deja como la deje el brazo: se orienta para que los dedos
+	# miren al punto indicado. Si no, la mano conserva la orientacion de brazo
+	# colgando y llega de lado a la boca.
+	var wrist_i: int = _idx[names[2]]
 	var elbow_q := _skel.get_bone_global_pose(_idx[names[1]]).basis \
 		.orthonormalized().get_rotation_quaternion()
-	_skel.set_bone_pose_rotation(_idx[names[2]],
-		Quaternion.IDENTITY.slerp(elbow_q.inverse(), WRIST_STEADY))
+	var wrist_pos := _skel.get_bone_global_pose(wrist_i).origin
+	var look := focus - wrist_pos
+	if look.length() < 0.001:
+		_skel.set_bone_pose_rotation(wrist_i, elbow_q.inverse())
+		return
+	# En reposo los dedos salen de la muñeca hacia abajo (-Y).
+	var hand_aim := Quaternion(Vector3(0, -1, 0), look.normalized())
+	_skel.set_bone_pose_rotation(wrist_i, elbow_q.inverse() * hand_aim)
 
 
 ## Devuelve todos los huesos a su pose de reposo.
