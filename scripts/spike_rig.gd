@@ -142,11 +142,31 @@ func _bite_report(samples := 90) -> String:
 		phase = "masticar"
 	elif worst_at > r:
 		phase = "subir"
-	if worst <= 0.0:
-		return "BOCADO: el brazo no toca el torso -> CORRECTO"
-	return ("BOCADO: el %s se mete %.3f u en el torso, en la fase '%s'\n"
-		+ "        (torso: medio ancho %.3f, medio fondo %.3f)\n"
-		+ "        -> REVISAR") % [worst_who, worst, phase, half_w, half_d]
+	# Y ademas: el puño no debe bajar del plano del plato mientras esta encima
+	# de la mesa, o atraviesa el plato y el mostrador.
+	const FIST := 0.030
+	var plate_y: float = CharacterAnim.HAND_PLATE.y
+	var sink := 0.0
+	for i in samples:
+		var t := total * float(i) / float(samples)
+		_anim.reset()
+		_anim.bite(t)
+		var wp := _skel.get_bone_global_pose(wrist).origin
+		if wp.z < CharacterAnim.HAND_PLATE.z - 0.10:
+			continue     # aun no esta sobre la mesa
+		sink = maxf(sink, plate_y - (wp.y - FIST))
+	_anim.reset()
+
+	var out := ""
+	if worst > 0.0:
+		out += ("BOCADO: el %s se mete %.3f u en el torso, en la fase '%s'\n"
+			+ "        (torso: medio ancho %.3f, medio fondo %.3f)\n") \
+			% [worst_who, worst, phase, half_w, half_d]
+	if sink > 0.0:
+		out += "BOCADO: el puño baja %.3f u por debajo del plato\n" % sink
+	if out == "":
+		return "BOCADO: ni toca el torso ni atraviesa el plato -> CORRECTO"
+	return out + "        -> REVISAR"
 
 
 func _box(size: Vector3, pos: Vector3, color: Color) -> void:

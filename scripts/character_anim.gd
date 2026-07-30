@@ -94,16 +94,23 @@ const CHEW_SPEED := 9.0       ## y a que ritmo
 ## mano y no los angulos del brazo: asi se puede apuntar a un sitio concreto
 ## —el plato, la boca— y el hombro y el codo se resuelven solos.
 const HAND_LAP := Vector3(0.135, 0.010, 0.120)    ## descansando en el muslo
-const HAND_PLATE := Vector3(0.105, 0.055, 0.235)  ## cogiendo del plato
+const HAND_PLATE := Vector3(0.105, 0.055, 0.235)  ## donde esta LA COMIDA
+## La mano se queda por ENCIMA de la comida, no encima del punto exacto: si va
+## al mismo sitio, el puño atraviesa el plato y la mesa. Son los dedos los que
+## bajan hasta la comida, que para eso apuntan hacia ella.
+const GRAB_CLEARANCE := 0.080
 ## Delante de la boca. La cabeza va de y=0.33 a y=0.49 en este rig, asi que la
 ## mano se queda algo por debajo y los dedos apuntan hacia arriba, a la boca.
 ## Va bastante separada del eje del cuerpo: con la mano pegada al centro, el
 ## ANTEBRAZO cruza el pecho aunque la mano quede fuera.
 const HAND_MOUTH := Vector3(0.120, 0.280, 0.120)
-## Punto de paso al BAJAR el brazo. Sin el, la mano vuelve de la boca al muslo
-## en linea recta y esa recta barre el plato y el mostrador. Va MUY hacia el
-## lado y algo adelantado: llevarlo hacia atras metia el antebrazo en el torso.
-const HAND_BACK := Vector3(0.265, 0.125, 0.090)
+## Punto de paso obligado al ir y volver del plato. Sin el, la mano viaja en
+## LINEA RECTA entre el muslo y el plato, y esa recta atraviesa el mostrador:
+## al ir sube en diagonal y entra por delante de la mesa; al volver la barre.
+## Con este punto la mano sale primero al costado, ya por encima de la mesa, y
+## solo entonces avanza. Va muy hacia el lado y algo adelantado: llevarlo
+## hacia atras metia el antebrazo en el torso.
+const HAND_SIDE := Vector3(0.265, 0.140, 0.090)
 ## Cuanto se abre el codo hacia fuera y hacia delante. Con poco, el brazo se
 ## dobla pegado al costado y se mete dentro del torso.
 const ELBOW_OUT := 2.8
@@ -229,14 +236,17 @@ func bite(t: float) -> void:
 	# llevarse la comida. Va interpolandose junto con la mano.
 	var focus: Vector3
 	var chew := 0.0
+	# La mano se para sobre la comida; los dedos son los que llegan a ella.
+	var over_plate := HAND_PLATE + Vector3(0.0, GRAB_CLEARANCE, 0.0)
 	if u < BITE_REACH:
 		var w := smoothstep(0.0, 1.0, u / BITE_REACH)
-		hand = HAND_LAP.lerp(HAND_PLATE, w)
-		focus = (HAND_LAP + LOOK_DOWN).lerp(HAND_PLATE + LOOK_DOWN, w)
+		# Sale al costado y por encima de la mesa antes de avanzar al plato.
+		hand = _bezier(HAND_LAP, HAND_SIDE, over_plate, w)
+		focus = (HAND_LAP + LOOK_DOWN).lerp(HAND_PLATE, w)
 	elif u < BITE_REACH + BITE_LIFT:
 		var w := smoothstep(0.0, 1.0, (u - BITE_REACH) / BITE_LIFT)
-		hand = HAND_PLATE.lerp(HAND_MOUTH, w)
-		focus = (HAND_PLATE + LOOK_DOWN).lerp(MOUTH, w)
+		hand = over_plate.lerp(HAND_MOUTH, w)
+		focus = HAND_PLATE.lerp(MOUTH, w)
 	elif u < BITE_REACH + BITE_LIFT + BITE_CHEW:
 		hand = HAND_MOUTH
 		focus = MOUTH
@@ -246,7 +256,7 @@ func bite(t: float) -> void:
 			(u - BITE_REACH - BITE_LIFT - BITE_CHEW) / BITE_LOWER)
 		# Curva de Bezier en vez de recta: la mano se retira hacia el cuerpo
 		# antes de bajar, y asi no barre el plato ni el mostrador.
-		hand = _bezier(HAND_MOUTH, HAND_BACK, HAND_LAP, w)
+		hand = _bezier(HAND_MOUTH, HAND_SIDE, HAND_LAP, w)
 		focus = MOUTH.lerp(HAND_LAP + LOOK_DOWN, w)
 	# Come con la derecha; la izquierda descansa en el muslo.
 	_arm_ik("R", Vector3(-hand.x, hand.y, hand.z),
