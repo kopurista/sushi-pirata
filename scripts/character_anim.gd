@@ -493,12 +493,17 @@ func _detect_bones() -> void:
 	# Primero se aparta la COLUMNA, que es la rama que mas sube. Hace falta
 	# apartarla antes de buscar las piernas porque ella tambien baja mucho: de
 	# ella cuelgan los brazos, que llegan por debajo de la cadera.
+	# De las ramas que suben, la columna es la que va CENTRADA. No basta con
+	# quedarse con la que mas sube: algun rig cuelga de la cadera una rama
+	# lateral que llega hasta la coronilla y se colaba como columna.
 	var up := -1
-	var up_y := -INF
+	var up_lat := INF
 	for c in _children(root):
-		var hi := _subtree_y(c, false)
-		if hi > up_y:
-			up_y = hi
+		if _subtree_y(c, false) <= _rest(root).y:
+			continue
+		var lat: float = absf(_rest(c).x - _rest(root).x)
+		if lat < up_lat:
+			up_lat = lat
 			up = c
 	# De lo que queda, las piernas son las dos ramas que mas bajan.
 	var down: Array[int] = []
