@@ -2,24 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://3pxo8lvyignu"
-path.s3tc="res://.godot/imported/grumete_0.png-f6d3404998d4f96e1af60943bcad8a2f.s3tc.ctex"
+uid="uid://d3uftr1fahwdx"
+path="res://.godot/imported/rig_shot_2.png-59fadab58e57f59408925f8d5a1a5831.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
-}
-generator_parameters={
-"md5": "0051eccb44e3e3e364c3005be0abfe84"
+"vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/models/grumete_0.png"
-dest_files=["res://.godot/imported/grumete_0.png-f6d3404998d4f96e1af60943bcad8a2f.s3tc.ctex"]
+source_file="res://rig_shot_2.png"
+dest_files=["res://.godot/imported/rig_shot_2.png-59fadab58e57f59408925f8d5a1a5831.ctex"]
 
 [params]
 
-compress/mode=2
+compress/mode=0
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -27,7 +23,7 @@ compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=true
+mipmaps/generate=false
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""
@@ -41,4 +37,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=0
+detect_3d/compress_to=1

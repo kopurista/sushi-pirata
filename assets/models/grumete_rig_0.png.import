@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://3pxo8lvyignu"
-path.s3tc="res://.godot/imported/grumete_0.png-f6d3404998d4f96e1af60943bcad8a2f.s3tc.ctex"
+uid="uid://bituulj32ftqu"
+path.s3tc="res://.godot/imported/grumete_rig_0.png-7e2c1d4892e96a4ce0fbb45898b1be2e.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "0051eccb44e3e3e364c3005be0abfe84"
+"md5": "43ebf246235e2c571509796fbbead5f2"
 }
 
 [deps]
 
-source_file="res://assets/models/grumete_0.png"
-dest_files=["res://.godot/imported/grumete_0.png-f6d3404998d4f96e1af60943bcad8a2f.s3tc.ctex"]
+source_file="res://assets/models/grumete_rig_0.png"
+dest_files=["res://.godot/imported/grumete_rig_0.png-7e2c1d4892e96a4ce0fbb45898b1be2e.s3tc.ctex"]
 
 [params]
 

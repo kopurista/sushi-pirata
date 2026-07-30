@@ -9,12 +9,13 @@ extends Node3D
 # cada ruta de nodo a "Skeleton3D:<hueso>" (el nombre hoja), manteniendo el
 # tipo de pista: la semantica coincide (transform local respecto al padre).
 
-const RIGGED := preload("res://assets/models/grumete_sentado_rig.glb")
-const ANIM_IDLE := preload("res://assets/models/anim_sit_idle.glb")
-const ANIM_BITE_A := preload("res://assets/models/anim_eat_bite.glb")
-const ANIM_BITE_B := preload("res://assets/models/anim_eat_bite_b.glb")
+# Rig de PIE (pesos limpios) y sus clips: la generacion actual.
+const RIGGED := preload("res://assets/models/grumete_rig.glb")
+const ANIM_EAT_A := preload("res://assets/models/anim_sit_eat.glb")
+const ANIM_EAT_B := preload("res://assets/models/anim_sit_eat_b.glb")
+const ANIM_WALK_A := preload("res://assets/models/anim_walk.glb")
 
-const SEAT_H := 1.30
+const SEAT_H := 1.75    # el rig es el modelo DE PIE; los clips lo sientan
 const DIAG := false
 
 var _t := 0.0
@@ -51,12 +52,17 @@ func _ready() -> void:
 			_pose_bone_local(skel, BONE_SHOULDER, Vector3(1, 0, 0), combos[i][0])
 			_pose_bone_local(skel, BONE_ELBOW, Vector3(1, 0, 0), combos[i][1])
 		return
-	# Tres candidatos a "comer": las dos variantes de IA y el bocado
-	# PROCEDURAL por huesos (4 fases exactas).
-	_spawn_rigged(right * -1.45, ANIM_BITE_A, "The character sits on a")
-	_spawn_rigged(Vector3.ZERO, ANIM_BITE_B, "The character sits on a 3")
-	var proc := _spawn_rigged(right * 1.45, null, "")
-	_proc_skel = proc.find_children("*", "Skeleton3D", true, false)[0]
+	# Diagnostico de brillo: original SIN rig vs rigueado, misma escena.
+	var original: Node3D = (load("res://assets/models/grumete.glb") as PackedScene).instantiate()
+	add_child(original)
+	var aabb0 := _merged_aabb(original)
+	var s0 := SEAT_H / maxf(aabb0.size.y, 0.0001)
+	original.scale = Vector3(s0, s0, s0)
+	original.position = right * -1.55 - Vector3(aabb0.position.x + aabb0.size.x * 0.5,
+		aabb0.position.y, aabb0.position.z + aabb0.size.z * 0.5) * s0
+	original.rotation_degrees.y = 30.0
+	_spawn_rigged(Vector3.ZERO, null, "")
+	_spawn_rigged(right * 1.55, ANIM_WALK_A, "The character walks forward at 6")
 
 
 func _setup_world() -> void:
@@ -103,7 +109,7 @@ const BONE_ELBOW := 5
 const BONE_HEAD := 7
 const BITE_LEN := 1.7      # duracion de un bocado completo
 # "grid" = rejilla de poses hombro/codo; "" = comparativa de animaciones.
-const AXIS_TEST := "grid"
+const AXIS_TEST := ""
 # Fases (fraccion del ciclo): alcanzar 0-0.25, subir 0.25-0.45,
 # masticar 0.45-0.78, bajar 0.78-1.
 # Poses clave [angulo_hombro, (reservado), angulo_codo] en grados.

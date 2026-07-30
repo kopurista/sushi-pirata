@@ -17,6 +17,12 @@ en low poly no aporta nada.
 
 Uso:  python tools/glb_prepare.py entrada.bin salida.glb
       python tools/glb_prepare.py carpeta_entrada/ carpeta_salida/
+      python tools/glb_prepare.py entrada.glb salida.glb strip-normals
+
+strip-normals: borra el atributo NORMAL de todas las primitivas. Godot genera
+normales PLANAS cuando faltan (spec glTF), lo que da el facetado tipico del
+low poly y arregla las normales corruptas que deja el re-export de rigModel
+(el modelo rigueado salia oscuro: solo le llegaba luz ambiente).
 """
 
 import gzip
@@ -97,26 +103,39 @@ def build_glb(doc: dict, binary: bytes) -> bytes:
     return bytes(out)
 
 
-def convert(src: Path, dst: Path) -> None:
+def strip_normals(doc: dict) -> int:
+    """Quita NORMAL de todas las primitivas; devuelve cuantas toco."""
+    n = 0
+    for mesh in doc.get("meshes", []):
+        for prim in mesh.get("primitives", []):
+            if "NORMAL" in prim.get("attributes", {}):
+                del prim["attributes"]["NORMAL"]
+                n += 1
+    return n
+
+
+def convert(src: Path, dst: Path, drop_normals: bool = False) -> None:
     raw = read_glb(src.read_bytes())
     doc, binary = split_chunks(raw)
     touched = patch_materials(doc)
+    stripped = strip_normals(doc) if drop_normals else 0
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_bytes(build_glb(doc, binary))
-    print("%-34s -> %-34s (%d materiales corregidos, %.2f MB)"
-          % (src.name, dst.name, touched, dst.stat().st_size / 1048576))
+    print("%-34s -> %-34s (%d materiales corregidos, %d normales fuera, %.2f MB)"
+          % (src.name, dst.name, touched, stripped, dst.stat().st_size / 1048576))
 
 
 def main() -> int:
-    if len(sys.argv) != 3:
+    if len(sys.argv) not in (3, 4):
         print(__doc__)
         return 1
     src, dst = Path(sys.argv[1]), Path(sys.argv[2])
+    drop = len(sys.argv) == 4 and sys.argv[3] == "strip-normals"
     if src.is_dir():
         for f in sorted(list(src.glob("*.glb")) + list(src.glob("*.bin"))):
-            convert(f, dst / (f.stem + ".glb"))
+            convert(f, dst / (f.stem + ".glb"), drop)
     else:
-        convert(src, dst)
+        convert(src, dst, drop)
     return 0
 
 
