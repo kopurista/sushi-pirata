@@ -34,9 +34,9 @@ extends RefCounted
 const WALK_PERIOD := 0.92     ## segundos por ciclo completo (dos pasos)
 const STRIDE := 0.30          ## lo que recorre el pie apoyado, unidades del rig
 const STANCE_FRAC := 0.55     ## parte del ciclo con el pie en el suelo
-## Altura del pie en el aire. Con valores altos la rodilla se recoge mucho y
-## el paso se ve de marcha militar, con el pie cayendo a plomo.
-const FOOT_LIFT := 0.038
+## Altura del pie en el aire. Muy bajo el pie roza el suelo y el paso parece
+## un arrastre; muy alto se ve de marcha militar.
+const FOOT_LIFT := 0.058
 ## En que momento del vuelo queda el punto mas alto. Adelantado (menos de la
 ## mitad) el pie sube pronto y luego BAJA PLANEANDO hasta posarse, en vez de
 ## caer en vertical como si pisoteara.
@@ -59,6 +59,9 @@ const ELBOW_BEND := 16.0      ## flexion fija de codo, da naturalidad
 ## diferencia entre un cuerpo vivo y un torso rigido con dos brazos colgando.
 const COLLAR_SWING := 9.0     ## el hombro va y viene con su brazo
 const COLLAR_LIFT := 4.5      ## y sube ligeramente al llevarlo atras
+## Cierre de los puños, en grados POR FALANGE (son tres por dedo, asi que el
+## dedo se dobla el triple). Con la mano abierta parece que lleve algo cogido.
+const FIST_CURL := 46.0
 const TORSO_TWIST := 5.0      ## contragiro del tronco
 ## Movimiento de cadera: gira acompañando a la pierna que avanza, cae un poco
 ## del lado de la pierna que va en el aire y el cuerpo se carga sobre la que
@@ -74,6 +77,7 @@ const IDLE_BREATH := 2.2
 var _skel: Skeleton3D
 var _idx := {}                ## nombre de hueso -> indice, solo los existentes
 var _legs := {}               ## "L"/"R" -> geometria de reposo de esa pierna
+var _fingers := {}            ## "L"/"R" -> indices de los huesos de los dedos
 
 
 func _init(skeleton: Skeleton3D) -> void:
@@ -82,6 +86,7 @@ func _init(skeleton: Skeleton3D) -> void:
 		_idx[_skel.get_bone_name(i)] = i
 	for side in ["L", "R"]:
 		_cache_leg(side)
+		_cache_fingers(side)
 
 
 func has_humanoid_bones() -> bool:
@@ -95,10 +100,14 @@ func walk(t: float) -> void:
 	# Las dos piernas hacen lo mismo con media vuelta de diferencia.
 	_leg(&"L", cycle, bob)
 	_leg(&"R", fmod(cycle + 0.5, 1.0), bob)
-	# El brazo acompaña a la pierna CONTRARIA, como en la marcha humana.
+	# El brazo acompaña a la pierna CONTRARIA y CON SU MISMO RITMO: se le pasa
+	# lo adelantada que va esa pierna, no un seno. Con un seno los extremos del
+	# brazo caian un cuarto de ciclo despues que los de la pierna (la pierna ya
+	# no sigue un seno: tiene fase de apoyo y fase de vuelo), y el balanceo se
+	# veia descoordinado del paso.
 	var phase := cycle * TAU
-	_arm("L", phase + PI)
-	_arm("R", phase)
+	_arm("L", _leg_swing(fmod(cycle + 0.5, 1.0)))
+	_arm("R", _leg_swing(cycle))
 	_pelvis(phase)
 	# El tronco contragira respecto a la cadera, para que los hombros queden
 	# mirando al frente en vez de irse con ella.
@@ -169,6 +178,24 @@ func _cache_leg(side: String) -> void:
 		"shin_rest": _sag_angle(shin),
 		"ground": ankle.y,
 	}
+
+
+## Recoge los huesos de los dedos: todo lo que cuelga de la muñeca. Se busca
+## por jerarquia y no por nombre porque el auto-rig los deja sin nombrar
+## (bone_21, bone_22...), pero siempre colgando de su muñeca.
+func _cache_fingers(side: String) -> void:
+	var wrist: int = _idx.get("%s_Wrist" % side, -1)
+	if wrist < 0:
+		return
+	var out: Array[int] = []
+	for i in _skel.get_bone_count():
+		var p := _skel.get_bone_parent(i)
+		while p >= 0:
+			if p == wrist:
+				out.append(i)
+				break
+			p = _skel.get_bone_parent(p)
+	_fingers[side] = out
 
 
 ## Angulo de un vector del plano sagital medido desde "hacia abajo": 0 = el
@@ -277,8 +304,20 @@ func _pelvis(phase: float) -> void:
 	_translate("Pelvis", Vector3(-cos(phase) * PELVIS_SWAY, 0.0, 0.0))
 
 
-func _arm(side: String, phase: float) -> void:
-	var swing := sin(phase)
+## Lo adelantada que va la pierna en este instante: +1 con el pie lo mas
+## adelante posible, -1 lo mas atras. Es la misma curva que sigue el pie, asi
+## que sirve para mover los brazos exactamente al ritmo de las piernas.
+func _leg_swing(cycle01: float) -> float:
+	var z: float
+	if cycle01 < STANCE_FRAC:
+		z = lerpf(STRIDE * 0.5, -STRIDE * 0.5, cycle01 / STANCE_FRAC)
+	else:
+		z = _swing_z((cycle01 - STANCE_FRAC) / (1.0 - STANCE_FRAC))
+	return clampf(z / (STRIDE * 0.5), -1.0, 1.0)
+
+
+## `swing`: +1 = ese brazo del todo hacia delante, -1 del todo hacia atras.
+func _arm(side: String, swing: float) -> void:
 	# El hombro entero acompaña al brazo, con el giro repartido entre la
 	# clavicula y el hombro para que el movimiento salga del torso.
 	_pitch("%s_Collar" % side, -COLLAR_SWING * swing)
@@ -288,6 +327,20 @@ func _arm(side: String, phase: float) -> void:
 	_roll("%s_Collar" % side, mirror * COLLAR_LIFT * maxf(0.0, -swing))
 	_pitch("%s_Shoulder" % side, -ARM_SWING * swing)
 	_pitch("%s_Elbow" % side, -ELBOW_BEND - maxf(0.0, swing) * ELBOW_BEND)
+	_fist(side)
+
+
+## Cierra la mano. Al andar los puños van cerrados, no con los dedos
+## estirados: abiertos parece que el personaje sujete algo.
+func _fist(side: String) -> void:
+	if not _fingers.has(side):
+		return
+	# Los dedos se abren a lo largo de Z, asi que la flexion gira sobre Z. Se
+	# cierran hacia la palma, que mira hacia dentro del cuerpo: en el lado
+	# izquierdo eso es -X (giro negativo) y en el derecho al reves.
+	var mirror := -1.0 if side == "L" else 1.0
+	for i in _fingers[side]:
+		_rotate_bone(i, Vector3(0, 0, 1), mirror * FIST_CURL)
 
 
 func _pitch(bone: String, deg: float) -> void:
@@ -303,9 +356,11 @@ func _roll(bone: String, deg: float) -> void:
 
 
 func _rotate(bone: String, axis: Vector3, deg: float) -> void:
-	if not _idx.has(bone):
-		return
-	var i: int = _idx[bone]
+	if _idx.has(bone):
+		_rotate_bone(_idx[bone], axis, deg)
+
+
+func _rotate_bone(i: int, axis: Vector3, deg: float) -> void:
 	var rest := _skel.get_bone_rest(i).basis.get_rotation_quaternion()
 	_skel.set_bone_pose_rotation(i, rest * Quaternion(axis, deg_to_rad(deg)))
 
