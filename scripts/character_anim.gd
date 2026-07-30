@@ -33,7 +33,7 @@ extends RefCounted
 # --- Ciclo de marcha ---
 ## Fases del ciclo, en vueltas completas: 0.25 = zancada maxima adelante (el
 ## talon toca el suelo), 0.75 = pie despegando hacia atras.
-const WALK_PERIOD := 0.72     ## segundos por ciclo completo (dos pasos)
+const WALK_PERIOD := 0.88     ## segundos por ciclo completo (dos pasos)
 const HIP_SWING := 17.0       ## amplitud del balanceo de cadera, grados
 ## La rodilla flexiona DOS veces por ciclo, como en una marcha real: mucho al
 ## recoger la pierna en el aire, y un poco al apoyar el talon para amortiguar
@@ -50,9 +50,9 @@ const TORSO_TWIST := 5.0      ## contragiro del tronco
 ## Movimiento de cadera: gira acompañando a la pierna que avanza, cae un poco
 ## del lado de la pierna que va en el aire y el cuerpo se carga sobre la
 ## pierna que apoya. Son los tres gestos que separan un andar de un deslizar.
-const PELVIS_YAW := 5.0       ## giro de cadera en el plano horizontal
-const PELVIS_ROLL := 3.5      ## caida de cadera hacia el lado en vuelo
-const PELVIS_SWAY := 0.014    ## carga lateral del peso, en unidades del rig
+const PELVIS_YAW := 4.0       ## giro de cadera en el plano horizontal
+const PELVIS_ROLL := 1.8      ## caida de cadera hacia el lado en vuelo
+const PELVIS_SWAY := 0.005    ## carga lateral del peso, en unidades del rig
 
 # --- Reposo de pie ---
 const IDLE_PERIOD := 3.4
@@ -94,6 +94,30 @@ func walk(t: float) -> void:
 func walk_bob(t: float) -> float:
 	var phase := fmod(t, WALK_PERIOD) / WALK_PERIOD * TAU
 	return -absf(sin(phase)) * BODY_BOB
+
+
+## Velocidad de avance (unidades de mundo por segundo) a la que los pies NO
+## patinan: el paso que dan de verdad las piernas, llevado a la escala a la
+## que se dibuja el personaje. Quien mueva al personaje debe usar ESTA
+## velocidad; si avanza mas rapido los pies resbalan por el suelo, y si va mas
+## lento parece que patine hacia atras.
+func ground_speed(model_scale: float, samples := 48) -> float:
+	var ankle := _skel.find_bone("L_Ankle")
+	var pelvis := _skel.find_bone("Pelvis")
+	if ankle < 0 or pelvis < 0:
+		return 0.0
+	var lo := INF
+	var hi := -INF
+	for i in samples:
+		reset()
+		walk(WALK_PERIOD * float(i) / float(samples))
+		var z: float = _skel.get_bone_global_pose(ankle).origin.z \
+			- _skel.get_bone_global_pose(pelvis).origin.z
+		lo = minf(lo, z)
+		hi = maxf(hi, z)
+	reset()
+	# Un ciclo son DOS pasos, y cada paso avanza lo que recorre un pie.
+	return (hi - lo) * 2.0 * model_scale / WALK_PERIOD
 
 
 ## Reposo de pie: respiracion lenta, sin desplazar los pies.

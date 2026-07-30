@@ -9,7 +9,6 @@ extends Node3D
 
 const RIGGED := preload("res://assets/models/grumete_rig.glb")
 const BODY_H := 1.75
-const WALK_SPEED := 2.2
 
 # true = anda sin avanzar, para comparar las piernas fotograma a fotograma.
 const WALK_IN_PLACE := false
@@ -17,6 +16,8 @@ const WALK_IN_PLACE := false
 var _anim: CharacterAnim
 var _skel: Skeleton3D
 var _pivot: Node3D
+var _speed := 0.0             # se deduce del ciclo, para que los pies no patinen
+var _model_scale := 1.0
 var _t := 0.0
 var _shots := []
 var _idx := 0
@@ -29,7 +30,9 @@ func _ready() -> void:
 	_anim = CharacterAnim.new(_skel)
 	if not _anim.has_humanoid_bones():
 		push_error("el rig no trae huesos humanoides con nombre")
+	_speed = _anim.ground_speed(_model_scale)
 	print(_gait_report())
+	print("                 avance sin patinar: %.2f u/s" % _speed)
 
 
 # ---------------------------------------------------------------- escenario
@@ -82,6 +85,7 @@ func _spawn(ground_pos: Vector3) -> Node3D:
 	pivot.add_child(inst)
 	var aabb := _merged_aabb(inst)
 	var s := BODY_H / maxf(aabb.size.y, 0.0001)
+	_model_scale = s
 	inst.scale = Vector3(s, s, s)
 	inst.position = -Vector3(aabb.position.x + aabb.size.x * 0.5, aabb.position.y,
 		aabb.position.z + aabb.size.z * 0.5) * s
@@ -177,7 +181,7 @@ func _process(delta: float) -> void:
 	_anim.reset()
 	_anim.walk(_t)
 	# Avanza de verdad por la cubierta, con el rebote del ciclo.
-	var travel := 0.0 if WALK_IN_PLACE else fmod(_t * WALK_SPEED, 7.0) - 3.5
+	var travel := 0.0 if WALK_IN_PLACE else fmod(_t * _speed, 7.0) - 3.5
 	var dir := Vector3(1.0, 0.0, -1.0).normalized()
 	_pivot.position = dir * travel + Vector3.UP * _anim.walk_bob(_t)
 	_pivot.rotation_degrees.y = rad_to_deg(atan2(dir.x, dir.z))
