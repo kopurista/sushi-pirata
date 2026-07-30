@@ -34,13 +34,24 @@ extends RefCounted
 const WALK_PERIOD := 0.92     ## segundos por ciclo completo (dos pasos)
 const STRIDE := 0.30          ## lo que recorre el pie apoyado, unidades del rig
 const STANCE_FRAC := 0.55     ## parte del ciclo con el pie en el suelo
-const FOOT_LIFT := 0.055      ## altura del pie al pasar por el aire
+## Altura del pie en el aire. Con valores altos la rodilla se recoge mucho y
+## el paso se ve de marcha militar, con el pie cayendo a plomo.
+const FOOT_LIFT := 0.038
+## En que momento del vuelo queda el punto mas alto. Adelantado (menos de la
+## mitad) el pie sube pronto y luego BAJA PLANEANDO hasta posarse, en vez de
+## caer en vertical como si pisoteara.
+const LIFT_PEAK_AT := 0.36
 ## Cuanto baja el cuerpo con las piernas abiertas. Ademas de dar vida, es lo
 ## que permite a la pierna ALCANZAR el suelo en la zancada abierta: si se sube
 ## STRIDE hay que subir esto, o la pierna se queda corta y el pie patina.
 const BODY_BOB := 0.022       ## sube y baja del cuerpo, unidades del rig
 const ARM_SWING := 14.0       ## balanceo de hombro (opuesto a su pierna)
 const ELBOW_BEND := 14.0      ## flexion fija de codo, da naturalidad
+## La clavicula mueve el hombro entero, no solo el brazo: acompaña al brazo
+## hacia delante y lo encoge un poco al ir hacia atras. Es sutil, pero es la
+## diferencia entre un cuerpo vivo y un torso rigido con dos brazos colgando.
+const COLLAR_SWING := 4.0     ## el hombro va y viene con su brazo
+const COLLAR_LIFT := 2.2      ## y sube ligeramente al llevarlo atras
 const TORSO_TWIST := 5.0      ## contragiro del tronco
 ## Movimiento de cadera: gira acompañando a la pierna que avanza, cae un poco
 ## del lado de la pierna que va en el aire y el cuerpo se carga sobre la que
@@ -177,12 +188,43 @@ func _foot_target(side: String, cycle01: float, bob: float) -> Vector2:
 		# cadera, el pie siga exactamente a la misma altura del suelo.
 		var u := cycle01 / STANCE_FRAC
 		return Vector2(lerpf(STRIDE * 0.5, -STRIDE * 0.5, u), ground - bob)
-	# VUELO: vuelve al frente describiendo un arco, arrancando y aterrizando
-	# suave para que no de tirones al cambiar de fase.
+	# VUELO: vuelve al frente describiendo un arco.
 	var v := (cycle01 - STANCE_FRAC) / (1.0 - STANCE_FRAC)
-	return Vector2(
-		lerpf(-STRIDE * 0.5, STRIDE * 0.5, smoothstep(0.0, 1.0, v)),
-		ground - bob + sin(PI * v) * FOOT_LIFT)
+	return Vector2(_swing_z(v), ground - bob + _swing_lift(v))
+
+
+## Altura del pie durante el vuelo: una loma asimetrica, empinada al subir y
+## tendida al bajar. Las dos mitades son medio coseno, que llega a los extremos
+## con velocidad CERO; una curva tipo pow(v, 0.7) tambien adelanta el punto
+## alto, pero sale del suelo con velocidad infinita y el pie pega un salto seco
+## al despegar.
+func _swing_lift(v: float) -> float:
+	if v < LIFT_PEAK_AT:
+		var up := v / LIFT_PEAK_AT
+		return FOOT_LIFT * (0.5 - 0.5 * cos(PI * up))
+	var down := (v - LIFT_PEAK_AT) / (1.0 - LIFT_PEAK_AT)
+	return FOOT_LIFT * (0.5 + 0.5 * cos(PI * down))
+
+
+## Avance del pie durante el vuelo. Es una curva de Hermite con las PENDIENTES
+## de los extremos fijadas a la misma velocidad que lleva el pie mientras pisa.
+## Con una interpolacion normal (o un smoothstep) el pie sale del suelo y
+## aterriza con velocidad cero, asi que su velocidad da un salto brusco justo
+## al despegar y al posarse: eso es el tiron que se veia al final de la
+## zancada. Al igualar las pendientes el paso encadena sin costura.
+##
+## De regalo, la curva reproduce dos cosas que hace un pie de verdad: sigue
+## empujando hacia atras un instante despues de despegar, y se adelanta un
+## poco de mas antes de recogerse para posarse justo donde toca.
+func _swing_z(v: float) -> float:
+	var half := STRIDE * 0.5
+	var slope := -STRIDE * (1.0 - STANCE_FRAC) / STANCE_FRAC
+	var v2 := v * v
+	var v3 := v2 * v
+	return -half * (2.0 * v3 - 3.0 * v2 + 1.0) \
+		+ slope * (v3 - 2.0 * v2 + v) \
+		+ half * (-2.0 * v3 + 3.0 * v2) \
+		+ slope * (v3 - v2)
 
 
 ## Resuelve la pierna para que el tobillo caiga sobre su objetivo.
@@ -227,8 +269,16 @@ func _pelvis(phase: float) -> void:
 
 
 func _arm(side: String, phase: float) -> void:
-	_pitch("%s_Shoulder" % side, -ARM_SWING * sin(phase))
-	_pitch("%s_Elbow" % side, -ELBOW_BEND - maxf(0.0, sin(phase)) * ELBOW_BEND)
+	var swing := sin(phase)
+	# El hombro entero acompaña al brazo, con el giro repartido entre la
+	# clavicula y el hombro para que el movimiento salga del torso.
+	_pitch("%s_Collar" % side, -COLLAR_SWING * swing)
+	# La clavicula se levanta al llevar el brazo atras. El lado derecho es el
+	# espejo del izquierdo, de ahi el cambio de signo.
+	var mirror := 1.0 if side == "L" else -1.0
+	_roll("%s_Collar" % side, mirror * COLLAR_LIFT * maxf(0.0, -swing))
+	_pitch("%s_Shoulder" % side, -ARM_SWING * swing)
+	_pitch("%s_Elbow" % side, -ELBOW_BEND - maxf(0.0, swing) * ELBOW_BEND)
 
 
 func _pitch(bone: String, deg: float) -> void:

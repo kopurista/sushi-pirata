@@ -145,17 +145,46 @@ func _gait_report(samples := 72) -> String:
 	var flex_min: float = flex.min()
 	var flex_max: float = flex.max()
 	var slide := _stance_slide(samples)
-	var ok := corr < -0.9 and minf(amp_l, amp_r) / maxf(amp_l, amp_r) > 0.9 \
+	var jerk := _toe_off_jerk()
+	# La correlacion no llega a -1 aunque las piernas alternen perfectamente:
+	# solo una trayectoria SENOIDAL da -1, y la del pie no lo es (empuja al
+	# despegar y se recoge antes de posarse). Lo que garantiza la alternancia
+	# es que las dos piernas van desfasadas medio ciclo por construccion, y
+	# que se cruzan dos veces; el umbral se afloja en consecuencia.
+	var ok := corr < -0.8 and minf(amp_l, amp_r) / maxf(amp_l, amp_r) > 0.9 \
 		and crossings >= 2 and flex_min > -3.0 and flex_max > 20.0 \
 		and slide < 0.06
 	return ("CICLO DE MARCHA: recorrido pie L %.3f  pie R %.3f  elevacion %.3f\n"
 		+ "                 antifase %+.2f  cruces %d\n"
 		+ "                 rodilla: flexion de %+.1f a %+.1f grados%s\n"
-		+ "                 patinaje del pie apoyado: %.3f u\n"
+		+ "                 patinaje del pie apoyado: %.3f u   tiron: %.2f\n"
 		+ "                 -> %s") % [
 		amp_l, amp_r, lift, corr, crossings, flex_min, flex_max,
 		"  (NEGATIVO = dobla al reves)" if flex_min < -3.0 else "",
-		slide, "CORRECTO" if ok else "REVISAR"]
+		slide, jerk, "CORRECTO" if ok else "REVISAR"]
+
+
+## Salto de velocidad del pie en el instante en que deja de pisar y empieza a
+## volar. Es EL sitio donde se percibe el tiron: si el pie viene retrocediendo
+## a una velocidad y de golpe pasa a otra, se ve como una sacudida. Se mide con
+## muestreo fino a los dos lados del relevo, en unidades de mundo por segundo.
+func _toe_off_jerk() -> float:
+	var la := _skel.find_bone("L_Ankle")
+	var t_off := CharacterAnim.WALK_PERIOD * CharacterAnim.STANCE_FRAC
+	var dt := CharacterAnim.WALK_PERIOD * 0.0005
+	var before := (_foot_at(la, t_off - dt) - _foot_at(la, t_off - 2.0 * dt)) / dt
+	var after := (_foot_at(la, t_off + 2.0 * dt) - _foot_at(la, t_off + dt)) / dt
+	_anim.reset()
+	return (after - before).length()
+
+
+## Posicion del pie en el mundo (avance del cuerpo incluido) en el instante t.
+func _foot_at(bone: int, t: float) -> Vector2:
+	_anim.reset()
+	_anim.walk(t)
+	var p := _skel.get_bone_global_pose(bone).origin
+	return Vector2(_anim.walk_advance(t, _model_scale) + p.z * _model_scale,
+		_anim.walk_bob(t, _model_scale) + p.y * _model_scale)
 
 
 ## Cuanto se mueve por el suelo el pie que esta pisando, ya contando el avance
@@ -163,33 +192,25 @@ func _gait_report(samples := 72) -> String:
 ## queda clavado y es el cuerpo el que pasa por encima.
 func _stance_slide(samples: int) -> float:
 	var la := _skel.find_bone("L_Ankle")
-	var ra := _skel.find_bone("R_Ankle")
-	var worst := 0.0
-	var run := 0.0
-	var prev_z := 0.0
-	var prev_side := -1
-	for i in samples:
+	# Se mide el pie IZQUIERDO durante su apoyo, que por definicion del ciclo
+	# va de 0 a STANCE_FRAC. Deducirlo de "que pie esta mas bajo" engaña: al
+	# despegar suave el pie sigue cerca del suelo aunque ya vuele, y esos
+	# fotogramas se contaban como patinaje que no existe.
+	var lo := INF
+	var hi := -INF
+	var n := int(samples * CharacterAnim.STANCE_FRAC)
+	for i in n:
 		var t := CharacterAnim.WALK_PERIOD * float(i) / float(samples)
 		_anim.reset()
 		_anim.walk(t)
-		var lp := _skel.get_bone_global_pose(la).origin
-		var rp := _skel.get_bone_global_pose(ra).origin
-		var left_down := lp.y <= rp.y
-		var side := 0 if left_down else 1
 		# Posicion del pie en el MUNDO: lo que avanza el cuerpo mas donde
 		# queda el pie dentro del personaje.
 		var z: float = _anim.walk_advance(t, _model_scale) \
-			+ (lp.z if left_down else rp.z) * _model_scale
-		if side == prev_side:
-			# Deriva acumulada mientras siga pisando el mismo pie.
-			run += absf(z - prev_z)
-			worst = maxf(worst, run)
-		else:
-			run = 0.0
-		prev_z = z
-		prev_side = side
+			+ _skel.get_bone_global_pose(la).origin.z * _model_scale
+		lo = minf(lo, z)
+		hi = maxf(hi, z)
 	_anim.reset()
-	return worst
+	return hi - lo
 
 
 func _pearson(a: Array[float], b: Array[float]) -> float:
