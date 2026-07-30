@@ -7,8 +7,10 @@ extends Node3D
 ## respecto a la cadera, y correlacion entre ambas. Un andar correcto exige
 ## correlacion muy negativa (los pies alternan) y recorrido parecido en los dos.
 
-const RIGGED := preload("res://assets/models/grumete_rig.glb")
+## Personaje a mostrar: grumete, chef, pirata, capitan o vip.
+const WHO := "grumete"
 const BODY_H := 1.75
+const ALL := ["grumete", "chef", "pirata", "capitan", "vip"]
 
 # true = anda sin avanzar, para comparar las piernas fotograma a fotograma.
 const WALK_IN_PLACE := false
@@ -53,7 +55,7 @@ func _setup_seat() -> void:
 	# no va a su altura sino algo mas abajo, donde apoyan los gluteos; si no,
 	# el taburete atraviesa al personaje.
 	var hip := _skel.global_transform * _skel.get_bone_global_pose(
-		_skel.find_bone("Pelvis")).origin
+		_anim.bone("Pelvis")).origin
 	var seat_y := hip.y - 0.10
 	_box(Vector3(0.46, 0.07, 0.46), Vector3(hip.x, seat_y - 0.035, hip.z - 0.04),
 		Color(0.40, 0.26, 0.15))
@@ -61,8 +63,8 @@ func _setup_seat() -> void:
 		Vector3(hip.x, (seat_y - 0.07) * 0.5, hip.z - 0.04), Color(0.34, 0.22, 0.13))
 
 	# El plato, en el punto que persigue la mano derecha.
-	var plate := _skel.global_transform * Vector3(-CharacterAnim.HAND_PLATE.x,
-		CharacterAnim.HAND_PLATE.y, CharacterAnim.HAND_PLATE.z)
+	var hp := _anim.hand_plate
+	var plate := _skel.global_transform * Vector3(-hp.x, hp.y, hp.z)
 	# Repisa fina bajo el plato: da referencia de altura sin tapar las piernas.
 	_box(Vector3(1.2, 0.06, 0.34),
 		Vector3(0.0, plate.y - 0.09, plate.z + 0.05), Color(0.48, 0.33, 0.18))
@@ -84,17 +86,17 @@ func _setup_seat() -> void:
 ## brazo cae dentro de esa caja, esta atravesando el cuerpo. Recorre el ciclo
 ## entero y dice en que fase y cuanto se hunde.
 func _bite_report(samples := 90) -> String:
-	var sp1 := _skel.find_bone("Spine1")
-	var sp3 := _skel.find_bone("Spine3")
-	var elbow := _skel.find_bone("R_Elbow")
-	var wrist := _skel.find_bone("R_Wrist")
+	var sp1 := _anim.bone("Spine1")
+	var sp3 := _anim.bone("Spine3")
+	var elbow := _anim.bone("R_Elbow")
+	var wrist := _anim.bone("R_Wrist")
 	_anim.reset()
 	_anim.sit()
 	var a := _skel.get_bone_global_pose(sp1).origin
 	var b := _skel.get_bone_global_pose(sp3).origin
 	# Medio ancho y medio fondo del torso, deducidos del propio esqueleto.
 	var half_w: float = absf(_skel.get_bone_global_rest(
-		_skel.find_bone("R_Shoulder")).origin.x) * 0.72
+		_anim.bone("R_Shoulder")).origin.x) * 0.72
 	var half_d := 0.085
 	var y_lo: float = minf(a.y, b.y) - 0.02
 	var y_hi: float = maxf(a.y, b.y) + 0.04
@@ -105,7 +107,7 @@ func _bite_report(samples := 90) -> String:
 	var worst := 0.0
 	var worst_at := 0.0
 	var worst_who := ""
-	var shoulder := _skel.find_bone("R_Shoulder")
+	var shoulder := _anim.bone("R_Shoulder")
 	# El brazo no es una linea: se muestrea A LO LARGO de cada tramo y se le
 	# suma su grosor, porque la carne del brazo entra en el cuerpo antes que
 	# el hueso.
@@ -145,14 +147,14 @@ func _bite_report(samples := 90) -> String:
 	# Y ademas: el puño no debe bajar del plano del plato mientras esta encima
 	# de la mesa, o atraviesa el plato y el mostrador.
 	const FIST := 0.030
-	var plate_y: float = CharacterAnim.HAND_PLATE.y
+	var plate_y: float = _anim.hand_plate.y
 	var sink := 0.0
 	for i in samples:
 		var t := total * float(i) / float(samples)
 		_anim.reset()
 		_anim.bite(t)
 		var wp := _skel.get_bone_global_pose(wrist).origin
-		if wp.z < CharacterAnim.HAND_PLATE.z - 0.10:
+		if wp.z < _anim.hand_plate.z - 0.10:
 			continue     # aun no esta sobre la mesa
 		sink = maxf(sink, plate_y - (wp.y - FIST))
 	_anim.reset()
@@ -228,7 +230,8 @@ func _spawn(ground_pos: Vector3) -> Node3D:
 	var pivot := Node3D.new()
 	pivot.position = ground_pos
 	add_child(pivot)
-	var inst: Node3D = RIGGED.instantiate()
+	var scene: PackedScene = load("res://assets/models/%s_rig.glb" % WHO)
+	var inst: Node3D = scene.instantiate()
 	pivot.add_child(inst)
 	var aabb := _merged_aabb(inst)
 	var s := BODY_H / maxf(aabb.size.y, 0.0001)
@@ -253,11 +256,11 @@ func _merged_aabb(node: Node) -> AABB:
 
 ## Muestrea el ciclo y mide lo mismo que tools/gait_check.py.
 func _gait_report(samples := 72) -> String:
-	var li := _skel.find_bone("L_Ankle")
-	var ri := _skel.find_bone("R_Ankle")
-	var pi := _skel.find_bone("Pelvis")
-	var hi := _skel.find_bone("L_Hip")
-	var ki := _skel.find_bone("L_Knee")
+	var li := _anim.bone("L_Ankle")
+	var ri := _anim.bone("R_Ankle")
+	var pi := _anim.bone("Pelvis")
+	var hi := _anim.bone("L_Hip")
+	var ki := _anim.bone("L_Knee")
 	var lz: Array[float] = []
 	var rz: Array[float] = []
 	var ly: Array[float] = []
@@ -325,7 +328,7 @@ func _gait_report(samples := 72) -> String:
 ## a una velocidad y de golpe pasa a otra, se ve como una sacudida. Se mide con
 ## muestreo fino a los dos lados del relevo, en unidades de mundo por segundo.
 func _toe_off_jerk() -> float:
-	var la := _skel.find_bone("L_Ankle")
+	var la := _anim.bone("L_Ankle")
 	var t_off := CharacterAnim.WALK_PERIOD * CharacterAnim.STANCE_FRAC
 	var dt := CharacterAnim.WALK_PERIOD * 0.0005
 	var before := (_foot_at(la, t_off - dt) - _foot_at(la, t_off - 2.0 * dt)) / dt
@@ -347,7 +350,7 @@ func _foot_at(bone: int, t: float) -> Vector2:
 ## del cuerpo. En un andar bien resuelto tiene que ser casi cero: el pie se
 ## queda clavado y es el cuerpo el que pasa por encima.
 func _stance_slide(samples: int) -> float:
-	var la := _skel.find_bone("L_Ankle")
+	var la := _anim.bone("L_Ankle")
 	# Se mide el pie IZQUIERDO durante su apoyo, que por definicion del ciclo
 	# va de 0 a STANCE_FRAC. Deducirlo de "que pie esta mas bajo" engaña: al
 	# despegar suave el pie sigue cerca del suelo aunque ya vuele, y esos

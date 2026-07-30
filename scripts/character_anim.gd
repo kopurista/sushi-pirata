@@ -32,11 +32,17 @@ extends RefCounted
 
 # --- Ciclo de marcha ---
 const WALK_PERIOD := 0.92     ## segundos por ciclo completo (dos pasos)
-const STRIDE := 0.35          ## lo que recorre el pie apoyado, unidades del rig
+## OJO: las medidas del movimiento van en FRACCIONES del propio cuerpo, no en
+## unidades fijas. Los personajes salen del generador con proporciones muy
+## distintas (el capitan tiene las piernas largas, el VIP casi estiradas del
+## todo en reposo), y una zancada en unidades absolutas le queda corta a uno y
+## fuera de alcance a otro. Al medirlo sobre su propia pierna, el mismo codigo
+## anda bien con cualquiera.
+const STRIDE_F := 0.83        ## zancada, en fracciones de la pierna
 const STANCE_FRAC := 0.55     ## parte del ciclo con el pie en el suelo
 ## Altura del pie en el aire. Muy bajo el pie roza el suelo y el paso parece
 ## un arrastre; muy alto se ve de marcha militar.
-const FOOT_LIFT := 0.058
+const FOOT_LIFT_F := 0.137
 ## En que momento del vuelo queda el punto mas alto. Adelantado (menos de la
 ## mitad) el pie sube pronto y luego BAJA PLANEANDO hasta posarse, en vez de
 ## caer en vertical como si pisoteara.
@@ -44,14 +50,14 @@ const LIFT_PEAK_AT := 0.36
 ## Cuanto baja el cuerpo con las piernas abiertas. Ademas de dar vida, es lo
 ## que permite a la pierna ALCANZAR el suelo en la zancada abierta: si se sube
 ## STRIDE hay que subir esto, o la pierna se queda corta y el pie patina.
-const BODY_BOB := 0.022       ## sube y baja del cuerpo, unidades del rig
+const BODY_BOB_F := 0.052     ## sube y baja del cuerpo, fraccion de la pierna
 ## El cuerpo va SIEMPRE algo flexionado sobre las piernas. No es estetica: si
 ## la pierna trabaja casi estirada, la cinematica inversa se vuelve inestable
 ## —cerca de la extension total el acos tiene derivada infinita— y la rodilla
 ## pega un CHASQUIDO en cada paso: se ve como un tiron al final de la zancada
 ## y como un pisoton al apoyar. Con el cuerpo un poco mas bajo la rodilla
 ## trabaja siempre en una zona estable y el paso sale suave.
-const CROUCH := 0.050
+const CROUCH_F := 0.118
 const ARM_SWING := 22.0       ## balanceo de hombro (opuesto a su pierna)
 const ELBOW_BEND := 16.0      ## flexion fija de codo, da naturalidad
 ## La clavicula mueve el hombro entero, no solo el brazo: acompaña al brazo
@@ -93,24 +99,29 @@ const CHEW_SPEED := 9.0       ## y a que ritmo
 ## izquierdo (el derecho usa lo mismo con la X cambiada de signo). Se anima la
 ## mano y no los angulos del brazo: asi se puede apuntar a un sitio concreto
 ## —el plato, la boca— y el hombro y el codo se resuelven solos.
-const HAND_LAP := Vector3(0.135, 0.010, 0.120)    ## descansando en el muslo
-const HAND_PLATE := Vector3(0.105, 0.055, 0.235)  ## donde esta LA COMIDA
-## La mano se queda por ENCIMA de la comida, no encima del punto exacto: si va
-## al mismo sitio, el puño atraviesa el plato y la mesa. Son los dedos los que
+## Por donde pasa la mano, en FRACCIONES DEL BRAZO y respecto a un hueso del
+## personaje (la cadera, el hombro o la boca). Con puntos fijos, al pirata —de
+## brazos mas cortos— la comida se le quedaba a 26 cm de la boca.
+const LAP_OFF := Vector3(0.23, 0.10, 0.29)      ## desde la cadera: sobre el muslo
+const PLATE_OFF := Vector3(-0.04, -0.70, 0.77)  ## desde el hombro: la comida
+## Desde la boca: la mano se queda algo por debajo y los dedos apuntan hacia
+## arriba. Va bastante separada del eje del cuerpo, porque con la mano pegada
+## al centro el ANTEBRAZO cruza el pecho aunque la mano quede fuera.
+const MOUTH_OFF := Vector3(0.39, -0.24, 0.16)
+## Punto de paso obligado al ir y volver del plato, desde el hombro. Sin el, la
+## mano viaja en LINEA RECTA entre el muslo y el plato, y esa recta atraviesa
+## el mostrador: al ir sube en diagonal y entra por delante de la mesa; al
+## volver la barre. Con este punto la mano sale primero al costado, ya por
+## encima de la mesa, y solo entonces avanza. Va muy hacia el lado y algo
+## adelantado: llevarlo hacia atras metia el antebrazo en el torso.
+const SIDE_OFF := Vector3(0.47, -0.43, 0.30)
+## La mano se queda por ENCIMA de la comida, no en el punto exacto: si va al
+## mismo sitio, el puño atraviesa el plato y la mesa. Son los dedos los que
 ## bajan hasta la comida, que para eso apuntan hacia ella.
-const GRAB_CLEARANCE := 0.080
-## Delante de la boca. La cabeza va de y=0.33 a y=0.49 en este rig, asi que la
-## mano se queda algo por debajo y los dedos apuntan hacia arriba, a la boca.
-## Va bastante separada del eje del cuerpo: con la mano pegada al centro, el
-## ANTEBRAZO cruza el pecho aunque la mano quede fuera.
-const HAND_MOUTH := Vector3(0.120, 0.280, 0.120)
-## Punto de paso obligado al ir y volver del plato. Sin el, la mano viaja en
-## LINEA RECTA entre el muslo y el plato, y esa recta atraviesa el mostrador:
-## al ir sube en diagonal y entra por delante de la mesa; al volver la barre.
-## Con este punto la mano sale primero al costado, ya por encima de la mesa, y
-## solo entonces avanza. Va muy hacia el lado y algo adelantado: llevarlo
-## hacia atras metia el antebrazo en el torso.
-const HAND_SIDE := Vector3(0.265, 0.140, 0.090)
+const GRAB_CLEARANCE_F := 0.26
+## Donde cae la boca dentro de la cabeza, hacia delante y bajando desde su
+## centro (en fracciones del alto de la cabeza).
+const MOUTH_IN_HEAD := Vector2(0.55, 0.30)
 ## Cuanto se abre el codo hacia fuera y hacia delante. Con poco, el brazo se
 ## dobla pegado al costado y se mete dentro del torso.
 const ELBOW_OUT := 2.8
@@ -120,12 +131,27 @@ const ELBOW_FWD := 0.5
 ## mientras se lleva la comida; sin esto la mano conserva la orientacion de
 ## brazo colgando y llega de lado a la cara.
 const MOUTH := Vector3(0.0, 0.355, 0.070)   ## donde esta la boca en el rig
-const LOOK_DOWN := Vector3(0.0, -0.25, 0.0) ## para que los dedos miren abajo
+## Cuanto se proyecta la mirada de los dedos hacia abajo, en fracciones del brazo.
+const LOOK_DOWN_F := 0.80
 
 var _skel: Skeleton3D
 var _idx := {}                ## nombre de hueso -> indice, solo los existentes
 var _legs := {}               ## "L"/"R" -> geometria de reposo de esa pierna
 var _fingers := {}            ## "L"/"R" -> indices de los huesos de los dedos
+
+# Medidas de ESTE personaje, sacadas de su esqueleto en _measure().
+var _leg_len := 1.0           ## muslo + espinilla
+var _arm_len := 1.0           ## brazo + antebrazo
+var stride := 0.0             ## las cuatro de arriba, ya en unidades del rig
+var foot_lift := 0.0
+var body_bob := 0.0
+var crouch := 0.0
+var hand_lap := Vector3.ZERO  ## y los puntos por donde pasa la mano
+var hand_plate := Vector3.ZERO
+var hand_mouth := Vector3.ZERO
+var hand_side := Vector3.ZERO
+var mouth := Vector3.ZERO
+var grab_clearance := 0.0
 
 
 func _init(skeleton: Skeleton3D) -> void:
@@ -141,6 +167,43 @@ func _init(skeleton: Skeleton3D) -> void:
 	for side in ["L", "R"]:
 		_cache_leg(side)
 		_cache_fingers(side)
+	_measure()
+
+
+## Mide el cuerpo de ESTE personaje y traduce las proporciones del movimiento
+## a sus unidades. Todo lo que hace la animacion sale de aqui, asi que el mismo
+## codigo vale para un grumete menudo y para un capitan de piernas largas.
+func _measure() -> void:
+	if not has_humanoid_bones():
+		return
+	var leg: Dictionary = _legs["L"]
+	_leg_len = leg["l1"] + leg["l2"]
+	var sh := _rest(_idx["R_Shoulder"])
+	_arm_len = sh.distance_to(_rest(_idx["R_Elbow"])) \
+		+ _rest(_idx["R_Elbow"]).distance_to(_rest(_idx["R_Wrist"]))
+
+	stride = STRIDE_F * _leg_len
+	foot_lift = FOOT_LIFT_F * _leg_len
+	body_bob = BODY_BOB_F * _leg_len
+	crouch = CROUCH_F * _leg_len
+
+	# La boca: dentro de la cabeza, algo por debajo de su centro y hacia
+	# delante. Si el rig no trae cabeza, se usa el cuello como referencia.
+	var head_i: int = _idx.get("Head", _idx.get("Neck", -1))
+	var neck := _rest(_idx["Neck"]) if _idx.has("Neck") else sh
+	var head := _rest(head_i) if head_i >= 0 else neck
+	var head_h: float = maxf(absf(head.y - neck.y), _leg_len * 0.12)
+	mouth = Vector3(0.0, head.y - head_h * MOUTH_IN_HEAD.y,
+		head.z + head_h * MOUTH_IN_HEAD.x)
+
+	var hip := _rest(_idx["L_Hip"])
+	hand_lap = hip + LAP_OFF * _arm_len
+	# El hombro izquierdo, para dejar los puntos en el lado +X como el resto.
+	var sh_l := Vector3(absf(sh.x), sh.y, sh.z)
+	hand_plate = sh_l + PLATE_OFF * _arm_len
+	hand_side = sh_l + SIDE_OFF * _arm_len
+	hand_mouth = mouth + MOUTH_OFF * _arm_len
+	grab_clearance = GRAB_CLEARANCE_F * _arm_len
 
 
 func has_humanoid_bones() -> bool:
@@ -151,6 +214,16 @@ func has_humanoid_bones() -> bool:
 ## Si la deteccion encontro ese hueso. Util para comprobar un rig nuevo.
 func resolved(logical_name: String) -> bool:
 	return _idx.has(logical_name)
+
+
+## Longitud del brazo de este personaje.
+func arm_length() -> float:
+	return _arm_len
+
+
+## Indice real del hueso que hace ese papel, o -1. Lo usa la verificacion.
+func bone(logical_name: String) -> int:
+	return _idx.get(logical_name, -1)
 
 
 ## Ciclo de marcha. `t` es tiempo en segundos; el ciclo se repite solo.
@@ -187,7 +260,7 @@ func walk_bob(t: float, model_scale: float) -> float:
 ## que avanzar exactamente eso en ese tiempo. Con esta velocidad el pie que pisa
 ## queda CLAVADO en el suelo; con cualquier otra, resbala.
 func ground_speed(model_scale: float) -> float:
-	return STRIDE * model_scale / (STANCE_FRAC * WALK_PERIOD)
+	return stride * model_scale / (STANCE_FRAC * WALK_PERIOD)
 
 
 ## Distancia recorrida desde t=0, en unidades de mundo.
@@ -249,31 +322,31 @@ func bite(t: float) -> void:
 	var focus: Vector3
 	var chew := 0.0
 	# La mano se para sobre la comida; los dedos son los que llegan a ella.
-	var over_plate := HAND_PLATE + Vector3(0.0, GRAB_CLEARANCE, 0.0)
+	var over_plate := hand_plate + Vector3(0.0, grab_clearance, 0.0)
 	if u < BITE_REACH:
 		var w := smoothstep(0.0, 1.0, u / BITE_REACH)
 		# Sale al costado y por encima de la mesa antes de avanzar al plato.
-		hand = _bezier(HAND_LAP, HAND_SIDE, over_plate, w)
-		focus = (HAND_LAP + LOOK_DOWN).lerp(HAND_PLATE, w)
+		hand = _bezier(hand_lap, hand_side, over_plate, w)
+		focus = (hand_lap + look_down()).lerp(hand_plate, w)
 	elif u < BITE_REACH + BITE_LIFT:
 		var w := smoothstep(0.0, 1.0, (u - BITE_REACH) / BITE_LIFT)
-		hand = over_plate.lerp(HAND_MOUTH, w)
-		focus = HAND_PLATE.lerp(MOUTH, w)
+		hand = over_plate.lerp(hand_mouth, w)
+		focus = hand_plate.lerp(mouth, w)
 	elif u < BITE_REACH + BITE_LIFT + BITE_CHEW:
-		hand = HAND_MOUTH
-		focus = MOUTH
+		hand = hand_mouth
+		focus = mouth
 		chew = sin((u - BITE_REACH - BITE_LIFT) * CHEW_SPEED) * CHEW_ANGLE
 	else:
 		var w := smoothstep(0.0, 1.0,
 			(u - BITE_REACH - BITE_LIFT - BITE_CHEW) / BITE_LOWER)
 		# Curva de Bezier en vez de recta: la mano se retira hacia el cuerpo
 		# antes de bajar, y asi no barre el plato ni el mostrador.
-		hand = _bezier(HAND_MOUTH, HAND_SIDE, HAND_LAP, w)
-		focus = MOUTH.lerp(HAND_LAP + LOOK_DOWN, w)
+		hand = _bezier(hand_mouth, hand_side, hand_lap, w)
+		focus = mouth.lerp(hand_lap + look_down(), w)
 	# Come con la derecha; la izquierda descansa en el muslo.
 	_arm_ik("R", Vector3(-hand.x, hand.y, hand.z),
 		Vector3(-focus.x, focus.y, focus.z))
-	_arm_ik("L", HAND_LAP, HAND_LAP + LOOK_DOWN)
+	_arm_ik("L", hand_lap, hand_lap + look_down())
 	# Al masticar la cabeza cabecea y la mandibula no existe en el rig, asi
 	# que el gesto se hace con el cuello.
 	_pitch("Neck", chew)
@@ -287,9 +360,9 @@ func sit_idle(t: float) -> void:
 	var breath := sin(t / IDLE_PERIOD * TAU) * IDLE_BREATH
 	_pitch("Spine2", SIT_LEAN * 0.5 + breath * 0.4)
 	_pitch("Neck", -breath * 0.3)
-	_arm_ik("L", HAND_LAP, HAND_LAP + LOOK_DOWN)
-	_arm_ik("R", Vector3(-HAND_LAP.x, HAND_LAP.y, HAND_LAP.z),
-		Vector3(-HAND_LAP.x, HAND_LAP.y, HAND_LAP.z) + LOOK_DOWN)
+	_arm_ik("L", hand_lap, hand_lap + look_down())
+	var lap_r := Vector3(-hand_lap.x, hand_lap.y, hand_lap.z)
+	_arm_ik("R", lap_r, lap_r + look_down())
 	_fist("L")
 	_fist("R")
 
@@ -415,19 +488,23 @@ func _detect_bones() -> void:
 	# varias ramas, que es la cadera de verdad.
 	while _children(root).size() == 1:
 		root = _children(root)[0]
-	_idx["Pelvis"] = root
+	_name(&"Pelvis", root)
 
-	var down: Array[int] = []
+	# Primero se aparta la COLUMNA, que es la rama que mas sube. Hace falta
+	# apartarla antes de buscar las piernas porque ella tambien baja mucho: de
+	# ella cuelgan los brazos, que llegan por debajo de la cadera.
 	var up := -1
 	var up_y := -INF
 	for c in _children(root):
-		var lo := _subtree_y(c, true)
 		var hi := _subtree_y(c, false)
-		if lo < _rest(root).y - 0.05:
-			down.append(c)
 		if hi > up_y:
 			up_y = hi
 			up = c
+	# De lo que queda, las piernas son las dos ramas que mas bajan.
+	var down: Array[int] = []
+	for c in _children(root):
+		if c != up:
+			down.append(c)
 	# Las dos ramas que mas bajan son las piernas.
 	down.sort_custom(func(a, b): return _subtree_y(a, true) < _subtree_y(b, true))
 	if down.size() >= 2:
@@ -436,14 +513,14 @@ func _detect_bones() -> void:
 			var chain := _chain(leg, 3)
 			var parts := ["%s_Hip" % side, "%s_Knee" % side, "%s_Ankle" % side]
 			for k in mini(chain.size(), 3):
-				_idx[parts[k]] = chain[k]
+				_name(parts[k], chain[k])
 
 	# La columna sube hasta bifurcarse; ahi salen los brazos y el cuello.
 	if up < 0:
 		return
 	var spine := _chain_to_branch(up)
 	for k in spine.size():
-		_idx["Spine%d" % (k + 1)] = spine[k]
+		_name("Spine%d" % (k + 1), spine[k])
 	var fork: int = spine[spine.size() - 1]
 	var arms: Array[int] = []
 	var neck := -1
@@ -457,9 +534,9 @@ func _detect_bones() -> void:
 		if c != neck:
 			arms.append(c)
 	if neck >= 0:
-		_idx["Neck"] = neck
+		_name(&"Neck", neck)
 		var head := _chain(neck, 9)
-		_idx["Head"] = head[head.size() - 1]
+		_name(&"Head", head[head.size() - 1])
 
 	for arm in arms:
 		var side := "L" if _rest(arm).x >= _rest(fork).x else "R"
@@ -467,14 +544,21 @@ func _detect_bones() -> void:
 		var wrist := _find_hand(arm)
 		if wrist < 0:
 			continue
-		_idx["%s_Wrist" % side] = wrist
+		_name("%s_Wrist" % side, wrist)
 		var elbow := _skel.get_bone_parent(wrist)
 		var shoulder := _skel.get_bone_parent(elbow)
-		_idx["%s_Elbow" % side] = elbow
-		_idx["%s_Shoulder" % side] = shoulder
+		_name("%s_Elbow" % side, elbow)
+		_name("%s_Shoulder" % side, shoulder)
 		var collar := _skel.get_bone_parent(shoulder)
 		if collar != fork:
-			_idx["%s_Collar" % side] = collar
+			_name("%s_Collar" % side, collar)
+
+
+## Registra un hueso bajo su papel logico, SIN pisar el nombre que ya trajera
+## el rig: si el auto-rig lo nombro bien, su nombre manda sobre la deduccion.
+func _name(logical: StringName, idx: int) -> void:
+	if not _idx.has(logical):
+		_idx[logical] = idx
 
 
 func _children(i: int) -> Array[int]:
@@ -529,22 +613,26 @@ func _chain_to_branch(start: int) -> Array[int]:
 	return out
 
 
-## Dentro de un brazo, el hueso del que salen los dedos: el primero con tres
-## o mas hijos. Si el rig no tiene dedos, el ultimo de la cadena.
+## Dentro de un brazo, la muñeca: el hueso del que salen los dedos, que es el
+## unico con tres o mas hijos. Hay rigs sin dedos —el del pirata no los tiene—
+## y entonces la muñeca es sencillamente el extremo del brazo: devolver su
+## padre, como hacia antes, desplazaba TODA la cadena un hueso y dejaba el
+## "hombro" a la altura de la mano.
 func _find_hand(start: int) -> int:
 	var stack: Array[int] = [start]
-	var deepest := start
-	var deep_y := INF
+	var far := start
+	var far_d := -1.0
 	while not stack.is_empty():
 		var cur: int = stack.pop_back()
 		var kids := _children(cur)
 		if kids.size() >= 3:
 			return cur
-		if kids.is_empty() and _rest(cur).y < deep_y:
-			deep_y = _rest(cur).y
-			deepest = cur
+		var d := _rest(cur).distance_to(_rest(start))
+		if kids.is_empty() and d > far_d:
+			far_d = d
+			far = cur
 		stack.append_array(kids)
-	return _skel.get_bone_parent(deepest) if deepest != start else start
+	return far
 
 
 ## Recoge los huesos de los dedos: todo lo que cuelga de la muñeca. Se busca
@@ -601,7 +689,7 @@ func _bob_rig(cycle: float) -> float:
 	# ese descenso es lo que permite a la pierna llegar al suelo con el paso
 	# abierto. Como el objetivo del pie descuenta este valor y quien mueve al
 	# personaje lo aplica al pivote, los pies siguen pisando el suelo.
-	return -CROUCH - absf(sin(cycle * TAU)) * BODY_BOB
+	return -crouch - absf(sin(cycle * TAU)) * body_bob
 
 
 ## Donde tiene que estar el pie en este instante del ciclo, en el plano
@@ -614,7 +702,7 @@ func _foot_target(side: String, cycle01: float, bob: float) -> Vector2:
 		# despegar. Se resta el balanceo del cuerpo para que, al bajar la
 		# cadera, el pie siga exactamente a la misma altura del suelo.
 		var u := cycle01 / STANCE_FRAC
-		return Vector2(lerpf(STRIDE * 0.5, -STRIDE * 0.5, u), ground - bob)
+		return Vector2(lerpf(stride * 0.5, -stride * 0.5, u), ground - bob)
 	# VUELO: vuelve al frente describiendo un arco.
 	var v := (cycle01 - STANCE_FRAC) / (1.0 - STANCE_FRAC)
 	return Vector2(_swing_z(v), ground - bob + _swing_lift(v))
@@ -628,9 +716,9 @@ func _foot_target(side: String, cycle01: float, bob: float) -> Vector2:
 func _swing_lift(v: float) -> float:
 	if v < LIFT_PEAK_AT:
 		var up := v / LIFT_PEAK_AT
-		return FOOT_LIFT * (0.5 - 0.5 * cos(PI * up))
+		return foot_lift * (0.5 - 0.5 * cos(PI * up))
 	var down := (v - LIFT_PEAK_AT) / (1.0 - LIFT_PEAK_AT)
-	return FOOT_LIFT * (0.5 + 0.5 * cos(PI * down))
+	return foot_lift * (0.5 + 0.5 * cos(PI * down))
 
 
 ## Avance del pie durante el vuelo. Es una curva de Hermite con las PENDIENTES
@@ -644,8 +732,8 @@ func _swing_lift(v: float) -> float:
 ## empujando hacia atras un instante despues de despegar, y se adelanta un
 ## poco de mas antes de recogerse para posarse justo donde toca.
 func _swing_z(v: float) -> float:
-	var half := STRIDE * 0.5
-	var slope := -STRIDE * (1.0 - STANCE_FRAC) / STANCE_FRAC
+	var half := stride * 0.5
+	var slope := -stride * (1.0 - STANCE_FRAC) / STANCE_FRAC
 	var v2 := v * v
 	var v3 := v2 * v
 	return -half * (2.0 * v3 - 3.0 * v2 + 1.0) \
@@ -695,6 +783,11 @@ func _pelvis(phase: float) -> void:
 	_translate("Pelvis", Vector3(-cos(phase) * PELVIS_SWAY, 0.0, 0.0))
 
 
+## Adonde miran los dedos cuando tienen que mirar hacia abajo.
+func look_down() -> Vector3:
+	return Vector3(0.0, -LOOK_DOWN_F * _arm_len, 0.0)
+
+
 ## Curva suave que pasa cerca de `via` al ir de `from` a `to`.
 func _bezier(from: Vector3, via: Vector3, to: Vector3, w: float) -> Vector3:
 	return from.lerp(via, w).lerp(via.lerp(to, w), w)
@@ -706,10 +799,10 @@ func _bezier(from: Vector3, via: Vector3, to: Vector3, w: float) -> Vector3:
 func _leg_swing(cycle01: float) -> float:
 	var z: float
 	if cycle01 < STANCE_FRAC:
-		z = lerpf(STRIDE * 0.5, -STRIDE * 0.5, cycle01 / STANCE_FRAC)
+		z = lerpf(stride * 0.5, -stride * 0.5, cycle01 / STANCE_FRAC)
 	else:
 		z = _swing_z((cycle01 - STANCE_FRAC) / (1.0 - STANCE_FRAC))
-	return clampf(z / (STRIDE * 0.5), -1.0, 1.0)
+	return clampf(z / (stride * 0.5), -1.0, 1.0)
 
 
 ## `swing`: +1 = ese brazo del todo hacia delante, -1 del todo hacia atras.
