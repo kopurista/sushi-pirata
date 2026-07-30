@@ -31,15 +31,28 @@ extends RefCounted
 ##   - codo: angulo NEGATIVO = flexion natural (la mano sube hacia delante).
 
 # --- Ciclo de marcha ---
-const WALK_PERIOD := 0.9      ## segundos por ciclo completo (dos pasos)
-const HIP_SWING := 26.0       ## amplitud del balanceo de cadera, grados
-const KNEE_BEND := 52.0       ## flexion maxima de rodilla en la fase de vuelo
-const KNEE_PEAK := TAU * 0.875 ## fase de flexion maxima (justo tras despegar)
+## Fases del ciclo, en vueltas completas: 0.25 = zancada maxima adelante (el
+## talon toca el suelo), 0.75 = pie despegando hacia atras.
+const WALK_PERIOD := 0.72     ## segundos por ciclo completo (dos pasos)
+const HIP_SWING := 17.0       ## amplitud del balanceo de cadera, grados
+## La rodilla flexiona DOS veces por ciclo, como en una marcha real: mucho al
+## recoger la pierna en el aire, y un poco al apoyar el talon para amortiguar
+## el peso. Sin esa segunda flexion el paso se ve rigido, como de muñeco.
+const KNEE_BEND := 44.0       ## flexion en la fase de vuelo
+const KNEE_PEAK := TAU * 0.875 ## fase de esa flexion (justo tras despegar)
+const KNEE_STANCE := 12.0     ## flexion de amortiguacion al apoyar
+const KNEE_STANCE_PEAK := TAU * 0.375  ## fase de esa segunda flexion
 const ANKLE_KEEP := 0.35      ## cuanto contrarresta el tobillo para no arrastrar
-const ARM_SWING := 20.0       ## balanceo de hombro (opuesto a su pierna)
+const ARM_SWING := 14.0       ## balanceo de hombro (opuesto a su pierna)
 const ELBOW_BEND := 14.0      ## flexion fija de codo, da naturalidad
-const BODY_BOB := 0.035       ## subida y bajada del cuerpo, en unidades de mundo
+const BODY_BOB := 0.030       ## subida y bajada del cuerpo, en unidades de mundo
 const TORSO_TWIST := 5.0      ## contragiro del tronco
+## Movimiento de cadera: gira acompañando a la pierna que avanza, cae un poco
+## del lado de la pierna que va en el aire y el cuerpo se carga sobre la
+## pierna que apoya. Son los tres gestos que separan un andar de un deslizar.
+const PELVIS_YAW := 5.0       ## giro de cadera en el plano horizontal
+const PELVIS_ROLL := 3.5      ## caida de cadera hacia el lado en vuelo
+const PELVIS_SWAY := 0.014    ## carga lateral del peso, en unidades del rig
 
 # --- Reposo de pie ---
 const IDLE_PERIOD := 3.4
@@ -67,10 +80,12 @@ func walk(t: float) -> void:
 	# El brazo acompaña a la pierna CONTRARIA, como en la marcha humana.
 	_arm("L", phase + PI)
 	_arm("R", phase)
-	# El tronco contragira respecto a las piernas.
+	_pelvis(phase)
+	# El tronco contragira respecto a la cadera, para que los hombros queden
+	# mirando al frente en vez de irse con ella.
 	_pitch("Spine1", 3.0)
-	_yaw("Spine2", sin(phase) * TORSO_TWIST * 0.5)
-	_yaw("Neck", -sin(phase) * TORSO_TWIST * 0.4)
+	_yaw("Spine2", -sin(phase) * (PELVIS_YAW * 0.8))
+	_yaw("Neck", sin(phase) * TORSO_TWIST * 0.3)
 
 
 ## Desplazamiento vertical del cuerpo durante la marcha: el cuerpo baja cuando
@@ -109,12 +124,27 @@ func _leg(side: String, phase: float) -> void:
 	# La rodilla solo flexiona en la fase de VUELO: media onda centrada justo
 	# despues de despegar el pie. Positiva, que es la flexion natural; en la
 	# fase de apoyo queda en cero y la pierna va recta.
-	var knee: float = KNEE_BEND * maxf(0.0, cos(phase - KNEE_PEAK))
+	# Las dos medias ondas se tocan justo en cero, asi que la curva es
+	# continua y la rodilla nunca queda completamente bloqueada.
+	var knee: float = KNEE_BEND * maxf(0.0, cos(phase - KNEE_PEAK)) \
+		+ KNEE_STANCE * maxf(0.0, cos(phase - KNEE_STANCE_PEAK))
 	_pitch("%s_Hip" % side, hip)
 	_pitch("%s_Knee" % side, knee)
 	# El tobillo contrarresta a cadera y rodilla para que la planta no gire
 	# de mas y el pie caiga plano.
 	_pitch("%s_Ankle" % side, -(hip + knee) * ANKLE_KEEP)
+
+
+## Cadera: los tres gestos que la hacen parecer viva. `phase` es el de la
+## pierna izquierda, asi que en fase 0 esa pierna va por el aire.
+func _pelvis(phase: float) -> void:
+	# Gira acompañando a la pierna que avanza.
+	_yaw("Pelvis", sin(phase) * PELVIS_YAW)
+	# Cae del lado de la pierna en vuelo (positivo en Z sube el lado +X,
+	# que es el izquierdo, asi que se resta para que ese lado baje).
+	_roll("Pelvis", -cos(phase) * PELVIS_ROLL)
+	# Y el peso se carga sobre la pierna que apoya, la contraria.
+	_translate("Pelvis", Vector3(-cos(phase) * PELVIS_SWAY, 0.0, 0.0))
 
 
 func _arm(side: String, phase: float) -> void:
@@ -131,6 +161,17 @@ func _pitch(bone: String, deg: float) -> void:
 
 func _yaw(bone: String, deg: float) -> void:
 	_rotate(bone, Vector3(0, 1, 0), deg)
+
+
+func _roll(bone: String, deg: float) -> void:
+	_rotate(bone, Vector3(0, 0, 1), deg)
+
+
+func _translate(bone: String, offset: Vector3) -> void:
+	if not _idx.has(bone):
+		return
+	var i: int = _idx[bone]
+	_skel.set_bone_pose_position(i, _skel.get_bone_rest(i).origin + offset)
 
 
 func _rotate(bone: String, axis: Vector3, deg: float) -> void:
