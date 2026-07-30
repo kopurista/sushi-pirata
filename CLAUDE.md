@@ -104,9 +104,29 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   repetir el MISMO plato sube el nivel y recarga la mitad cada vez
   (`REPEAT_DECAY`); cambiar de plato NO reinicia, solo retrocede un nivel
   (12%→6%→3%, cambio→6%, otro cambio→12%).
-- `scripts/level.gd` — orquestador: cinta (Line2D por tramos), spawner por
+- `scripts/level.gd` — orquestador 2D ORIGINAL (referencia hasta terminar la
+  conversión 3D; el juego ya NO lo usa): cinta (Line2D por tramos), spawner por
   horario (configurado por el nivel de campaña), HUD, propinas/potenciadores,
   puntuación POR DINERO, panel de resultados (anuncia recetas desbloqueadas).
+- `scripts/level3d.gd` + `scenes/level3d.tscn` — **el nivel EN USO** (3D low
+  poly, mismo HUD 2D): port 1:1 de la lógica de level.gd sobre un mundo 3D
+  construido por código (cámara iso ortogonal pitch −35.264/yaw 45/size 15;
+  circuito = cuadrado de 3.6 u; platos 0.9 u/s). Los clientes rodean el
+  mostrador por un pasillo cuadrado exterior (`WALK_R`) doblando esquinas por
+  el lado más corto. `world_ui` (CanvasLayer bajo el HUD) recibe barras y
+  textos flotantes de los clientes, anclados con `cam.unproject_position`
+  (cámara fija). El fin de nivel NO espera la salida completa: 2 s de gracia y
+  resultados. La banda usa `belt_scroll_3d.gdshader` con `scroll_tiles`
+  empujado por frame (se para al congelar, acelera con "Cinta rápida").
+- `scripts/client3d.gd` — cliente 3D (misma lógica que client.gd): modelo GLB
+  riggeado + `CharacterAnim` (walk/sit_idle/bite procedurales). Camina a la
+  velocidad natural de su ciclo (~1.2 u/s, decidido: más lento que el 2D para
+  cero patinaje). Sin física: sondea el grupo "plates" por distancia a su punto
+  de cinta. Se sienta SOBRE el taburete ajustando el cuerpo para que la cadera
+  quede a `STOOL_TOP`+glúteos; el plato que come va al punto `hand_plate` del
+  esqueleto (la mano llega sola). Alturas por tipo: E 1.45 · A 1.75 · G 1.95.
+- `scripts/plate3d.gd` — plato en cinta: PathFollow3D por el Path3D del
+  circuito, modelo normalizado por huella (0.62 u), 2 vueltas → descarte.
 - `scripts/main_menu.gd` — menú inicial (ESCENA PRINCIPAL): Aventura (campaña),
   Tienda y Prueba (partida libre con todas las recetas, sin tocar el progreso).
 - `scripts/level_select.gd` — **mapa marítimo**: el barco del jugador navega por

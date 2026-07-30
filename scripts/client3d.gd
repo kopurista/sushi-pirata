@@ -1,0 +1,552 @@
+extends Node3D
+## Cliente pirata en 3D (port de client.gd con la MISMA logica de juego).
+## Entra andando desde la borda, rodea el mostrador por fuera, se sienta en su
+## taburete, coge platos de la cinta, come y se marcha andando.
+## Se queda hasta que su barra de PACIENCIA se agota (no hay saciedad objetivo):
+## cada plato comido recarga paciencia segun su nivel, pero repetirle el mismo
+## plato rinde cada vez menos. La propina depende del Nº de platos (TIP_RULES).
+##
+## Presentacion: modelo GLB riggeado + CharacterAnim (andar/sentarse/comer
+## proceduralmente). Sin fisica: la deteccion de platos sondea el grupo
+## "plates" comparando distancias con su punto de la cinta. Las barras de
+## paciencia/comida y los textos flotantes son Controles 2D en level.world_ui,
+## anclados proyectando la cabeza del cliente con la camara (que es fija).
+
+signal finished(report: Dictionary)
+## Se emite al terminar CADA plato: el precio del plato y la propina de ese
+## plato (0 si no la deja). El nivel suma ambos al instante, no al marcharse.
+signal plate_served(food: int, tip: int)
+
+enum State { ARRIVING, WAITING, EATING, LEAVING, DONE }
+
+## Radio (en el plano del suelo) alrededor del punto de cinta del cliente en el
+## que un plato se considera "a su alcance". Los puntos de cinta de dos
+## asientos vecinos distan 1.8 u, asi que 0.45 no se solapa nunca.
+const TAKE_RADIUS := 0.45
+
+## Modelo y altura (u) por tipo de cliente. Alturas en la misma proporcion que
+## las escalas 2D (0.095 / 0.115 / 0.13 con el pirata en 1.75).
+const TYPE_MODELS: Dictionary = {
+	"E": "res://assets/models/grumete_rig.glb",
+	"A": "res://assets/models/pirata_rig.glb",
+	"G": "res://assets/models/capitan_rig.glb",
+}
+const TYPE_HEIGHTS: Dictionary = { "E": 1.45, "A": 1.75, "G": 1.95 }
+
+## Probabilidad de coger un plato segun tipo de cliente y nivel del plato.
+const TAKE_CHANCES: Dictionary = {
+	"E": { 1: 0.95, 2: 0.15, 3: 0.10 },
+	"A": { 1: 0.45, 2: 0.92, 3: 0.25 },
+	"G": { 1: 0.0, 2: 0.70, 3: 0.95 },
+}
+
+const FAVORITE_TIER: Dictionary = { "E": 1, "A": 2, "G": 3 }
+
+## Rango de tiempo de comida (s) por tipo de cliente Y nivel del plato.
+const EAT_TIMES: Dictionary = {
+	"E": { 1: [3.0, 5.0], 2: [7.0, 10.0], 3: [11.0, 15.0] },
+	"A": { 1: [3.5, 5.5], 2: [5.0, 8.0], 3: [9.0, 12.0] },
+	"G": { 1: [2.0, 3.5], 2: [4.0, 6.5], 3: [8.0, 12.0] },
+}
+
+## Al recibir un plato la paciencia sube (fraccion del maximo) segun el nivel.
+const PATIENCE_FOOD: Dictionary = { 1: 0.12, 2: 0.30, 3: 0.50 }
+## Repetir el MISMO plato recarga la mitad cada vez; cambiar de plato solo
+## retrocede UN nivel de aburrimiento.
+const REPEAT_DECAY := 0.5
+## Cada plato comido acelera el drenaje de paciencia en este factor.
+const PATIENCE_DRAIN_PER_PLATE := 0.025
+
+## Propina segun el nº de platos comidos (ver client.gd 2D para el detalle).
+const TIP_RULES: Dictionary = {
+	"E": { "start": 1, "ramp": 3, "every": 1, "base": 0.20, "step": 0.01, "max": 0.65, "pct": 0.15 },
+	"A": { "start": 1, "ramp": 3, "every": 1, "base": 0.23, "step": 0.015, "max": 0.60, "pct": 0.16 },
+	"G": { "start": 1, "ramp": 3, "every": 1, "base": 0.25, "step": 0.02, "max": 0.50, "pct": 0.18 },
+}
+
+## Altura del asiento del taburete (debe coincidir con level3d.STOOL_H).
+const STOOL_TOP := 0.47
+## Huella del plato que come el cliente, algo menor que el de la cinta.
+const HELD_DISH_FOOT := 0.45
+
+var client_type: String = "E"
+var patience_scale: float = 1.0
+var pay_mult: float = 1.0
+var guaranteed_next: bool = false
+## Puntos de la ruta de entrada (el nivel los define; el ultimo es el asiento).
+var route: Array = []
+## Punto por el que desaparece al marcharse (la borda).
+var exit_point := Vector3.ZERO
+## Punto de la cinta (mundo) frente a su asiento, donde vigila los platos.
+var belt_point := Vector3.ZERO
+## Orientacion (grados Y) mirando a la cinta cuando esta sentado.
+var seat_yaw := 0.0
+
+var state: State = State.ARRIVING
+var patience_max: float = 55.0
+var patience: float = 55.0
+var satiety_eaten: int = 0
+var last_dish_id: String = ""
+var boredom: int = 0
+var money_earned: int = 0
+var eat_timer: float = 0.0
+var eat_duration: float = 1.0
+var tips_earned: int = 0
+var current_price: int = 0
+var current_satiety: int = 0
+var current_id: String = ""
+var eaten_ids: Array[String] = []
+var declined: Array[int] = []
+var level_ref: Node = null
+
+## El modelo cuelga de "body": el bob del andar y el ajuste de sentado van en
+## body.position.y, y el giro de orientacion en la raiz.
+var _body: Node3D
+var _anim: CharacterAnim = null
+var _model_scale := 1.0
+var _height := 1.75
+var _t := 0.0                 ## reloj local para respirar/sentado
+var _walk_t := 0.0            ## reloj del ciclo de marcha (solo avanza andando)
+var _eat_t := 0.0             ## reloj del bocado (solo avanza comiendo)
+var _walk_speed := 1.2
+var _leg := 0
+var _leg_dist := 0.0
+var _dish_spot := Vector3.ZERO
+var _held_dish: Node3D = null
+
+var _patience_bar: ProgressBar = null
+var _eat_bar: ProgressBar = null
+
+
+func _ready() -> void:
+	add_to_group("clients")
+	level_ref = get_parent()
+	# Paciencia base ajustada a partidas de 2:30.
+	patience_max = randf_range(30.0, 40.0) * patience_scale
+	patience = patience_max
+	_height = float(TYPE_HEIGHTS.get(client_type, 1.75))
+	_spawn_model()
+	_make_bars()
+	if not route.is_empty():
+		position = route[0] if position == Vector3.ZERO else position
+	_face_leg()
+
+
+func _spawn_model() -> void:
+	_body = Node3D.new()
+	add_child(_body)
+	var path: String = TYPE_MODELS.get(client_type, TYPE_MODELS["E"])
+	var inst: Node3D = (load(path) as PackedScene).instantiate()
+	_body.add_child(inst)
+	var aabb := _merged_aabb(inst)
+	_model_scale = _height / maxf(aabb.size.y, 0.0001)
+	inst.scale = Vector3.ONE * _model_scale
+	inst.position = -Vector3(
+		aabb.position.x + aabb.size.x * 0.5,
+		aabb.position.y,
+		aabb.position.z + aabb.size.z * 0.5) * _model_scale
+	var skels := inst.find_children("*", "Skeleton3D", true, false)
+	if not skels.is_empty():
+		_anim = CharacterAnim.new(skels[0])
+		if not _anim.has_humanoid_bones():
+			_anim = null
+	# La velocidad sale del propio ciclo de marcha: con ella el pie apoyado
+	# queda clavado en el suelo (cero patinaje). Es mas lenta que la del juego
+	# 2D (~1.2 u/s frente a 2.2), decision tomada a proposito.
+	if _anim != null:
+		_walk_speed = _anim.ground_speed(_model_scale)
+
+
+func _merged_aabb(node: Node) -> AABB:
+	var out := AABB()
+	var first := true
+	for m in node.find_children("*", "MeshInstance3D", true, false):
+		var a: AABB = m.transform * m.get_aabb()
+		out = a if first else out.merge(a)
+		first = false
+	return out
+
+
+# ------------------------------------------------------------ barras y HUD
+
+## Las barras viven en level.world_ui (CanvasLayer bajo el HUD) y se anclan
+## proyectando un punto sobre la cabeza; la camara es fija, asi que basta con
+## recolocarlas cuando el cliente se sienta.
+func _make_bars() -> void:
+	_patience_bar = ProgressBar.new()
+	_patience_bar.show_percentage = false
+	_patience_bar.size = Vector2(76, 13)
+	_patience_bar.max_value = patience_max
+	_patience_bar.value = patience
+	_patience_bar.visible = false
+	_eat_bar = ProgressBar.new()
+	_eat_bar.show_percentage = false
+	_eat_bar.size = Vector2(76, 13)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(1, 0.65, 0.2)
+	fill.set_corner_radius_all(4)
+	_eat_bar.add_theme_stylebox_override("fill", fill)
+	_eat_bar.visible = false
+	var ui := _world_ui()
+	if ui != null:
+		ui.add_child(_patience_bar)
+		ui.add_child(_eat_bar)
+
+
+func _world_ui() -> Node:
+	if level_ref != null and "world_ui" in level_ref:
+		return level_ref.world_ui
+	return null
+
+
+## Posicion en pantalla del punto sobre la cabeza del cliente.
+func _head_screen() -> Vector2:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return Vector2.ZERO
+	return cam.unproject_position(global_position + Vector3.UP * (_height + 0.22))
+
+
+func _place_bars() -> void:
+	var p := _head_screen() + Vector2(-38, -10)
+	_patience_bar.position = p
+	_eat_bar.position = p
+
+
+func _exit_tree() -> void:
+	for bar in [_patience_bar, _eat_bar]:
+		if bar != null:
+			bar.queue_free()
+
+
+# ------------------------------------------------------------------ estados
+
+func is_waiting() -> bool:
+	return state == State.WAITING
+
+
+func boost_patience(fraction: float) -> void:
+	patience += fraction * patience_max
+	patience_bar_update()
+
+
+func patience_bar_update() -> void:
+	if _patience_bar != null:
+		_patience_bar.value = patience
+
+
+func _process(delta: float) -> void:
+	if _time_frozen():
+		return
+	_t += delta
+	match state:
+		State.ARRIVING:
+			_advance_route(delta)
+		State.WAITING:
+			_pose_sit_idle()
+			# Cuanto mas ha comido, mas rapido se agota la paciencia.
+			var drain := 1.0 + PATIENCE_DRAIN_PER_PLATE * eaten_ids.size()
+			patience -= delta * drain
+			patience_bar_update()
+			if patience <= 0.0:
+				_leave()
+				return
+			_scan_belt()
+		State.EATING:
+			_eat_t += delta
+			if _anim != null:
+				_anim.reset()
+				_anim.bite(_eat_t)
+			eat_timer -= delta
+			_eat_bar.value = maxf(eat_timer, 0.0)
+			if eat_timer <= 0.0:
+				_finish_plate()
+		State.LEAVING:
+			_advance_route(delta)
+
+
+## Recorre la ruta actual andando. Al agotar la ruta: sentarse (llegada) o
+## desaparecer (salida). El avance y el bob salen del propio ciclo de marcha.
+func _advance_route(delta: float) -> void:
+	_walk_t += delta
+	if _anim != null:
+		_anim.reset()
+		_anim.walk(_walk_t)
+		_body.position.y = _anim.walk_bob(_walk_t, _model_scale)
+	_leg_dist += _walk_speed * delta
+	while _leg < route.size() - 1:
+		var a: Vector3 = route[_leg]
+		var b: Vector3 = route[_leg + 1]
+		var leg_len := a.distance_to(b)
+		if _leg_dist < leg_len:
+			position = a.lerp(b, _leg_dist / leg_len)
+			return
+		_leg_dist -= leg_len
+		_leg += 1
+		_face_leg()
+	# Ruta agotada.
+	position = route.back()
+	if state == State.ARRIVING:
+		_seat()
+	else:
+		state = State.DONE
+		queue_free()
+
+
+func _face_leg() -> void:
+	if _leg >= route.size() - 1:
+		return
+	var dir: Vector3 = route[_leg + 1] - route[_leg]
+	if dir.length() > 0.001:
+		rotation_degrees.y = rad_to_deg(atan2(dir.x, dir.z))
+
+
+func _seat() -> void:
+	if state != State.ARRIVING:
+		return
+	state = State.WAITING
+	rotation_degrees.y = seat_yaw
+	_sit_on_stool()
+	_place_bars()
+	_patience_bar.visible = true
+
+
+## Sienta al personaje SOBRE el taburete: con la pose de sentado puesta, se
+## sube/baja el cuerpo para que los gluteos (algo por debajo del hueso de la
+## cadera) apoyen en el asiento. En personajes bajitos los pies quedan
+## colgando, que es justo lo que hace un niño en un taburete de bar.
+func _sit_on_stool() -> void:
+	if _anim == null:
+		return
+	_anim.reset()
+	_anim.sit()
+	var skel: Skeleton3D = _body.find_children("*", "Skeleton3D", true, false)[0]
+	var hip_w: Vector3 = skel.global_transform \
+		* skel.get_bone_global_pose(_anim.bone("Pelvis")).origin
+	var glute_drop := 0.10 * (_height / 1.75)
+	var dy := (STOOL_TOP + glute_drop) - hip_w.y
+	_body.position.y = dy
+	# El plato ira donde la mano derecha va a buscar la comida (hand_plate es
+	# un punto en espacio del esqueleto; el bocado come con la derecha: -X).
+	var hp: Vector3 = _anim.hand_plate
+	_dish_spot = skel.global_transform * Vector3(-hp.x, hp.y, hp.z) \
+		+ Vector3(0.0, dy - 0.08, 0.0)
+	_anim.reset()
+
+
+func _pose_sit_idle() -> void:
+	if _anim != null:
+		_anim.reset()
+		_anim.sit_idle(_t)
+
+
+# ------------------------------------------------------------ coger platos
+
+## Sondea los platos de la cinta: el que pase por su punto de la cinta a menos
+## de TAKE_RADIUS (en el plano del suelo) puede ser cogido. Sustituye al Area2D
+## del juego 2D sin necesitar fisica 3D.
+func _scan_belt() -> void:
+	for plate in get_tree().get_nodes_in_group("plates"):
+		if plate.taken:
+			continue
+		var d := Vector2(plate.global_position.x - belt_point.x,
+			plate.global_position.z - belt_point.z)
+		if d.length() > TAKE_RADIUS:
+			continue
+		var pid: int = plate.get_instance_id()
+		if pid in declined:
+			continue
+		var data: Dictionary = RecipeData.get_recipe(plate.recipe_id)
+		var plate_satiety: int = data.get("satiety", 1)
+		var chance: float = TAKE_CHANCES.get(client_type, {}).get(plate_satiety, 0.0)
+		if _aroma_active() and plate_satiety == FAVORITE_TIER.get(client_type, 0):
+			chance = maxf(chance, 0.95)
+		if guaranteed_next:
+			chance = 1.0
+		if randf() < chance:
+			guaranteed_next = false
+			plate.taken = true
+			current_price = int(round(data.get("price", 0) * pay_mult))
+			current_satiety = plate_satiety
+			current_id = plate.recipe_id
+			var plate_pos: Vector3 = plate.global_position
+			plate.queue_free()
+			_start_eating(plate_pos)
+			return
+		declined.append(pid)
+
+
+## El plato viaja de la cinta al mostrador frente al cliente, y este empieza a
+## comer (coreografia de 4 fases de CharacterAnim.bite).
+func _start_eating(plate_global: Vector3) -> void:
+	state = State.EATING
+	_eat_t = 0.0
+	var recipe := RecipeData.get_recipe(current_id)
+	var range_s: Array = EAT_TIMES[client_type].get(current_satiety, EAT_TIMES[client_type][1])
+	# "eat_mult": algunos platos (p. ej. la sopa de miso) se comen mas despacio.
+	eat_duration = randf_range(range_s[0], range_s[1]) * float(recipe.get("eat_mult", 1.0))
+	eat_timer = eat_duration
+	_eat_bar.max_value = eat_duration
+	_eat_bar.value = eat_duration
+	_eat_bar.visible = true
+	_patience_bar.visible = false
+	# La comida recarga paciencia segun el nivel del plato; repetir aburre
+	# (recarga la mitad cada vez) y cambiar solo retrocede un nivel.
+	if current_id == last_dish_id:
+		boredom += 1
+	else:
+		boredom = maxi(boredom - 1, 0)
+	last_dish_id = current_id
+	var pat_mult := float(recipe.get("patience_mult", 1.0))
+	var boost: float = PATIENCE_FOOD.get(current_satiety, 0.12) * pow(REPEAT_DECAY, boredom) * pat_mult
+	patience = minf(patience + boost * patience_max, patience_max)
+
+	# El plato (modelo 3D) viaja de la cinta al mostrador, delante del cliente.
+	_held_dish = Node3D.new()
+	level_ref.add_child(_held_dish)
+	_held_dish.global_position = plate_global
+	var dish_path := "res://assets/models/%s.glb" % current_id
+	if ResourceLoader.exists(dish_path):
+		var inst: Node3D = (load(dish_path) as PackedScene).instantiate()
+		_held_dish.add_child(inst)
+		var aabb := _merged_aabb(inst)
+		var foot := maxf(maxf(aabb.size.x, aabb.size.z), 0.0001)
+		var s := HELD_DISH_FOOT / foot
+		inst.scale = Vector3.ONE * s
+		inst.position = -Vector3(
+			aabb.position.x + aabb.size.x * 0.5,
+			aabb.position.y,
+			aabb.position.z + aabb.size.z * 0.5) * s
+	var grab := create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	grab.tween_property(_held_dish, "global_position", _dish_spot, 0.35)
+
+
+func _stop_eating_anim() -> void:
+	if _held_dish != null:
+		_held_dish.queue_free()
+		_held_dish = null
+
+
+func _aroma_active() -> bool:
+	return level_ref != null and "aroma_active" in level_ref and level_ref.aroma_active
+
+
+func _time_frozen() -> bool:
+	return level_ref != null and "frozen" in level_ref and level_ref.frozen
+
+
+## Sin saciedad objetivo: el cliente NUNCA se va por comer; vuelve a esperar.
+## El pago del plato y su posible propina se abonan al nivel AQUI mismo.
+func _finish_plate() -> void:
+	satiety_eaten += current_satiety
+	money_earned += current_price
+	eaten_ids.append(current_id)
+	var tip := _roll_plate_tip()
+	tips_earned += tip
+	plate_served.emit(current_price, tip)
+	_float_text("+$%d" % current_price, Color(1.0, 0.86, 0.2))
+	if tip > 0:
+		_float_text("+$%d" % tip, Color(0.4, 1.0, 0.45), -50.0)
+	_stop_eating_anim()
+	_eat_bar.visible = false
+	state = State.WAITING
+	_patience_bar.visible = true
+
+
+## Texto flotante que PARPADEA sobre el cliente y sube desvaneciendose, en el
+## CanvasLayer world_ui del nivel (la camara es fija: se ancla una vez).
+func _float_text(text: String, color: Color, y_offset: float = 0.0) -> void:
+	var ui := _world_ui()
+	if ui == null:
+		return
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.custom_minimum_size = Vector2(140, 0)
+	lbl.position = _head_screen() + Vector2(-70, -30.0 + y_offset)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.add_theme_font_size_override("font_size", 34)
+	lbl.add_theme_color_override("font_color", color)
+	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.92))
+	lbl.add_theme_constant_override("outline_size", 7)
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.pivot_offset = Vector2(70, 18)
+	ui.add_child(lbl)
+	lbl.scale = Vector2(0.5, 0.5)
+	var tw := lbl.create_tween()
+	tw.tween_property(lbl, "scale", Vector2.ONE, 0.14) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	for i in 2:
+		tw.tween_property(lbl, "modulate:a", 0.25, 0.09)
+		tw.tween_property(lbl, "modulate:a", 1.0, 0.09)
+	tw.tween_property(lbl, "position:y", lbl.position.y - 66.0, 0.7) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(lbl, "modulate:a", 0.0, 0.7)
+	tw.tween_callback(lbl.queue_free)
+
+
+func force_leave() -> void:
+	_leave()
+
+
+func _leave() -> void:
+	if state == State.DONE or state == State.LEAVING:
+		return
+	_stop_eating_anim()
+	finished.emit({
+		"type": client_type,
+		"money": money_earned,
+		"tip": tips_earned,
+		"eaten": eaten_ids.duplicate(),
+		"satiety_eaten": satiety_eaten,
+	})
+	state = State.LEAVING
+	_patience_bar.visible = false
+	_eat_bar.visible = false
+	_body.position.y = 0.0
+	_walk_out()
+
+
+## Se marcha andando por la ruta inversa hasta la borda.
+func _walk_out() -> void:
+	var out_points: Array = route.duplicate()
+	out_points.reverse()
+	if not out_points.is_empty():
+		out_points.remove_at(0)  # ya esta en el asiento
+	out_points.push_front(position)
+	out_points.append(exit_point)
+	route = out_points
+	_leg = 0
+	_leg_dist = 0.0
+	_face_leg()
+
+
+## Propina de UN plato: probabilidad segun TIP_RULES (crece con los platos
+## comidos), cuantia = % del dinero ACUMULADO del cliente. Debe llamarse
+## DESPUES de sumar current_price a money_earned y del append a eaten_ids.
+func _roll_plate_tip() -> int:
+	var rules: Dictionary = TIP_RULES.get(client_type, {})
+	var plates := eaten_ids.size()
+	if rules.is_empty() or plates < int(rules.start):
+		return 0
+	var ramp: int = int(rules.get("ramp", rules.start))
+	var extra_steps := maxi(plates - ramp, 0) / int(rules.every)
+	var tip_chance: float = minf(float(rules.base) + float(rules.step) * extra_steps, float(rules.max))
+	var amount_mult := 1.0
+	if level_ref != null:
+		if "tip_chance_bonus" in level_ref:
+			tip_chance += level_ref.tip_chance_bonus
+		if "tip_amount_mult" in level_ref:
+			amount_mult = level_ref.tip_amount_mult
+	# Bono por platos especiales (recetas con "tip_chance_bonus"): entero la 1ª
+	# vez, y cada repeticion del MISMO plato suma la mitad que la anterior.
+	var seen := {}
+	for id in eaten_ids:
+		var rb: float = RecipeData.get_recipe(id).get("tip_chance_bonus", 0.0)
+		if rb <= 0.0:
+			continue
+		var n: int = seen.get(id, 0)
+		tip_chance += rb * pow(0.5, n)
+		seen[id] = n + 1
+	if randf() < tip_chance:
+		return maxi(int(round(money_earned * float(rules.pct) * amount_mult)), 1)
+	return 0

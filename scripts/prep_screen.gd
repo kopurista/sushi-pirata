@@ -309,4 +309,6 @@ func _update_ui() -> void:
 
 func _on_start_pressed() -> void:
 	GameState.selected_recipes = selected.duplicate()
-	get_tree().change_scene_to_file("res://scenes/level.tscn")
+	# Nivel 3D low poly (el level.tscn 2D queda como referencia hasta acabar
+	# la conversion completa del juego).
+	get_tree().change_scene_to_file("res://scenes/level3d.tscn")

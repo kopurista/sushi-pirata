@@ -5,15 +5,17 @@ render_mode specular_disabled;
 // Cada tramo es un PlaneMesh orientado con su +X local en el sentido de la
 // marcha, asi el desplazamiento siempre es positivo.
 //
-// repeat_x      = cuantas veces se repite la textura a lo largo del tramo.
-// tiles_per_sec = PLATE_SPEED / longitud_mundo_de_un_tile (se calcula en
-//                 level3d.gd para que la banda avance igual que los platos).
+// repeat_x     = cuantas veces se repite la textura a lo largo del tramo.
+// scroll_tiles = desplazamiento acumulado en tiles. Lo empuja level3d.gd cada
+//                fotograma en vez de usar TIME: asi la banda se para al
+//                congelar el nivel y acelera con el potenciador "Cinta rapida",
+//                siempre a la velocidad real de los platos.
 uniform sampler2D band_tex : source_color, filter_linear, repeat_enable;
 uniform float repeat_x = 4.0;
-uniform float tiles_per_sec = 1.0;
+uniform float scroll_tiles = 0.0;
 
 void fragment() {
-	vec2 uv = vec2(UV.x * repeat_x - tiles_per_sec * TIME, UV.y);
+	vec2 uv = vec2(UV.x * repeat_x - scroll_tiles, UV.y);
 	vec4 tex = texture(band_tex, uv);
 	ALBEDO = tex.rgb;
 	ROUGHNESS = 0.9;
