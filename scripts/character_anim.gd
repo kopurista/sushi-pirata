@@ -32,7 +32,7 @@ extends RefCounted
 
 # --- Ciclo de marcha ---
 const WALK_PERIOD := 0.92     ## segundos por ciclo completo (dos pasos)
-const STRIDE := 0.30          ## lo que recorre el pie apoyado, unidades del rig
+const STRIDE := 0.35          ## lo que recorre el pie apoyado, unidades del rig
 const STANCE_FRAC := 0.55     ## parte del ciclo con el pie en el suelo
 ## Altura del pie en el aire. Muy bajo el pie roza el suelo y el paso parece
 ## un arrastre; muy alto se ve de marcha militar.
@@ -51,7 +51,7 @@ const BODY_BOB := 0.022       ## sube y baja del cuerpo, unidades del rig
 ## pega un CHASQUIDO en cada paso: se ve como un tiron al final de la zancada
 ## y como un pisoton al apoyar. Con el cuerpo un poco mas bajo la rodilla
 ## trabaja siempre en una zona estable y el paso sale suave.
-const CROUCH := 0.035
+const CROUCH := 0.050
 const ARM_SWING := 22.0       ## balanceo de hombro (opuesto a su pierna)
 const ELBOW_BEND := 16.0      ## flexion fija de codo, da naturalidad
 ## La clavicula mueve el hombro entero, no solo el brazo: acompaña al brazo
@@ -62,6 +62,7 @@ const COLLAR_LIFT := 4.5      ## y sube ligeramente al llevarlo atras
 ## Cierre de los puños, en grados POR FALANGE (son tres por dedo, asi que el
 ## dedo se dobla el triple). Con la mano abierta parece que lleve algo cogido.
 const FIST_CURL := 46.0
+const THUMB_CURL := 34.0      ## el pulgar, sobre su propio eje
 const TORSO_TWIST := 5.0      ## contragiro del tronco
 ## Movimiento de cadera: gira acompañando a la pierna que avanza, cae un poco
 ## del lado de la pierna que va en el aire y el cuerpo se carga sobre la que
@@ -183,19 +184,43 @@ func _cache_leg(side: String) -> void:
 ## Recoge los huesos de los dedos: todo lo que cuelga de la muñeca. Se busca
 ## por jerarquia y no por nombre porque el auto-rig los deja sin nombrar
 ## (bone_21, bone_22...), pero siempre colgando de su muñeca.
+##
+## El PULGAR se separa del resto porque no se cierra igual: los otros cuatro
+## dedos cuelgan hacia abajo y se doblan sobre la linea de los nudillos, pero
+## el pulgar sale hacia delante y hay que llevarlo contra la palma girando
+## sobre otro eje. Se identifica como el dedo cuya raiz apunta MENOS hacia
+## abajo, que es lo que lo distingue en cualquier mano.
 func _cache_fingers(side: String) -> void:
 	var wrist: int = _idx.get("%s_Wrist" % side, -1)
 	if wrist < 0:
 		return
-	var out: Array[int] = []
+	var wrist_pos := _skel.get_bone_global_rest(wrist).origin
+	var thumb_root := -1
+	var least_down := -INF
 	for i in _skel.get_bone_count():
-		var p := _skel.get_bone_parent(i)
-		while p >= 0:
-			if p == wrist:
-				out.append(i)
-				break
-			p = _skel.get_bone_parent(p)
-	_fingers[side] = out
+		if _skel.get_bone_parent(i) != wrist:
+			continue
+		var dir := (_skel.get_bone_global_rest(i).origin - wrist_pos).normalized()
+		if dir.y > least_down:
+			least_down = dir.y
+			thumb_root = i
+
+	var thumb: Array[int] = []
+	var fingers: Array[int] = []
+	for i in _skel.get_bone_count():
+		# Sube hasta encontrar de que dedo cuelga este hueso.
+		var root := i
+		var p := _skel.get_bone_parent(root)
+		while p >= 0 and p != wrist:
+			root = p
+			p = _skel.get_bone_parent(root)
+		if p != wrist:
+			continue
+		if root == thumb_root:
+			thumb.append(i)
+		else:
+			fingers.append(i)
+	_fingers[side] = {"thumb": thumb, "fingers": fingers}
 
 
 ## Angulo de un vector del plano sagital medido desde "hacia abajo": 0 = el
@@ -335,12 +360,17 @@ func _arm(side: String, swing: float) -> void:
 func _fist(side: String) -> void:
 	if not _fingers.has(side):
 		return
-	# Los dedos se abren a lo largo de Z, asi que la flexion gira sobre Z. Se
-	# cierran hacia la palma, que mira hacia dentro del cuerpo: en el lado
-	# izquierdo eso es -X (giro negativo) y en el derecho al reves.
+	# Los cuatro dedos se alinean a lo largo de Z (la linea de los nudillos),
+	# asi que doblan girando sobre Z. Se cierran hacia la palma, que mira
+	# hacia dentro del cuerpo: en la mano izquierda eso es -X, giro negativo.
 	var mirror := -1.0 if side == "L" else 1.0
-	for i in _fingers[side]:
+	var hand: Dictionary = _fingers[side]
+	for i in hand["fingers"]:
 		_rotate_bone(i, Vector3(0, 0, 1), mirror * FIST_CURL)
+	# El pulgar sale hacia DELANTE en vez de colgar, asi que sobre Z solo se
+	# abanicaria: para llevarlo contra la palma hay que girarlo sobre Y.
+	for i in hand["thumb"]:
+		_rotate_bone(i, Vector3(0, 1, 0), mirror * THUMB_CURL)
 
 
 func _pitch(bone: String, deg: float) -> void:
