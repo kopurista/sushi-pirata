@@ -31,11 +31,14 @@ extends RefCounted
 ## = flexion natural, codo negativo = flexion natural.
 
 # --- Ciclo de marcha ---
-const WALK_PERIOD := 1.0      ## segundos por ciclo completo (dos pasos)
-const STRIDE := 0.24          ## lo que recorre el pie apoyado, unidades del rig
+const WALK_PERIOD := 0.92     ## segundos por ciclo completo (dos pasos)
+const STRIDE := 0.30          ## lo que recorre el pie apoyado, unidades del rig
 const STANCE_FRAC := 0.55     ## parte del ciclo con el pie en el suelo
 const FOOT_LIFT := 0.055      ## altura del pie al pasar por el aire
-const BODY_BOB := 0.017       ## sube y baja del cuerpo, unidades del rig
+## Cuanto baja el cuerpo con las piernas abiertas. Ademas de dar vida, es lo
+## que permite a la pierna ALCANZAR el suelo en la zancada abierta: si se sube
+## STRIDE hay que subir esto, o la pierna se queda corta y el pie patina.
+const BODY_BOB := 0.022       ## sube y baja del cuerpo, unidades del rig
 const ARM_SWING := 14.0       ## balanceo de hombro (opuesto a su pierna)
 const ELBOW_BEND := 14.0      ## flexion fija de codo, da naturalidad
 const TORSO_TWIST := 5.0      ## contragiro del tronco
