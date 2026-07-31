@@ -3,10 +3,9 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dbntfy2mdixdk"
-path.s3tc="res://.godot/imported/maki_atun_0.png-78d5ca8c318bb8178bc43de4b6e91dda.s3tc.ctex"
+path="res://.godot/imported/maki_atun_0.png-78d5ca8c318bb8178bc43de4b6e91dda.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
+"vram_texture": false
 }
 generator_parameters={
 "md5": "b3e15f78ca430defc5492a4ade5c3ca4"
@@ -15,15 +14,15 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/maki_atun_0.png"
-dest_files=["res://.godot/imported/maki_atun_0.png-78d5ca8c318bb8178bc43de4b6e91dda.s3tc.ctex"]
+dest_files=["res://.godot/imported/maki_atun_0.png-78d5ca8c318bb8178bc43de4b6e91dda.ctex"]
 
 [params]
 
-compress/mode=2
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
-compress/rdo_quality_loss=0.0
+compress/rdo_quality_loss=4.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
@@ -40,5 +39,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=256
 detect_3d/compress_to=0
