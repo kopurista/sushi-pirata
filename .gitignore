@@ -10,3 +10,10 @@
 *.pck
 *.wasm
 /builds_antiguas/
+
+# Trabajo temporal en la raíz: capturas de verificación, escenas y scripts
+# helper de un rato, y material a medio generar. Todo lo de usar y tirar se
+# nombra con "_" delante para que caiga aquí y no acabe en un commit por
+# error (ya pasó: 28 MB de _gen/ colados en el historial).
+/_*
+
