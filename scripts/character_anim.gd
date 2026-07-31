@@ -354,6 +354,128 @@ func bite(t: float) -> void:
 	_fist("R")
 
 
+# --- Gestos de cocina del chef (de pie frente a su mesa) --------------------
+## El chef trabaja con las manos sobre la mesa que tiene delante, a la altura
+## de la cintura. Cada gesto recibe `u` (0..1, su progreso) y posa brazos,
+## tronco y mirada; quien llama lo dispara UNA VEZ POR EVENTO del jugador, asi
+## que el chef cocina exactamente al ritmo del dedo del usuario. Todos son
+## deliberadamente sutiles: parten de la postura de trabajo y vuelven a ella.
+
+## Punto de trabajo de cada mano sobre la mesa, en fracciones del brazo y
+## desde su hombro (x hacia dentro del cuerpo, y hacia abajo, z al frente).
+## MUY adelantado a proposito: el chef es orondo y con barba hasta la panza, y
+## con menos avance las manos (y el cuchillo) quedaban DENTRO del cuerpo. La
+## distancia total queda en ~0.9 brazos: cerca de la extension completa la IK
+## del codo se vuelve inestable (misma leccion que la rodilla al andar).
+const CHEF_WORK := Vector3(0.24, -0.32, 0.78)
+const CHEF_LEAN := 5.0        ## inclinacion del tronco al trabajar
+const CHEF_LOOK := 12.0       ## el cuello baja: mira lo que hace
+
+
+func _chef_work(side: String) -> Vector3:
+	var m := 1.0 if side == "L" else -1.0
+	var sh := _rest(_idx["%s_Shoulder" % side])
+	return Vector3(m * CHEF_WORK.x * _arm_len, sh.y + CHEF_WORK.y * _arm_len,
+		sh.z + CHEF_WORK.z * _arm_len)
+
+
+## Tronco inclinado sobre la mesa y mirada baja, comun a todos los gestos.
+func _chef_lean() -> void:
+	_pitch("Spine1", CHEF_LEAN * 0.5)
+	_pitch("Spine2", CHEF_LEAN * 0.5)
+	_pitch("Neck", CHEF_LOOK)
+
+
+## Ambas manos en su punto de trabajo (postura base entre gestos).
+func _chef_hands(r_off := Vector3.ZERO, l_off := Vector3.ZERO) -> void:
+	var wr := _chef_work("R") + r_off
+	var wl := _chef_work("L") + l_off
+	_arm_ik("R", wr, wr + look_down())
+	_arm_ik("L", wl, wl + look_down())
+	_fist("L")
+	_fist("R")
+
+
+## Amasar/moldear (tap): la mano derecha palmea la masa; la izquierda sujeta.
+func chef_pat(u: float) -> void:
+	_chef_lean()
+	var lift := 0.20 * _arm_len * absf(cos(PI * clampf(u, 0.0, 1.0)))
+	_chef_hands(Vector3(0.0, lift, 0.0), Vector3(0.06 * _arm_len, 0.0, 0.0))
+
+
+## Golpe de cuchillo (cut): la derecha sube y cae seca; la izquierda aguanta
+## la pieza apartada del filo.
+func chef_chop(u: float) -> void:
+	_chef_lean()
+	var v := clampf(u, 0.0, 1.0)
+	# Sube suave y cae rapida: el pico esta pronto y el resto es la caida.
+	var lift := 0.28 * _arm_len * sin(PI * pow(v, 0.7))
+	_chef_hands(Vector3(-0.04 * _arm_len, lift, 0.02 * _arm_len),
+		Vector3(0.14 * _arm_len, 0.0, 0.0))
+
+
+## Corte LENTO de sashimi (slice): la derecha arrastra el cuchillo hacia su
+## lado a la velocidad del gesto del jugador; la izquierda fija el lomo.
+func chef_slice(u: float) -> void:
+	_chef_lean()
+	var v := smoothstep(0.0, 1.0, clampf(u, 0.0, 1.0))
+	var draw := lerpf(0.14, -0.42, v) * _arm_len
+	var sink := 0.04 * _arm_len * sin(PI * v)
+	_chef_hands(Vector3(draw, -sink + 0.02 * _arm_len, 0.0),
+		Vector3(0.16 * _arm_len, 0.02 * _arm_len, 0.0))
+
+
+## Enrollar (swipe): las dos manos empujan la esterilla hacia delante y
+## vuelven, con una pizca de descenso al empujar.
+func chef_roll(u: float) -> void:
+	_chef_lean()
+	var v := sin(PI * clampf(u, 0.0, 1.0))
+	var push := Vector3(0.0, -0.05 * _arm_len * v, 0.24 * _arm_len * v)
+	_chef_hands(push, push)
+
+
+## Remover la olla (stir/hold): la derecha describe un circulo con el cazo;
+## la izquierda sujeta el borde de la olla.
+func chef_stir(u: float) -> void:
+	_chef_lean()
+	var a := TAU * clampf(u, 0.0, 1.0)
+	var r := 0.13 * _arm_len
+	_chef_hands(Vector3(cos(a) * r, 0.10 * _arm_len, sin(a) * r * 0.7),
+		Vector3(0.10 * _arm_len, 0.04 * _arm_len, -0.06 * _arm_len))
+
+
+## Traer algo a la tabla (drag/select/serve): la derecha barre desde el
+## costado hasta el centro pasando por lo alto; la izquierda espera.
+func chef_place(u: float) -> void:
+	_chef_lean()
+	var v := smoothstep(0.0, 1.0, clampf(u, 0.0, 1.0))
+	var side := Vector3(-0.45 * _arm_len, 0.10 * _arm_len, -0.25 * _arm_len)
+	var via := Vector3(-0.22 * _arm_len, 0.26 * _arm_len, -0.10 * _arm_len)
+	var off := _bezier(side, via, Vector3.ZERO, v)
+	_chef_hands(off, Vector3(0.10 * _arm_len, 0.0, 0.0))
+
+
+## Despejar la tabla (cancel): ambas manos barren hacia fuera.
+func chef_clear(u: float) -> void:
+	_chef_lean()
+	var v := sin(PI * clampf(u, 0.0, 1.0))
+	_chef_hands(Vector3(-0.30 * _arm_len * v, 0.06 * _arm_len * v, 0.0),
+		Vector3(0.30 * _arm_len * v, 0.06 * _arm_len * v, 0.0))
+
+
+## Plato terminado (done): ambas manos suben en celebracion breve.
+func chef_cheer(u: float) -> void:
+	var v := sin(PI * clampf(u, 0.0, 1.0))
+	for side in ["L", "R"]:
+		var m := 1.0 if side == "L" else -1.0
+		var sh := _rest(_idx["%s_Shoulder" % side])
+		var tgt := sh + Vector3(m * 0.30, -0.35 + 0.65 * v, 0.30) * _arm_len
+		_arm_ik(side, tgt, tgt + Vector3(0.0, 0.5 * _arm_len, 0.0))
+	_pitch("Neck", -6.0 * v)
+	_fist("L")
+	_fist("R")
+
+
 ## Sentado sin comer: respira y descansa las manos en los muslos.
 func sit_idle(t: float) -> void:
 	sit()

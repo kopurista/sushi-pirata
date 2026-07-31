@@ -43,17 +43,19 @@ const TAKE_CHANCES: Dictionary = {
 const FAVORITE_TIER: Dictionary = { "E": 1, "A": 2, "G": 3 }
 
 ## Rango de tiempo de comida (s) por tipo de cliente Y nivel del plato.
+## Subidos ~20% respecto al 2D: en 3D el ritmo general es mas pausado.
 const EAT_TIMES: Dictionary = {
-	"E": { 1: [3.0, 5.0], 2: [7.0, 10.0], 3: [11.0, 15.0] },
-	"A": { 1: [3.5, 5.5], 2: [5.0, 8.0], 3: [9.0, 12.0] },
-	"G": { 1: [2.0, 3.5], 2: [4.0, 6.5], 3: [8.0, 12.0] },
+	"E": { 1: [3.5, 6.0], 2: [8.0, 11.5], 3: [12.5, 17.0] },
+	"A": { 1: [4.0, 6.5], 2: [6.0, 9.5], 3: [10.5, 14.0] },
+	"G": { 1: [2.5, 4.0], 2: [5.0, 7.5], 3: [9.0, 13.5] },
 }
 
 ## Al recibir un plato la paciencia sube (fraccion del maximo) segun el nivel.
-const PATIENCE_FOOD: Dictionary = { 1: 0.12, 2: 0.30, 3: 0.50 }
-## Repetir el MISMO plato recarga la mitad cada vez; cambiar de plato solo
-## retrocede UN nivel de aburrimiento.
-const REPEAT_DECAY := 0.5
+## Rebajado (antes 0.12/0.30/0.50): cada plato retiene menos al cliente.
+const PATIENCE_FOOD: Dictionary = { 1: 0.09, 2: 0.22, 3: 0.38 }
+## Repetir el MISMO plato recarga MENOS de la mitad cada vez (endurecido desde
+## 0.5); cambiar de plato solo retrocede UN nivel de aburrimiento.
+const REPEAT_DECAY := 0.4
 ## Cada plato comido acelera el drenaje de paciencia en este factor.
 const PATIENCE_DRAIN_PER_PLATE := 0.025
 

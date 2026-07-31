@@ -92,32 +92,48 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   plato). El arroz es infinito. `consume_ingredients_for_level()`,
   `complete_port()` (recompensas solo la 1ª vez que se alcanza `goal_stars`).
 - `scripts/prep_board.gd` — la tabla inferior: minijuego de elaboración por
-  etapas, mano de gestos animada, cajas de guardado por pilas, cooldowns.
+  etapas, mano de gestos animada, cajas de guardado por pilas, cooldowns. Ocupa
+  **588 px** de alto (llega bastante más arriba que antes) para que la tabla de
+  manipulación sea grande. Orden vertical: cinta → tabla (`BoardPanel`) →
+  **instrucción escrita** → botones de receta.
 - `scripts/client.gd` — cliente: entra andando, se sienta, coge platos, come,
   propina, se va andando. Tipos: E grumete, A pirata, G capitán (V VIP
   pendiente). SIN bocadillos de ánimo, satisfacción NI saciedad objetivo: el
   cliente se queda hasta que su barra de paciencia se agota (nunca "termina de
   comer"), y cada plato comido ACELERA el drenaje de paciencia
   (`PATIENCE_DRAIN_PER_PLATE` ×0.025 por plato). `EAT_TIMES` es una matriz
-  tipo×nivel de plato; `PATIENCE_FOOD` recarga paciencia según el nivel del
-  plato (L1 poco, L2 más, L3 mucho) escalada por el "aburrimiento" (`boredom`):
-  repetir el MISMO plato sube el nivel y recarga la mitad cada vez
-  (`REPEAT_DECAY`); cambiar de plato NO reinicia, solo retrocede un nivel
-  (12%→6%→3%, cambio→6%, otro cambio→12%).
+  tipo×nivel de plato (subida ~20% para el ritmo 3D); `PATIENCE_FOOD` recarga
+  paciencia según el nivel del plato (L1 9% · L2 22% · L3 38%, rebajada para
+  que cada plato retenga menos) escalada por el "aburrimiento" (`boredom`):
+  repetir el MISMO plato sube el nivel y recarga ×0.4 cada vez
+  (`REPEAT_DECAY`, endurecido desde 0.5); cambiar de plato NO reinicia, solo
+  retrocede un nivel.
 - `scripts/level.gd` — orquestador 2D ORIGINAL (referencia hasta terminar la
   conversión 3D; el juego ya NO lo usa): cinta (Line2D por tramos), spawner por
   horario (configurado por el nivel de campaña), HUD, propinas/potenciadores,
   puntuación POR DINERO, panel de resultados (anuncia recetas desbloqueadas).
 - `scripts/level3d.gd` + `scenes/level3d.tscn` — **el nivel EN USO** (3D low
   poly, mismo HUD 2D): port 1:1 de la lógica de level.gd sobre un mundo 3D
-  construido por código (cámara iso ortogonal pitch −35.264/yaw 45/size 15;
-  circuito = cuadrado de 3.6 u; platos 0.9 u/s). Los clientes rodean el
-  mostrador por un pasillo cuadrado exterior (`WALK_R`) doblando esquinas por
-  el lado más corto. `world_ui` (CanvasLayer bajo el HUD) recibe barras y
-  textos flotantes de los clientes, anclados con `cam.unproject_position`
-  (cámara fija). El fin de nivel NO espera la salida completa: 2 s de gracia y
-  resultados. La banda usa `belt_scroll_3d.gdshader` con `scroll_tiles`
-  empujado por frame (se para al congelar, acelera con "Cinta rápida").
+  construido por código (cámara iso ortogonal pitch −35.264/yaw 45/**size 17**;
+  circuito = cuadrado de 3.6 u; platos 0.9 u/s). **Escenario según el TIPO del
+  nivel** (`CampaignData.get_kind`): `_scenery_island` (arenal con palmeras),
+  `_scenery_port` (muelle con norays/farol) o `_scenery_ship` (abordaje: barco
+  VIEJO — tablones desgastados/arrancados con el mar asomando, barandillas
+  rotas, manchas y **mástil CENTRAL con velas rasgadas dentro del circuito,
+  junto al chef**); los tres contenidos en el encuadre para que el mar asome.
+  Las esquinas de la cinta NO llevan placas (se quitaron a propósito). Chef y
+  su mesa **orientados al mismo lado** (yaw 45, de cara a la cámara). **DOS
+  bordas de entrada** (`ENTRY` arriba / `ENTRY_BOTTOM` abajo): cada cliente
+  entra y sale por la más cercana a su silla (`seats[]["entry"]`); la ruta
+  rodea el pasillo `WALK_R` por el lado más corto desde su borda. `world_ui`
+  (CanvasLayer bajo el HUD) recibe barras y textos flotantes de los clientes,
+  anclados con `cam.unproject_position` (cámara fija). **Fin de nivel: 4 s con
+  todo parado** (banda quieta, platos con `ended`, `prep_board` deshabilitada)
+  antes del cartel. **Botón "Salir"** bajo el reloj: confirmación en pergamino;
+  en fase de preparación DEVUELVE los usos de ingredientes, en partida avisa de
+  que se pierden; vuelve a level_select3d (aventura) o main_menu (prueba). La
+  banda usa `belt_scroll_3d.gdshader` con `scroll_tiles` empujado por frame
+  (se para al congelar y al terminar, acelera con "Cinta rápida").
 - `scripts/client3d.gd` — cliente 3D (misma lógica que client.gd): modelo GLB
   riggeado + `CharacterAnim` (walk/sit_idle/bite procedurales). Camina a la
   velocidad natural de su ciclo (~1.2 u/s, decidido: más lento que el 2D para
@@ -127,8 +143,19 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   esqueleto (la mano llega sola). Alturas por tipo: E 1.45 · A 1.75 · G 1.95.
 - `scripts/plate3d.gd` — plato en cinta: PathFollow3D por el Path3D del
   circuito, modelo normalizado por huella (0.62 u), 2 vueltas → descarte.
-- `scripts/main_menu.gd` — menú inicial (ESCENA PRINCIPAL): Aventura (campaña),
-  Tienda y Prueba (partida libre con todas las recetas, sin tocar el progreso).
+- `scripts/main_menu.gd` — menú inicial (ESCENA PRINCIPAL, raíz **Node3D**):
+  Aventura (campaña), Tienda y Prueba (partida libre con todas las recetas, sin
+  tocar el progreso). El fondo es una **escena 3D animada**: el barco del
+  jugador (`map_barco.glb`) cabecea y se balancea en mar abierto (mismo
+  `water_map_3d.gdshader` del mapa) mientras islas, puertos y barcos enemigos
+  quedan atrás y vuelven a aparecer por el horizonte, con gaviotas dando
+  vueltas. El logotipo (`assets/ui/logo_sushi_pirata.webp`, generado con Ludo y
+  recortado con `tools/logo_prep.gd`) flota y se balancea en el CanvasLayer 2D.
+  **Decisiones ya tomadas:** las nubes van en `SHADOW_CASTING_SETTING_SHADOWS_ONLY`
+  — con cámara ortogonal la caja entraba en el encuadre como un bloque blanco
+  raro, y lo que hace creíble la navegación es su sombra cruzando el agua; y las
+  gaviotas llevan cuerpo oscuro y alas en V porque dos alas planas alineadas se
+  veían como una simple barra blanca.
 - `scripts/level_select.gd` — **mapa marítimo**: el barco del jugador navega por
   el mar entre los nodos de la campaña. Cada nivel es de un TIPO (`CampaignData.
   KINDS`): "isla", "puerto" o "abordaje" (asaltar otro barco); de momento el tipo
@@ -209,6 +236,10 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   asignar `texture`, o el tamaño mínimo salta al nativo del sprite.
 - **HUD**: barra superior y tabla inferior ancladas a los bordes (top / bottom)
   y a todo el ancho; el espacio extra de pantallas altas queda en el centro.
+  La barra superior **ya no tiene fondo**: tiempo, dinero/bote y clientes van
+  directamente sobre el 3D, legibles por contorno negro grueso (`outline_size`
+  11-12) y sombra. Al quitarla, la banda visible del mundo empieza en y=0, así
+  que `CAM_TARGET` de `level3d.gd` se recolocó (3.25) para recentrar la acción.
 - **Guardado**: al soltar cerca de las cajas (con margen amplio) se guarda solo
   en la primera caja válida (misma receta con hueco → primera vacía). Servir a
   la cinta exige soltar sobre su franja. Desde una caja se sirve solo con
@@ -216,6 +247,19 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 - **Mano de gestos**: `HAND_TIP` ancla la mano **por encima** del objetivo.
   Los pasos sobre la tabla apuntan al **centro del sprite de etapa**, sin
   desplazamientos fijos. Los deslizamientos llevan además una `flecha.png`.
+  Mano (`HAND_SIZE`), flecha y fantasmas van a tamaño GRANDE a propósito: son
+  la guía del jugador en móvil. Los pasos de pulsar/mantener añaden un **anillo
+  dorado que late** en el punto exacto (`_ring_pulse`), porque la mano sola se
+  perdía sobre el arroz blanco. El deslizamiento arranca 46 px por DEBAJO del
+  centro de la etapa: desde el centro exacto, la mano grande se salía de la
+  tabla por arriba.
+- **Instrucción escrita de cada paso** (`_instruction_text`): "¡Toca Arroz!",
+  "¡Pulsa x4!" (baja a x3, x2… en vivo), "¡Mantén pulsado!", "¡Desliza hacia
+  abajo x2!", "¡Remueve en círculos x3!", "¡Corta despacio x3!", "¡Arrástralo
+  hasta el utensilio!" y "¡Arrastra el plato a la cinta!" al terminar. Va
+  **DEBAJO de la tabla** (no encima): arriba chocaba con la mano, que sobresale
+  del panel cuando el objetivo es un ingrediente de la fila superior. Se
+  refresca desde `_update_ui()` y `_update_tap_bar()`, con un rebote al cambiar.
 - **Layout móvil (importante)**: en la tabla inferior las **recetas van abajo**
   y la **tabla de manipulación arriba**, a propósito: un gesto de deslizar de
   abajo hacia arriba pegado al borde inferior del móvil cierra la app.

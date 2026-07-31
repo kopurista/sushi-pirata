@@ -13,8 +13,10 @@ enum State { IDLE, CRAFTING, READY }
 const SWIPE_THRESHOLD := 70.0
 ## Recorrido horizontal (px) que debe cubrir el corte lento, de izquierda a
 ## derecha, por todo el ancho de la tabla.
-const SLICE_SWEEP := 340.0
-const DISH_SIZE := Vector2(120, 110)
+const SLICE_SWEEP := 360.0
+const DISH_SIZE := Vector2(132, 120)
+## Tamaño de cada ingrediente en la fila de la tabla.
+const ING_SIZE := Vector2(88, 76)
 
 var state := State.IDLE
 var current_recipe: String = ""
@@ -94,6 +96,7 @@ var cooldown_mult: float = 1.0
 var cooldown_mult_timer: float = 0.0
 
 var stage_tween: Tween = null
+var instruction_tween: Tween = null
 ## Mano de gestos: muestra semitransparente cómo ejecutar cada interacción
 ## (pulsar, mantener, arrastrar, deslizar, círculo) con dos poses.
 var hand: TextureRect = null
@@ -103,6 +106,9 @@ var hand_down_tex: Texture2D = null
 var ghost_hint: TextureRect = null
 ## Flecha que acompaña a la mano en los gestos de deslizamiento.
 var arrow_hint: TextureRect = null
+## Anillo que late sobre el punto donde hay que pulsar/mantener.
+var touch_ring: Panel = null
+var ring_tween: Tween = null
 var indicator_tween: Tween = null
 
 @onready var board_panel: Panel = $BoardPanel
@@ -218,7 +224,7 @@ func _ready() -> void:
 	prop_rect = TextureRect.new()
 	prop_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	prop_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	prop_rect.size = Vector2(150, 120)
+	prop_rect.size = Vector2(168, 134)
 	prop_rect.visible = false
 	prop_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(prop_rect)
@@ -233,9 +239,23 @@ func _ready() -> void:
 	message_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	message_label.visible = false
 	add_child(message_label)
-	# Sin textos ni contadores: todo se comunica con indicadores visuales.
+	# La instrucción del paso ("¡Pulsa x4!", "Mantén pulsado"...) se enciende
+	# sola desde _update_instruction() mientras se elabora.
 	instruction_label.visible = false
-	# Mano de gestos: pequeña y semitransparente para no tapar la interfaz.
+	# Anillo del punto de toque (debajo de la mano en orden de dibujo).
+	touch_ring = Panel.new()
+	var ring_sb := StyleBoxFlat.new()
+	ring_sb.bg_color = Color(1.0, 0.86, 0.3, 0.14)
+	ring_sb.border_color = Color(1.0, 0.88, 0.35, 0.95)
+	ring_sb.set_border_width_all(7)
+	ring_sb.set_corner_radius_all(int(RING_SIZE.x / 2.0))
+	touch_ring.add_theme_stylebox_override("panel", ring_sb)
+	touch_ring.size = RING_SIZE
+	touch_ring.pivot_offset = RING_SIZE / 2.0
+	touch_ring.visible = false
+	touch_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(touch_ring)
+	# Mano de gestos: grande y bien visible, es la guía principal del jugador.
 	hand_up_tex = load("res://assets/ui/mano_arriba.png")
 	hand_down_tex = load("res://assets/ui/mano_abajo.png")
 	hand = TextureRect.new()
@@ -244,8 +264,8 @@ func _ready() -> void:
 	hand.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	hand.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	hand.texture = hand_up_tex
-	hand.size = Vector2(56, 72)
-	hand.modulate = Color(1, 1, 1, 0.65)
+	hand.size = HAND_SIZE
+	hand.modulate = Color(1, 1, 1, HAND_ALPHA)
 	hand.visible = false
 	hand.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hand)
@@ -254,9 +274,9 @@ func _ready() -> void:
 	arrow_hint.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	arrow_hint.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	arrow_hint.texture = load("res://assets/ui/flecha.png")
-	arrow_hint.size = Vector2(44, 58)
-	arrow_hint.pivot_offset = Vector2(22, 29)
-	arrow_hint.modulate = Color(1, 1, 1, 0.7)
+	arrow_hint.size = ARROW_SIZE
+	arrow_hint.pivot_offset = ARROW_SIZE / 2.0
+	arrow_hint.modulate = Color(1, 1, 1, 0.9)
 	arrow_hint.visible = false
 	arrow_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(arrow_hint)
@@ -264,7 +284,7 @@ func _ready() -> void:
 	ghost_hint = TextureRect.new()
 	ghost_hint.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ghost_hint.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	ghost_hint.modulate = Color(1, 1, 1, 0.55)
+	ghost_hint.modulate = Color(1, 1, 1, 0.7)
 	ghost_hint.visible = false
 	ghost_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(ghost_hint)
@@ -291,7 +311,7 @@ func _ready() -> void:
 func _build_recipe_button(id: String) -> void:
 	var data := RecipeData.get_recipe(id)
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(170, 156)
+	b.custom_minimum_size = Vector2(165, 132)
 	# Fondo de pergamino desgastado (en lugar de madera) para que el plato y
 	# las estrellas destaquen.
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
@@ -360,7 +380,7 @@ func _build_recipe_button(id: String) -> void:
 
 func _add_storage_panel() -> void:
 	var p := Control.new()
-	p.custom_minimum_size = Vector2(100, 100)
+	p.custom_minimum_size = Vector2(90, 90)
 	var slot_tex := "res://assets/ui/slot.png"
 	if ResourceLoader.exists(slot_tex):
 		var t := TextureRect.new()
@@ -536,7 +556,7 @@ func _build_ingredients(recipe_id: String) -> void:
 	_clear_ingredients()
 	for ing_id in RecipeData.get_recipe_ingredients(recipe_id):
 		var holder := Control.new()
-		holder.custom_minimum_size = Vector2(76, 66)
+		holder.custom_minimum_size = ING_SIZE
 		var tex := _ingredient_texture(ing_id)
 		if tex != null:
 			var t := TextureRect.new()
@@ -1062,7 +1082,7 @@ func _update_prop() -> void:
 ## Copia del ingrediente que sigue al dedo mientras se arrastra.
 func _make_ghost(ing_id: String) -> Control:
 	var g := Control.new()
-	g.size = Vector2(76, 66)
+	g.size = ING_SIZE
 	var tex := _ingredient_texture(ing_id)
 	if tex != null:
 		var t := TextureRect.new()
@@ -1116,7 +1136,7 @@ func _finish_prep(grant_mastery: bool) -> void:
 func _dish_rest_position(index: int = 0) -> Vector2:
 	var base := board_panel.position + (board_panel.size - DISH_SIZE) / 2.0
 	if dishes.size() > 1 or index > 0:
-		base.x += -70.0 + 140.0 * index
+		base.x += -80.0 + 160.0 * index
 	return base
 
 
@@ -1130,6 +1150,7 @@ func _apply_cooldown(recipe_id: String) -> void:
 
 func _update_ui() -> void:
 	cancel_button.visible = _can_cancel()
+	_update_instruction()
 	match state:
 		State.IDLE:
 			tap_bar.visible = false
@@ -1142,23 +1163,122 @@ func _update_ui() -> void:
 			call_deferred("_refresh_indicator_ready")
 
 
+# --- Instrucción escrita del paso actual ---
+
+## Nombre legible de un ingrediente para los textos de ayuda.
+func _ingredient_name(ing_id: String) -> String:
+	var d: Dictionary = RecipeData.INGREDIENTS.get(ing_id, {})
+	return str(d.get("name", ing_id))
+
+
+## Qué tiene que hacer el jugador AHORA MISMO, con las repeticiones que le
+## quedan ("¡Pulsa x4!" va bajando a x3, x2...).
+func _instruction_text() -> String:
+	if state == State.READY:
+		return "¡Arrastra el plato a la cinta!"
+	if state != State.CRAFTING:
+		return ""
+	var step := _current_step()
+	var total := int(step.get("count", 1))
+	var left := 1
+	match step.get("type", ""):
+		"tap_ingredient":
+			return "¡Toca %s!" % _ingredient_name(step.get("ingredient", ""))
+		"drag_ingredient":
+			return "¡Arrastra %s a la tabla!" % _ingredient_name(step.get("ingredient", ""))
+		"tap_board":
+			left = maxi(total - taps_done, 1)
+			var verb := "Corta" if bool(step.get("cutting", false)) else "Pulsa"
+			if total <= 1:
+				return "¡%s la tabla!" % verb
+			return "¡%s x%d!" % [verb, left]
+		"hold_board":
+			return "¡Mantén pulsado!"
+		"swipe_board":
+			left = maxi(total - swipes_done, 1)
+			var dir := "abajo" if step.get("direction", "down") == "down" else "arriba"
+			if total <= 1:
+				return "¡Desliza hacia %s!" % dir
+			return "¡Desliza hacia %s x%d!" % [dir, left]
+		"stir_board":
+			left = maxi(total - stir_turns, 1)
+			if total <= 1:
+				return "¡Remueve en círculos!"
+			return "¡Remueve en círculos x%d!" % left
+		"slice_board":
+			left = maxi(total - slices_done, 1)
+			if total <= 1:
+				return "¡Corta despacio!"
+			return "¡Corta despacio x%d!" % left
+		"drag_stage":
+			return "¡Arrástralo hasta el utensilio!"
+	return ""
+
+
+func _update_instruction() -> void:
+	var txt := _instruction_text()
+	if txt == "":
+		instruction_label.visible = false
+		return
+	if instruction_label.text != txt:
+		instruction_label.text = txt
+		_pop_instruction()
+	instruction_label.visible = true
+
+
+## Rebote al cambiar el texto (que se note que queda una repetición menos).
+func _pop_instruction() -> void:
+	instruction_label.pivot_offset = instruction_label.size / 2.0
+	if instruction_tween != null:
+		instruction_tween.kill()
+	instruction_label.scale = Vector2(1.16, 1.16)
+	instruction_tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	instruction_tween.tween_property(instruction_label, "scale", Vector2.ONE, 0.22)
+
+
 # --- Mano de gestos: indicador animado del paso actual ---
 
+## Mano y flecha grandes: son la guía del jugador y tienen que leerse de un
+## vistazo en el móvil.
+const HAND_SIZE := Vector2(116, 150)
+const HAND_ALPHA := 0.85
+const ARROW_SIZE := Vector2(68, 90)
+## Anillo que late en el punto exacto donde hay que tocar: la mano sola se
+## perdía sobre las etapas claras (el arroz es casi del mismo color).
+const RING_SIZE := Vector2(128, 128)
 ## Punto de anclaje de la mano respecto a su esquina: la mano queda POR
 ## ENCIMA del objetivo, con la base a la altura del objeto, para que nunca
 ## lo tape ni cuelgue por debajo.
-const HAND_TIP := Vector2(28, 80)
+const HAND_TIP := Vector2(58, 164)
 
 func _hide_indicator() -> void:
 	if indicator_tween != null:
 		indicator_tween.kill()
 		indicator_tween = null
+	if ring_tween != null:
+		ring_tween.kill()
+		ring_tween = null
 	if hand != null:
 		hand.visible = false
 	if ghost_hint != null:
 		ghost_hint.visible = false
 	if arrow_hint != null:
 		arrow_hint.visible = false
+	if touch_ring != null:
+		touch_ring.visible = false
+
+
+## Late un anillo en el punto de contacto (pulsar y mantener).
+func _ring_pulse(center: Vector2, period: float) -> void:
+	touch_ring.position = center - RING_SIZE / 2.0
+	touch_ring.visible = true
+	ring_tween = create_tween().set_loops()
+	ring_tween.tween_callback(func() -> void:
+		touch_ring.scale = Vector2(0.45, 0.45)
+		touch_ring.modulate.a = 0.95)
+	ring_tween.tween_property(touch_ring, "scale", Vector2(1.1, 1.1), period) \
+			.set_trans(Tween.TRANS_SINE)
+	ring_tween.parallel().tween_property(touch_ring, "modulate:a", 0.0, period)
 
 
 func _local_center(node: Control) -> Vector2:
@@ -1169,10 +1289,10 @@ func _local_center(node: Control) -> Vector2:
 ## Prepara la mano para una nueva animación en el punto de contacto dado.
 func _hand_begin(tip_pos: Vector2, down: bool = false) -> void:
 	hand.texture = hand_down_tex if down else hand_up_tex
-	hand.size = Vector2(56, 72)
+	hand.size = HAND_SIZE
 	hand.scale = Vector2.ONE
 	hand.position = tip_pos - HAND_TIP
-	hand.modulate.a = 0.65
+	hand.modulate.a = HAND_ALPHA
 	hand.visible = true
 
 
@@ -1201,19 +1321,21 @@ func _refresh_indicator() -> void:
 			_hand_hold_at(stage_center)
 		"swipe_board":
 			var dir := Vector2(0, 1) if step.get("direction", "down") == "down" else Vector2(0, -1)
-			_hand_swipe(stage_center, dir)
+			# Algo por debajo de la etapa: con la mano grande, arrancar en el
+			# centro exacto la sacaba por encima de la tabla.
+			_hand_swipe(stage_center + Vector2(0, 46), dir)
 		"drag_ingredient":
 			var node: Control = ingredient_nodes.get(step.get("ingredient", ""))
 			if node == null:
 				return
 			ghost_hint.texture = _ingredient_texture(step.get("ingredient", ""))
-			ghost_hint.size = Vector2(76, 66)
+			ghost_hint.size = ING_SIZE
 			_hand_drag(_local_center(node), stage_center)
 		"stir_board":
 			_hand_circle_at(stage_center)
 		"slice_board":
 			# Corte lento de izquierda a derecha: deslizar pausado y ancho.
-			_hand_swipe(board_center, Vector2(1, 0), 1.2, 150.0)
+			_hand_swipe(board_center, Vector2(1, 0), 1.2, 175.0)
 		"drag_stage":
 			if not prop_rect.visible:
 				return
@@ -1237,6 +1359,7 @@ func _refresh_indicator_ready() -> void:
 ## Pulsación: la mano baja el dedo sobre el punto (rápida si es repetida).
 func _hand_tap_at(tip_pos: Vector2, fast: bool) -> void:
 	_hand_begin(tip_pos)
+	_ring_pulse(tip_pos, 0.52 if fast else 0.8)
 	var up_t := 0.16 if fast else 0.38
 	var down_t := 0.10 if fast else 0.16
 	indicator_tween = create_tween().set_loops()
@@ -1250,6 +1373,7 @@ func _hand_tap_at(tip_pos: Vector2, fast: bool) -> void:
 ## Mantener pulsado: dedo abajo con un latido suave.
 func _hand_hold_at(tip_pos: Vector2) -> void:
 	_hand_begin(tip_pos, true)
+	_ring_pulse(tip_pos, 0.95)
 	hand.pivot_offset = HAND_TIP
 	indicator_tween = create_tween().set_loops()
 	indicator_tween.tween_property(hand, "scale", Vector2(1.12, 1.12), 0.45)
@@ -1267,10 +1391,10 @@ func _hand_drag(from_pos: Vector2, to_pos: Vector2) -> void:
 	indicator_tween.tween_callback(func() -> void:
 		hand.texture = hand_up_tex
 		hand.position = _hand_at(from_pos)
-		hand.modulate.a = 0.65
+		hand.modulate.a = HAND_ALPHA
 		ghost_hint.position = from_pos - ghost_hint.size / 2.0
 		ghost_hint.modulate.a = 0.0)
-	indicator_tween.tween_property(ghost_hint, "modulate:a", 0.5, 0.15)
+	indicator_tween.tween_property(ghost_hint, "modulate:a", 0.7, 0.15)
 	indicator_tween.tween_callback(func() -> void: hand.texture = hand_down_tex)
 	indicator_tween.tween_interval(0.12)
 	indicator_tween.tween_property(hand, "position", _hand_at(to_pos), 0.9) \
@@ -1285,21 +1409,21 @@ func _hand_drag(from_pos: Vector2, to_pos: Vector2) -> void:
 
 ## Deslizamiento: dedo abajo y movimiento en la dirección dada (rápido por
 ## defecto; travel_time/span mayores para los cortes lentos).
-func _hand_swipe(center: Vector2, dir: Vector2, travel_time := 0.4, span := 70.0) -> void:
+func _hand_swipe(center: Vector2, dir: Vector2, travel_time := 0.4, span := 88.0) -> void:
 	var a := center - dir * span
 	var b := center + dir * span
 	_hand_begin(a, true)
 	# La flecha propia apunta en la dirección del gesto y viaja con la mano.
 	arrow_hint.rotation = dir.angle() + PI / 2.0
 	arrow_hint.visible = true
-	var arrow_off := Vector2(48, -6)
+	var arrow_off := Vector2(72, -10)
 	indicator_tween = create_tween().set_loops()
 	indicator_tween.tween_callback(func() -> void:
 		hand.texture = hand_down_tex
 		hand.position = _hand_at(a)
-		hand.modulate.a = 0.65
+		hand.modulate.a = HAND_ALPHA
 		arrow_hint.position = _hand_at(a) + arrow_off
-		arrow_hint.modulate.a = 0.7)
+		arrow_hint.modulate.a = 0.9)
 	indicator_tween.tween_interval(0.15)
 	indicator_tween.tween_property(hand, "position", _hand_at(b), travel_time) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
@@ -1311,7 +1435,7 @@ func _hand_swipe(center: Vector2, dir: Vector2, travel_time := 0.4, span := 70.0
 
 
 ## Círculo: el dedo recorre una circunferencia (para gestos rotatorios).
-func _hand_circle_at(center: Vector2, radius: float = 55.0) -> void:
+func _hand_circle_at(center: Vector2, radius: float = 74.0) -> void:
 	_hand_begin(center + Vector2(radius, 0), true)
 	indicator_tween = create_tween().set_loops()
 	indicator_tween.tween_method(func(ang: float) -> void:
@@ -1320,6 +1444,7 @@ func _hand_circle_at(center: Vector2, radius: float = 55.0) -> void:
 
 
 func _update_tap_bar() -> void:
+	_update_instruction()
 	var step := _current_step()
 	match step.get("type", ""):
 		"tap_board":

@@ -62,8 +62,13 @@ func _merged_aabb(node: Node) -> AABB:
 func _process(delta: float) -> void:
 	if taken:
 		return
-	if level_ref != null and "frozen" in level_ref and level_ref.frozen:
-		return
+	# Parado durante la congelacion ("Tiempo de preparacion extra") y al
+	# terminar el nivel (los platos se quedan quietos en la cinta).
+	if level_ref != null:
+		if "frozen" in level_ref and level_ref.frozen:
+			return
+		if "ended" in level_ref and level_ref.ended:
+			return
 	var mult := 1.0
 	if level_ref != null and "belt_mult" in level_ref:
 		mult = level_ref.belt_mult

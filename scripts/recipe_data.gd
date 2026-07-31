@@ -253,7 +253,7 @@ const RECIPES: Dictionary = {
 			{ "type": "tap_board", "count": 3 },
 			{ "type": "drag_stage", "prop": "gunkan_base" },
 		],
-		"stages": ["pepino_tabla", "pepino_cubos", "salmon_pepino", "tartar_mont", "gunkan_base", "tartar_mont", ""],
+		"stages": ["pepino_tabla", "pepino_cubos", "salmon_pepino", "tartar_mont", "arroz_bola", "tartar_mont", ""],
 	},
 }
 
