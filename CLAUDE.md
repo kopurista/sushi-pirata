@@ -173,11 +173,30 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 
 ## Convenciones y decisiones ya tomadas (NO reintroducir bugs resueltos)
 
-- **Assets**: se generan con **Ludo MCP** (`createImage` / `generateWithStyle`,
-  estilo `Voxel Art`), se descargan de inmediato (las URLs caducan a 7 días), y
-  se recortan con un script Godot midiendo el bounding box con **umbral de
+- **Assets 2D**: se generan con **Ludo MCP** (ya en estilo **Low Poly**, no
+  Voxel Art), se descargan de inmediato (las URLs caducan a 7 días), y se
+  recortan con un script Godot midiendo el bounding box con **umbral de
   alfa ≥ 0.6–0.75** (el recorte por `get_used_rect` incluía la sombra y rompía
   los 9-slice). Los sprites se guardan como `.png`; los platos como `.webp`.
+  Fondo blanco → transparente por INUNDACIÓN desde los bordes (así el arroz
+  blanco interior sobrevive): `tools/icon_prep.gd` y `tools/stage_prep.gd`.
+- **Restilizar sprites con `editImage`** (voxel → low poly): funciona con el
+  sujeto DESCRITO explícitamente en el prompt; el arroz blanco vuelve a salir
+  voxel salvo que se le pase una `reference_image` de arroz low poly, PERO una
+  referencia con pez acaba SUSTITUYENDO el sujeto entero (14 sprites salieron
+  convertidos en el nigiri de referencia). Referencias solo sin pez.
+- **Modelos 3D (imagen→3D)**: concepto low poly generado DESDE TEXTO (el
+  restilizado de un sprite voxel se queda a medias), con el objeto flotando en
+  fondo VACÍO sin sombra (una sombra pintada acaba convertida en malla pegada
+  al pie, como le pasó al chef); `create3DModel` → `tools/glb_prepare.py`
+  (gunzip + baseColorFactor 1 + metallic 0; con `--headless` puede dar timeout
+  el MCP: recuperar con `get3DModelResults`).
+- **Texturas de modelo (export web/móvil)**: `compress/mode=4` (**Basis
+  Universal**, transcodifica al GPU en carga; ¡el modo 3 NO es Basis, es VRAM
+  sin comprimir!) + `rdo_quality_loss=4` + `process/size_limit` 512 en
+  personajes/mapa y 256 en platos/atrezzo. Sin Basis el export solo lleva
+  s3tc y en navegadores móviles las texturas 3D no cargan. Los sprites 2D del
+  juego de referencia van en `exclude_filter` del preset de export.
 - **UI de madera/pergamino**: 9-slice con `NinePatchRect` (no `StyleBoxTexture`,
   que ignoraba los márgenes). `prep_board.make_nine_patch()` y `skin_button()`.
 - **Estrellas**: imágenes propias (`estrella_llena/vacia.png`) vía
