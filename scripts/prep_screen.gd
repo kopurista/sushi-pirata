@@ -1,5 +1,7 @@
-extends Control
+extends Node3D
 ## Fase de preparación: elegir 4 recetas de todas las disponibles.
+## El fondo es el ESCENARIO 3D del nivel elegido (isla, puerto o barco
+## enemigo) meciéndose sobre el mar; la selección va en un CanvasLayer 2D.
 ## Las recetas se agrupan por nivel de estrellas (progresión de descubrimiento),
 ## con 4 tarjetas compactas por fila. TODAS comparten un único pergamino largo:
 ## el pergamino forma parte del contenido scrolleable (no es un fondo fijo), con
@@ -18,15 +20,23 @@ const FRAME_TOP := 44.0
 const FRAME_BOTTOM := 54.0
 
 var selected: Array[String] = []
+## Potenciadores permanentes marcados para esta travesía.
+var perks_selected: Array[String] = []
+## Pivote del modelo 3D del fondo (se mece con el oleaje).
+var backdrop: Node3D = null
+var _t := 0.0
 
-@onready var content: Control = $Margin/VBox/Scroll/Content
-@onready var sections: VBoxContainer = $Margin/VBox/Scroll/Content/Sections
-@onready var count_label: Label = $Margin/VBox/CountLabel
-@onready var start_button: Button = $Margin/VBox/StartButton
+@onready var content: Control = $UI/Root/Margin/VBox/Scroll/Content
+@onready var sections: VBoxContainer = $UI/Root/Margin/VBox/Scroll/Content/Sections
+@onready var count_label: Label = $UI/Root/Margin/VBox/CountLabel
+@onready var start_button: Button = $UI/Root/Margin/VBox/StartButton
 
 
 func _ready() -> void:
 	var board_script := load("res://scripts/prep_board.gd")
+	var kind := CampaignData.get_kind(GameState.current_port) \
+			if GameState.is_adventure() else ""
+	backdrop = SceneBackdrop.build(self, kind)
 	_add_shared_parchment()
 	# En aventura solo se listan las recetas desbloqueadas; en prueba, todas.
 	var available: Array = []
@@ -54,6 +64,7 @@ func _ready() -> void:
 			grid.add_child(_build_card(id, board_script))
 		sections.add_child(grid)
 	_add_top_bar(board_script)
+	_add_perk_bar(board_script)
 	_skin_start_button(board_script)
 	start_button.pressed.connect(_on_start_pressed)
 	# El pergamino debe crecer con el contenido; se reajusta cada vez que la
@@ -63,17 +74,21 @@ func _ready() -> void:
 	_update_ui()
 
 
-## Barra superior: botón de volver al menú y, en aventura, el nombre del nivel.
+## Barra superior: botón de volver a la pantalla anterior y, en aventura, el
+## nombre del nivel.
 func _add_top_bar(board_script: GDScript) -> void:
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 10)
 	var back := Button.new()
-	back.text = "Menú"
-	back.custom_minimum_size = Vector2(130, 52)
+	back.text = "Atrás"
+	back.custom_minimum_size = Vector2(150, 62)
 	board_script.skin_button(back)
-	back.add_theme_font_size_override("font_size", 24)
+	back.add_theme_font_size_override("font_size", 26)
+	# La pantalla anterior es el mapa en aventura y el menú en Arcade.
+	var prev := "res://scenes/level_select3d.tscn" if GameState.is_adventure() \
+			else "res://scenes/main_menu.tscn"
 	back.pressed.connect(func() -> void:
-		get_tree().change_scene_to_file("res://scenes/main_menu.tscn"))
+		get_tree().change_scene_to_file(prev))
 	bar.add_child(back)
 	if GameState.is_adventure():
 		var port := CampaignData.get_port(GameState.current_port)
@@ -89,11 +104,114 @@ func _add_top_bar(board_script: GDScript) -> void:
 		bar.add_child(title)
 		# Hueco simétrico al botón para que el título quede centrado.
 		var spacer := Control.new()
-		spacer.custom_minimum_size = Vector2(130, 0)
+		spacer.custom_minimum_size = Vector2(150, 0)
 		bar.add_child(spacer)
-	var vbox: VBoxContainer = $Margin/VBox
+	var vbox: VBoxContainer = $UI/Root/Margin/VBox
 	vbox.add_child(bar)
 	vbox.move_child(bar, 0)
+
+
+## Potenciadores permanentes disponibles para esta travesía: se eligen a la vez
+## que las recetas y gastan 1 uso al zarpar. Solo en aventura (el modo Arcade
+## no toca el progreso).
+func _add_perk_bar(board_script: GDScript) -> void:
+	if not GameState.is_adventure():
+		return
+	var ids: Array = []
+	for id in PerkData.ids():
+		if GameState.is_perk_unlocked(id) and GameState.get_perk_uses(id) > 0:
+			ids.append(id)
+	if ids.is_empty():
+		return
+
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	var title := Label.new()
+	title.text = "Potenciadores"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_color_override("font_color", Color(1, 0.9, 0.55))
+	title.add_theme_color_override("font_outline_color", Color.BLACK)
+	title.add_theme_constant_override("outline_size", 7)
+	box.add_child(title)
+
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 12)
+	box.add_child(row)
+	for id in ids:
+		row.add_child(_build_perk_card(id, board_script))
+
+	var vbox: VBoxContainer = $UI/Root/Margin/VBox
+	vbox.add_child(box)
+	vbox.move_child(box, vbox.get_child_count() - 2)
+
+
+func _build_perk_card(id: String, board_script: GDScript) -> Button:
+	var data := PerkData.get_perk(id)
+	var b := Button.new()
+	b.toggle_mode = true
+	b.custom_minimum_size = Vector2(210, 78)
+	b.tooltip_text = str(data.get("desc", ""))
+	board_script.skin_button(b)
+
+	var icon := TextureRect.new()
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.texture = load(str(data.get("icon", "")))
+	icon.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	icon.offset_left = 16.0
+	icon.offset_right = 62.0
+	icon.offset_top = 12.0
+	icon.offset_bottom = -12.0
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(icon)
+
+	var name_l := Label.new()
+	name_l.text = "%s\nx%d" % [data.get("name", id), GameState.get_perk_uses(id)]
+	name_l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	name_l.offset_left = 66.0
+	name_l.offset_right = -10.0
+	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_l.add_theme_font_size_override("font_size", 17)
+	name_l.add_theme_color_override("font_color", Color(1, 0.96, 0.86))
+	name_l.add_theme_color_override("font_outline_color", Color(0.13, 0.07, 0.02))
+	name_l.add_theme_constant_override("outline_size", 6)
+	name_l.add_theme_constant_override("line_spacing", -2)
+	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(name_l)
+
+	# Marco verde cuando está activado.
+	var hl := Panel.new()
+	hl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.3, 0.9, 0.35, 0.16)
+	sb.set_border_width_all(4)
+	sb.border_color = Color(0.4, 1.0, 0.45)
+	sb.set_corner_radius_all(10)
+	hl.add_theme_stylebox_override("panel", sb)
+	hl.visible = false
+	hl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(hl)
+
+	b.toggled.connect(func(on: bool) -> void:
+		hl.visible = on
+		if on:
+			if not id in perks_selected:
+				perks_selected.append(id)
+		else:
+			perks_selected.erase(id))
+	return b
+
+
+## El escenario del fondo se mece con el oleaje.
+func _process(delta: float) -> void:
+	_t += delta
+	if backdrop != null:
+		backdrop.rotation_degrees.y = sin(_t * 0.18) * 6.0
+		backdrop.rotation_degrees.z = sin(_t * 0.7) * 1.4
+		backdrop.position.y = -0.1 + sin(_t * 0.9) * 0.07
 
 
 ## Pergamino único y alargado (mismo estilo que el panel de fin de nivel) que
@@ -133,16 +251,11 @@ func _build_section_header(board_script: GDScript, level: int) -> Control:
 	return row
 
 
-## Botón de zarpar acorde al menú: pergamino con letras marrones grandes.
+## Botón de zarpar con el mismo tablón de madera y marco dorado del resto del
+## juego, en grande.
 func _skin_start_button(board_script: GDScript) -> void:
-	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
-		start_button.add_theme_stylebox_override(st, StyleBoxEmpty.new())
-	start_button.add_child(board_script.make_nine_patch("res://assets/ui/panel.png", 38))
-	start_button.add_theme_font_size_override("font_size", 34)
-	start_button.add_theme_color_override("font_color", DARK)
-	start_button.add_theme_color_override("font_hover_color", Color(0.16, 0.1, 0.05))
-	start_button.add_theme_color_override("font_pressed_color", Color(0.16, 0.1, 0.05))
-	start_button.add_theme_color_override("font_disabled_color", Color(0.55, 0.48, 0.4))
+	board_script.skin_button(start_button)
+	start_button.add_theme_font_size_override("font_size", 36)
 
 
 func _build_card(id: String, board_script: GDScript) -> Button:
@@ -309,6 +422,7 @@ func _update_ui() -> void:
 
 func _on_start_pressed() -> void:
 	GameState.selected_recipes = selected.duplicate()
+	GameState.selected_perks = perks_selected.duplicate()
 	# Nivel 3D low poly (el level.tscn 2D queda como referencia hasta acabar
 	# la conversion completa del juego).
 	get_tree().change_scene_to_file("res://scenes/level3d.tscn")

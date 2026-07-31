@@ -9,6 +9,8 @@ const SAVE_PATH := "user://savegame.json"
 var mode: String = "test"
 ## Ids de las recetas elegidas en la fase de preparación (máx. 4).
 var selected_recipes: Array[String] = []
+## Potenciadores permanentes elegidos para esta partida (se gastan al empezar).
+var selected_perks: Array[String] = []
 ## Nivel de la campaña que se va a jugar (solo en modo adventure).
 var current_port: String = ""
 
@@ -25,6 +27,18 @@ var level_scores: Dictionary = {}
 ## Inventario de ingredientes: id -> usos restantes. Un uso = un nivel jugado
 ## con alguna receta que lleve ese ingrediente (NO se gasta por plato).
 var ingredients: Dictionary = {}
+## Potenciadores permanentes conseguidos por combos (ver PerkData) y usos
+## comprados de cada uno: id -> usos restantes.
+var unlocked_perks: Array[String] = []
+var perk_uses: Dictionary = {}
+## Tienda: el tendero saca CADA DÍA (fecha real) un surtido de 8 ingredientes.
+## `shop_day` guarda el día del surtido actual para saber cuándo renovarlo.
+var shop_stock: Array[String] = []
+var shop_day: String = ""
+
+## Artículos que ofrece el tendero y precio de renovarlos a mano.
+const SHOP_SLOTS := 8
+const SHOP_REROLL_COST := 25
 
 ## --- Resultado de la última partida (para el panel de resultados) ---
 var last_score: float = 0.0
@@ -102,6 +116,86 @@ func consume_ingredients_for_level(recipe_ids: Array) -> bool:
 	return true
 
 
+# --- Tienda: surtido del día -----------------------------------------------
+
+func _today() -> String:
+	var d := Time.get_date_dict_from_system()
+	return "%04d-%02d-%02d" % [d.year, d.month, d.day]
+
+
+## Renueva el surtido si ha cambiado el día (o si el guardado no traía uno).
+func refresh_shop_if_new_day() -> void:
+	if shop_day == _today() and shop_stock.size() == SHOP_SLOTS:
+		return
+	roll_shop_stock()
+	shop_day = _today()
+	save_game()
+
+
+## Sortea 8 ingredientes distintos de entre los que se venden (el arroz es
+## infinito y no entra).
+func roll_shop_stock() -> void:
+	var pool: Array[String] = []
+	for ing in RecipeData.INGREDIENTS:
+		if int(RecipeData.INGREDIENTS[ing].get("cost", 0)) > 0:
+			pool.append(ing)
+	pool.shuffle()
+	shop_stock = []
+	for i in mini(SHOP_SLOTS, pool.size()):
+		shop_stock.append(pool[i])
+
+
+## "Recargar artículos": paga y vuelve a sortear. False si no llega el dinero.
+func reroll_shop() -> bool:
+	if money < SHOP_REROLL_COST:
+		return false
+	money -= SHOP_REROLL_COST
+	roll_shop_stock()
+	save_game()
+	return true
+
+
+# --- Potenciadores permanentes ---------------------------------------------
+
+func is_perk_unlocked(id: String) -> bool:
+	return id in unlocked_perks
+
+
+## Desbloquea un potenciador por combo. Devuelve true si era nuevo (para
+## anunciarlo en el panel de resultados). El primer uso va de regalo.
+func unlock_perk(id: String) -> bool:
+	if id in unlocked_perks:
+		return false
+	unlocked_perks.append(id)
+	perk_uses[id] = int(perk_uses.get(id, 0)) + 1
+	save_game()
+	return true
+
+
+func get_perk_uses(id: String) -> int:
+	return int(perk_uses.get(id, 0))
+
+
+func add_perk_uses(id: String, amount: int) -> void:
+	perk_uses[id] = get_perk_uses(id) + amount
+
+
+## Gasta 1 uso de cada potenciador elegido al empezar el nivel. Los que no
+## tengan usos se descartan de la selección.
+func consume_perks_for_level() -> void:
+	var kept: Array[String] = []
+	for id in selected_perks:
+		if get_perk_uses(id) > 0:
+			perk_uses[id] = get_perk_uses(id) - 1
+			kept.append(id)
+	selected_perks = kept
+	save_game()
+
+
+func has_perk(id: String) -> bool:
+	return id in selected_perks
+
+
 # --- Progreso de la campaña ------------------------------------------------
 
 ## ¿Está desbloqueado este nivel? El primero siempre; el resto, si el nivel
@@ -152,13 +246,17 @@ func complete_port(port_id: String, stars: int) -> Array:
 
 func save_game() -> void:
 	var data := {
-		"version": 3,
+		"version": 4,
 		"money": money,
 		"unlocked_recipes": unlocked_recipes,
 		"unlocked_powerups": unlocked_powerups,
 		"level_stars": level_stars,
 		"level_scores": level_scores,
 		"ingredients": ingredients,
+		"unlocked_perks": unlocked_perks,
+		"perk_uses": perk_uses,
+		"shop_stock": shop_stock,
+		"shop_day": shop_day,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
@@ -195,6 +293,13 @@ func load_game() -> void:
 	var ing_dict: Dictionary = parsed.get("ingredients", {})
 	for k in ing_dict.keys():
 		ingredients[str(k)] = int(ing_dict[k])
+	unlocked_perks = _to_string_array(parsed.get("unlocked_perks", []))
+	perk_uses = {}
+	var perk_dict: Dictionary = parsed.get("perk_uses", {})
+	for k in perk_dict.keys():
+		perk_uses[str(k)] = int(perk_dict[k])
+	shop_stock = _to_string_array(parsed.get("shop_stock", []))
+	shop_day = str(parsed.get("shop_day", ""))
 	# Garantiza las recetas iniciales aunque el save sea antiguo/parcial.
 	for r in CampaignData.INITIAL_RECIPES:
 		unlock_recipe(r)
@@ -212,6 +317,10 @@ func _new_game() -> void:
 	level_stars = {}
 	level_scores = {}
 	ingredients = {}
+	unlocked_perks = []
+	perk_uses = {}
+	shop_stock = []
+	shop_day = ""
 	for r in CampaignData.INITIAL_RECIPES:
 		unlock_recipe(r)
 	# Los usos iniciales SOLO en partida nueva (si se diera también al cargar,

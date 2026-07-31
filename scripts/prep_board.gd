@@ -7,6 +7,10 @@ extends Control
 
 signal dish_served(recipe_id: String)
 signal craft_event(kind: String, stage_id: String)
+## Contenido de las cajas de guardado tras cada cambio: array paralelo a las
+## cajas con {"id", "count"} o null si esa caja está vacía. El nivel lo usa
+## para reflejar lo guardado en las cajas 3D que hay junto al chef.
+signal storage_changed(slots: Array)
 
 enum State { IDLE, CRAFTING, READY }
 
@@ -94,6 +98,10 @@ var easy_next: bool = false
 var double_next: bool = false
 var cooldown_mult: float = 1.0
 var cooldown_mult_timer: float = 0.0
+## Potenciador PERMANENTE "Cocina veloz" (PerkData): multiplica el cooldown
+## durante toda la partida. Va aparte de cooldown_mult, que es temporal y
+## vuelve a 1.0 al expirar.
+var cooldown_perm_mult: float = 1.0
 
 var stage_tween: Tween = null
 var instruction_tween: Tween = null
@@ -142,20 +150,49 @@ static func make_nine_patch(tex_path: String, margin: int) -> NinePatchRect:
 	return np
 
 
-## Aspecto pirata para un botón: fondo de madera y tipografía clara.
+## Textura y margen 9-slice del botón de madera con marco dorado que usa TODO
+## el juego (menú, tienda, resultados, "Zarpar"...).
+const BUTTON_TEX := "res://assets/ui/boton_madera.png"
+const BUTTON_MARGIN := 52
+
+
+## Aspecto pirata para un botón: tabla de madera con marco dorado y remaches,
+## sombra proyectada para despegarlo del fondo y hundido al pulsarlo.
 static func skin_button(b: Button) -> void:
 	var empty := StyleBoxEmpty.new()
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		b.add_theme_stylebox_override(st, empty)
-	b.add_theme_color_override("font_color", Color(1, 0.94, 0.82))
-	b.add_theme_color_override("font_hover_color", Color(1, 1, 0.92))
-	b.add_theme_color_override("font_pressed_color", Color(0.9, 0.84, 0.72))
-	b.add_theme_color_override("font_disabled_color", Color(0.68, 0.63, 0.56))
-	b.add_theme_color_override("font_outline_color", Color.BLACK)
-	b.add_theme_constant_override("outline_size", 5)
+	b.add_theme_color_override("font_color", Color(1, 0.96, 0.86))
+	b.add_theme_color_override("font_hover_color", Color(1, 1, 0.94))
+	b.add_theme_color_override("font_pressed_color", Color(0.92, 0.86, 0.74))
+	b.add_theme_color_override("font_disabled_color", Color(0.7, 0.65, 0.58))
+	b.add_theme_color_override("font_outline_color", Color(0.13, 0.07, 0.02))
+	b.add_theme_constant_override("outline_size", 8)
 	if b.has_node("Skin"):
 		return
-	b.add_child(make_nine_patch("res://assets/ui/boton.png", 30))
+	var shadow := make_nine_patch(BUTTON_TEX, BUTTON_MARGIN)
+	shadow.name = "SkinShadow"
+	shadow.modulate = Color(0, 0, 0, 0.35)
+	shadow.offset_left = 4.0
+	shadow.offset_top = 7.0
+	shadow.offset_right = 4.0
+	shadow.offset_bottom = 7.0
+	b.add_child(shadow)
+	var skin := make_nine_patch(BUTTON_TEX, BUTTON_MARGIN)
+	b.add_child(skin)
+	# Se hunde al pulsarlo (el pivote sigue al centro) y, en botones pequeños,
+	# el marco 9-slice se encoge: con el margen fijo los cuatro trozos de
+	# esquina no cabían y el dorado salía aplastado.
+	b.resized.connect(func() -> void:
+		b.pivot_offset = b.size / 2.0
+		var m := mini(BUTTON_MARGIN, int(minf(b.size.x, b.size.y) * 0.44))
+		for np in [skin, shadow]:
+			np.patch_margin_left = m
+			np.patch_margin_top = m
+			np.patch_margin_right = m
+			np.patch_margin_bottom = m)
+	b.button_down.connect(func() -> void: b.scale = Vector2(0.965, 0.94))
+	b.button_up.connect(func() -> void: b.scale = Vector2.ONE)
 
 
 ## Fila de estrellas con las imágenes propias del juego (llenas y vacías).
@@ -738,7 +775,17 @@ func _store_dish(d: Control, panel_index: int) -> void:
 		stacks[panel_index].count_label.text = "x%d" % stacks[panel_index].count
 	else:
 		_create_stack(panel_index, ready_recipe)
+	_emit_storage()
 	_after_dish_consumed()
+
+
+## Vuelca el estado de las cajas para quien lo quiera reflejar fuera.
+func _emit_storage() -> void:
+	var slots: Array = []
+	for i in storage_panels.size():
+		slots.append({ "id": stacks[i].id, "count": stacks[i].count } \
+			if stacks.has(i) else null)
+	storage_changed.emit(slots)
 
 
 func _create_stack(panel_index: int, recipe_id: String) -> void:
@@ -811,6 +858,7 @@ func _continue_stack_drag(event: InputEvent) -> void:
 				stacks.erase(i)
 			else:
 				stacks[i].count_label.text = "x%d" % stacks[i].count
+			_emit_storage()
 
 
 # --- Interacción de elaboración ---
@@ -1141,7 +1189,8 @@ func _dish_rest_position(index: int = 0) -> Vector2:
 
 
 func _apply_cooldown(recipe_id: String) -> void:
-	var cd: float = RecipeData.get_recipe(recipe_id).cooldown * cooldown_mult
+	var cd: float = RecipeData.get_recipe(recipe_id).cooldown * cooldown_mult \
+			* cooldown_perm_mult
 	if skip_next_cooldown:
 		skip_next_cooldown = false
 		cd = 0.0

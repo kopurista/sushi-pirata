@@ -1,51 +1,96 @@
-extends Control
-## Tienda: compra de USOS de ingredientes con el dinero acumulado.
-## Un uso = poder llevar recetas con ese ingrediente a UN nivel. Solo se
-## listan los ingredientes de las recetas ya desbloqueadas (el arroz es
-## infinito y no se vende). Las recetas se desbloquean por campaña, no aquí.
-## El jugador ajusta cuánto quiere de cada ingrediente con el selector (◄ N ►)
-## y compra TODO de una vez con el botón inferior, que muestra el total.
+extends Node3D
+## Tienda: el TENDERO saca cada día un surtido de 8 ingredientes y vende USOS
+## (un uso = poder llevar recetas con ese ingrediente a UN nivel).
+##
+## - El surtido se renueva solo al cambiar el día (fecha real). El botón
+##   "Recargar artículos" vuelve a sortearlo pagando (GameState.SHOP_REROLL_COST).
+## - Al tocar un artículo se abre un cartel que pregunta CUÁNTOS quieres,
+##   con el total y el dinero que te quedaría.
+##
+## El fondo es 3D (muelle sobre el mar) con el tendero tras su mostrador; toda
+## la interfaz va en un CanvasLayer por delante.
 
 const PrepBoard := preload("res://scripts/prep_board.gd")
 const DARK := Color(0.26, 0.16, 0.08)
+const COLS := 4
 
 var money_label: Label = null
-## Cantidad seleccionada por ingrediente (el "carrito"). id -> cantidad.
-var cart: Dictionary = {}
-## Coste unitario por ingrediente (para el total).
-var costs: Dictionary = {}
-## Refrescos por fila (usos + cantidad) tras cambiar cantidades o comprar.
-var refreshers: Array[Callable] = []
-var total_label: Label = null
-var buy_button: Button = null
+var reroll_button: Button = null
+var grid: GridContainer = null
+var ui: CanvasLayer = null
+var shopkeeper: Node3D = null
+var _t := 0.0
 
 
 func _ready() -> void:
-	var bg := ColorRect.new()
-	bg.color = Color(0.14, 0.09, 0.055)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
+	GameState.refresh_shop_if_new_day()
+	SceneBackdrop.build(self, "puerto", 16.0, 250.0, 5.0)
+	_setup_shopkeeper()
+	_setup_ui()
+	_refresh()
 
-	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	for side in ["left", "right"]:
-		margin.add_theme_constant_override("margin_%s" % side, 24)
-	margin.add_theme_constant_override("margin_top", 24)
-	margin.add_theme_constant_override("margin_bottom", 24)
-	add_child(margin)
 
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 16)
-	margin.add_child(vbox)
+## El tendero, tras su mostrador, delante del muelle.
+func _setup_shopkeeper() -> void:
+	shopkeeper = SceneBackdrop._spawn_model(self,
+		load("res://assets/models/tendero.glb"), 1.5)
+	shopkeeper.position = Vector3(1.2, 0.0, 1.2)
+	shopkeeper.rotation_degrees.y = 0.0
+
+	# Mostrador de tablones con un cajón de mercancía al lado.
+	_box(Vector3(3.0, 0.9, 0.9), Vector3(1.2, 0.45, 2.5), Color(0.44, 0.29, 0.15))
+	_box(Vector3(3.25, 0.1, 1.08), Vector3(1.2, 0.95, 2.5), Color(0.63, 0.46, 0.27))
+	_box(Vector3(0.7, 0.7, 0.7), Vector3(3.3, 0.35, 2.0), Color(0.5, 0.36, 0.2))
+	_box(Vector3(0.58, 0.58, 0.58), Vector3(3.24, 0.99, 1.92), Color(0.56, 0.41, 0.23))
+
+
+func _box(size: Vector3, pos: Vector3, color: Color) -> void:
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.position = pos
+	var m := StandardMaterial3D.new()
+	m.albedo_color = color
+	m.roughness = 0.95
+	mi.material_override = m
+	add_child(mi)
+
+
+func _process(delta: float) -> void:
+	_t += delta
+	if shopkeeper != null:
+		# Respira y se balancea: no tiene esqueleto, así que la vida se la da
+		# el propio pivote.
+		shopkeeper.position.y = sin(_t * 1.6) * 0.03
+		shopkeeper.rotation_degrees.y = sin(_t * 0.5) * 7.0
+		shopkeeper.rotation_degrees.z = sin(_t * 0.9 + 0.6) * 1.2
+
+
+# ----------------------------------------------------------------------- UI
+
+func _setup_ui() -> void:
+	ui = CanvasLayer.new()
+	add_child(ui)
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui.add_child(root)
 
 	# Barra superior: volver + título + monedero.
 	var bar := HBoxContainer.new()
+	bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	bar.offset_left = 18.0
+	bar.offset_top = 20.0
+	bar.offset_right = -18.0
+	bar.offset_bottom = 88.0
 	bar.add_theme_constant_override("separation", 10)
+	root.add_child(bar)
 	var back := Button.new()
-	back.text = "Menú"
-	back.custom_minimum_size = Vector2(130, 52)
+	back.text = "Atrás"
+	back.custom_minimum_size = Vector2(150, 62)
 	PrepBoard.skin_button(back)
-	back.add_theme_font_size_override("font_size", 24)
+	back.add_theme_font_size_override("font_size", 26)
 	back.pressed.connect(func() -> void:
 		get_tree().change_scene_to_file("res://scenes/main_menu.tscn"))
 	bar.add_child(back)
@@ -54,52 +99,58 @@ func _ready() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 36)
+	title.add_theme_font_size_override("font_size", 38)
 	title.add_theme_color_override("font_color", Color(1, 0.95, 0.82))
-	title.add_theme_color_override("font_outline_color", Color(0.2, 0.12, 0.05))
-	title.add_theme_constant_override("outline_size", 7)
+	title.add_theme_color_override("font_outline_color", Color.BLACK)
+	title.add_theme_constant_override("outline_size", 10)
 	bar.add_child(title)
 	bar.add_child(_make_money_box())
-	vbox.add_child(bar)
 
-	# Explicación breve del sistema de usos.
+	# Rótulo del tendero, sobre el 3D.
 	var hint := Label.new()
-	hint.text = "Elige cuántos usos quieres de cada ingrediente y compra todo abajo."
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.text = "El tendero trae género nuevo cada día"
+	hint.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	hint.offset_top = 96.0
+	hint.offset_bottom = 132.0
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.add_theme_font_size_override("font_size", 19)
-	hint.add_theme_color_override("font_color", Color(0.85, 0.78, 0.65))
-	vbox.add_child(hint)
+	hint.add_theme_font_size_override("font_size", 22)
+	hint.add_theme_color_override("font_color", Color(0.98, 0.9, 0.72))
+	hint.add_theme_color_override("font_outline_color", Color.BLACK)
+	hint.add_theme_constant_override("outline_size", 8)
+	root.add_child(hint)
 
-	# Lista de ingredientes: solo selector de cantidad, sin botón de compra.
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	vbox.add_child(scroll)
-	var list := VBoxContainer.new()
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_theme_constant_override("separation", 12)
-	scroll.add_child(list)
-	for ing in _sellable_ingredients():
-		cart[ing] = 0
-		costs[ing] = int(RecipeData.INGREDIENTS[ing].cost)
-		list.add_child(_build_row(ing))
+	# Mostrador de artículos: 8 huecos en 2 filas sobre un pergamino.
+	var shelf := Control.new()
+	shelf.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	shelf.offset_left = 14.0
+	shelf.offset_right = -14.0
+	shelf.offset_top = -752.0
+	shelf.offset_bottom = -128.0
+	root.add_child(shelf)
+	shelf.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 40))
+	grid = GridContainer.new()
+	grid.columns = COLS
+	grid.set_anchors_preset(Control.PRESET_FULL_RECT)
+	grid.offset_left = 44.0
+	grid.offset_top = 44.0
+	grid.offset_right = -44.0
+	grid.offset_bottom = -40.0
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 10)
+	shelf.add_child(grid)
 
-	# Barra inferior fija: total del carrito + único botón de compra.
-	vbox.add_child(_make_footer())
-	_refresh_all()
-
-
-## Ingredientes de las recetas desbloqueadas (sin arroz), ordenados por coste.
-func _sellable_ingredients() -> Array[String]:
-	var out: Array[String] = []
-	for rid in GameState.unlocked_recipes:
-		for ing in RecipeData.get_ingredients(rid):
-			if not ing in out:
-				out.append(ing)
-	out.sort_custom(func(a: String, b: String) -> bool:
-		return int(RecipeData.INGREDIENTS[a].cost) < int(RecipeData.INGREDIENTS[b].cost))
-	return out
+	# Recargar el surtido pagando.
+	reroll_button = Button.new()
+	reroll_button.custom_minimum_size = Vector2(420, 88)
+	PrepBoard.skin_button(reroll_button)
+	reroll_button.add_theme_font_size_override("font_size", 26)
+	reroll_button.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	reroll_button.offset_left = 150.0
+	reroll_button.offset_right = -150.0
+	reroll_button.offset_top = -110.0
+	reroll_button.offset_bottom = -22.0
+	reroll_button.pressed.connect(_on_reroll)
+	root.add_child(reroll_button)
 
 
 func _make_money_box() -> Control:
@@ -109,183 +160,223 @@ func _make_money_box() -> Control:
 	coin.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	coin.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	coin.texture = load("res://assets/ui/moneda.png")
-	coin.custom_minimum_size = Vector2(36, 36)
+	coin.custom_minimum_size = Vector2(38, 38)
 	box.add_child(coin)
 	money_label = Label.new()
 	money_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	money_label.add_theme_font_size_override("font_size", 28)
+	money_label.add_theme_font_size_override("font_size", 30)
 	money_label.add_theme_color_override("font_color", Color(1, 0.86, 0.4))
 	money_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	money_label.add_theme_constant_override("outline_size", 5)
+	money_label.add_theme_constant_override("outline_size", 8)
 	box.add_child(money_label)
 	return box
 
 
-## Fila de un ingrediente: icono, nombre, usos que quedan, coste unitario y
-## selector de cantidad (◄ N ►). La compra es global, desde la barra inferior.
-func _build_row(ing: String) -> Control:
-	var data: Dictionary = RecipeData.INGREDIENTS[ing]
-	var cost := int(data.cost)
+## Repinta el surtido y los contadores.
+func _refresh() -> void:
+	money_label.text = "%d" % GameState.money
+	reroll_button.text = "Recargar artículos  $%d" % GameState.SHOP_REROLL_COST
+	reroll_button.disabled = GameState.money < GameState.SHOP_REROLL_COST
+	for c in grid.get_children():
+		c.queue_free()
+	for ing in GameState.shop_stock:
+		grid.add_child(_build_item(ing))
 
-	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-	panel.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 34))
-	var row := HBoxContainer.new()
-	row.custom_minimum_size = Vector2(0, 96)
-	row.add_theme_constant_override("separation", 12)
-	panel.add_child(row)
 
-	var pad_l := Control.new()
-	pad_l.custom_minimum_size = Vector2(28, 0)
-	row.add_child(pad_l)
+## Un artículo del mostrador: icono, nombre, precio unitario y usos que ya
+## tienes. Al pulsarlo se pregunta cuántos quieres.
+func _build_item(ing: String) -> Button:
+	var data: Dictionary = RecipeData.INGREDIENTS.get(ing, {})
+	var cost := int(data.get("cost", 0))
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(150, 226)
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 
 	var icon := TextureRect.new()
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.texture = RecipeData.get_ingredient_texture(ing)
-	icon.custom_minimum_size = Vector2(64, 64)
-	row.add_child(icon)
+	icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+	icon.offset_left = 12.0
+	icon.offset_top = 6.0
+	icon.offset_right = -12.0
+	icon.offset_bottom = -92.0
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(icon)
 
-	var name_box := VBoxContainer.new()
-	name_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	var name_l := Label.new()
-	name_l.text = data.name
-	name_l.add_theme_font_size_override("font_size", 24)
+	name_l.text = str(data.get("name", ing))
+	name_l.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	name_l.offset_top = -88.0
+	name_l.offset_bottom = -50.0
+	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_l.add_theme_font_size_override("font_size", 17)
 	name_l.add_theme_color_override("font_color", DARK)
-	name_box.add_child(name_l)
-	var uses_l := Label.new()
-	uses_l.add_theme_font_size_override("font_size", 20)
-	uses_l.add_theme_color_override("font_color", Color(0.42, 0.3, 0.18))
-	name_box.add_child(uses_l)
-	row.add_child(name_box)
+	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(name_l)
 
-	# Precio unitario, para que se vea el coste antes de sumar cantidades.
-	var price := _icon_price(cost)
-	row.add_child(price)
+	var price := HBoxContainer.new()
+	price.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	price.offset_top = -48.0
+	price.offset_bottom = -22.0
+	price.alignment = BoxContainer.ALIGNMENT_CENTER
+	price.add_theme_constant_override("separation", 3)
+	price.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var coin := TextureRect.new()
+	coin.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	coin.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	coin.texture = load("res://assets/ui/moneda.png")
+	coin.custom_minimum_size = Vector2(26, 26)
+	price.add_child(coin)
+	var pl := Label.new()
+	pl.text = "%d" % cost
+	pl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	pl.add_theme_font_size_override("font_size", 22)
+	pl.add_theme_color_override("font_color", Color(0.4, 0.26, 0.02))
+	price.add_child(pl)
+	b.add_child(price)
 
-	# Cantidad a comprar de ESTE ingrediente (guardada en el carrito).
+	var uses := Label.new()
+	uses.text = "Tienes %d" % GameState.get_ingredient_uses(ing)
+	uses.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	uses.offset_top = -22.0
+	uses.offset_bottom = -2.0
+	uses.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	uses.add_theme_font_size_override("font_size", 15)
+	uses.add_theme_color_override("font_color", Color(0.45, 0.33, 0.2))
+	uses.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(uses)
+
+	b.pressed.connect(_open_buy_dialog.bind(ing))
+	return b
+
+
+func _on_reroll() -> void:
+	if GameState.reroll_shop():
+		_refresh()
+
+
+# ------------------------------------------------- cartel de "¿cuántos?"
+
+## Cartel modal: cuántos usos quiere el jugador de ESE ingrediente.
+func _open_buy_dialog(ing: String) -> void:
+	var data: Dictionary = RecipeData.INGREDIENTS.get(ing, {})
+	var cost := int(data.get("cost", 1))
+	var qty := 1
+
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.55)
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ui.add_child(overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(center)
+
+	var box := Control.new()
+	box.custom_minimum_size = Vector2(560, 520)
+	box.pivot_offset = Vector2(280, 260)
+	center.add_child(box)
+	box.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 60))
+
+	var vb := VBoxContainer.new()
+	vb.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vb.offset_left = 62.0
+	vb.offset_top = 54.0
+	vb.offset_right = -62.0
+	vb.offset_bottom = -46.0
+	vb.add_theme_constant_override("separation", 10)
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(vb)
+
+	var title := Label.new()
+	title.text = "¿Cuántos usos de %s?" % str(data.get("name", ing))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_color_override("font_color", DARK)
+	vb.add_child(title)
+
+	var icon := TextureRect.new()
+	icon.texture = RecipeData.get_ingredient_texture(ing)
+	icon.custom_minimum_size = Vector2(0, 150)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	vb.add_child(icon)
+
+	# Selector de cantidad con las flechas de madera.
+	var qty_row := HBoxContainer.new()
+	qty_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	qty_row.add_theme_constant_override("separation", 16)
 	var minus := _make_arrow("<")
 	var qty_l := Label.new()
-	qty_l.custom_minimum_size = Vector2(52, 0)
+	qty_l.custom_minimum_size = Vector2(90, 0)
 	qty_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	qty_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	qty_l.add_theme_font_size_override("font_size", 30)
+	qty_l.add_theme_font_size_override("font_size", 44)
 	qty_l.add_theme_color_override("font_color", DARK)
 	var plus := _make_arrow(">")
-	row.add_child(minus)
-	row.add_child(qty_l)
-	row.add_child(plus)
-	var pad_r := Control.new()
-	pad_r.custom_minimum_size = Vector2(28, 0)
-	row.add_child(pad_r)
+	qty_row.add_child(minus)
+	qty_row.add_child(qty_l)
+	qty_row.add_child(plus)
+	vb.add_child(qty_row)
+
+	var total_l := Label.new()
+	total_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	total_l.add_theme_font_size_override("font_size", 27)
+	total_l.add_theme_color_override("font_color", DARK)
+	vb.add_child(total_l)
+
+	var btn_row := HBoxContainer.new()
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.add_theme_constant_override("separation", 20)
+	var cancel := Button.new()
+	cancel.text = "Cancelar"
+	cancel.custom_minimum_size = Vector2(216, 78)
+	PrepBoard.skin_button(cancel)
+	cancel.add_theme_font_size_override("font_size", 23)
+	cancel.pressed.connect(overlay.queue_free)
+	var buy := Button.new()
+	buy.custom_minimum_size = Vector2(216, 78)
+	PrepBoard.skin_button(buy)
+	buy.add_theme_font_size_override("font_size", 23)
+	btn_row.add_child(cancel)
+	btn_row.add_child(buy)
+	vb.add_child(btn_row)
 
 	var refresh := func() -> void:
-		uses_l.text = "Usos: %d" % GameState.get_ingredient_uses(ing)
-		qty_l.text = "%d" % int(cart[ing])
-		# La cantidad seleccionada se resalta para verla de un vistazo.
-		qty_l.add_theme_color_override("font_color",
-				Color(0.2, 0.45, 0.12) if int(cart[ing]) > 0 else DARK)
-		minus.disabled = int(cart[ing]) <= 0
-		# La flecha de restar se atenúa cuando no se puede bajar más (0).
-		minus.modulate = Color(1, 1, 1, 0.4) if int(cart[ing]) <= 0 else Color.WHITE
-	refreshers.append(refresh)
+		var total := cost * qty
+		qty_l.text = "%d" % qty
+		total_l.text = "Total: $%d   (tienes $%d)" % [total, GameState.money]
+		minus.modulate = Color(1, 1, 1, 0.4) if qty <= 1 else Color.WHITE
+		buy.disabled = total > GameState.money
+		buy.text = "Comprar" if total <= GameState.money else "Sin dinero"
 	minus.pressed.connect(func() -> void:
-		cart[ing] = maxi(int(cart[ing]) - 1, 0)
-		refresh.call()
-		_refresh_total())
+		qty = maxi(qty - 1, 1)
+		refresh.call())
 	plus.pressed.connect(func() -> void:
-		cart[ing] = mini(int(cart[ing]) + 1, 99)
-		refresh.call()
-		_refresh_total())
-	return panel
+		qty = mini(qty + 1, 99)
+		refresh.call())
+	buy.pressed.connect(func() -> void:
+		var total := cost * qty
+		if total > GameState.money:
+			return
+		GameState.money -= total
+		GameState.add_ingredient_uses(ing, qty)
+		GameState.save_game()
+		overlay.queue_free()
+		_refresh())
+	refresh.call()
 
-
-## Barra inferior con el total del carrito y el único botón de compra.
-func _make_footer() -> Control:
-	var footer := PanelContainer.new()
-	footer.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-	footer.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 34))
-	var row := HBoxContainer.new()
-	row.custom_minimum_size = Vector2(0, 92)
-	row.add_theme_constant_override("separation", 14)
-	footer.add_child(row)
-
-	var pad_l := Control.new()
-	pad_l.custom_minimum_size = Vector2(50, 0)
-	row.add_child(pad_l)
-
-	var total_box := HBoxContainer.new()
-	total_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	total_box.add_theme_constant_override("separation", 6)
-	var tl := Label.new()
-	tl.text = "Total:"
-	tl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	tl.add_theme_font_size_override("font_size", 26)
-	tl.add_theme_color_override("font_color", DARK)
-	total_box.add_child(tl)
-	var coin := TextureRect.new()
-	coin.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	coin.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	coin.texture = load("res://assets/ui/moneda.png")
-	coin.custom_minimum_size = Vector2(34, 34)
-	total_box.add_child(coin)
-	total_label = Label.new()
-	total_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	total_label.add_theme_font_size_override("font_size", 30)
-	total_label.add_theme_color_override("font_color", DARK)
-	total_box.add_child(total_label)
-	row.add_child(total_box)
-
-	buy_button = Button.new()
-	buy_button.custom_minimum_size = Vector2(220, 68)
-	PrepBoard.skin_button(buy_button)
-	buy_button.add_theme_font_size_override("font_size", 26)
-	buy_button.text = "Comprar"
-	buy_button.pressed.connect(_buy_cart)
-	row.add_child(buy_button)
-
-	var pad_r := Control.new()
-	pad_r.custom_minimum_size = Vector2(34, 0)
-	row.add_child(pad_r)
-	return footer
-
-
-func _cart_total() -> int:
-	var total := 0
-	for ing in cart:
-		total += int(costs[ing]) * int(cart[ing])
-	return total
-
-
-func _refresh_total() -> void:
-	var total := _cart_total()
-	total_label.text = "%d" % total
-	buy_button.disabled = total <= 0 or GameState.money < total
-	# Aviso cuando no llega el dinero para lo seleccionado.
-	buy_button.text = "Comprar" if GameState.money >= total or total == 0 else "Sin dinero"
-
-
-func _icon_price(cost: int) -> Control:
-	var box := HBoxContainer.new()
-	box.add_theme_constant_override("separation", 3)
-	var coin := TextureRect.new()
-	coin.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	coin.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	coin.texture = load("res://assets/ui/moneda.png")
-	coin.custom_minimum_size = Vector2(30, 30)
-	box.add_child(coin)
-	var l := Label.new()
-	l.text = "%d" % cost
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", 24)
-	l.add_theme_color_override("font_color", DARK)
-	box.add_child(l)
-	return box
+	box.scale = Vector2(0.7, 0.7)
+	var tw := box.create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(box, "scale", Vector2.ONE, 0.22)
 
 
 ## Botón de flecha con imagen propia (madera + marco de oro), sin texto.
-## "<" usa la flecha izquierda; ">" la derecha.
 func _make_arrow(dir: String) -> TextureButton:
 	var b := TextureButton.new()
 	var path := "res://assets/ui/boton_flecha_der.png" if dir == ">" \
@@ -293,27 +384,5 @@ func _make_arrow(dir: String) -> TextureButton:
 	b.texture_normal = load(path)
 	b.ignore_texture_size = true
 	b.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	b.custom_minimum_size = Vector2(66, 66)
+	b.custom_minimum_size = Vector2(76, 76)
 	return b
-
-
-## Compra de golpe todo lo seleccionado en el carrito y lo reinicia.
-func _buy_cart() -> void:
-	var total := _cart_total()
-	if total <= 0 or GameState.money < total:
-		return
-	GameState.money -= total
-	for ing in cart:
-		var amount := int(cart[ing])
-		if amount > 0:
-			GameState.add_ingredient_uses(ing, amount)
-			cart[ing] = 0
-	GameState.save_game()
-	_refresh_all()
-
-
-func _refresh_all() -> void:
-	money_label.text = "%d" % GameState.money
-	for r in refreshers:
-		r.call()
-	_refresh_total()

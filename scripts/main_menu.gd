@@ -1,12 +1,15 @@
 extends Node3D
-## Menú principal: ESCENA 3D ANIMADA (el barco del jugador navegando en mar
-## abierto, con islas y nubes que van quedando atrás, gaviotas y oleaje) más
-## un CanvasLayer 2D con el logotipo y los botones de modo.
+## Menú principal: ESCENA 3D ANIMADA (el barco del jugador cabeceando en mar
+## abierto, con gaviotas dando vueltas) más un CanvasLayer 2D con el logotipo
+## y los botones de modo.
 ##
 ## COORDENADAS: misma cámara isométrica que el nivel y el mapa (pitch
 ## -35.264 / yaw 45 / orto), así que pantalla-derecha = R_HAT y
-## pantalla-abajo = D_HAT. El barco está en el origen y todo lo demás se
-## mueve hacia +D_HAT (hacia el espectador) para simular que avanzamos.
+## pantalla-abajo = D_HAT.
+##
+## DECISIÓN: en el mar SOLO va el barco. Se probaron islas/puertos/barcos
+## pasando de largo, sombras de nubes cruzando el agua y gaviotas en círculos,
+## y todo ello ensuciaba el encuadre: se quitó.
 
 const PrepBoard := preload("res://scripts/prep_board.gd")
 
@@ -26,31 +29,21 @@ const SHIP_FOOT := 6.4
 ## El barco navega hacia la parte alta de la pantalla (mismo criterio que el
 ## mapa de campaña).
 const SHIP_YAW := 205.0
-## Velocidad a la que el paisaje queda atrás (u/s).
-const SCROLL_SPEED := 0.9
-## Recorrido del decorado antes de reciclarse, medido sobre D_HAT.
-const SCENERY_FAR := -22.0
-const SCENERY_NEAR := 8.0
 
 var cam: Camera3D
 var ship_pivot: Node3D
 var ship_base_y := 0.0
-## Decorado en movimiento: { node, along, side, y, spin }.
-var scenery: Array = []
-var birds: Array = []
 var logo: TextureRect
 var _t := 0.0
 ## Capturas de verificación: vacío = juego normal.
-var _shots_at := []
+var _shots_at := [2.0]
 var _shot_idx := 0
 
 
 func _ready() -> void:
 	_setup_environment()
 	_setup_sea()
-	_setup_scenery()
 	_setup_ship()
-	_setup_birds()
 	_setup_camera()
 	_setup_ui()
 
@@ -93,108 +86,12 @@ func _setup_sea() -> void:
 	add_child(mi)
 
 
-## Islas, un barco enemigo lejano y nubes: van quedando atrás y se reciclan.
-func _setup_scenery() -> void:
-	# Escalonados en profundidad y siempre a los lados: el barco nunca queda
-	# tapado y en la banda visible hay algo casi todo el rato.
-	var defs := [
-		{ "model": "res://assets/models/map_isla.glb", "foot": 5.0, "side": -10.0, "along": 2.0, "y": -0.1 },
-		{ "model": "res://assets/models/map_isla.glb", "foot": 3.6, "side": 10.5, "along": -6.0, "y": -0.1 },
-		{ "model": "res://assets/models/map_enemigo.glb", "foot": 3.0, "side": 8.5, "along": -13.0, "y": -0.06 },
-		{ "model": "res://assets/models/map_puerto.glb", "foot": 4.4, "side": -11.0, "along": -20.0, "y": -0.1 },
-	]
-	for d in defs:
-		var pivot := _spawn_model(load(d["model"]), Vector3.ZERO, float(d["foot"]))
-		scenery.append({
-			"node": pivot, "along": float(d["along"]), "side": float(d["side"]),
-			"y": float(d["y"]), "cloud": false,
-		})
-	# Las nubes vuelan ALTO: en ortogonal eso las saca del encuadre y lo que
-	# cruza el mar es su sombra, que es justo el efecto que se busca.
-	for i in 5:
-		scenery.append({
-			"node": _make_cloud(), "along": -26.0 + i * 7.0,
-			"side": randf_range(-13.0, 13.0), "y": randf_range(9.5, 12.0), "cloud": true,
-		})
-	_place_scenery()
-
-
-## Nube low poly: cajas blancas apiladas en modo SOLO SOMBRA. La caja en sí
-## no se dibuja (en ortogonal entraba en el encuadre como un bloque blanco
-## raro); lo que se ve es su sombra cruzando el mar, que es lo que hace
-## creíble que el barco avance.
-func _make_cloud() -> Node3D:
-	var pivot := Node3D.new()
-	add_child(pivot)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.97, 0.97, 1.0)
-	mat.roughness = 1.0
-	for p in [Vector3(0, 0, 0), Vector3(1.6, -0.3, 0.4), Vector3(-1.5, -0.35, -0.3),
-			Vector3(0.2, 0.55, -0.2)]:
-		var mi := MeshInstance3D.new()
-		var box := BoxMesh.new()
-		box.size = Vector3(2.9, 1.1, 2.2) if p == Vector3.ZERO else Vector3(2.0, 0.85, 1.6)
-		mi.mesh = box
-		mi.position = p
-		mi.material_override = mat
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
-		pivot.add_child(mi)
-	return pivot
-
-
-func _place_scenery() -> void:
-	for s in scenery:
-		var n: Node3D = s["node"]
-		n.position = R_HAT * float(s["side"]) + D_HAT * float(s["along"]) \
-				+ Vector3(0.0, float(s["y"]), 0.0)
-
-
 func _setup_ship() -> void:
 	ship_pivot = _spawn_model(load("res://assets/models/map_barco.glb"),
 		Vector3.ZERO, SHIP_FOOT)
 	ship_pivot.position.y = -0.12
 	ship_base_y = ship_pivot.position.y
 	ship_pivot.rotation_degrees.y = SHIP_YAW
-
-
-## Gaviotas: cuerpo oscuro y dos alas en V que baten, describiendo círculos
-## sobre el barco. La V y el cuerpo son necesarios: con las alas planas y
-## alineadas, desde la cámara isométrica solo se veía una barra blanca.
-func _setup_birds() -> void:
-	var wing_mat := StandardMaterial3D.new()
-	wing_mat.albedo_color = Color(0.97, 0.97, 0.95)
-	wing_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var body_mat := StandardMaterial3D.new()
-	body_mat.albedo_color = Color(0.35, 0.36, 0.42)
-	body_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	for i in 3:
-		var pivot := Node3D.new()
-		add_child(pivot)
-		var body := MeshInstance3D.new()
-		var body_box := BoxMesh.new()
-		body_box.size = Vector3(0.16, 0.12, 0.46)
-		body.mesh = body_box
-		body.material_override = body_mat
-		body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		pivot.add_child(body)
-		var wings: Array = []
-		for sgn in [-1.0, 1.0]:
-			var hinge := Node3D.new()
-			pivot.add_child(hinge)
-			var mi := MeshInstance3D.new()
-			var box := BoxMesh.new()
-			box.size = Vector3(0.52, 0.04, 0.2)
-			mi.mesh = box
-			mi.position = Vector3(sgn * 0.3, 0.0, 0.0)
-			mi.material_override = wing_mat
-			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			hinge.add_child(mi)
-			wings.append(hinge)
-		birds.append({
-			"node": pivot, "wings": wings, "radius": 4.2 + i * 1.6,
-			"phase": randf() * TAU, "speed": 0.34 - i * 0.06,
-			"y": 4.6 + i * 0.9, "flap": 5.0 + i,
-		})
 
 
 func _setup_camera() -> void:
@@ -251,32 +148,6 @@ func _process(delta: float) -> void:
 		ship_pivot.rotation_degrees.z = sin(_t * 0.83 + 1.1) * 4.0
 		ship_pivot.position.y = ship_base_y + sin(_t * 1.35) * 0.14
 
-	# El paisaje queda atrás y vuelve a aparecer por el horizonte.
-	for s in scenery:
-		s["along"] = float(s["along"]) + SCROLL_SPEED * delta
-		if float(s["along"]) > SCENERY_NEAR:
-			s["along"] = SCENERY_FAR
-			# Las islas y barcos vuelven siempre por un lateral; las nubes
-			# pueden cruzar por cualquier parte porque van por el aire.
-			if bool(s["cloud"]):
-				s["side"] = randf_range(-13.0, 13.0)
-			else:
-				s["side"] = randf_range(8.0, 12.0) * (1.0 if randf() < 0.5 else -1.0)
-	_place_scenery()
-
-	# Gaviotas: círculos lentos con aleteo.
-	for b in birds:
-		var ang := _t * float(b["speed"]) * TAU + float(b["phase"])
-		var n: Node3D = b["node"]
-		var r: float = b["radius"]
-		n.position = R_HAT * (cos(ang) * r) + D_HAT * (sin(ang) * r * 0.6) \
-				+ Vector3(0.0, float(b["y"]) + sin(_t * 1.6 + float(b["phase"])) * 0.35, 0.0)
-		n.rotation.y = -ang
-		# Alas siempre en V (base 0.32 rad) más el aleteo.
-		var flap := 0.32 + sin(_t * float(b["flap"])) * 0.42
-		b["wings"][0].rotation.z = flap
-		b["wings"][1].rotation.z = -flap
-
 	_update_camera(sin(_t * 0.55) * 0.22)
 	_capture_step()
 
@@ -332,33 +203,66 @@ func _setup_ui() -> void:
 	rt.tween_property(logo, "rotation", deg_to_rad(1.4), 2.6)
 	rt.tween_property(logo, "rotation", deg_to_rad(-1.4), 2.6)
 
-	# Botones de modo, anclados abajo.
+	# Botones de modo, anclados abajo. Aventura destaca (es el modo principal).
 	var box := VBoxContainer.new()
 	box.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	box.offset_left = 150.0
-	box.offset_right = -150.0
-	box.offset_top = -430.0
-	box.offset_bottom = -70.0
-	box.add_theme_constant_override("separation", 26)
+	box.offset_left = 110.0
+	box.offset_right = -110.0
+	box.offset_top = -486.0
+	box.offset_bottom = -54.0
+	box.add_theme_constant_override("separation", 16)
 	ui.add_child(box)
-	box.add_child(_make_mode_button("Aventura", func() -> void:
-		get_tree().change_scene_to_file("res://scenes/level_select3d.tscn")))
-	box.add_child(_make_mode_button("Tienda", func() -> void:
-		get_tree().change_scene_to_file("res://scenes/shop_screen.tscn")))
-	box.add_child(_make_mode_button("Prueba", func() -> void:
-		GameState.mode = "test"
-		GameState.current_port = ""
-		GameState.selected_recipes = []
-		get_tree().change_scene_to_file("res://scenes/prep_screen.tscn")))
+	box.add_child(_make_mode_button("Aventura", "ic_aventura", 118, 44,
+		func() -> void:
+			get_tree().change_scene_to_file("res://scenes/level_select3d.tscn")))
+	box.add_child(_make_mode_button("Arcade", "ic_arcade", 96, 36,
+		func() -> void:
+			GameState.mode = "test"
+			GameState.current_port = ""
+			GameState.selected_recipes = []
+			get_tree().change_scene_to_file("res://scenes/prep_screen.tscn")))
+	box.add_child(_make_mode_button("Tienda", "ic_tienda", 96, 36,
+		func() -> void:
+			get_tree().change_scene_to_file("res://scenes/shop_screen.tscn")))
+	box.add_child(_make_mode_button("Inventario", "ic_inventario", 96, 36,
+		func() -> void:
+			get_tree().change_scene_to_file("res://scenes/inventory_screen.tscn")))
 
 
-func _make_mode_button(text: String, action: Callable) -> Button:
+## Botón del menú: tabla de madera con marco dorado, icono a la izquierda y
+## rótulo centrado sobre el conjunto.
+func _make_mode_button(text: String, icon: String, height: int, font_size: int,
+		action: Callable) -> Button:
 	var b := Button.new()
-	b.text = text
-	b.custom_minimum_size = Vector2(420, 108)
+	b.custom_minimum_size = Vector2(500, height)
 	PrepBoard.skin_button(b)
-	b.add_theme_font_size_override("font_size", 42)
 	b.pressed.connect(action)
+
+	var icon_rect := TextureRect.new()
+	icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon_rect.texture = load("res://assets/ui/%s.png" % icon)
+	icon_rect.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	icon_rect.offset_left = 22.0
+	icon_rect.offset_right = 22.0 + height * 0.78
+	icon_rect.offset_top = height * 0.12
+	icon_rect.offset_bottom = -height * 0.12
+	icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(icon_rect)
+
+	var label := Label.new()
+	label.text = text
+	label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	label.offset_left = height * 0.9
+	label.offset_right = -20.0
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", Color(1, 0.96, 0.86))
+	label.add_theme_color_override("font_outline_color", Color(0.13, 0.07, 0.02))
+	label.add_theme_constant_override("outline_size", 9)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(label)
 	return b
 
 

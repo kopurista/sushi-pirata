@@ -46,6 +46,16 @@ const BELT_W := 0.6           ## ancho de la banda movil
 const BELT_TOP := 0.8         ## altura del mostrador / banda
 const COUNTER_W := 1.1        ## ancho del mostrador de madera bajo la banda
 const CORNER := 0.78          ## lado de la placa metalica de cada esquina
+## Lado del icono de cabeza del contador de clientes del HUD.
+const HEAD_ICON := 54.0
+## Cajas de guardado 3D junto al chef (gemelas de las del HUD).
+const CRATE_W := 0.46
+const CRATE_H := 0.30
+const CRATE_DISH := 0.34   ## huella del plato apilado dentro de la caja
+const CRATE_LIFT := 0.72   ## alto del banco que sube las cajas sobre el mostrador
+## Texturas de madera del escenario (tileadas por triplanar, ver _wood_mat).
+const DECK_TEX := "res://assets/props/madera_desgastada.webp"
+const CRATE_TEX := "res://assets/props/madera_caja.webp"
 const PLATE_SPEED := 0.9      ## u/s (75 px/s en el juego 2D)
 ## Los platos salen por la esquina inferior de pantalla (+X+Z), la mas cercana
 ## a la tabla del jugador: dos lados desde el inicio del Path3D.
@@ -127,7 +137,19 @@ var band_tile_len := 1.0
 var belt_scroll := 0.0
 ## Metadatos de cada asiento: pos, yaw, belt_point, ring (punto del pasillo).
 var seats: Array = []
+var exit_button: TextureButton = null
+## Fila de cabezas del HUD: un icono por TIPO de cliente presente en la barra,
+## con "xN" si hay varios (ver _update_client_heads).
+var heads_row: HBoxContainer = null
+## Nodos donde se apilan los platos guardados de cada caja 3D del chef.
+var chef_crates: Array[Node3D] = []
 var chef_pivot: Node3D
+## Ayudante de cocina: solo existe con el potenciador permanente "ayudante".
+var helper_pivot: Node3D = null
+var helper_anim: CharacterAnim = null
+var helper_tween: Tween = null
+## Platos servidos por el jugador (para el ayudante y para desbloquear perks).
+var dishes_served := 0
 var chef_anim: CharacterAnim = null
 var chef_tween: Tween = null
 var chef_prop: Sprite3D
@@ -183,10 +205,12 @@ func _ready() -> void:
 	_setup_seats()
 	_setup_chef()
 	_setup_exit_button()
+	_setup_heads_row()
 
 	seat_clients.resize(seats.size())
-	prep_board.dish_served.connect(_on_dish_served)
+	prep_board.dish_served.connect(_on_player_dish_served)
 	prep_board.craft_event.connect(_on_craft_event)
+	prep_board.storage_changed.connect(_on_storage_changed)
 	retry_button.pressed.connect(_on_retry_pressed)
 	menu_button.pressed.connect(_on_menu_pressed)
 	results_panel.visible = false
@@ -218,6 +242,12 @@ func _ready() -> void:
 		if not GameState.consume_ingredients_for_level(GameState.selected_recipes):
 			get_tree().change_scene_to_file.call_deferred("res://scenes/prep_screen.tscn")
 			return
+		# Los potenciadores permanentes elegidos gastan 1 uso por partida (solo
+		# en aventura: el modo Arcade no toca el progreso).
+		GameState.consume_perks_for_level()
+	else:
+		GameState.selected_perks = []
+	_apply_perks()
 	# Llegadas escalonadas con azar (ver level.gd 2D para la explicacion).
 	var last := (time_limit - ARRIVAL_TAIL) * arrival_scale
 	var step := (last - 5.0) / float(total_clients - 1)
@@ -226,6 +256,63 @@ func _ready() -> void:
 		arrival_queue.append(clampf(center + randf_range(-6.0, 6.0) * arrival_scale, 2.0, last))
 	arrival_queue.sort()
 	_update_hud()
+
+
+# ------------------------------------------ potenciadores permanentes (perks)
+
+## Aplica los potenciadores elegidos antes de empezar (ver PerkData).
+func _apply_perks() -> void:
+	if GameState.has_perk("cocina_veloz"):
+		prep_board.cooldown_perm_mult = 0.5
+	if GameState.has_perk("ayudante"):
+		_setup_helper()
+
+
+## Avatar del ayudante: solo aparece si se ha activado su potenciador. Se
+## coloca al lado del chef, dentro del circuito, mirando al mismo sitio.
+func _setup_helper() -> void:
+	helper_pivot = _spawn_model(load("res://assets/models/ayudante_rig.glb"),
+		Vector3(-1.15, 0.0, -0.15), 1.62, self)
+	helper_pivot.rotation_degrees.y = 0.0
+	_box(Vector3(0.72, 0.78, 0.56), Vector3(-1.15, 0.39, 0.72),
+		Color(0.40, 0.27, 0.14))
+	var skels := helper_pivot.find_children("*", "Skeleton3D", true, false)
+	if not skels.is_empty():
+		helper_anim = CharacterAnim.new(skels[0])
+		if not helper_anim.has_humanoid_bones():
+			helper_anim = null
+
+
+## Combos de la partida que desbloquean potenciadores permanentes. Devuelve
+## los ids recién conseguidos, para anunciarlos en los resultados.
+func _check_perk_unlocks() -> Array:
+	var newly: Array = []
+	var most := 0
+	for r in client_reports:
+		most = maxi(most, int(r.get("eaten", []).size()))
+	if most >= PerkData.UNLOCK_PLATES_ONE_CLIENT \
+			and GameState.unlock_perk("cocina_veloz"):
+		newly.append("cocina_veloz")
+	if dishes_served >= PerkData.UNLOCK_PLATES_TOTAL \
+			and GameState.unlock_perk("ayudante"):
+		newly.append("ayudante")
+	return newly
+
+
+## El ayudante manda un plato a la cinta por su cuenta: da un saltito y sirve
+## una de las recetas elegidas.
+func _helper_cook() -> void:
+	if GameState.selected_recipes.is_empty() or ended:
+		return
+	var rid: String = GameState.selected_recipes.pick_random()
+	_on_dish_served(rid)
+	if helper_pivot == null:
+		return
+	if helper_tween != null:
+		helper_tween.kill()
+	helper_tween = create_tween()
+	helper_tween.tween_property(helper_pivot, "position:y", 0.16, 0.12)
+	helper_tween.tween_property(helper_pivot, "position:y", 0.0, 0.16)
 
 
 # ------------------------------------------------------------------- mundo
@@ -268,6 +355,38 @@ func _mat(color: Color) -> StandardMaterial3D:
 	return m
 
 
+## Material de madera con textura tileada. Usa mapeo TRIPLANAR (por posicion
+## de mundo, no por UV del mesh): las cajas del escenario tienen tamaños muy
+## dispares —una cubierta de 24x0.2 y un poste de 0.1x0.9— y con las UV del
+## BoxMesh la textura saldria estirada en unas y diminuta en otras. Con
+## triplanar todas comparten la MISMA escala de veta.
+## `tint` recolorea la misma textura: la cubierta del barco va marron y el
+## muelle del puerto gris salino, sin duplicar el asset.
+func _wood_mat(tex_path: String, tint: Color, uv_scale := 0.5) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	if ResourceLoader.exists(tex_path):
+		m.albedo_texture = load(tex_path)
+	m.albedo_color = tint
+	m.uv1_triplanar = true
+	m.uv1_scale = Vector3(uv_scale, uv_scale, uv_scale)
+	m.roughness = 0.95
+	m.metallic = 0.0
+	return m
+
+
+## Caja del escenario con material compartido (una sola instancia de material
+## para todo un grupo: menos cambios de estado que un material por caja).
+func _box_mat(size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.position = pos
+	mi.material_override = mat
+	add_child(mi)
+	return mi
+
+
 func _box(size: Vector3, pos: Vector3, color: Color) -> MeshInstance3D:
 	var mesh := BoxMesh.new()
 	mesh.size = size
@@ -295,13 +414,26 @@ func _setup_scenery() -> void:
 			_scenery_ship()
 
 
+## Mar EN MOVIMIENTO alrededor del escenario: el mismo shader de agua del mapa
+## de campaña (deriva + dos senos cruzados), asi el nivel no se ve congelado.
 func _add_sea() -> void:
 	var sea := MeshInstance3D.new()
 	var sea_mesh := PlaneMesh.new()
 	sea_mesh.size = Vector2(90.0, 90.0)
 	sea.mesh = sea_mesh
 	sea.position = Vector3(0.0, -0.55, 0.0)
-	sea.material_override = _mat(Color(0.22, 0.42, 0.55))
+	var tex_path := "res://assets/map/mar.png"
+	if ResourceLoader.exists(tex_path):
+		var mat := ShaderMaterial.new()
+		mat.shader = load("res://shaders/water_map_3d.gdshader")
+		mat.set_shader_parameter("sea_tex", load(tex_path))
+		mat.set_shader_parameter("tile_scale", Vector2(11.0, 11.0))
+		mat.set_shader_parameter("tint", Vector3(0.62, 0.76, 0.95))
+		mat.set_shader_parameter("deep_color", Vector3(0.10, 0.26, 0.42))
+		mat.set_shader_parameter("flatten", 0.62)
+		sea.material_override = mat
+	else:
+		sea.material_override = _mat(Color(0.22, 0.42, 0.55))
 	add_child(sea)
 
 
@@ -335,22 +467,50 @@ func _spawn_barrels(spots: Array, tipped_idx: int = -1) -> void:
 func _scenery_island() -> void:
 	# Dos discos de arena (el de abajo mas oscuro hace de orilla mojada). Radio
 	# contenido para que el MAR asome por los bordes de la pantalla.
-	_cyl(8.6, 9.0, 0.30, Vector3(0.0, -0.42, 0.0), Color(0.72, 0.62, 0.42))
-	_cyl(8.0, 8.4, 0.28, Vector3(0.0, -0.14, 0.0), Color(0.88, 0.79, 0.57))
+	# La arena va MATE y en tono tostado: en blanco crudo deslumbraba y se
+	# comia el contraste de los personajes y los platos.
+	_cyl(7.4, 7.8, 0.30, Vector3(0.0, -0.42, 0.0), Color(0.52, 0.44, 0.30))
+	var sand := _cyl(6.9, 7.3, 0.28, Vector3(0.0, -0.14, 0.0),
+		Color(0.63, 0.55, 0.39))
+	sand.material_override.roughness = 1.0
+	sand.material_override.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	# Palmeras fuera del pasillo de los clientes (radio 3.7, bordas en ±4.2)
 	# pero DENTRO del encuadre (la pantalla es estrecha a los lados).
 	_palm(Vector3(-5.2, 0.0, -2.4), 0.0)
 	_palm(Vector3(1.2, 0.0, -5.2), 140.0)
-	_palm(Vector3(4.9, 0.0, 1.9), 250.0)
+	# Esta se aparto hacia +X: en su sitio anterior la copa caia justo encima
+	# de los taburetes de ese lado y tapaba al cliente sentado alli.
+	_palm(Vector3(5.2, 0.0, -2.0), 250.0)
 	_palm(Vector3(-1.4, 0.0, 5.1), 60.0)
+	# Cabaña de playa en la zona alta: de ahi bajan los clientes de esa borda
+	# (antes aparecian de la nada al borde del arenal).
+	_beach_hut(Vector3(-5.2, 0.0, -5.2))
 	# Rocas y carga varada.
 	for r in [[Vector3(-4.9, 0.0, 0.4), 0.5], [Vector3(0.8, 0.0, -5.6), 0.42],
 			[Vector3(4.6, 0.0, -0.6), 0.3]]:
 		var rock := _box(Vector3(r[1] * 2.0, r[1], r[1] * 1.5),
 			r[0] + Vector3(0.0, r[1] * 0.4, 0.0), Color(0.55, 0.50, 0.44))
 		rock.rotation_degrees.y = r[0].x * 37.0
-	_box(Vector3(0.66, 0.66, 0.66), Vector3(-5.4, 0.33, -2.2), Color(0.55, 0.40, 0.22))
+	_box_mat(Vector3(0.66, 0.66, 0.66), Vector3(-5.4, 0.33, -2.2),
+		_wood_mat(CRATE_TEX, Color(0.92, 0.86, 0.74), 1.4))
 	_spawn_barrels([Vector3(-5.9, 0.0, -1.2), Vector3(5.0, 0.0, 3.2)], 1)
+
+
+## Cabaña de playa con techo de palma: el punto del que "vienen" los clientes
+## de la borda alta de la isla.
+func _beach_hut(pos: Vector3) -> void:
+	var wall := _wood_mat(CRATE_TEX, Color(0.86, 0.78, 0.62), 1.0)
+	var body := _box_mat(Vector3(3.2, 2.0, 2.4), pos + Vector3(0.0, 1.0, 0.0), wall)
+	body.rotation_degrees.y = 45.0
+	# Techo de hojas de palma: cuatro faldones superpuestos.
+	for i in 4:
+		var thatch := _box(Vector3(3.9 - i * 0.35, 0.16, 2.9 - i * 0.3),
+			pos + Vector3(0.0, 2.12 + i * 0.22, 0.0), Color(0.52, 0.42, 0.20))
+		thatch.rotation_degrees.y = 45.0
+	var inward := -pos.normalized()
+	var door := _box(Vector3(1.1, 1.5, 0.1),
+		pos + inward * 1.25 + Vector3(0.0, 0.75, 0.0), Color(0.28, 0.20, 0.12))
+	door.rotation_degrees.y = 45.0
 
 
 ## Palmera low poly: tronco inclinado + corona de hojas + cocos.
@@ -397,19 +557,36 @@ func _palm(pos: Vector3, yaw: float) -> void:
 
 ## PUERTO: muelle de tablones grises sobre el mar, norays, farol y mercancia.
 func _scenery_port() -> void:
-	# Muelle contenido (no cubre toda la pantalla): el mar asoma alrededor.
-	for i in range(24):
-		var tone := 0.0 if i % 2 == 0 else 0.035
-		_box(Vector3(14.0, 0.2, 0.62), Vector3(0.3, -0.1, -7.2 + i * 0.62),
-			Color(0.50 + tone, 0.42 + tone, 0.30 + tone))
+	# Misma textura de tablones que el barco, tintada de gris salino: es un
+	# muelle castigado por el agua, no madera nueva.
+	var dock_mat := _wood_mat(DECK_TEX, Color(0.80, 0.80, 0.74), 0.17)
+	var post_mat := _wood_mat(DECK_TEX, Color(0.55, 0.46, 0.34), 0.9)
+	var crate_mat := _wood_mat(CRATE_TEX, Color(0.92, 0.86, 0.74), 1.4)
+	# Tarima GIRADA 45 y recortada, no un cuadrado que llenaba la pantalla:
+	# cubre de sobra el anillo de paso y las dos bordas de entrada, pero deja
+	# ver el MAR por encima del muelle. Antes acababa justo donde llegaban los
+	# clientes de arriba y parecian aparecer de la nada.
+	var deck := _box_mat(Vector3(14.0, 0.22, 13.2), Vector3(0.0, -0.11, 0.0), dock_mat)
+	deck.rotation_degrees.y = 45.0
+	# Canto del muelle: la tarima tiene grosor y se apoya sobre el agua.
+	var edge := _box_mat(Vector3(13.4, 0.55, 12.6), Vector3(0.0, -0.42, 0.0), post_mat)
+	edge.rotation_degrees.y = 45.0
+	# Almacen del puerto al fondo (zona alta): de su porton salen los clientes
+	# de esa borda, asi la entrada tiene de donde venir. Justo detras de la
+	# borda: mas al fondo se le comia la barra superior del HUD.
+	_port_warehouse(Vector3(-5.2, 0.0, -5.2), dock_mat, post_mat)
 	# Pilotes del muelle asomando por los bordes.
-	for p in [Vector3(-4.9, 0.0, -3.4), Vector3(-2.6, 0.0, -5.6),
-			Vector3(4.9, 0.0, 3.0), Vector3(2.6, 0.0, 5.6),
-			Vector3(-5.4, 0.0, 3.8), Vector3(4.4, 0.0, -5.2)]:
+	for p in [Vector3(-7.4, 0.0, -3.4), Vector3(-3.6, 0.0, -7.6),
+			Vector3(7.4, 0.0, 3.0), Vector3(3.0, 0.0, 7.6),
+			Vector3(-7.6, 0.0, 3.8), Vector3(6.4, 0.0, -6.2)]:
 		_cyl(0.16, 0.18, 1.15, p + Vector3(0.0, 0.45, 0.0), Color(0.35, 0.26, 0.15))
 		var knob := _cyl(0.20, 0.22, 0.14, p + Vector3(0.0, 1.08, 0.0),
 			Color(0.30, 0.22, 0.13))
 		knob.rotation_degrees.y = p.x * 20.0
+	# Norays de amarre con su cabo enrollado.
+	for b in [Vector3(-2.2, 0.0, 6.6), Vector3(5.6, 0.0, -2.0)]:
+		_cyl(0.17, 0.21, 0.5, b + Vector3(0.0, 0.25, 0.0), Color(0.22, 0.20, 0.19))
+		_cyl(0.26, 0.26, 0.09, b + Vector3(0.0, 0.16, 0.0), Color(0.52, 0.42, 0.26))
 	# Farol de muelle: poste alto con caja de luz calida.
 	_cyl(0.07, 0.09, 2.6, Vector3(-3.4, 1.3, -4.9), Color(0.25, 0.20, 0.14))
 	var lamp := _box(Vector3(0.30, 0.34, 0.30), Vector3(-3.4, 2.72, -4.9),
@@ -418,76 +595,172 @@ func _scenery_port() -> void:
 	lamp.material_override.emission = Color(1.0, 0.8, 0.35)
 	lamp.material_override.emission_energy_multiplier = 0.7
 	# Mercancia del muelle: cajas apiladas y barriles.
-	_box(Vector3(0.72, 0.72, 0.72), Vector3(-5.2, 0.36, -2.3), Color(0.55, 0.40, 0.22))
-	_box(Vector3(0.58, 0.58, 0.58), Vector3(-5.05, 1.01, -2.2), Color(0.60, 0.45, 0.26))
-	_box(Vector3(0.62, 0.62, 0.62), Vector3(5.2, 0.31, 2.0), Color(0.50, 0.36, 0.20))
-	_box(Vector3(0.55, 0.55, 0.55), Vector3(2.0, 0.28, 5.6), Color(0.58, 0.43, 0.24))
-	_spawn_barrels([Vector3(-5.8, 0.0, -1.2), Vector3(1.6, 0.0, -5.6),
-		Vector3(5.2, 0.0, 0.9)], 2)
+	_box_mat(Vector3(0.72, 0.72, 0.72), Vector3(-5.2, 0.36, -2.3), crate_mat)
+	_box_mat(Vector3(0.58, 0.58, 0.58), Vector3(-5.05, 1.01, -2.2), crate_mat)
+	_box_mat(Vector3(0.62, 0.62, 0.62), Vector3(5.2, 0.31, 2.0), crate_mat)
+	_box_mat(Vector3(0.55, 0.55, 0.55), Vector3(2.0, 0.28, 6.4), crate_mat)
+	_spawn_barrels([Vector3(-6.4, 0.0, -1.2), Vector3(1.6, 0.0, -6.4),
+		Vector3(6.2, 0.0, 0.9)], 2)
+
+
+## Cobertizo del muelle con su porton: sirve de "de donde vienen" los clientes
+## de la borda alta y de tope visual para que el muelle no acabe en el vacio.
+func _port_warehouse(pos: Vector3, wall_mat: Material, trim_mat: Material) -> void:
+	var body := _box_mat(Vector3(4.6, 2.5, 3.0), pos + Vector3(0.0, 1.25, 0.0), wall_mat)
+	body.rotation_degrees.y = 45.0
+	# Tejado a dos aguas, en dos planos inclinados.
+	for side in [-1.0, 1.0]:
+		var roof := _box_mat(Vector3(4.9, 0.16, 1.85),
+			pos + Vector3(0.0, 2.72, 0.0)
+			+ (Vector3(1.0, 0.0, 1.0) / sqrt(2.0)) * side * 0.78, trim_mat)
+		roof.rotation_degrees = Vector3(0.0, 45.0, 0.0)
+		roof.rotate_object_local(Vector3.RIGHT, deg_to_rad(-side * 22.0))
+	# Porton oscuro mirando al circuito (hacia el centro).
+	var inward := -pos.normalized()
+	var door := _box(Vector3(1.5, 1.8, 0.12), pos + inward * 1.55 + Vector3(0.0, 0.9, 0.0),
+		Color(0.24, 0.17, 0.10))
+	door.rotation_degrees.y = 45.0
 
 
 ## ABORDAJE: el barco pirata de siempre, pero viejo y castigado — tablones
 ## descoloridos y arrancados (se ve el mar), barandilla rota, manchas,
 ## restos de carga y velas rasgadas en el mastil central.
 func _scenery_ship() -> void:
-	# Cubierta desgastada: tono irregular por tablon y tres tablones arrancados
-	# (el hueco deja ver el mar). El azar es de semilla fija: mismo barco siempre.
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 7
-	var torn := [7, 19, 30]
-	for i in range(38):
-		var tone := rng.randf_range(-0.05, 0.05)
-		var col := Color(0.44 + tone, 0.30 + tone, 0.17 + tone)
-		var z := -11.0 + i * 0.62
-		if i in torn:
-			# Queda solo media tabla, algo hundida y torcida.
-			var half := _box(Vector3(10.0, 0.2, 0.62), Vector3(-6.8, -0.16, z), col)
-			half.rotation_degrees.z = 1.4
-			continue
-		var plank := _box(Vector3(24.0, 0.2, 0.62), Vector3(0.5, -0.1, z), col)
-		if i % 9 == 4:
-			plank.position.y += 0.035
+	var deck_mat := _wood_mat(DECK_TEX, Color(0.72, 0.56, 0.38), 0.17)
+	var trim_mat := _wood_mat(DECK_TEX, Color(0.58, 0.42, 0.26), 0.7)
+	var crate_mat := _wood_mat(CRATE_TEX, Color(0.90, 0.82, 0.70), 1.4)
+
+	# Cubierta: UNA losa con la textura de tablones desgastados en vez de 38
+	# cajas de color plano. Antes tres tablones "arrancados" cruzaban la
+	# cubierta de lado a lado y dejaban el mar asomando justo bajo un
+	# taburete (la silla parecia flotar); ahora los desperfectos son locales
+	# y estan SIEMPRE fuera del anillo por el que andan los clientes.
+	#
+	# Va GIRADA 45 y recortada por la proa: asi es un BARCO con eslora y manga
+	# —el costado y el mar asoman por encima de la borda alta— en vez de una
+	# habitacion de madera que llenaba la pantalla de lado a lado.
+	var deck := _box_mat(Vector3(14.0, 0.22, 13.2), Vector3(0.0, -0.11, 0.0), deck_mat)
+	deck.rotation_degrees.y = 45.0
+	# Costado del casco bajo la cubierta: se hunde por debajo del nivel del mar
+	# (y=-0.55), asi el barco flota en vez de posarse sobre el agua.
+	var hull := _box_mat(Vector3(13.4, 1.10, 12.6), Vector3(0.0, -0.75, 0.0),
+		_wood_mat(DECK_TEX, Color(0.42, 0.30, 0.19), 0.17))
+	hull.rotation_degrees.y = 45.0
+	# Boquete real en la cubierta, en una esquina alejada del juego: se ve el
+	# mar por el hueco y quedan dos tablas partidas asomando.
+	_hull_hole(Vector3(-7.4, 0.0, 5.6), 1.5)
+	_hull_hole(Vector3(6.8, 0.0, -6.4), 1.1)
 	# Manchas oscuras de humedad/polvora.
 	for m in [[Vector3(-3.4, 0.0, -4.6), 1.5], [Vector3(4.6, 0.0, 3.2), 1.1],
 			[Vector3(-4.8, 0.0, 4.6), 0.9]]:
 		var stain := _box(Vector3(m[1], 0.012, m[1] * 0.7),
-			m[0] + Vector3(0.0, 0.006, 0.0), Color(0.24, 0.17, 0.10))
+			m[0] + Vector3(0.0, 0.012, 0.0), Color(0.26, 0.19, 0.12))
 		stain.rotation_degrees.y = m[0].z * 31.0
+	# Bordas: sobre la linea de barandilla va una regala de madera, para que el
+	# barco tenga costado y no parezca una balsa plana.
+	for base in [ENTRY, ENTRY_BOTTOM]:
+		var gunwale := _box_mat(Vector3(17.0, 0.30, 0.26),
+			base + Vector3(0.0, 0.15, 0.0), trim_mat)
+		gunwale.rotation_degrees.y = 45.0
 	# Barandillas rotas en ambas bordas, con huecos de embarque.
 	_railing_diag(ENTRY, -6.5, -0.8, true)
 	_railing_diag(ENTRY, 0.8, 7.5, true)
 	_railing_diag(ENTRY_BOTTOM, -7.5, -0.8, true)
 	_railing_diag(ENTRY_BOTTOM, 0.8, 6.5, true)
-	# Mastil CENTRAL dentro del circuito, junto al chef, con velas rasgadas.
-	_mast_with_torn_sails(Vector3(-1.05, 0.0, -1.05))
+	# Escalera de toldilla en el hueco de embarque de ARRIBA: de ahi suben los
+	# clientes de esa borda, en vez de materializarse en mitad de la cubierta.
+	_deck_stairs(ENTRY, trim_mat)
+	# Mastil TRONCHADO, sin velas y a media altura. Un palo entero (o incluso
+	# uno roto de 3 m con la vela colgando) se iba por el borde superior de la
+	# pantalla y chocaba con el HUD; el tocon astillado cabe de sobra, no tapa
+	# nada y cuenta lo mismo: a este barco lo han abordado.
+	_broken_mast(Vector3(-1.4, 0.0, -5.4))
+	# Cañones asomando por la borda alta: identidad de barco a ras de cubierta,
+	# que es la unica altura libre en un encuadre tan bajo.
+	for t in [-3.4, 2.9]:
+		_deck_cannon(ENTRY + Vector3(1.0, 0.0, -1.0) / sqrt(2.0) * t)
 	# Carga y destrozos: cajas junto a cada embarque, caja rota y barriles.
-	_box(Vector3(0.72, 0.72, 0.72), Vector3(-5.3, 0.36, -2.5), Color(0.50, 0.36, 0.20))
-	_box(Vector3(0.58, 0.58, 0.58), Vector3(-5.15, 1.01, -2.4), Color(0.55, 0.41, 0.23))
-	_box(Vector3(0.62, 0.62, 0.62), Vector3(5.4, 0.31, 2.3), Color(0.46, 0.33, 0.18))
-	var broken_a := _box(Vector3(0.6, 0.1, 0.5), Vector3(2.4, 0.05, 6.1), Color(0.42, 0.30, 0.16))
+	_box_mat(Vector3(0.72, 0.72, 0.72), Vector3(-5.3, 0.36, -2.5), crate_mat)
+	_box_mat(Vector3(0.58, 0.58, 0.58), Vector3(-5.15, 1.01, -2.4), crate_mat)
+	_box_mat(Vector3(0.62, 0.62, 0.62), Vector3(5.4, 0.31, 2.3), crate_mat)
+	var broken_a := _box_mat(Vector3(0.6, 0.1, 0.5), Vector3(2.4, 0.05, 6.1), crate_mat)
 	broken_a.rotation_degrees.y = 24.0
-	var broken_b := _box(Vector3(0.5, 0.4, 0.09), Vector3(2.75, 0.2, 6.35), Color(0.40, 0.28, 0.15))
+	var broken_b := _box_mat(Vector3(0.5, 0.4, 0.09), Vector3(2.75, 0.2, 6.35), crate_mat)
 	broken_b.rotation_degrees = Vector3(0.0, -18.0, 74.0)
-	_spawn_barrels([Vector3(-6.6, 0.0, -1.5), Vector3(6.3, 0.0, 1.2)], 1)
+	# Barriles apartados de la linea de barandilla (uno la atravesaba).
+	_spawn_barrels([Vector3(-6.6, 0.0, -0.4), Vector3(5.9, 0.0, -1.0)], 1)
 
 
-## Mastil con base y jirones de vela colgando de la verga (velas rotas). La
-## verga va BAJA (y=3.4) para que los jirones se vean dentro del encuadre.
-func _mast_with_torn_sails(pos: Vector3) -> void:
-	_cyl(0.17, 0.23, 9.0, pos + Vector3(0.0, 4.5, 0.0), Color(0.36, 0.24, 0.13))
-	_cyl(0.33, 0.36, 0.22, pos + Vector3(0.0, 0.11, 0.0), Color(0.60, 0.50, 0.36))
-	# Verga cruzada (perpendicular a la camara) con la vela hecha jirones.
-	var yard := _box(Vector3(3.6, 0.14, 0.14), pos + Vector3(0.0, 3.4, 0.0),
-		Color(0.34, 0.23, 0.12))
-	yard.rotation_degrees.y = -45.0
-	var rag_dir := Vector3(1.0, 0.0, -1.0) / sqrt(2.0)
-	for rag in [[-1.25, 1.5, 1.0], [0.05, 2.0, 1.15], [1.3, 1.1, 0.8]]:
-		var mesh_pos: Vector3 = pos + rag_dir * rag[0] \
-			+ Vector3(0.0, 3.32 - rag[1] * 0.5, 0.0)
-		var sail := _box(Vector3(rag[2], rag[1], 0.05), mesh_pos,
-			Color(0.80, 0.76, 0.64))
-		sail.rotation_degrees.y = -45.0
-		sail.rotation_degrees.x = 4.0
+## Boquete en la cubierta: agujero oscuro con el mar al fondo y un par de
+## tablas partidas en el borde. Se usa lejos del anillo de paso.
+func _hull_hole(pos: Vector3, size: float) -> void:
+	var hole := _box(Vector3(size, 0.03, size * 0.8), pos + Vector3(0.0, 0.005, 0.0),
+		Color(0.05, 0.12, 0.18))
+	hole.rotation_degrees.y = pos.x * 23.0
+	for s in [[-0.5, 0.42, 18.0], [0.44, -0.3, -26.0]]:
+		var splinter := _box(Vector3(size * 0.5, 0.07, 0.14),
+			pos + Vector3(s[0] * size, 0.05, s[1] * size), Color(0.40, 0.28, 0.16))
+		splinter.rotation_degrees = Vector3(0.0, s[2], 12.0)
+
+
+## Escalera de subida a cubierta en el hueco de embarque: cuatro peldaños que
+## bajan hacia el costado, para que los clientes lleguen "desde el barco" y no
+## aparezcan de la nada. Se alinea con la diagonal de la borda.
+func _deck_stairs(base: Vector3, mat: Material) -> void:
+	# Los peldaños SUBEN hacia fuera hasta un rellano: bajando por el costado
+	# quedaban tapados por la regala y no se veia nada. Subiendo, el rellano
+	# asoma por encima de la borda y se lee de donde baja el cliente.
+	var out := base.normalized()
+	for i in 4:
+		var step := _box_mat(Vector3(1.7, 0.16, 0.36),
+			base + out * (0.36 + i * 0.36) + Vector3(0.0, 0.08 + i * 0.16, 0.0), mat)
+		step.rotation_degrees.y = 45.0
+	var landing := _box_mat(Vector3(2.4, 0.18, 1.5),
+		base + out * 2.55 + Vector3(0.0, 0.72, 0.0), mat)
+	landing.rotation_degrees.y = 45.0
+	# Barandal a los lados de la escalera, siguiendo la pendiente.
+	for side in [-1.0, 1.0]:
+		var lateral: Vector3 = Vector3(out.z, 0.0, -out.x) * side * 0.85
+		var rail := _box_mat(Vector3(0.10, 0.10, 2.0),
+			base + lateral + out * 1.1 + Vector3(0.0, 0.72, 0.0), mat)
+		rail.rotation_degrees = Vector3(0.0, 45.0, 0.0)
+		rail.rotate_object_local(Vector3.RIGHT, deg_to_rad(-22.0))
+		for k in 2:
+			_box_mat(Vector3(0.09, 0.55, 0.09),
+				base + lateral + out * (0.5 + k * 1.3)
+				+ Vector3(0.0, 0.28 + k * 0.30, 0.0), mat)
+
+
+## Tocon de mastil tronchado, con la base y un rollo de cabo alrededor. Sin
+## verga ni velas: ver _scenery_ship para por que se quitaron.
+func _broken_mast(pos: Vector3) -> void:
+	var h := 1.55
+	_cyl(0.20, 0.24, h, pos + Vector3(0.0, h * 0.5, 0.0), Color(0.36, 0.24, 0.13))
+	_cyl(0.34, 0.37, 0.20, pos + Vector3(0.0, 0.10, 0.0), Color(0.55, 0.45, 0.31))
+	# Astillas del tronchazo, arriba del todo.
+	for s in [[-0.10, 0.26, 14.0], [0.11, 0.36, -18.0], [0.02, 0.18, 6.0]]:
+		var chip := _box(Vector3(0.11, s[1], 0.11),
+			pos + Vector3(s[0], h + s[1] * 0.42, s[0] * 0.7), Color(0.44, 0.31, 0.17))
+		chip.rotation_degrees.z = s[2]
+	# Cabo enrollado en la base.
+	_cyl(0.44, 0.44, 0.09, pos + Vector3(0.0, 0.24, 0.0), Color(0.62, 0.52, 0.34))
+
+
+## Cañon de cubierta apuntando a la borda, sobre su cureña de madera.
+func _deck_cannon(pos: Vector3) -> void:
+	var out := pos.normalized()
+	var yaw := rad_to_deg(atan2(out.x, out.z))
+	var carriage := _box_mat(Vector3(0.46, 0.20, 0.62), pos + Vector3(0.0, 0.10, 0.0),
+		_wood_mat(CRATE_TEX, Color(0.62, 0.50, 0.36), 1.6))
+	carriage.rotation_degrees.y = yaw
+	var barrel := _cyl(0.09, 0.13, 0.86, pos + Vector3(0.0, 0.30, 0.0) + out * 0.14,
+		Color(0.17, 0.17, 0.19))
+	barrel.rotation_degrees = Vector3(0.0, yaw, 0.0)
+	barrel.rotate_object_local(Vector3.RIGHT, deg_to_rad(90.0))
+	for side in [-1.0, 1.0]:
+		var lateral: Vector3 = Vector3(out.z, 0.0, -out.x) * side * 0.20
+		_cyl(0.10, 0.10, 0.06, pos + lateral + Vector3(0.0, 0.07, 0.0),
+			Color(0.30, 0.21, 0.12)).rotate_object_local(Vector3.RIGHT, deg_to_rad(90.0))
 
 
 ## Tramo de barandilla sobre la diagonal p(t) = base + t*(1,0,-1)/v2 (la
@@ -532,10 +805,10 @@ func _rail_piece(base: Vector3, t0: float, t1: float, rail: Array,
 	add_child(mi)
 
 
-## Mostrador de madera + banda MOVIL encima. En las esquinas se ve el propio
-## mostrador (las placas metalicas cuadradas se quitaron a proposito).
-## La banda avanza empujando el uniform "scroll_tiles" desde _process, para
-## poder pararla al congelar y acelerarla con "Cinta rapida".
+## Mostrador de madera + banda MOVIL encima + placa metalica en cada esquina
+## (el codo por donde los platos doblan). La banda avanza empujando el uniform
+## "scroll_tiles" desde _process, para poder pararla al congelar y acelerarla
+## con "Cinta rapida".
 func _setup_counter_and_belt() -> void:
 	var h := BELT_SIDE * 0.5
 	var seg := BELT_SIDE - CORNER
@@ -572,6 +845,19 @@ func _setup_counter_and_belt() -> void:
 		mi.position = center + Vector3(0.0, BELT_TOP + 0.045, 0.0)
 		mi.rotation_degrees.y = s[1]
 		add_child(mi)
+
+	# Placa metalica de esquina: tapa el codo entre dos tramos de banda, donde
+	# el plato dobla. Va con un canto oscuro debajo para que tenga grosor.
+	for corner in [Vector3(h, 0, h), Vector3(h, 0, -h),
+			Vector3(-h, 0, h), Vector3(-h, 0, -h)]:
+		_box(Vector3(CORNER + 0.04, 0.045, CORNER + 0.04),
+			corner + Vector3(0.0, BELT_TOP + 0.022, 0.0), Color(0.13, 0.14, 0.16))
+		# Acero MATE: con brillo especular la placa horizontal reventaba a
+		# blanco puro bajo el sol y se comia la esquina.
+		var plate := _box(Vector3(CORNER, 0.03, CORNER),
+			corner + Vector3(0.0, BELT_TOP + 0.052, 0.0), Color(0.42, 0.45, 0.50))
+		plate.material_override.roughness = 1.0
+		plate.material_override.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 
 
 ## Path3D cuadrado sobre la banda; los platos (plate3d.gd) son PathFollow3D.
@@ -617,17 +903,19 @@ func _add_stool(pos: Vector3) -> void:
 ## chef estan orientados hacia el MISMO lado (la esquina inferior de pantalla,
 ## de cara a la camara). Respira y reacciona a cada gesto del jugador (tweens).
 func _setup_chef() -> void:
-	var t_pos := Vector3(0.55, 0.0, 0.25)
-	var table := _box(Vector3(0.90, 0.78, 0.60), t_pos + Vector3(0.0, 0.39, 0.0),
+	# Chef y mesa miran a +Z, que con la camara iso (yaw 45) es la diagonal
+	# ABAJO-IZQUIERDA de la pantalla: se le ve la cara y trabaja de lado, sin
+	# darle la espalda al jugador ni taparse la mesa con el cuerpo.
+	var c_pos := Vector3(-0.45, 0.0, -0.60)
+	var t_pos := c_pos + Vector3(0.0, 0.0, 0.92)
+	_box(Vector3(0.90, 0.78, 0.60), t_pos + Vector3(0.0, 0.39, 0.0),
 		Color(0.40, 0.27, 0.14))
-	table.rotation_degrees.y = 45.0
-	var table_top := _box(Vector3(1.02, 0.07, 0.72), t_pos + Vector3(0.0, 0.815, 0.0),
+	_box(Vector3(1.02, 0.07, 0.72), t_pos + Vector3(0.0, 0.815, 0.0),
 		Color(0.62, 0.45, 0.26))
-	table_top.rotation_degrees.y = 45.0
-	# El chef, justo detras de la mesa (misma diagonal), mirando como ella.
 	chef_pivot = _spawn_model(load("res://assets/models/chef_rig.glb"),
-		t_pos - Vector3(0.6, 0.0, 0.6), CHEF_H, self)
-	chef_pivot.rotation_degrees.y = 45.0
+		c_pos, CHEF_H, self)
+	chef_pivot.rotation_degrees.y = 0.0
+	_setup_chef_crates(c_pos)
 	var skels := chef_pivot.find_children("*", "Skeleton3D", true, false)
 	if not skels.is_empty():
 		chef_anim = CharacterAnim.new(skels[0])
@@ -642,6 +930,77 @@ func _setup_chef() -> void:
 	chef_prop.position = t_pos + Vector3(0.0, 1.12, 0.0)
 	chef_prop.visible = false
 	add_child(chef_prop)
+
+
+## Cajas de guardado JUNTO AL CHEF: el gemelo 3D de las cajas del HUD. Lo que
+## el jugador guarda en la interfaz aparece tambien aqui (mismo modelo de plato
+## que va por la cinta), asi la barra cuenta lo que pasa sin mirar el HUD.
+func _setup_chef_crates(chef_pos: Vector3) -> void:
+	# Van SOBRE UN BANCO, no en el suelo: el mostrador mide 0.8 de alto y desde
+	# la camara isometrica tapaba por completo cualquier cosa puesta al ras del
+	# suelo dentro del circuito. Encaramadas al banco asoman por encima.
+	var bench := chef_pos + Vector3(1.05, 0.0, -0.15)
+	var wood := _wood_mat(CRATE_TEX, Color(0.80, 0.72, 0.60), 1.4)
+	_box_mat(Vector3(0.62, 0.08, 1.30), bench + Vector3(0.0, CRATE_LIFT, 0.0), wood)
+	for lx in [-0.22, 0.22]:
+		_box_mat(Vector3(0.09, CRATE_LIFT, 0.09),
+			bench + Vector3(0.0, CRATE_LIFT * 0.5, lx * 2.4), wood)
+	var spots := [bench + Vector3(0.0, CRATE_LIFT + 0.04, -0.32),
+		bench + Vector3(0.0, CRATE_LIFT + 0.04, 0.32),
+		bench + Vector3(0.0, CRATE_LIFT + 0.04, 0.0)]
+	for i in spots.size():
+		var crate := Node3D.new()
+		crate.position = spots[i]
+		crate.rotation_degrees.y = i * 6.0
+		add_child(crate)
+		# Cajon de madera: suelo, cuatro paredes bajas y un canto mas claro.
+		var body := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(CRATE_W, CRATE_H, CRATE_W)
+		body.mesh = bm
+		body.position = Vector3(0.0, CRATE_H * 0.5, 0.0)
+		body.material_override = wood
+		crate.add_child(body)
+		var rim := MeshInstance3D.new()
+		var rm := BoxMesh.new()
+		rm.size = Vector3(CRATE_W + 0.04, 0.05, CRATE_W + 0.04)
+		rim.mesh = rm
+		rim.position = Vector3(0.0, CRATE_H, 0.0)
+		rim.material_override = _mat(Color(0.58, 0.42, 0.24))
+		crate.add_child(rim)
+		# Nodo vacio donde se apilan los platos guardados de esa caja.
+		var slot := Node3D.new()
+		slot.position = Vector3(0.0, CRATE_H + 0.03, 0.0)
+		crate.add_child(slot)
+		chef_crates.append(slot)
+
+
+## Refleja en las cajas 3D lo que hay en las cajas del HUD (prep_board).
+func _on_storage_changed(slots: Array) -> void:
+	for i in chef_crates.size():
+		var holder: Node3D = chef_crates[i]
+		for c in holder.get_children():
+			c.queue_free()
+		if i >= slots.size() or slots[i] == null:
+			continue
+		var id: String = slots[i]["id"]
+		var path := "res://assets/models/%s.glb" % id
+		if not ResourceLoader.exists(path):
+			continue
+		# Se apilan hasta 3 platos aunque la pila sea mayor: mas no caben en la
+		# caja y el numero exacto ya lo canta el "xN" del HUD.
+		var shown: int = mini(int(slots[i]["count"]), 3)
+		for k in shown:
+			var p := _spawn_model(load(path), Vector3(0.0, k * 0.09, 0.0),
+				CRATE_DISH, holder)
+			# El plato normaliza por ALTURA en _spawn_model; aqui interesa que
+			# quepa en la caja, asi que se reescala por su huella.
+			var inst: Node3D = p.get_child(0)
+			var aabb := _merged_aabb(inst)
+			var foot := maxf(maxf(aabb.size.x, aabb.size.z), 0.0001)
+			inst.scale *= CRATE_DISH / foot
+			inst.position *= CRATE_DISH / foot
+			p.rotation_degrees.y = -30.0 + k * 24.0
 
 
 ## Utensilios low poly del chef, construidos por codigo y colgados de la
@@ -824,6 +1183,11 @@ func _show_chef_tool(tool: String) -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	# El ayudante trabaja a su ritmo, desfasado del chef para que no parezcan
+	# dos copias del mismo muñeco.
+	if helper_anim != null:
+		helper_anim.reset()
+		helper_anim.chef_pat(fmod(_t * 1.35, 1.0))
 	if chef_anim != null:
 		chef_anim.reset()
 		if chef_gesture != "":
@@ -957,6 +1321,7 @@ func _try_spawn_client() -> bool:
 	c.plate_served.connect(_on_client_served)
 	seat_clients[idx] = c
 	clients_spawned += 1
+	_update_client_heads()
 	return true
 
 
@@ -1040,6 +1405,7 @@ func _on_client_finished(report: Dictionary, seat_idx: int) -> void:
 	seat_clients[seat_idx] = null
 	client_reports.append(report)
 	clients_finished += 1
+	_update_client_heads()
 	_update_hud()
 	if clients_finished >= total_clients:
 		_end_level()
@@ -1197,6 +1563,15 @@ func _on_dish_served(recipe_id: String) -> void:
 	p.discarded.connect(_on_plate_discarded)
 
 
+## Plato que sale de la TABLA del jugador: cuenta para el ayudante (que cocina
+## uno por su cuenta cada PerkData.HELPER_EVERY) y para desbloquear perks.
+func _on_player_dish_served(recipe_id: String) -> void:
+	dishes_served += 1
+	_on_dish_served(recipe_id)
+	if helper_pivot != null and dishes_served % PerkData.HELPER_EVERY == 0:
+		_helper_cook()
+
+
 ## Un plato desechado (2 vueltas sin cogerse) cuesta el 30% de su precio.
 ## Con "Reciclaje de platos" vuelve a la receta como uso instantaneo.
 func _on_plate_discarded(recipe_id: String) -> void:
@@ -1215,6 +1590,9 @@ func _end_level() -> void:
 	if ended:
 		return
 	ended = true
+	# Se acabo: ya no hay nada que abandonar, manda el panel de resultados.
+	if exit_button != null:
+		exit_button.visible = false
 	for i in seats.size():
 		var c = seat_clients[i]
 		if c != null:
@@ -1238,6 +1616,9 @@ func _finalize_results() -> void:
 		GameState.money += total_money
 		GameState.record_level_score(GameState.current_port, total_money)
 		new_recipes = GameState.complete_port(GameState.current_port, stars)
+		# Los potenciadores permanentes se ganan por combos, no por estrellas.
+		for p in _check_perk_unlocks():
+			new_recipes.append({ "perk": p })
 		GameState.save_game()
 	GameState.last_score = float(total_money)
 	GameState.last_stars = stars
@@ -1289,8 +1670,12 @@ func _show_next_recipe(overlay: ColorRect, queue: Array) -> void:
 		out.tween_property(overlay, "color:a", 0.0, 0.2)
 		out.tween_callback(overlay.queue_free)
 		return
-	var id: String = queue.pop_front()
-	var data := RecipeData.get_recipe(id)
+	# La cola trae ids de receta (String) y potenciadores permanentes
+	# recién conseguidos ({"perk": id}).
+	var item: Variant = queue.pop_front()
+	var is_perk: bool = item is Dictionary
+	var id: String = str(item["perk"]) if is_perk else str(item)
+	var data: Dictionary = PerkData.get_perk(id) if is_perk else RecipeData.get_recipe(id)
 	var dark := Color(0.26, 0.16, 0.08)
 
 	var center := CenterContainer.new()
@@ -1314,14 +1699,15 @@ func _show_next_recipe(overlay: ColorRect, queue: Array) -> void:
 	box.add_child(vb)
 
 	var title := Label.new()
-	title.text = "¡Nueva receta!"
+	title.text = "¡Nuevo potenciador!" if is_perk else "¡Nueva receta!"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 36)
+	title.add_theme_font_size_override("font_size", 34)
 	title.add_theme_color_override("font_color", dark)
 	vb.add_child(title)
 
 	var dish := TextureRect.new()
-	dish.texture = RecipeData.get_dish_texture(id)
+	dish.texture = load(str(data.get("icon", ""))) if is_perk \
+			else RecipeData.get_dish_texture(id)
 	dish.custom_minimum_size = Vector2(0, 250)
 	dish.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	dish.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -1336,8 +1722,25 @@ func _show_next_recipe(overlay: ColorRect, queue: Array) -> void:
 	name_l.add_theme_color_override("font_color", dark)
 	vb.add_child(name_l)
 
-	var lvl := int(data.get("level", 1))
-	vb.add_child(prep_board.make_star_row(lvl, lvl, 34))
+	if is_perk:
+		# El potenciador explica qué hace y llega con 1 uso de regalo.
+		var desc := Label.new()
+		desc.text = str(data.get("desc", ""))
+		desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc.add_theme_font_size_override("font_size", 20)
+		desc.add_theme_color_override("font_color", Color(0.42, 0.3, 0.18))
+		vb.add_child(desc)
+		var gift := Label.new()
+		gift.text = "Llévate 1 uso de regalo. Compra más en el Inventario."
+		gift.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		gift.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		gift.add_theme_font_size_override("font_size", 18)
+		gift.add_theme_color_override("font_color", Color(0.2, 0.45, 0.12))
+		vb.add_child(gift)
+	else:
+		var lvl := int(data.get("level", 1))
+		vb.add_child(prep_board.make_star_row(lvl, lvl, 34))
 
 	if not queue.is_empty():
 		var counter := Label.new()
@@ -1505,18 +1908,85 @@ func _icon_amount(icon_path: String, text: String) -> Control:
 
 # ------------------------------------------------------------- salir del nivel
 
-## Boton "Salir" arriba a la izquierda, bajo el reloj. Pide confirmacion: en la
-## fase de preparacion se sale sin coste (se DEVUELVEN los usos de ingredientes
-## ya descontados); con la partida en marcha se avisa de que se perderan.
+## Boton de salida, pegado al borde izquierdo bajo el reloj. Es una FLECHA de
+## volver (boton_flecha_izq) en vez de un boton de texto: ocupa mucho menos,
+## no compite con el HUD y se lee igual en cualquier idioma. Desaparece al
+## terminar el nivel, donde manda el panel de resultados.
+## Pide confirmacion: en la fase de preparacion se sale sin coste (se DEVUELVEN
+## los usos de ingredientes ya descontados); en partida se avisa de la perdida.
 func _setup_exit_button() -> void:
-	var b := Button.new()
-	b.text = "Salir"
-	b.custom_minimum_size = Vector2(150, 54)
-	b.position = Vector2(28, 112)
-	prep_board.skin_button(b)
-	b.add_theme_font_size_override("font_size", 24)
-	b.pressed.connect(_on_exit_pressed)
-	$HUD.add_child(b)
+	exit_button = TextureButton.new()
+	exit_button.texture_normal = load("res://assets/ui/boton_flecha_izq.png")
+	exit_button.ignore_texture_size = true
+	exit_button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	exit_button.custom_minimum_size = Vector2(84, 68)
+	exit_button.size = Vector2(84, 68)
+	exit_button.position = Vector2(10, 108)
+	exit_button.modulate = Color(1, 1, 1, 0.92)
+	exit_button.pressed.connect(_on_exit_pressed)
+	$HUD.add_child(exit_button)
+
+
+# ------------------------------------------------- cabezas de los clientes
+
+## Fila de cabezas justo ENCIMA de la cinta de la mesa de trabajo: de un
+## vistazo se ve QUIEN hay en la barra sin recorrer el 3D con la mirada. Los
+## iconos salen de los propios modelos 3D (tools/head_icons.gd).
+func _setup_heads_row() -> void:
+	heads_row = HBoxContainer.new()
+	heads_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	heads_row.add_theme_constant_override("separation", 10)
+	heads_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	heads_row.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	# Pegada al borde superior de la tabla (que ocupa los ultimos 588 px).
+	heads_row.offset_top = -588.0 - HEAD_ICON - 8.0
+	heads_row.offset_bottom = -588.0 - 8.0
+	$HUD.add_child(heads_row)
+	_update_client_heads()
+
+
+## Una cabeza por TIPO presente, con "xN" cuando hay varios. Se llama al
+## sentarse y al marcharse un cliente, asi que la fila sigue a la barra.
+func _update_client_heads() -> void:
+	if heads_row == null:
+		return
+	for c in heads_row.get_children():
+		c.queue_free()
+	# Cuenta por tipo respetando el orden E -> A -> G (de menor a mayor rango).
+	var counts := { "E": 0, "A": 0, "G": 0 }
+	for c in seat_clients:
+		if c != null and is_instance_valid(c):
+			counts[c.client_type] = int(counts.get(c.client_type, 0)) + 1
+	for type in ["E", "A", "G"]:
+		if counts[type] == 0:
+			continue
+		heads_row.add_child(_head_badge(type, counts[type]))
+
+
+## Icono de cabeza con su contador. El "xN" va al lado, no encima, para que no
+## tape la cara: a este tamaño la cara es justo lo que hay que reconocer.
+func _head_badge(type: String, count: int) -> Control:
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 1)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ic := TextureRect.new()
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.texture = load("res://assets/ui/head_%s.png" % type)
+	ic.custom_minimum_size = Vector2(HEAD_ICON, HEAD_ICON)
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(ic)
+	if count > 1:
+		var l := Label.new()
+		l.text = "x%d" % count
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		l.add_theme_font_size_override("font_size", 26)
+		l.add_theme_color_override("font_color", Color(1, 0.95, 0.85))
+		l.add_theme_color_override("font_outline_color", Color.BLACK)
+		l.add_theme_constant_override("outline_size", 9)
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(l)
+	return box
 
 
 func _on_exit_pressed() -> void:
