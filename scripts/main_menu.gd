@@ -59,7 +59,7 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 30)
 	add_child(box)
 	box.add_child(_make_mode_button("Aventura", func() -> void:
-		get_tree().change_scene_to_file("res://scenes/level_select.tscn")))
+		get_tree().change_scene_to_file("res://scenes/level_select3d.tscn")))
 	box.add_child(_make_mode_button("Tienda", func() -> void:
 		get_tree().change_scene_to_file("res://scenes/shop_screen.tscn")))
 	box.add_child(_make_mode_button("Prueba", func() -> void:
