@@ -73,9 +73,17 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   `stages` tiene un id de sprite por paso ("" = ninguno); el último stage
   no-vacío se descarta al emplatar (el plato final es el mismo voxel que el
   emplatado).
-- `scripts/powerup_data.gd` — catálogo de potenciadores (`manual` = el jugador
-  elige cuándo; si no, automático). De momento NO se desbloquean por campaña;
-  siguen saliendo todos del bote de propinas dentro del nivel.
+- `scripts/powerup_data.gd` — catálogo de potenciadores DE PARTIDA (`manual` =
+  el jugador elige cuándo; si no, automático). Salen del bote de propinas
+  dentro del nivel.
+- `scripts/perk_data.gd` — catálogo de potenciadores **PERMANENTES** (`PerkData`,
+  no confundir con los anteriores): se ganan haciendo un COMBO en partida, se
+  eligen antes de zarpar junto con las recetas, gastan 1 uso por partida y se
+  compran más usos con doblones desde el Inventario. Los dos actuales:
+  `cocina_veloz` (cooldown a la mitad toda la partida; se gana cuando un mismo
+  cliente come 5 platos) y `ayudante` (un ayudante 3D aparece junto al chef y
+  cocina 1 de cada `HELPER_EVERY`=4 platos; se gana sirviendo 18 platos en una
+  partida). Solo funcionan en aventura: Arcade no toca el progreso.
 - `scripts/campaign_data.gd` — los 9 niveles de la campaña (`PORTS`, ordenados):
   `client_mix` (recuento EXACTO {E,A,G}; el nivel construye una cola barajada y
   `total_clients` sale de la suma), `time_limit` (150 s; nivel 7 es exprés de
@@ -144,18 +152,16 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 - `scripts/plate3d.gd` — plato en cinta: PathFollow3D por el Path3D del
   circuito, modelo normalizado por huella (0.62 u), 2 vueltas → descarte.
 - `scripts/main_menu.gd` — menú inicial (ESCENA PRINCIPAL, raíz **Node3D**):
-  Aventura (campaña), Tienda y Prueba (partida libre con todas las recetas, sin
-  tocar el progreso). El fondo es una **escena 3D animada**: el barco del
-  jugador (`map_barco.glb`) cabecea y se balancea en mar abierto (mismo
-  `water_map_3d.gdshader` del mapa) mientras islas, puertos y barcos enemigos
-  quedan atrás y vuelven a aparecer por el horizonte, con gaviotas dando
-  vueltas. El logotipo (`assets/ui/logo_sushi_pirata.webp`, generado con Ludo y
-  recortado con `tools/logo_prep.gd`) flota y se balancea en el CanvasLayer 2D.
-  **Decisiones ya tomadas:** las nubes van en `SHADOW_CASTING_SETTING_SHADOWS_ONLY`
-  — con cámara ortogonal la caja entraba en el encuadre como un bloque blanco
-  raro, y lo que hace creíble la navegación es su sombra cruzando el agua; y las
-  gaviotas llevan cuerpo oscuro y alas en V porque dos alas planas alineadas se
-  veían como una simple barra blanca.
+  cuatro botones con icono propio: **Aventura** (campaña), **Arcade** (partida
+  libre con todas las recetas, sin tocar el progreso), **Tienda** e
+  **Inventario**. El fondo es una **escena 3D animada**: el barco del jugador
+  (`map_barco.glb`) cabecea y se balancea en mar abierto (mismo
+  `water_map_3d.gdshader` del mapa). El logotipo
+  (`assets/ui/logo_sushi_pirata.webp`, generado con Ludo y recortado con
+  `tools/logo_prep.gd`) flota y se balancea en el CanvasLayer 2D.
+  **Decisión ya tomada: en el mar SOLO va el barco.** Se probaron islas,
+  puertos y barcos pasando de largo, sombras de nubes cruzando el agua y
+  gaviotas en círculos; todo ello ensuciaba el encuadre y se quitó.
 - `scripts/level_select.gd` — **mapa marítimo**: el barco del jugador navega por
   el mar entre los nodos de la campaña. Cada nivel es de un TIPO (`CampaignData.
   KINDS`): "isla", "puerto" o "abordaje" (asaltar otro barco); de momento el tipo
@@ -180,23 +186,54 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   que lo borra y deja solo la espuma; además la animación rompería la
   continuidad de bordes y el mar tileado saldría con costuras. Por eso el
   movimiento del agua va por shader (deriva + dos senos cruzados).
-- `scripts/shop_screen.gd` — tienda: compra de USOS de ingredientes (`cost` en
-  `RecipeData.INGREDIENTS`); solo lista ingredientes de recetas desbloqueadas.
-  Cada fila lleva un **selector de cantidad** (flechas ◄ N ►) y un botón
-  "Comprar $total" (no botones +1/+5).
-- `scripts/prep_screen.gd` — selección de HASTA 4 recetas: en aventura solo las
-  desbloqueadas y ataja las que no tienen usos de ingredientes ("Sin
-  ingredientes"); en prueba, todas. `ScrollContainer` con recetas **agrupadas
-  por nivel de estrellas** y **4 tarjetas compactas por fila** sobre un
-  pergamino compartido.
-- `scenes/*.tscn` — main_menu, level_select, shop_screen, level, prep_screen,
-  client, plate. (main_menu/level_select/shop_screen son raíces vacías: toda su
-  UI se construye por código en el script.)
+- `scripts/shop_screen.gd` — tienda (raíz **Node3D**): el **tendero 3D**
+  (`tendero.glb`, sin rig: respira y se balancea desde su pivote) atiende tras
+  su mostrador en un muelle sobre el mar. Vende USOS de ingredientes (`cost` en
+  `RecipeData.INGREDIENTS`) de un surtido de **8 artículos que cambia cada día
+  real** (`GameState.shop_stock/shop_day`, se renueva solo al cambiar la fecha);
+  el botón **"Recargar artículos"** vuelve a sortearlo pagando
+  `GameState.SHOP_REROLL_COST`. Al tocar un artículo se abre un cartel que
+  pregunta CUÁNTOS usos se quieren (flechas ◄ N ►, total y dinero restante).
+- `scripts/inventory_screen.gd` — inventario (raíz **Node3D**, fondo 3D del
+  barco) con tres pestañas:
+  **Recetario** (libro `libro.png` con 4 recetas por doble página, buscador y
+  filtros de vegetariana / tipo de cliente; salen TODAS, las no aprendidas como
+  silueta "???"; al tocar una se abre su ficha con precio, saciedad, cooldown,
+  ingredientes, qué clientes la cogerán —leyendo `client3d.TAKE_CHANCES`, para
+  que la ficha nunca mienta— y una DEMOSTRACIÓN que recorre sus pasos en bucle
+  mostrando la etapa y el gesto),
+  **Despensa** (otro libro, 8 ingredientes por doble página con sus usos) y
+  **Mejoras** (potenciadores permanentes de `PerkData`: los no conseguidos
+  muestran cómo se ganan; los conseguidos, sus usos y un botón para comprar más).
+- `scripts/scene_backdrop.gd` — `SceneBackdrop.build()`: fondo 3D reutilizable
+  (mar animado + el modelo del tipo de nivel) que usan prep_screen, la tienda y
+  el inventario. La UI va en un CanvasLayer con un velo oscuro por delante.
+- `scripts/prep_screen.gd` — selección de HASTA 4 recetas (raíz **Node3D**):
+  el fondo es el **escenario 3D del nivel elegido** (isla / puerto / barco
+  enemigo, o el barco del jugador en Arcade) meciéndose sobre el mar. En
+  aventura solo lista las desbloqueadas y ataja las que no tienen usos de
+  ingredientes ("Sin ingredientes"); en Arcade, todas. Recetas **agrupadas por
+  nivel de estrellas**, **4 tarjetas por fila** sobre un pergamino compartido.
+  Debajo, la fila de **potenciadores permanentes** disponibles (solo aventura),
+  y el botón "¡Zarpar!". Arriba, "Atrás" (al mapa en aventura, al menú en
+  Arcade). NO lleva el título "Sushi Pirata".
+- `scenes/*.tscn` — main_menu, level_select3d, shop_screen, inventory_screen,
+  level3d, prep_screen, client, plate. (main_menu/level_select3d/shop_screen/
+  inventory_screen son raíces vacías: toda su UI se construye por código.)
 - `assets/` — dishes, characters, ingredients, stages, ui, props, scenery, map
   (`map/`: `mar.png` textura de agua tileable, `barco.png` del jugador estático
   y `barco_anim.webp` su spritesheet 4x4 con las velas al viento, más los nodos
   `isla.png` / `puerto.png` / `barco_enemigo.png`, todos isométricos).
+  En `ui/`: `boton_madera.png` (el botón de todo el juego), `libro.png` (el
+  recetario y la despensa), `logo_sushi_pirata.webp` y los iconos del menú
+  `ic_aventura/ic_arcade/ic_tienda/ic_inventario.png`. En `models/`:
+  `tendero.glb` (tienda, sin rig) y `ayudante_rig.glb` (potenciador "ayudante",
+  rigueado y animado con `CharacterAnim`).
   `art/concepts/` es solo referencia (tiene `.gdignore`).
+  Las imágenes de UI generadas con Ludo se recortan con `tools/ui_prep.gd`
+  (inundación desde los bordes + recorte + reescalado). Para los ICONOS con
+  fondo gris claro la inundación deja halo: se pasan antes por el
+  `removeBackground` de Ludo y `ui_prep` solo recorta y reescala.
 
 ## Convenciones y decisiones ya tomadas (NO reintroducir bugs resueltos)
 
@@ -226,6 +263,13 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   juego de referencia van en `exclude_filter` del preset de export.
 - **UI de madera/pergamino**: 9-slice con `NinePatchRect` (no `StyleBoxTexture`,
   que ignoraba los márgenes). `prep_board.make_nine_patch()` y `skin_button()`.
+- **Botones (TODOS los del juego)**: `prep_board.skin_button()` es el único
+  sitio donde se define su aspecto — tablón de madera con marco dorado y
+  remaches (`assets/ui/boton_madera.png`, `BUTTON_MARGIN` 52), sombra
+  proyectada y hundido al pulsar. En botones pequeños el margen del 9-slice se
+  **encoge por código** al redimensionar (`min(lado)*0.44`): con el margen fijo
+  las cuatro esquinas doradas no cabían y el marco salía aplastado. Si un texto
+  se solapa con el marco, la solución es ensanchar el botón, no bajar el margen.
 - **Estrellas**: imágenes propias (`estrella_llena/vacia.png`) vía
   `make_star_row()`, nunca el carácter ★.
 - **Cinta**: cuatro **tramos rectos** independientes (`Line2D` con shader

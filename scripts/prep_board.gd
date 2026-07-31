@@ -105,6 +105,10 @@ var cooldown_perm_mult: float = 1.0
 
 var stage_tween: Tween = null
 var instruction_tween: Tween = null
+## Segundos sin tocar nada tras los que aparece la guía (mano + texto).
+const GUIDE_DELAY := 2.0
+var idle_time := 0.0
+var guide_shown := false
 ## Mano de gestos: muestra semitransparente cómo ejecutar cada interacción
 ## (pulsar, mantener, arrastrar, deslizar, círculo) con dos poses.
 var hand: TextureRect = null
@@ -250,7 +254,7 @@ func _ready() -> void:
 		_build_recipe_button(id)
 	for i in storage_slots:
 		_add_storage_panel()
-	skin_button(cancel_button)
+	_skin_cancel_button()
 	cancel_button.pressed.connect(_cancel_prep)
 	# Al desaparecer un ingrediente ya usado, la fila se reordena y los que
 	# quedan se desplazan; hay que recolocar la mano de gestos sobre el nuevo
@@ -444,6 +448,7 @@ func recycle_recipe(recipe_id: String) -> void:
 
 
 func _process(delta: float) -> void:
+	_tick_guide(delta)
 	# Cinta del panel siempre en marcha (sincronizada con la de la cubierta).
 	if belt_sprite.material != null:
 		var tex := belt_sprite.texture
@@ -678,7 +683,74 @@ func _advance_step() -> void:
 	_update_ui()
 
 
+## Botón de cancelar: una CRUZ roja redonda en vez del botón de madera con la
+## palabra "Cancelar", que con el mismo aspecto que los botones de receta
+## parecía una receta más y encima se comía media esquina de la tabla.
+func _skin_cancel_button() -> void:
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		cancel_button.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	cancel_button.text = ""
+	cancel_button.tooltip_text = "Cancelar la elaboración"
+	var disc := Panel.new()
+	disc.name = "Disc"
+	disc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	disc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	disc.show_behind_parent = true
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.62, 0.16, 0.12)
+	sb.border_color = Color(0.96, 0.86, 0.70)
+	sb.set_border_width_all(4)
+	sb.set_corner_radius_all(28)
+	sb.shadow_color = Color(0, 0, 0, 0.45)
+	sb.shadow_size = 5
+	disc.add_theme_stylebox_override("panel", sb)
+	cancel_button.add_child(disc)
+	# La equis, dos barras cruzadas (una fuente con "X" quedaba descentrada).
+	for ang in [45.0, -45.0]:
+		var bar := ColorRect.new()
+		bar.color = Color(1, 0.95, 0.90)
+		bar.size = Vector2(30, 6)
+		bar.pivot_offset = bar.size / 2.0
+		bar.rotation_degrees = ang
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bar.set_anchors_preset(Control.PRESET_CENTER)
+		bar.position = Vector2(-15, -3)
+		cancel_button.add_child(bar)
+
+
+# --- Guía diferida (mano + texto) ---
+
+## La guía NO sale de inmediato: el jugador que ya sabe lo que hace no quiere
+## una mano gigante encima cada vez que toca la tabla. Solo aparece tras
+## GUIDE_DELAY segundos sin tocar nada, y se esconde al primer gesto.
+func _tick_guide(delta: float) -> void:
+	if state == State.IDLE:
+		return
+	if guide_shown:
+		return
+	idle_time += delta
+	if idle_time >= GUIDE_DELAY:
+		guide_shown = true
+		_update_instruction()
+		if state == State.CRAFTING:
+			_refresh_indicator()
+		else:
+			_refresh_indicator_ready()
+
+
+## Cualquier gesto del jugador reinicia la cuenta y retira la guía.
+func _touch_activity() -> void:
+	idle_time = 0.0
+	if not guide_shown:
+		return
+	guide_shown = false
+	_hide_indicator()
+	instruction_label.visible = false
+
+
 func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		_touch_activity()
 	if stack_drag_index >= 0:
 		_continue_stack_drag(event)
 		return
@@ -1199,17 +1271,22 @@ func _apply_cooldown(recipe_id: String) -> void:
 
 func _update_ui() -> void:
 	cancel_button.visible = _can_cancel()
-	_update_instruction()
+	# La guía (mano y texto) solo se dibuja si el jugador lleva un rato quieto;
+	# la lleva _tick_guide. Aquí únicamente se refresca la que YA está puesta.
+	if guide_shown:
+		_update_instruction()
 	match state:
 		State.IDLE:
 			tap_bar.visible = false
 			_hide_indicator()
 		State.CRAFTING:
 			_update_tap_bar()
-			call_deferred("_refresh_indicator")
+			if guide_shown:
+				call_deferred("_refresh_indicator")
 		State.READY:
 			tap_bar.visible = false
-			call_deferred("_refresh_indicator_ready")
+			if guide_shown:
+				call_deferred("_refresh_indicator_ready")
 
 
 # --- Instrucción escrita del paso actual ---
@@ -1290,7 +1367,9 @@ func _pop_instruction() -> void:
 ## Mano y flecha grandes: son la guía del jugador y tienen que leerse de un
 ## vistazo en el móvil.
 const HAND_SIZE := Vector2(116, 150)
-const HAND_ALPHA := 0.85
+## Bastante translucida: es una AYUDA, no parte del plato. Opaca competia con
+## la etapa que hay debajo y ensuciaba la lectura de la tabla.
+const HAND_ALPHA := 0.5
 const ARROW_SIZE := Vector2(68, 90)
 ## Anillo que late en el punto exacto donde hay que tocar: la mano sola se
 ## perdía sobre las etapas claras (el arroz es casi del mismo color).

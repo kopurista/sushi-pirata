@@ -323,11 +323,11 @@ func _build_top_bar() -> Control:
 	pad_l.custom_minimum_size = Vector2(16, 0)
 	bar.add_child(pad_l)
 	var back := Button.new()
-	back.text = "Menú"
-	back.custom_minimum_size = Vector2(130, 52)
+	back.text = "Atrás"
+	back.custom_minimum_size = Vector2(150, 60)
 	back.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	PrepBoard.skin_button(back)
-	back.add_theme_font_size_override("font_size", 24)
+	back.add_theme_font_size_override("font_size", 25)
 	back.pressed.connect(func() -> void:
 		get_tree().change_scene_to_file("res://scenes/main_menu.tscn"))
 	bar.add_child(back)
@@ -416,10 +416,10 @@ func _build_info_panel() -> Control:
 	info_reward = _stat_label(vb)
 
 	sail_button = Button.new()
-	sail_button.custom_minimum_size = Vector2(300, 72)
+	sail_button.custom_minimum_size = Vector2(350, 86)
 	sail_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	PrepBoard.skin_button(sail_button)
-	sail_button.add_theme_font_size_override("font_size", 30)
+	sail_button.add_theme_font_size_override("font_size", 32)
 	sail_button.text = "¡Zarpar!"
 	sail_button.pressed.connect(_on_sail_pressed)
 	vb.add_child(sail_button)

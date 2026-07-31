@@ -20,7 +20,7 @@ const DARK := Color(0.26, 0.16, 0.08)
 const FADED := Color(0.45, 0.34, 0.2)
 
 const RECIPES_PER_PAGE := 4
-const INGREDIENTS_PER_PAGE := 6
+const INGREDIENTS_PER_PAGE := 8
 ## Nombre y sprite de cada tipo de cliente (para los filtros y las fichas).
 const CLIENT_TYPES := ["E", "A", "G"]
 const CLIENT_NAMES := { "E": "Grumete", "A": "Pirata", "G": "Capitán" }
@@ -422,7 +422,10 @@ func _build_pantry_entry(ing: String) -> Control:
 	var data: Dictionary = RecipeData.INGREDIENTS[ing]
 	var row := HBoxContainer.new()
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.custom_minimum_size = Vector2(0, 108)
+	# Reparten la altura de la página entre todos, en vez de amontonarse
+	# arriba y dejar media hoja en blanco.
+	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	row.custom_minimum_size = Vector2(0, 96)
 	row.add_theme_constant_override("separation", 8)
 
 	var icon := TextureRect.new()
@@ -522,7 +525,8 @@ func _build_perk_row(id: String) -> Control:
 	desc.text = str(data.get("desc", "")) if known \
 			else "Cómo conseguirlo: %s" % str(data.get("unlock", ""))
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc.add_theme_font_size_override("font_size", 17)
+	desc.custom_minimum_size = Vector2(240, 0)
+	desc.add_theme_font_size_override("font_size", 16)
 	desc.add_theme_color_override("font_color", FADED)
 	col.add_child(desc)
 	if known:
@@ -552,7 +556,7 @@ func _build_perk_row(id: String) -> Control:
 			_show_tab("potenciadores"))
 		row.add_child(buy)
 	var pad_r := Control.new()
-	pad_r.custom_minimum_size = Vector2(24, 0)
+	pad_r.custom_minimum_size = Vector2(36, 0)
 	row.add_child(pad_r)
 	return panel
 

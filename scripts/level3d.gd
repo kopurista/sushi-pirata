@@ -1640,7 +1640,14 @@ func _show_results(stars: int, total_money: int, new_recipes: Array) -> void:
 	else:
 		score_label.visible = false
 	_build_breakdown()
+	_setup_results_scroll()
 	powerup_panel.visible = false
+	# Con el cartel puesto, el HUD de partida sobra y ademas se colaba por
+	# encima del pergamino.
+	if heads_row != null:
+		heads_row.visible = false
+	if exit_button != null:
+		exit_button.visible = false
 	results_panel.visible = true
 	get_tree().paused = true
 	_reveal_recipes(new_recipes)
@@ -1773,6 +1780,21 @@ func _show_next_recipe(overlay: ColorRect, queue: Array) -> void:
 
 
 ## Desglose agrupado por tipo de cliente (cabeceras de pergamino plegables).
+## Arrastrar por CUALQUIER punto del pergamino de resultados desplaza la lista.
+## El ScrollContainer solo se desplaza con gestos que caen en su propio hueco y
+## que ningun hijo se haya tragado; en la practica el jugador arrastra encima
+## de una cabecera o de una fila y no pasaba nada. Aqui el panel entero
+## escucha el arrastre y mueve el scroll a mano.
+func _setup_results_scroll() -> void:
+	var scroll: ScrollContainer = $HUD/ResultsPanel/VBox/Scroll
+	results_panel.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventScreenDrag:
+			scroll.scroll_vertical -= int(event.relative.y))
+	# Con MOUSE_FILTER_STOP el panel se come el arrastre antes de que llegue
+	# a los botones; PASS deja que ambos funcionen.
+	results_panel.mouse_filter = Control.MOUSE_FILTER_PASS
+
+
 func _build_breakdown() -> void:
 	for child in breakdown_box.get_children():
 		child.queue_free()
@@ -1796,45 +1818,89 @@ func _build_breakdown() -> void:
 		if reports.is_empty():
 			continue
 
-		var head := Button.new()
-		head.custom_minimum_size = Vector2(0, 58)
-		head.text = "%s (%d)" % [TYPE_NAMES.get(type, type), reports.size()]
-		head.add_theme_font_size_override("font_size", 22)
-		for st in ["normal", "hover", "pressed", "disabled", "focus"]:
-			head.add_theme_stylebox_override(st, StyleBoxEmpty.new())
-		head.add_theme_color_override("font_color", Color(0.26, 0.16, 0.08))
-		head.add_theme_color_override("font_hover_color", Color(0.16, 0.1, 0.05))
-		head.add_theme_color_override("font_pressed_color", Color(0.16, 0.1, 0.05))
-		head.add_theme_color_override("font_outline_color", Color(1, 0.97, 0.88))
-		head.add_theme_constant_override("outline_size", 4)
-		var scroll_skin := NinePatchRect.new()
-		scroll_skin.texture = load("res://assets/ui/pergamino_cerrado.png")
-		scroll_skin.patch_margin_left = 190
-		scroll_skin.patch_margin_right = 190
-		scroll_skin.patch_margin_top = 6
-		scroll_skin.patch_margin_bottom = 6
-		scroll_skin.set_anchors_preset(Control.PRESET_FULL_RECT)
-		scroll_skin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		scroll_skin.show_behind_parent = true
-		head.add_child(scroll_skin)
-		breakdown_box.add_child(head)
+		# Cabecera del grupo: chapa de madera con la CARA del tipo de cliente.
+		var head := _breakdown_header(type,
+			"%s  x%d" % [TYPE_NAMES.get(type, type), reports.size()])
 
 		var rows := VBoxContainer.new()
 		rows.visible = false
 		rows.add_theme_constant_override("separation", 6)
 		for r in reports:
 			rows.add_child(_breakdown_row(r))
+		breakdown_box.add_child(head)
 		breakdown_box.add_child(rows)
+		var caret: Label = head.get_meta("caret")
 		head.pressed.connect(func() -> void:
 			rows.visible = not rows.visible
-			if rows.visible:
-				scroll_skin.texture = load("res://assets/ui/pergamino_abierto.png")
-				scroll_skin.patch_margin_left = 210
-				scroll_skin.patch_margin_right = 210
-			else:
-				scroll_skin.texture = load("res://assets/ui/pergamino_cerrado.png")
-				scroll_skin.patch_margin_left = 190
-				scroll_skin.patch_margin_right = 190)
+			caret.text = "▼" if rows.visible else "▶")
+
+
+## Cabecera plegable de un tipo de cliente. Antes era un pergamino de 9-slice
+## estirado a lo ancho del panel: con los rodillos fijos a 190 px por lado, el
+## papel del centro quedaba aplastado y el conjunto se veia forzado. Ahora es
+## una chapa lisa de madera con la CARA del cliente (el mismo icono del HUD),
+## su nombre y un triangulo que dice si esta abierta.
+##
+## `mouse_filter = PASS` es importante: con STOP el boton se tragaba el
+## arrastre y el ScrollContainer no podia desplazarse si el dedo caia sobre una
+## cabecera, que es justo donde el jugador suele arrastrar.
+func _breakdown_header(type: String, label_text: String) -> Button:
+	var head := Button.new()
+	head.custom_minimum_size = Vector2(0, 62)
+	head.mouse_filter = Control.MOUSE_FILTER_PASS
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		head.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	var plank := Panel.new()
+	plank.set_anchors_preset(Control.PRESET_FULL_RECT)
+	plank.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plank.show_behind_parent = true
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.47, 0.33, 0.19)
+	sb.border_color = Color(0.30, 0.20, 0.11)
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(10)
+	plank.add_theme_stylebox_override("panel", sb)
+	head.add_child(plank)
+
+	var row := HBoxContainer.new()
+	row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 12.0
+	row.offset_right = -14.0
+	row.add_theme_constant_override("separation", 12)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	head.add_child(row)
+
+	var face := TextureRect.new()
+	face.texture = load("res://assets/ui/head_%s.png" % type)
+	face.custom_minimum_size = Vector2(46, 46)
+	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	face.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(face)
+
+	var name_l := Label.new()
+	name_l.text = label_text
+	name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_l.add_theme_font_size_override("font_size", 24)
+	name_l.add_theme_color_override("font_color", Color(1, 0.95, 0.85))
+	name_l.add_theme_color_override("font_outline_color", Color(0.16, 0.09, 0.04))
+	name_l.add_theme_constant_override("outline_size", 5)
+	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(name_l)
+
+	var caret := Label.new()
+	caret.text = "▶"
+	caret.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	caret.add_theme_font_size_override("font_size", 22)
+	caret.add_theme_color_override("font_color", Color(1, 0.88, 0.6))
+	caret.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(caret)
+	# Cuelga de la fila, no del boton: se guarda en un meta para que quien
+	# conecta el plegado pueda darle la vuelta al triangulo.
+	head.set_meta("caret", caret)
+	return head
 
 
 ## Fila de un cliente: iconos de platos comidos + dinero + propina.
@@ -1938,9 +2004,10 @@ func _setup_heads_row() -> void:
 	heads_row.add_theme_constant_override("separation", 10)
 	heads_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	heads_row.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	# Pegada al borde superior de la tabla (que ocupa los ultimos 588 px).
-	heads_row.offset_top = -588.0 - HEAD_ICON - 8.0
-	heads_row.offset_bottom = -588.0 - 8.0
+	# Sobre la tabla, y por ENCIMA de la instruccion escrita (que se movio ahi
+	# desde debajo del tablero: abajo la tapaba el propio dedo en movil).
+	heads_row.offset_top = -588.0 - 72.0 - HEAD_ICON - 6.0
+	heads_row.offset_bottom = -588.0 - 72.0 - 6.0
 	$HUD.add_child(heads_row)
 	_update_client_heads()
 
