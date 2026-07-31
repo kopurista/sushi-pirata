@@ -35,12 +35,16 @@ var ship_pivot: Node3D
 var ship_base_y := 0.0
 var logo: TextureRect
 var _t := 0.0
-## Capturas de verificación: vacío = juego normal.
-var _shots_at := [2.0]
-var _shot_idx := 0
+
+
+## Tope de fotogramas de las pantallas sin juego.
+const MENU_FPS := 30
 
 
 func _ready() -> void:
+	# Las pantallas de menu se conforman con 30 fps: aqui no se juega y
+	# renderizar el doble de fotogramas solo gasta bateria.
+	Engine.max_fps = MENU_FPS
 	_setup_environment()
 	_setup_sea()
 	_setup_ship()
@@ -82,6 +86,8 @@ func _setup_sea() -> void:
 	mat.set_shader_parameter("deep_color", Vector3(0.10, 0.24, 0.45))
 	mat.set_shader_parameter("flatten", 0.80)
 	mat.set_shader_parameter("drift_speed", 0.055)
+	# El plano del mar no proyecta sombra sobre nada: fuera del pase de sombras.
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.material_override = mat
 	add_child(mi)
 
@@ -149,7 +155,6 @@ func _process(delta: float) -> void:
 		ship_pivot.position.y = ship_base_y + sin(_t * 1.35) * 0.14
 
 	_update_camera(sin(_t * 0.55) * 0.22)
-	_capture_step()
 
 
 # ------------------------------------------------------------------- UI 2D
@@ -264,17 +269,3 @@ func _make_mode_button(text: String, icon: String, height: int, font_size: int,
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(label)
 	return b
-
-
-## Capturas automáticas para verificación visual (vacío en el juego normal).
-func _capture_step() -> void:
-	if _shot_idx >= _shots_at.size():
-		return
-	if _t < float(_shots_at[_shot_idx]):
-		return
-	await RenderingServer.frame_post_draw
-	var img := get_viewport().get_texture().get_image()
-	img.save_png("res://_menu_shot%d.png" % _shot_idx)
-	_shot_idx += 1
-	if _shot_idx >= _shots_at.size():
-		get_tree().quit()

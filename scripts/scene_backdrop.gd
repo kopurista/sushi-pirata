@@ -54,6 +54,8 @@ static func build(root: Node3D, kind: String, cam_size := 19.0,
 	mat.set_shader_parameter("deep_color", Vector3(0.10, 0.24, 0.45))
 	mat.set_shader_parameter("flatten", 0.80)
 	mat.set_shader_parameter("drift_speed", 0.05)
+	# El plano del mar no proyecta sombra sobre nada: fuera del pase de sombras.
+	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	sea.material_override = mat
 	root.add_child(sea)
 

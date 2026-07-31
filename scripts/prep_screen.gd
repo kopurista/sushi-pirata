@@ -32,7 +32,12 @@ var _t := 0.0
 @onready var start_button: Button = $UI/Root/Margin/VBox/StartButton
 
 
+## Tope de fotogramas: aquí aún no se juega, 30 bastan y ahorran batería.
+const MENU_FPS := 30
+
+
 func _ready() -> void:
+	Engine.max_fps = MENU_FPS
 	var board_script := load("res://scripts/prep_board.gd")
 	var kind := CampaignData.get_kind(GameState.current_port) \
 			if GameState.is_adventure() else ""

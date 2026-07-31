@@ -47,7 +47,14 @@ var backdrop: Node3D = null
 var _t := 0.0
 
 
+## Tope de fotogramas de las pantallas sin juego.
+const MENU_FPS := 30
+
+
 func _ready() -> void:
+	# Las pantallas de menu se conforman con 30 fps: aqui no se juega y
+	# renderizar el doble de fotogramas solo gasta bateria.
+	Engine.max_fps = MENU_FPS
 	backdrop = SceneBackdrop.build(self, "", 17.0, 40.0, 6.0)
 	_setup_ui()
 	_show_tab("recetario")

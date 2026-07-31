@@ -58,8 +58,6 @@ var ship_pivot: Node3D
 var ship_tween: Tween = null
 var ship_roll := 0.0
 var _t := 0.0
-var _shots_at := []
-var _shot_idx := 0
 
 ## Overlays 2D por nodo: { id: {root, unlocked} } reposicionados por frame.
 var node_overlays: Dictionary = {}
@@ -83,13 +81,22 @@ func _world(p: Vector2) -> Vector3:
 	return R_HAT * ((p.x - 360.0) / PPU_X) + D_HAT * (p.y / PPU_Y)
 
 
+## Tope de fotogramas de las pantallas sin juego.
+const MENU_FPS := 30
+
+
 func _ready() -> void:
+	# Las pantallas de menu se conforman con 30 fps: aqui no se juega y
+	# renderizar el doble de fotogramas solo gasta bateria.
+	Engine.max_fps = MENU_FPS
 	_setup_environment()
 	_setup_sea()
 	_setup_route()
 	_setup_nodes()
 	_setup_ship()
 	_setup_camera()
+	# Los ~100 guiones de la ruta son geometría fija: se funden en una malla.
+	GeometryBatch.bake(self, "RouteBatch")
 	_setup_ui()
 
 	# Arranca en el nivel más avanzado disponible.
@@ -138,6 +145,8 @@ func _setup_sea() -> void:
 	var tile_u := float(tex.get_width()) / PPU_X * 1.25
 	mat.set_shader_parameter("tile_scale", Vector2(46.0 / tile_u, 46.0 / tile_u))
 	mat.set_shader_parameter("tint", Vector3(0.55, 0.68, 0.9))
+	# El plano del mar no proyecta sombra sobre nada: fuera del pase de sombras.
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.material_override = mat
 	add_child(mi)
 
@@ -178,6 +187,11 @@ func _setup_nodes() -> void:
 			float(KIND_FOOT.get(kind, 2.5)))
 		# Los barcos se hunden un poco en el agua; las islas asientan su base.
 		pivot.position.y = -0.10 if kind != "abordaje" else -0.06
+		# Los nodos NO proyectan sombra: son 9 modelos de ~40k triangulos y el
+		# pase de sombras los dibujaba otra vez enteros, para una mancha que
+		# desde esta camara casi no se ve.
+		for m in pivot.find_children("*", "MeshInstance3D", true, false):
+			m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		if not GameState.is_port_unlocked(id):
 			_dim_model(pivot)
 
@@ -573,11 +587,3 @@ func _process(delta: float) -> void:
 	for id in node_overlays:
 		var scr := cam.unproject_position(node_world[id] + Vector3(0.0, 0.55, 0.0))
 		node_overlays[id]["root"].position = scr
-
-	if _shot_idx < _shots_at.size() and _t >= _shots_at[_shot_idx]:
-		get_viewport().get_texture().get_image().save_png(
-			"res://map3d_shot_%d.png" % _shot_idx)
-		_shot_idx += 1
-		print("SHOT %d OK" % _shot_idx)
-		if _shot_idx == _shots_at.size():
-			get_tree().quit()

@@ -22,10 +22,19 @@ var shopkeeper: Node3D = null
 var _t := 0.0
 
 
+## Tope de fotogramas de las pantallas sin juego.
+const MENU_FPS := 30
+
+
 func _ready() -> void:
+	# Las pantallas de menu se conforman con 30 fps: aqui no se juega y
+	# renderizar el doble de fotogramas solo gasta bateria.
+	Engine.max_fps = MENU_FPS
 	GameState.refresh_shop_if_new_day()
 	SceneBackdrop.build(self, "puerto", 16.0, 250.0, 5.0)
 	_setup_shopkeeper()
+	# El mostrador y los cajones son fijos: una malla por color.
+	GeometryBatch.bake(self, "ShopBatch")
 	_setup_ui()
 	_refresh()
 

@@ -17,6 +17,9 @@ extends Node3D
 const CLIENT3D := preload("res://scripts/client3d.gd")
 const PLATE3D := preload("res://scripts/plate3d.gd")
 
+## Fotogramas por segundo jugando (los menus se conforman con la mitad).
+const GAME_FPS := 60
+
 const TOTAL_CLIENTS := 10
 ## Duracion de una partida (2 min 30 s). El reloj no corre durante la fase de
 ## preparacion inicial.
@@ -164,9 +167,6 @@ var chef_knife: Node3D = null
 var chef_ladle: Node3D = null
 var chef_tool_linger := 0.0
 var _t := 0.0
-## Capturas de verificacion: vacio = juego normal. Con tiempos, captura y sale.
-var _shots_at := []
-var _shot_idx := 0
 
 @onready var time_label: Label = $HUD/TopRow/TimeBox/TimeLabel
 @onready var money_label: Label = $HUD/TopRow/MoneyBox/MoneyRow/MoneyLabel
@@ -192,6 +192,9 @@ var scenery_kind := "abordaje"
 
 
 func _ready() -> void:
+	# Los menus bajan el tope a 30 fps para no gastar bateria; jugando hacen
+	# falta los 60 (aqui si importa la respuesta al dedo).
+	Engine.max_fps = GAME_FPS
 	world_ui = CanvasLayer.new()
 	world_ui.layer = 0
 	add_child(world_ui)
@@ -204,6 +207,10 @@ func _ready() -> void:
 	_setup_belt_path()
 	_setup_seats()
 	_setup_chef()
+	# Todo el escenario (cubierta, mostrador, taburetes, atrezzo) es geometria
+	# de color plano que no se mueve: se funde en UNA malla. Va aqui, cuando ya
+	# esta todo colocado, y antes de que aparezca ningun cliente.
+	GeometryBatch.bake(self, "SceneryBatch")
 	_setup_exit_button()
 	_setup_heads_row()
 
@@ -422,6 +429,9 @@ func _add_sea() -> void:
 	sea_mesh.size = Vector2(90.0, 90.0)
 	sea.mesh = sea_mesh
 	sea.position = Vector3(0.0, -0.55, 0.0)
+	# Un plano de 90x90 bajo todo lo demas no proyecta ninguna sombra visible,
+	# pero se dibujaba entero en el pase de sombras.
+	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var tex_path := "res://assets/map/mar.png"
 	if ResourceLoader.exists(tex_path):
 		var mat := ShaderMaterial.new()
@@ -1217,15 +1227,6 @@ func _process(delta: float) -> void:
 				if chef_tool_linger <= 0.0:
 					_show_chef_tool("")
 			chef_anim.idle(_t)
-
-	if _shot_idx < _shots_at.size() and _t >= _shots_at[_shot_idx]:
-		get_viewport().get_texture().get_image().save_png(
-			"res://l3d_shot_%d.png" % _shot_idx)
-		_shot_idx += 1
-		print("SHOT %d OK" % _shot_idx)
-		if _shot_idx == _shots_at.size():
-			get_tree().quit()
-			return
 
 	if ended:
 		# Los reportes ya estan (force_leave es inmediato). Se esperan 4 s con

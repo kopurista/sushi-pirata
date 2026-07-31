@@ -18,11 +18,22 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 - **Comprobar errores de compilación** (rápido, headless):
   `"…/Godot_v4.7.1-stable_win64_console.exe" --headless --quit-after 250 "res://scenes/level.tscn"`
   Sin salida = OK. Repetir con la escena de menú (sin argumento) también.
-- **Importar assets nuevos** antes de usarlos: `--headless --import`.
+- **Importar** antes de usar: `--headless --import`. No es solo para assets —
+  un script NUEVO con `class_name` tampoco existe hasta importar, porque las
+  clases globales se registran en `.godot/global_script_class_cache.cfg`. Sin
+  esa pasada, quien la use da `Identifier "X" not declared in the current
+  scope`, que es error de COMPILACIÓN: la escena no monta y el juego se cierra.
 - **Verificación visual**: inyectar un nodo helper temporal con un script que
   fuerce estado (`lv.prep_phase = false`, `_try_spawn_client()`, `_on_dish_served()`)
   y guarde `get_viewport().get_texture().get_image().save_png("res://shot.png")`,
   correr SIN `--headless`, y leer el PNG. **Limpiar siempre el helper después.**
+  **El helper va en un nodo aparte, NUNCA dentro de un script de producción.**
+  Pasó lo contrario: `main_menu.gd` se quedó con un `_shots_at := [2.0]` y su
+  `_capture_step()` que llamaba a `get_tree().quit()`, así que el juego se
+  cerraba solo a los 2 s (`level3d.gd` y `level_select3d.gd` tenían el mismo
+  bloque, inerte por lista vacía). Un helper soldado al script se escapa a la
+  limpieza y NO da ningún error, solo un cierre silencioso: si el juego se
+  cierra sin mensaje, buscar `get_tree().quit()` y `save_png` antes que nada.
 - `--script` NO carga autoloads (`GameState`), así que no sirve para probar
   escenas que dependan de ellos; usa el helper inyectado en su lugar.
 - **Lanzar el juego** para el usuario: `"…/Godot_v4.7.1-stable_win64.exe" .` en background.
@@ -261,6 +272,38 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   personajes/mapa y 256 en platos/atrezzo. Sin Basis el export solo lleva
   s3tc y en navegadores móviles las texturas 3D no cargan. Los sprites 2D del
   juego de referencia van en `exclude_filter` del preset de export.
+  **Al añadir un modelo nuevo hay que aplicárselo a mano**: Godot lo importa
+  con `compress/mode=2` (s3tc) y `size_limit=0`.
+
+## Rendimiento en móvil (medido, no a ojo)
+
+Lo que ahoga a un móvil aquí NO son los triángulos (el nivel tiene ~28k), sino
+los **draw calls** y los fotogramas de más. Para medirlo se inyecta un helper
+que imprime `RenderingServer.get_rendering_info(...)` por escena.
+
+- **Geometría estática fusionada** (`scripts/geometry_batch.gd`): el escenario
+  se construye con ~130 cajas sueltas y cada una era un draw call (dos con el
+  pase de sombra). `GeometryBatch.bake(self)` las funde **agrupando por color**
+  al final de la construcción. Nivel: 269 → 116 draw calls. Mapa: 160 → 96.
+  **NO usar color por vértice**: `vertex_color_use_as_albedo` no funciona bajo
+  GL Compatibility (el renderer del juego) y el escenario entero sale lavado —
+  la cubierta de tablones se volvía un arenal beige. Por eso se agrupa por
+  color y se reutiliza el material original, que además garantiza que el
+  resultado es idéntico. Quedan fuera del fusionado los materiales con shader
+  (la banda de la cinta) y lo que esté en el grupo `no_batch`.
+- **Sombras que no se ven**: el mar (plano de 90x90), el suelo del escenario
+  (lo que no llega a `GROUND_LEVEL`) y los 9 modelos del mapa van en
+  `SHADOW_CASTING_SETTING_OFF`. El mapa bajó de 389k a 301k primitivas y la
+  imagen cambia un 2% de píxeles (comprobado con diff).
+- **30 fps en los menús** (`MENU_FPS`), 60 solo jugando (`GAME_FPS` en
+  `level3d`). `Engine.max_fps` es global: cada pantalla fija el suyo al entrar.
+  En un móvil de 120 Hz esto es la diferencia más grande en batería.
+- **project.godot**: `run/max_fps=60`, mapa de sombras 2048 (1024 en móvil),
+  sin filtro anisotrópico, sin MSAA ni AA de pantalla.
+- **`assets/models/source/` y `snapshots/` llevan `.gdignore`**: son los
+  conceptos 1024×1024 con los que se generaron los modelos y las capturas que
+  devuelve Ludo. No se usan en el juego (solo `tools/icon_prep.gd`, que lee del
+  disco y sigue funcionando) y engordaban el export.
 - **UI de madera/pergamino**: 9-slice con `NinePatchRect` (no `StyleBoxTexture`,
   que ignoraba los márgenes). `prep_board.make_nine_patch()` y `skin_button()`.
 - **Botones (TODOS los del juego)**: `prep_board.skin_button()` es el único
