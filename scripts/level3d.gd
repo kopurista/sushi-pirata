@@ -600,57 +600,78 @@ func _scenery_port() -> void:
 	lamp.material_override.emission_enabled = true
 	lamp.material_override.emission = Color(1.0, 0.8, 0.35)
 	lamp.material_override.emission_energy_multiplier = 0.7
-	# Mercancia AMONTONADA en dos rincones, no desperdigada por todo el muelle:
-	# un puerto apila su carga donde estorba menos.
-	_cargo_pile(Vector3(-5.5, 0.0, -2.2), crate_mat)
-	_cargo_pile(Vector3(5.6, 0.0, 1.8), crate_mat)
+	# Carga APILADA (un puerto no deja las cajas sueltas) pero repartida por
+	# todo el muelle: dos montones grandes, dos pequeños y barriles arrimados
+	# en otros rincones. Todo fuera del anillo de paso de los clientes.
+	_cargo_pile(Vector3(-5.5, 0.0, -3.0), crate_mat, true)
+	_cargo_pile(Vector3(5.4, 0.0, 2.4), crate_mat, true)
+	_cargo_pile(Vector3(-4.7, 0.0, 1.4), crate_mat, false)
+	_cargo_pile(Vector3(1.0, 0.0, -5.4), crate_mat, false)
+	_spawn_barrels([Vector3(-1.9, 0.0, 4.7), Vector3(-2.4, 0.0, 5.3)])
+	_spawn_barrels([Vector3(4.6, 0.0, -1.4)], 0)
 
 
-## Monton de carga: cajas apiladas y barriles arrimados, todo junto.
-func _cargo_pile(pos: Vector3, crate_mat: Material) -> void:
+## Monton de carga: cajas apiladas y, si es grande, barriles arrimados.
+func _cargo_pile(pos: Vector3, crate_mat: Material, big: bool = true) -> void:
 	var crate := "res://assets/models/caja.glb"
 	if ResourceLoader.exists(crate):
 		var scene: PackedScene = load(crate)
 		# Base de dos y una encima, algo giradas para que no parezca un molde.
 		_tint_model(_spawn_model(scene, pos + Vector3(-0.34, 0.0, 0.0), 0.66, self),
 			CRATE_TINT)
-		_tint_model(_spawn_model(scene, pos + Vector3(0.34, 0.0, 0.10), 0.66, self),
-			CRATE_TINT)
-		var top := _spawn_model(scene, pos + Vector3(-0.02, 0.66, 0.04), 0.56, self)
-		top.rotation_degrees.y = 22.0
-		_tint_model(top, CRATE_TINT)
+		if big:
+			_tint_model(_spawn_model(scene, pos + Vector3(0.34, 0.0, 0.10), 0.66, self),
+				CRATE_TINT)
+			var top := _spawn_model(scene, pos + Vector3(-0.02, 0.66, 0.04), 0.56, self)
+			top.rotation_degrees.y = 22.0
+			_tint_model(top, CRATE_TINT)
+		else:
+			var lean := _spawn_model(scene, pos + Vector3(0.42, 0.0, 0.18), 0.52, self)
+			lean.rotation_degrees.y = -28.0
+			_tint_model(lean, CRATE_TINT)
 	else:
 		_box_mat(Vector3(0.66, 0.66, 0.66), pos + Vector3(-0.34, 0.33, 0.0), crate_mat)
-		_box_mat(Vector3(0.66, 0.66, 0.66), pos + Vector3(0.34, 0.33, 0.10), crate_mat)
-	# Barriles arrimados al monton, uno tumbado encima.
-	_spawn_barrels([pos + Vector3(0.95, 0.0, -0.55), pos + Vector3(1.15, 0.0, 0.25)])
+	if big:
+		_spawn_barrels([pos + Vector3(0.95, 0.0, -0.55), pos + Vector3(1.15, 0.0, 0.25)])
 
 
 ## Puente de madera por el que se entra al muelle desde tierra: dos largueros,
 ## tablero y barandillas a los lados. Se aleja del centro siguiendo la borda.
 func _port_bridge(base: Vector3, deck_mat: Material, post_mat: Material) -> void:
-	# NO sale recto hacia fuera: por esa linea el puente queda justo detras del
-	# marcador de dinero del HUD y no se veia. Sesgado, se aparta del centro y
-	# cruza limpio sobre el agua.
-	var out := Vector3(-0.958, 0.0, -0.287)
+	# RECTO hacia fuera, perpendicular a la borda. Se probo sesgado para que no
+	# quedara detras del marcador del HUD y salio TORCIDO: los tablones seguian
+	# alineados a la diagonal del muelle (yaw 45) mientras el puente corria en
+	# otra direccion, asi que la madera cruzaba el puente en diagonal. Ahora la
+	# orientacion se DEDUCE de la direccion, y no puede volver a descuadrarse.
+	var out := base.normalized()
 	var lateral := Vector3(out.z, 0.0, -out.x)
-	# Tablero, ligeramente en cuesta hacia fuera.
-	for i in 5:
-		var step := _box_mat(Vector3(2.2, 0.14, 0.62),
-			base + out * (0.5 + i * 0.62) + Vector3(0.0, 0.02 + i * 0.05, 0.0),
-			deck_mat)
-		step.rotation_degrees.y = 45.0
-	# Barandillas del puente a ambos lados.
-	for side in [-1.0, 1.0]:
-		for i in 4:
-			_box_mat(Vector3(0.10, 0.62, 0.10),
-				base + out * (0.75 + i * 0.78) + lateral * side * 1.0
-				+ Vector3(0.0, 0.33 + i * 0.05, 0.0), post_mat)
-		var rail := _box_mat(Vector3(0.09, 0.09, 3.1),
-			base + out * 1.9 + lateral * side * 1.0 + Vector3(0.0, 0.68, 0.0),
+	# Los tablones van perpendiculares a la marcha: su eje largo es "lateral".
+	var yaw := rad_to_deg(atan2(lateral.x, lateral.z)) + 90.0
+	# Corto a proposito: mas largo se metia bajo la barra superior del HUD.
+	# El tablero va en madera OSCURA (la del poste), no en la clara del muelle:
+	# del mismo tono se fundia con la tarima y el puente no se distinguia.
+	for i in 4:
+		var step := _box_mat(Vector3(2.3, 0.16, 0.58),
+			base + out * (0.45 + i * 0.56) + Vector3(0.0, 0.12 + i * 0.05, 0.0),
 			post_mat)
-		rail.rotation_degrees = Vector3(0.0, 45.0, 0.0)
-		rail.rotate_object_local(Vector3.RIGHT, deg_to_rad(4.0))
+		step.rotation_degrees.y = yaw
+	# Pilotes que bajan al agua bajo el tablero: sin ellos el puente parecia
+	# flotar sobre el mar.
+	for side in [-1.0, 1.0]:
+		for i in 2:
+			_cyl(0.11, 0.13, 1.5,
+				base + out * (0.8 + i * 1.1) + lateral * side * 0.95
+				+ Vector3(0.0, -0.55, 0.0), Color(0.34, 0.30, 0.26))
+	# Barandillas a ambos lados, con sus postes y el pasamanos en la pendiente.
+	for side in [-1.0, 1.0]:
+		for i in 3:
+			_box_mat(Vector3(0.11, 0.66, 0.11),
+				base + out * (0.6 + i * 0.78) + lateral * side * 1.05
+				+ Vector3(0.0, 0.36 + i * 0.04, 0.0), post_mat)
+		var rail := _box_mat(Vector3(0.10, 0.10, 2.3),
+			base + out * 1.4 + lateral * side * 1.05 + Vector3(0.0, 0.72, 0.0),
+			post_mat)
+		rail.rotation_degrees.y = yaw + 90.0
 
 
 ## Valla de puerto: postes gruesos y dos travesaños, sobre la diagonal de la
