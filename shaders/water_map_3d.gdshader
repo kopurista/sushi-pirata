@@ -20,11 +20,20 @@ uniform vec3 tint = vec3(0.72, 0.82, 0.98);
 uniform vec3 deep_color = vec3(0.13, 0.28, 0.50);
 uniform float flatten = 0.72;
 
+// La animacion del agua avanza a ANIM_FPS pasos por segundo en vez de a cada
+// fotograma: el mar es una superficie enorme y a 60 su vaiven no aporta nada
+// que se note, mientras que a 30 el movimiento se lee igual. Se cuantiza el
+// TIEMPO, no el dibujado, asi que el coste por pixel es el mismo: lo que se
+// gana es que la textura deja de recalcularse dos veces por paso visible y el
+// agua deja de "hervir" en pantallas de alto refresco.
+uniform float anim_fps = 30.0;
+
 void fragment() {
+	float T = floor(TIME * anim_fps) / anim_fps;
 	vec2 uv = UV * tile_scale;
-	uv += vec2(TIME * drift_speed * 0.5, -TIME * drift_speed);
-	uv.x += sin(uv.y * wave_freq + TIME * wave_speed) * wave_amp;
-	uv.y += cos(uv.x * wave_freq * 0.8 + TIME * wave_speed * 0.75) * wave_amp;
+	uv += vec2(T * drift_speed * 0.5, -T * drift_speed);
+	uv.x += sin(uv.y * wave_freq + T * wave_speed) * wave_amp;
+	uv.y += cos(uv.x * wave_freq * 0.8 + T * wave_speed * 0.75) * wave_amp;
 	ALBEDO = mix(texture(sea_tex, uv).rgb * tint, deep_color, flatten);
 	ROUGHNESS = 0.85;
 	METALLIC = 0.0;

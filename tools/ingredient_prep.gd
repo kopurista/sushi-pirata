@@ -1,12 +1,12 @@
 extends SceneTree
-## Convierte las regeneraciones low poly de los sprites de etapa (webp con
+## Convierte las regeneraciones low poly de los sprites de INGREDIENTE (webp con
 ## fondo BLANCO opaco, en el scratchpad de la sesion) en los PNG transparentes
 ## de assets/stages. Mismo proceso que icon_prep.gd: el fondo se quita por
 ## INUNDACION desde los bordes (solo el blanco conectado con el exterior, asi
 ## el arroz blanco del interior queda intacto) y se recorta el bounding box
 ## por alfa >= 0.6 con un pequeño margen.
 ##
-## Uso:  godot --headless --script res://tools/stage_prep.gd -- <dir_entrada>
+## Uso:  godot --headless --script res://tools/ingredient_prep.gd -- <dir_entrada>
 
 ## Umbral de "esto es fondo". MUY alto a proposito: el fondo generado es
 ## blanco PURO (1,1,1) y el arroz, aunque casi blanco, siempre trae algo de
@@ -43,7 +43,7 @@ func _init() -> void:
 		_remove_bg(img)
 		_close_alpha(img)
 		var out := _crop(img)
-		var dst := "res://assets/stages/%s.png" % f.get_basename()
+		var dst := "res://assets/ingredients/%s.png" % f.get_basename()
 		out.save_png(ProjectSettings.globalize_path(dst))
 		print("%s -> %dx%d" % [f.get_basename(), out.get_width(), out.get_height()])
 	quit(0)
