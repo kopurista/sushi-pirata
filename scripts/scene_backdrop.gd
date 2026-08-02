@@ -38,7 +38,9 @@ static func build(root: Node3D, kind: String, cam_size := 19.0,
 	sun.rotation_degrees = Vector3(-50.0, -125.0, 0.0)
 	sun.light_energy = 1.15
 	sun.light_color = Color(1.0, 0.95, 0.87)
-	sun.shadow_enabled = true
+	# Sin sombras proyectadas en todo el juego: cada cosa lleva su mancha
+	# fija (SceneBackdrop.blob_shadow).
+	sun.shadow_enabled = false
 	root.add_child(sun)
 
 	var sea_tex: Texture2D = load("res://assets/map/mar.png")
@@ -59,9 +61,12 @@ static func build(root: Node3D, kind: String, cam_size := 19.0,
 	sea.material_override = mat
 	root.add_child(sea)
 
-	var path: String = KIND_MODELS.get(kind, KIND_MODELS[""])
-	var pivot := _spawn_model(root, load(path), foot)
-	pivot.position.y = -0.1
+	# "mar" = sin modelo, solo agua (el fondo del modo Arcade).
+	var pivot: Node3D = null
+	if kind != "mar":
+		var path: String = KIND_MODELS.get(kind, KIND_MODELS[""])
+		pivot = _spawn_model(root, load(path), foot)
+		pivot.position.y = -0.1
 
 	var cam := Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
@@ -73,6 +78,49 @@ static func build(root: Node3D, kind: String, cam_size := 19.0,
 	cam.position = D_HAT * (band_off / ppu_y) + cam.transform.basis.z * 40.0
 	cam.make_current()
 	return pivot
+
+
+# --------------------------------------------------------- sombras fijas
+
+## Textura de la mancha de sombra: un degradado radial. Se genera UNA vez y la
+## comparten todas las manchas del juego.
+static var _blob_tex: Texture2D = null
+static var _blob_mat: StandardMaterial3D = null
+
+
+## Mancha de sombra plana para poner bajo un personaje o un objeto.
+##
+## El juego NO usa sombras proyectadas: la luz direccional va sin shadow map.
+## Con personajes que se balancean y palmeras de decenas de piezas, la sombra
+## dinámica bailaba, mostraba acné y costaba un pase de dibujo entero. Una
+## mancha fija se ve mejor, no parpadea y es un solo triángulo doble.
+static func blob_shadow(size_x: float, size_z: float) -> MeshInstance3D:
+	if _blob_tex == null:
+		var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+		for y in 64:
+			for x in 64:
+				var d := Vector2(x - 31.5, y - 31.5).length() / 31.5
+				var a: float = clampf(1.0 - d, 0.0, 1.0)
+				img.set_pixel(x, y, Color(0, 0, 0, a * a * 0.62))
+		_blob_tex = ImageTexture.create_from_image(img)
+		_blob_mat = StandardMaterial3D.new()
+		_blob_mat.albedo_texture = _blob_tex
+		_blob_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_blob_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_blob_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		# Sin escritura de profundidad: varias manchas superpuestas (un cliente
+		# junto a un taburete) no se recortan entre sí.
+		_blob_mat.no_depth_test = false
+		_blob_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(size_x, size_z)
+	var mi := MeshInstance3D.new()
+	mi.mesh = plane
+	mi.material_override = _blob_mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Fuera del fusionado por color: lleva material propio y translúcido.
+	mi.add_to_group(GeometryBatch.NO_BATCH_GROUP)
+	return mi
 
 
 ## Instancia un GLB normalizado por su huella horizontal (igual que el mapa).

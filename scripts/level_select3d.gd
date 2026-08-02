@@ -48,6 +48,11 @@ const SHIP_YAW := 205.0
 
 var cam: Camera3D
 var ui: CanvasLayer
+## Piezas de la interfaz del mapa, para poder apagarlas cuando la escena hace
+## de menú principal (main_menu.gd hereda de este script).
+var map_ui_root: Control = null
+var map_top_bar: Control = null
+var map_info_panel: Control = null
 var selected_id: String = ""
 ## Centro de la franja visible, en px de mapa (el equivalente del scroll 2D).
 var cam_center := SCROLL_MAX
@@ -55,6 +60,7 @@ var scroll_tween: Tween = null
 ## Posición del barco en px de mapa; un tween la anima al viajar.
 var ship_px := Vector2(360, 1560)
 var ship_pivot: Node3D
+var ship_blob: MeshInstance3D = null
 var ship_tween: Tween = null
 var ship_roll := 0.0
 var _t := 0.0
@@ -62,6 +68,8 @@ var _t := 0.0
 ## Overlays 2D por nodo: { id: {root, unlocked} } reposicionados por frame.
 var node_overlays: Dictionary = {}
 var node_world: Dictionary = {}
+## Con la escena en modo menú, los carteles de nivel no se dibujan.
+var map_visible := true
 
 # --- Widgets del panel de información (idénticos al 2D) ---
 var info_title: Label
@@ -99,15 +107,26 @@ func _ready() -> void:
 	GeometryBatch.bake(self, "RouteBatch")
 	_setup_ui()
 
-	# Arranca en el nivel más avanzado disponible.
+	_focus_last_port(false)
+
+
+## Coloca la vista y el barco en el nivel más avanzado disponible.
+func _focus_last_port(animate: bool) -> void:
+	var start_id := last_open_port()
+	if not animate:
+		ship_px = _ship_anchor(start_id)
+		cam_center = clampf(CampaignData.map_pos(start_id).y, SCROLL_MIN, SCROLL_MAX)
+		_update_camera()
+	_select(start_id, animate)
+
+
+## Último nivel de la campaña que el jugador tiene abierto.
+func last_open_port() -> String:
 	var start_id := CampaignData.first_port_id()
 	for p in CampaignData.PORTS:
 		if GameState.is_port_unlocked(p.id):
 			start_id = p.id
-	ship_px = _ship_anchor(start_id)
-	cam_center = clampf(CampaignData.map_pos(start_id).y, SCROLL_MIN, SCROLL_MAX)
-	_update_camera()
-	_select(start_id, false)
+	return start_id
 
 
 func _setup_environment() -> void:
@@ -124,7 +143,9 @@ func _setup_environment() -> void:
 	sun.rotation_degrees = Vector3(-52.0, -125.0, 0.0)
 	sun.light_energy = 1.1
 	sun.light_color = Color(1.0, 0.96, 0.9)
-	sun.shadow_enabled = true
+	# Sin sombras proyectadas en todo el juego: cada cosa lleva su mancha
+	# fija (SceneBackdrop.blob_shadow).
+	sun.shadow_enabled = false
 	add_child(sun)
 
 
@@ -133,17 +154,17 @@ func _setup_environment() -> void:
 func _setup_sea() -> void:
 	var tex: Texture2D = load("res://assets/map/mar.png")
 	var mesh := PlaneMesh.new()
-	mesh.size = Vector2(46.0, 46.0)
+	mesh.size = Vector2(98.0, 98.0)
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
-	mi.position = D_HAT * (CampaignData.MAP_HEIGHT * 0.5 / PPU_Y)
+	mi.position = D_HAT * ((CampaignData.MAP_HEIGHT * 0.5 + 640.0) / PPU_Y)
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/water_map_3d.gdshader")
 	mat.set_shader_parameter("sea_tex", tex)
 	# Tiles algo mayores que en 2D; el shader ademas aplana el mosaico contra
 	# un azul profundo (a pelo, el enrejado de rombos leia como una manta).
 	var tile_u := float(tex.get_width()) / PPU_X * 1.25
-	mat.set_shader_parameter("tile_scale", Vector2(46.0 / tile_u, 46.0 / tile_u))
+	mat.set_shader_parameter("tile_scale", Vector2(98.0 / tile_u, 98.0 / tile_u))
 	mat.set_shader_parameter("tint", Vector3(0.55, 0.68, 0.9))
 	# El plano del mar no proyecta sombra sobre nada: fuera del pase de sombras.
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -192,6 +213,10 @@ func _setup_nodes() -> void:
 		# desde esta camara casi no se ve.
 		for m in pivot.find_children("*", "MeshInstance3D", true, false):
 			m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var foot: float = float(KIND_FOOT.get(kind, 2.5))
+		var blob := SceneBackdrop.blob_shadow(foot * 0.95, foot * 0.62)
+		blob.position = pos + Vector3(0.15, 0.03, 0.1)
+		add_child(blob)
 		if not GameState.is_port_unlocked(id):
 			_dim_model(pivot)
 
@@ -212,6 +237,9 @@ func _setup_ship() -> void:
 		_world(ship_px), SHIP_FOOT)
 	ship_pivot.position.y = -0.06
 	ship_pivot.rotation_degrees.y = SHIP_YAW
+	# El barco lleva su mancha, que viaja con él (ver _update_ship_visual).
+	ship_blob = SceneBackdrop.blob_shadow(SHIP_FOOT * 0.9, SHIP_FOOT * 0.55)
+	add_child(ship_blob)
 
 
 func _setup_camera() -> void:
@@ -274,12 +302,15 @@ func _setup_ui() -> void:
 	vbox.add_theme_constant_override("separation", 0)
 	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(vbox)
-	vbox.add_child(_build_top_bar())
+	map_ui_root = vbox
+	map_top_bar = _build_top_bar()
+	vbox.add_child(map_top_bar)
 	var gap := Control.new()
 	gap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(gap)
-	vbox.add_child(_build_info_panel())
+	map_info_panel = _build_info_panel()
+	vbox.add_child(map_info_panel)
 
 
 ## Overlay 2D de un nodo: botón táctil transparente, estrellas conseguidas y
@@ -307,26 +338,45 @@ func _build_node_overlay(port: Dictionary) -> Dictionary:
 	stars.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(stars)
 
+	# Chapa REDONDA con el número: un doblón clavado en el mapa. El cartel
+	# rectangular de madera competía con los botones del juego y se leía como
+	# uno más en el que se podía pulsar.
 	var sign := Control.new()
-	sign.position = Vector2(-50, 44)
-	sign.size = Vector2(100, 48)
+	sign.position = Vector2(-33, 42)
+	sign.size = Vector2(66, 66)
+	sign.pivot_offset = Vector2(33, 33)
 	sign.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	sign.add_child(PrepBoard.make_nine_patch("res://assets/ui/boton.png", 26))
+	root.add_child(sign)
+
+	var disc := Panel.new()
+	disc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.30, 0.20, 0.10, 0.95) if unlocked \
+			else Color(0.16, 0.17, 0.22, 0.9)
+	sb.set_corner_radius_all(33)
+	sb.set_border_width_all(5)
+	sb.border_color = Color(0.98, 0.78, 0.28) if unlocked else Color(0.4, 0.42, 0.48)
+	sb.shadow_size = 6
+	sb.shadow_color = Color(0, 0, 0, 0.45)
+	sb.shadow_offset = Vector2(0, 3)
+	disc.add_theme_stylebox_override("panel", sb)
+	disc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sign.add_child(disc)
+
 	var num := Label.new()
 	num.text = "%d" % (idx + 1)
 	num.set_anchors_preset(Control.PRESET_FULL_RECT)
 	num.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	num.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	num.add_theme_font_size_override("font_size", 28)
+	num.add_theme_font_size_override("font_size", 34)
 	num.add_theme_color_override("font_color",
-		Color(1, 0.94, 0.82) if unlocked else Color(0.62, 0.58, 0.52))
-	num.add_theme_color_override("font_outline_color", Color.BLACK)
-	num.add_theme_constant_override("outline_size", 5)
+		Color(1, 0.88, 0.42) if unlocked else Color(0.55, 0.57, 0.62))
+	num.add_theme_color_override("font_outline_color", Color(0.1, 0.06, 0.02))
+	num.add_theme_constant_override("outline_size", 7)
 	num.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sign.add_child(num)
-	root.add_child(sign)
 
-	return { "root": root }
+	return { "root": root, "sign": sign, "unlocked": unlocked }
 
 
 func _build_top_bar() -> Control:
@@ -342,8 +392,7 @@ func _build_top_bar() -> Control:
 	back.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	PrepBoard.skin_button(back)
 	back.add_theme_font_size_override("font_size", 25)
-	back.pressed.connect(func() -> void:
-		get_tree().change_scene_to_file("res://scenes/main_menu.tscn"))
+	back.pressed.connect(_on_map_back)
 	bar.add_child(back)
 	var title := Label.new()
 	title.text = "La travesía"
@@ -360,6 +409,15 @@ func _build_top_bar() -> Control:
 	pad_r.custom_minimum_size = Vector2(16, 0)
 	bar.add_child(pad_r)
 	return bar
+
+
+## "Atrás" desde el mapa. En la escena fundida (main_menu.gd hereda de aquí)
+## no se cambia de escena: el barco vuelve navegando a su fondeadero.
+func _on_map_back() -> void:
+	if has_method("_back_to_menu"):
+		call("_back_to_menu")
+	else:
+		get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 
 
 func _make_money_label() -> Control:
@@ -553,6 +611,10 @@ func _scroll_to(point: Vector2) -> void:
 ## Arrastre vertical sobre el mar = scroll del mapa (los botones de los nodos
 ## capturan sus propios toques).
 func _unhandled_input(event: InputEvent) -> void:
+	# En el menú principal (la escena hace de las dos cosas) no se recorre el
+	# mapa: arrastrando se llegaba a ver los niveles antes de tiempo.
+	if not map_visible:
+		return
 	if event is InputEventScreenDrag:
 		if scroll_tween != null:
 			scroll_tween.kill()
@@ -566,7 +628,7 @@ func _on_sail_pressed() -> void:
 	GameState.mode = "adventure"
 	GameState.current_port = selected_id
 	GameState.selected_recipes = []
-	get_tree().change_scene_to_file("res://scenes/prep_screen.tscn")
+	GameState.fade_to_scene("res://scenes/prep_screen.tscn", 0.35, 0.45)
 
 
 # ------------------------------------------------------------------- bucle
@@ -582,8 +644,14 @@ func _process(delta: float) -> void:
 			+ Vector3(0.0, -0.06 + sin(_t * 1.4) * 0.03, 0.0)
 		ship_pivot.rotation_degrees = Vector3(
 			sin(_t * 1.1) * 2.0, SHIP_YAW, sin(_t * 1.7) * 2.5 + ship_roll)
+		# La mancha sigue al barco pero NO cabecea con él: es una sombra en el
+		# agua, no una copia del casco.
+		if ship_blob != null:
+			ship_blob.position = _world(ship_px) + Vector3(0.12, 0.04, 0.08)
 
 	# Overlays 2D anclados a sus nodos 3D.
+	if not map_visible:
+		return
 	for id in node_overlays:
 		var scr := cam.unproject_position(node_world[id] + Vector3(0.0, 0.55, 0.0))
 		node_overlays[id]["root"].position = scr

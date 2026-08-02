@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://4utajos1b87d"
-path="res://.godot/imported/cofre_0.png-4b4c338796ee53d6a38704034f4b7398.ctex"
+uid="uid://d25cay22g3inh"
+path="res://.godot/imported/palmera_0.png-536d924e047c15f069340a13e2e51f6c.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/models/cofre_0.png"
-dest_files=["res://.godot/imported/cofre_0.png-4b4c338796ee53d6a38704034f4b7398.ctex"]
+source_file="res://assets/models/palmera_0.png"
+dest_files=["res://.godot/imported/palmera_0.png-536d924e047c15f069340a13e2e51f6c.ctex"]
 
 [params]
 

@@ -7,7 +7,7 @@
 [ext_resource type="Texture2D" uid="uid://cqhjryy77isvq" path="res://assets/ui/bolsa.png" id="8"]
 [ext_resource type="Texture2D" uid="uid://chapgnvwjeux8" path="res://assets/props/tabla_cortar.png" id="9"]
 [ext_resource type="Texture2D" uid="uid://x5eoc1mnn322" path="res://assets/props/cinta_trad_banda.png" id="10"]
-[ext_resource type="Texture2D" uid="uid://3wgsmpyj0j6y" path="res://assets/characters/grumete.webp" id="12"]
+[ext_resource type="Texture2D" path="res://assets/ui/head_E.png" id="12"]
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_tabla"]
 texture = ExtResource("9")
@@ -116,7 +116,7 @@ layout_mode = 2
 theme_override_constants/separation = 8
 
 [node name="ClientsIcon" type="TextureRect" parent="HUD/TopRow/ClientsBox"]
-custom_minimum_size = Vector2(48, 64)
+custom_minimum_size = Vector2(58, 58)
 layout_mode = 2
 mouse_filter = 2
 texture = ExtResource("12")
@@ -238,23 +238,22 @@ offset_bottom = 362.0
 [node name="Buttons" type="HBoxContainer" parent="HUD/PrepBoard"]
 layout_mode = 0
 offset_left = 6.0
-offset_top = 452.0
+offset_top = 418.0
 offset_right = 714.0
-offset_bottom = 586.0
+offset_bottom = 562.0
 theme_override_constants/separation = 10
 alignment = 1
 
 [node name="Instruction" type="Label" parent="HUD/PrepBoard"]
 visible = false
 layout_mode = 0
-offset_left = 10.0
-offset_top = -72.0
-offset_right = 710.0
-offset_bottom = -14.0
+offset_right = 200.0
+offset_bottom = 90.0
 theme_override_colors/font_color = Color(1, 0.93, 0.6, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 10
-theme_override_font_sizes/font_size = 34
+theme_override_constants/line_spacing = -32
+theme_override_constants/outline_size = 11
+theme_override_font_sizes/font_size = 40
 horizontal_alignment = 1
 vertical_alignment = 1
 

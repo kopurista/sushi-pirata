@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://4utajos1b87d"
-path="res://.godot/imported/cofre_0.png-4b4c338796ee53d6a38704034f4b7398.ctex"
+uid="uid://dhexfccyeu8r4"
+path="res://.godot/imported/madera_muelle.webp-773f3b158a244587aed747a4f1e7dbc9.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/models/cofre_0.png"
-dest_files=["res://.godot/imported/cofre_0.png-4b4c338796ee53d6a38704034f4b7398.ctex"]
+source_file="res://assets/props/madera_muelle.webp"
+dest_files=["res://.godot/imported/madera_muelle.webp-773f3b158a244587aed747a4f1e7dbc9.ctex"]
 
 [params]
 
@@ -36,5 +36,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=256
-detect_3d/compress_to=0
+process/size_limit=512
+detect_3d/compress_to=1

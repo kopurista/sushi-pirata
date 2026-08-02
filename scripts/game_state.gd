@@ -11,6 +11,17 @@ var mode: String = "test"
 var selected_recipes: Array[String] = []
 ## Potenciadores permanentes elegidos para esta partida (se gastan al empezar).
 var selected_perks: Array[String] = []
+## Cómo debe ENTRAR la siguiente pantalla, para encadenar la animación de
+## salida de una con la de entrada de la otra ("arcade", "inventario",
+## "menu"...). Lo consume la pantalla que se abre y se limpia sola.
+var transition: String = ""
+
+
+## Devuelve el tipo de transición pendiente y lo consume.
+func take_transition() -> String:
+	var t := transition
+	transition = ""
+	return t
 ## Nivel de la campaña que se va a jugar (solo en modo adventure).
 var current_port: String = ""
 
@@ -47,7 +58,69 @@ var last_money_earned: int = 0
 
 
 func _ready() -> void:
+	# El velo de las transiciones tiene que seguir corriendo aunque el arbol
+	# este en pausa (se sale de un nivel desde el cartel de confirmacion).
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	load_game()
+
+
+# --- Fundido a negro entre pantallas ---------------------------------------
+## El velo vive en el AUTOLOAD, no en la escena: asi sobrevive al cambio de
+## escena y tapa los fotogramas en los que el motor ya ha soltado la escena
+## vieja y aun no ha montado la nueva (se veian en gris).
+
+## Por encima de cualquier CanvasLayer del juego.
+const FADE_LAYER := 128
+var _fade_rect: ColorRect = null
+
+
+func _ensure_fade() -> ColorRect:
+	if _fade_rect != null and is_instance_valid(_fade_rect):
+		return _fade_rect
+	var layer := CanvasLayer.new()
+	layer.layer = FADE_LAYER
+	add_child(layer)
+	_fade_rect = ColorRect.new()
+	_fade_rect.color = Color(0, 0, 0, 0)
+	_fade_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# Nunca se come un toque, ni siquiera con la pantalla en negro.
+	_fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(_fade_rect)
+	return _fade_rect
+
+
+## Cierra el telon y deja la pantalla en negro.
+func fade_out(time := 0.3) -> void:
+	var rect := _ensure_fade()
+	if time <= 0.0:
+		rect.color.a = 1.0
+		return
+	var tw := create_tween()
+	tw.tween_property(rect, "color:a", 1.0, time)
+	await tw.finished
+
+
+## Abre el telon desde negro.
+func fade_in(time := 0.4) -> void:
+	var rect := _ensure_fade()
+	if time <= 0.0:
+		rect.color.a = 0.0
+		return
+	create_tween().tween_property(rect, "color:a", 0.0, time)
+
+
+## Funde a negro, cambia de escena y vuelve a abrir. `in_time` a 0 deja la
+## pantalla en negro: entonces la escena que entra tiene que llamar a
+## `fade_in()` cuando le venga bien.
+func fade_to_scene(path: String, out_time := 0.3, in_time := 0.45) -> void:
+	await fade_out(out_time)
+	get_tree().change_scene_to_file(path)
+	# La escena nueva se monta al FINAL del frame y alguna coloca su interfaz un
+	# frame despues (main_menu): se esperan tres antes de abrir el telon.
+	for i in 3:
+		await get_tree().process_frame
+	if in_time > 0.0:
+		fade_in(in_time)
 
 
 func reset_run() -> void:

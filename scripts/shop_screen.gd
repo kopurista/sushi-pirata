@@ -19,6 +19,8 @@ var reroll_button: Button = null
 var grid: GridContainer = null
 var ui: CanvasLayer = null
 var shopkeeper: Node3D = null
+## Sprites del género expuesto en el mostrador (se rehacen al recargar).
+var goods_root: Node3D = null
 var _t := 0.0
 
 
@@ -37,20 +39,66 @@ func _ready() -> void:
 	GeometryBatch.bake(self, "ShopBatch")
 	_setup_ui()
 	_refresh()
+	# Se llega desde el negro del menú: el velo es del autoload y lo abre él
+	# solo, aquí solo se consume la marca de transición.
+	GameState.take_transition()
 
 
-## El tendero, tras su mostrador, delante del muelle.
+## El tendero, en su puesto, MONTADO SOBRE UN MUELLE: antes el mostrador
+## flotaba sobre el agua y parecía que vendía a nado.
 func _setup_shopkeeper() -> void:
+	var deck_c := Color(0.55, 0.41, 0.25)
+	var deck_dark := Color(0.47, 0.34, 0.20)
+	# Entarimado de tablones bajo todo el puesto.
+	var plank_n := 11
+	for i in plank_n:
+		var z := -1.7 + i * 0.62
+		_box(Vector3(7.4, 0.16, 0.6), Vector3(1.1, -0.05, z),
+			deck_c if i % 2 == 0 else deck_dark)
+	# Postes que bajan al agua por el borde del muelle.
+	for px in [-2.3, 0.4, 3.1, 4.4]:
+		for pz in [-1.85, 4.55]:
+			_box(Vector3(0.22, 1.5, 0.22), Vector3(px, -0.75, pz),
+				Color(0.38, 0.27, 0.16))
+
 	shopkeeper = SceneBackdrop._spawn_model(self,
 		load("res://assets/models/tendero.glb"), 1.5)
-	shopkeeper.position = Vector3(1.2, 0.0, 1.2)
+	shopkeeper.position = Vector3(1.2, 0.03, 1.2)
 	shopkeeper.rotation_degrees.y = 0.0
 
-	# Mostrador de tablones con un cajón de mercancía al lado.
-	_box(Vector3(3.0, 0.9, 0.9), Vector3(1.2, 0.45, 2.5), Color(0.44, 0.29, 0.15))
-	_box(Vector3(3.25, 0.1, 1.08), Vector3(1.2, 0.95, 2.5), Color(0.63, 0.46, 0.27))
-	_box(Vector3(0.7, 0.7, 0.7), Vector3(3.3, 0.35, 2.0), Color(0.5, 0.36, 0.2))
-	_box(Vector3(0.58, 0.58, 0.58), Vector3(3.24, 0.99, 1.92), Color(0.56, 0.41, 0.23))
+	# Mostrador: tablero MÁS LARGO y hondo, que es donde se expone el género.
+	_box(Vector3(4.6, 0.92, 1.5), Vector3(1.15, 0.46, 2.75), Color(0.44, 0.29, 0.15))
+	_box(Vector3(4.9, 0.12, 1.7), Vector3(1.15, 0.98, 2.75), Color(0.63, 0.46, 0.27))
+	# Cajones de mercancía al costado.
+	_box(Vector3(0.7, 0.7, 0.7), Vector3(4.2, 0.38, 1.7), Color(0.5, 0.36, 0.2))
+	_box(Vector3(0.58, 0.58, 0.58), Vector3(4.14, 1.02, 1.62), Color(0.56, 0.41, 0.23))
+	_place_goods()
+
+
+## El género EN EL PUESTO: los ocho artículos del día, en dos filas sobre el
+## tablero. Así se ve lo que vende antes de tocar nada.
+func _place_goods() -> void:
+	if goods_root != null:
+		goods_root.queue_free()
+	goods_root = Node3D.new()
+	add_child(goods_root)
+	var stock := GameState.shop_stock
+	for i in stock.size():
+		var tex := RecipeData.get_ingredient_texture(str(stock[i]))
+		if tex == null:
+			continue
+		var s := Sprite3D.new()
+		s.texture = tex
+		s.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		s.shaded = false
+		s.transparent = true
+		s.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+		# 0.62 u de alto: caben ocho en el tablero sin amontonarse.
+		s.pixel_size = 0.62 / float(maxi(tex.get_height(), 1))
+		var col := i % 4
+		var row := i / 4
+		s.position = Vector3(-0.55 + col * 1.15, 1.32, 2.35 + row * 0.78)
+		goods_root.add_child(s)
 
 
 func _box(size: Vector3, pos: Vector3, color: Color) -> void:
@@ -100,8 +148,10 @@ func _setup_ui() -> void:
 	back.custom_minimum_size = Vector2(150, 62)
 	PrepBoard.skin_button(back)
 	back.add_theme_font_size_override("font_size", 26)
+	# Se vuelve con un fundido a negro normal y corriente, igual que el
+	# inventario: deshacer el atraque no aportaba nada y se hacía largo.
 	back.pressed.connect(func() -> void:
-		get_tree().change_scene_to_file("res://scenes/main_menu.tscn"))
+		GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45))
 	bar.add_child(back)
 	var title := Label.new()
 	title.text = "Tienda"
@@ -266,6 +316,7 @@ func _build_item(ing: String) -> Button:
 func _on_reroll() -> void:
 	if GameState.reroll_shop():
 		_refresh()
+		_place_goods()
 
 
 # ------------------------------------------------- cartel de "¿cuántos?"
@@ -274,7 +325,10 @@ func _on_reroll() -> void:
 func _open_buy_dialog(ing: String) -> void:
 	var data: Dictionary = RecipeData.INGREDIENTS.get(ing, {})
 	var cost := int(data.get("cost", 1))
-	var qty := 1
+	# La cantidad vive en un diccionario A PROPOSITO: las lambdas de GDScript
+	# capturan las variables locales POR VALOR, asi que con un `var qty` las
+	# flechas incrementaban su propia copia y el cartel no cambiaba nunca.
+	var state := { "qty": 1 }
 
 	var overlay := ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.55)
@@ -302,7 +356,7 @@ func _open_buy_dialog(ing: String) -> void:
 	box.add_child(vb)
 
 	var title := Label.new()
-	title.text = "¿Cuántos usos de %s?" % str(data.get("name", ing))
+	title.text = "¿Cuánto quieres?"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	title.add_theme_font_size_override("font_size", 30)
@@ -357,6 +411,7 @@ func _open_buy_dialog(ing: String) -> void:
 	vb.add_child(btn_row)
 
 	var refresh := func() -> void:
+		var qty: int = state["qty"]
 		var total := cost * qty
 		qty_l.text = "%d" % qty
 		total_l.text = "Total: $%d   (tienes $%d)" % [total, GameState.money]
@@ -364,12 +419,13 @@ func _open_buy_dialog(ing: String) -> void:
 		buy.disabled = total > GameState.money
 		buy.text = "Comprar" if total <= GameState.money else "Sin dinero"
 	minus.pressed.connect(func() -> void:
-		qty = maxi(qty - 1, 1)
+		state["qty"] = maxi(int(state["qty"]) - 1, 1)
 		refresh.call())
 	plus.pressed.connect(func() -> void:
-		qty = mini(qty + 1, 99)
+		state["qty"] = mini(int(state["qty"]) + 1, 99)
 		refresh.call())
 	buy.pressed.connect(func() -> void:
+		var qty: int = state["qty"]
 		var total := cost * qty
 		if total > GameState.money:
 			return
@@ -394,4 +450,5 @@ func _make_arrow(dir: String) -> TextureButton:
 	b.ignore_texture_size = true
 	b.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	b.custom_minimum_size = Vector2(76, 76)
+	PrepBoard.add_press_feedback(b)
 	return b

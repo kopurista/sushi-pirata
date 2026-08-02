@@ -105,10 +105,21 @@ var cooldown_perm_mult: float = 1.0
 
 var stage_tween: Tween = null
 var instruction_tween: Tween = null
-## Segundos sin tocar nada tras los que aparece la guía (mano + texto).
-const GUIDE_DELAY := 2.0
+## Segundos sin tocar nada tras los que aparece la guía (mano + texto): la
+## primera vez de cada receta se espera más, en los pasos siguientes menos.
+const GUIDE_DELAY_FIRST := 2.0
+const GUIDE_DELAY_NEXT := 1.5
+const GUIDE_FADE := 0.35
+## El cartel del gesto va inclinado y pegado al borde derecho de la tabla. Con
+## 80° quedaba casi vertical y costaba leerlo de un vistazo; 30° se lee de
+## corrido y sigue pareciendo un letrero clavado en la tabla.
+const INSTRUCTION_ANGLE := 30.0
+## Margen entre el cartel YA GIRADO y el borde derecho de la tabla. Se mide
+## sobre la huella del texto inclinado, que con poco ángulo es mucho más ancha.
+const INSTRUCTION_MARGIN := 16.0
 var idle_time := 0.0
-var guide_shown := false
+var guide_shown := true
+var guide_delay := GUIDE_DELAY_FIRST
 ## Mano de gestos: muestra semitransparente cómo ejecutar cada interacción
 ## (pulsar, mantener, arrastrar, deslizar, círculo) con dos poses.
 var hand: TextureRect = null
@@ -122,6 +133,10 @@ var arrow_hint: TextureRect = null
 var touch_ring: Panel = null
 var ring_tween: Tween = null
 var indicator_tween: Tween = null
+
+## Nodo que agrupa mano, flecha, fantasma, anillo y texto para fundirlos a la vez.
+var hint_root: Control = null
+var hint_tween: Tween = null
 
 @onready var board_panel: Panel = $BoardPanel
 @onready var ingredients_row: HBoxContainer = $BoardPanel/Ingredients
@@ -177,10 +192,6 @@ static func skin_button(b: Button) -> void:
 	var shadow := make_nine_patch(BUTTON_TEX, BUTTON_MARGIN)
 	shadow.name = "SkinShadow"
 	shadow.modulate = Color(0, 0, 0, 0.35)
-	shadow.offset_left = 4.0
-	shadow.offset_top = 7.0
-	shadow.offset_right = 4.0
-	shadow.offset_bottom = 7.0
 	b.add_child(shadow)
 	var skin := make_nine_patch(BUTTON_TEX, BUTTON_MARGIN)
 	b.add_child(skin)
@@ -194,8 +205,24 @@ static func skin_button(b: Button) -> void:
 			np.patch_margin_left = m
 			np.patch_margin_top = m
 			np.patch_margin_right = m
-			np.patch_margin_bottom = m)
+			np.patch_margin_bottom = m
+		# La sombra se desplaza en PROPORCIÓN al botón: con un valor fijo, en
+		# los botones bajos asomaba tanto por debajo que el rótulo parecía
+		# descolocado hacia arriba.
+		var off := clampf(b.size.y * 0.055, 2.0, 7.0)
+		shadow.offset_left = off * 0.6
+		shadow.offset_top = off
+		shadow.offset_right = off * 0.6
+		shadow.offset_bottom = off)
 	b.button_down.connect(func() -> void: b.scale = Vector2(0.965, 0.94))
+	b.button_up.connect(func() -> void: b.scale = Vector2.ONE)
+
+
+## Hundido al pulsar para botones que NO usan skin_button (los de imagen,
+## como las flechas de cantidad y de página).
+static func add_press_feedback(b: BaseButton, amount := 0.88) -> void:
+	b.resized.connect(func() -> void: b.pivot_offset = b.size / 2.0)
+	b.button_down.connect(func() -> void: b.scale = Vector2(amount, amount))
 	b.button_up.connect(func() -> void: b.scale = Vector2.ONE)
 
 
@@ -280,9 +307,18 @@ func _ready() -> void:
 	message_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	message_label.visible = false
 	add_child(message_label)
-	# La instrucción del paso ("¡Pulsa x4!", "Mantén pulsado"...) se enciende
-	# sola desde _update_instruction() mientras se elabora.
+	# Todos los indicadores de ayuda cuelgan de un mismo nodo para poder
+	# aparecer y desaparecer JUNTOS con un solo fundido.
+	hint_root = Control.new()
+	hint_root.name = "Hints"
+	hint_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hint_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(hint_root)
+	# La instrucción del paso ("¡Pulsa!") se enciende sola tras unos segundos
+	# de inactividad, junto con la mano.
 	instruction_label.visible = false
+	instruction_label.reparent(hint_root)
+	instruction_label.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	# Anillo del punto de toque (debajo de la mano en orden de dibujo).
 	touch_ring = Panel.new()
 	var ring_sb := StyleBoxFlat.new()
@@ -295,7 +331,7 @@ func _ready() -> void:
 	touch_ring.pivot_offset = RING_SIZE / 2.0
 	touch_ring.visible = false
 	touch_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(touch_ring)
+	hint_root.add_child(touch_ring)
 	# Mano de gestos: grande y bien visible, es la guía principal del jugador.
 	hand_up_tex = load("res://assets/ui/mano_arriba.png")
 	hand_down_tex = load("res://assets/ui/mano_abajo.png")
@@ -309,7 +345,7 @@ func _ready() -> void:
 	hand.modulate = Color(1, 1, 1, HAND_ALPHA)
 	hand.visible = false
 	hand.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(hand)
+	hint_root.add_child(hand)
 	# Flecha de dirección para los gestos de deslizamiento.
 	arrow_hint = TextureRect.new()
 	arrow_hint.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -320,7 +356,7 @@ func _ready() -> void:
 	arrow_hint.modulate = Color(1, 1, 1, 0.9)
 	arrow_hint.visible = false
 	arrow_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(arrow_hint)
+	hint_root.add_child(arrow_hint)
 	# Fantasma semitransparente de ejemplo para los gestos de arrastre.
 	ghost_hint = TextureRect.new()
 	ghost_hint.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -328,7 +364,7 @@ func _ready() -> void:
 	ghost_hint.modulate = Color(1, 1, 1, 0.7)
 	ghost_hint.visible = false
 	ghost_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(ghost_hint)
+	hint_root.add_child(ghost_hint)
 	# Barra de progreso vistosa: borde dorado y relleno verde.
 	var bar_bg := StyleBoxFlat.new()
 	bar_bg.bg_color = Color(0.08, 0.06, 0.04, 0.92)
@@ -352,7 +388,7 @@ func _ready() -> void:
 func _build_recipe_button(id: String) -> void:
 	var data := RecipeData.get_recipe(id)
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(165, 132)
+	b.custom_minimum_size = Vector2(172, 144)
 	# Fondo de pergamino desgastado (en lugar de madera) para que el plato y
 	# las estrellas destaquen.
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
@@ -522,6 +558,7 @@ func _start_prep(id: String) -> void:
 		easy_next = false
 		steps = _simplify_steps(steps)
 	step_index = 0
+	_reset_guide(GUIDE_DELAY_FIRST)
 	_reset_step_progress()
 	_set_stage("")
 	_build_ingredients(id)
@@ -671,6 +708,8 @@ func _advance_step() -> void:
 	_reset_step_progress()
 	step_index += 1
 	_prune_ingredients()
+	# Paso nuevo: la guía se retira y vuelve a contar (menos que la 1ª vez).
+	_reset_guide(GUIDE_DELAY_NEXT)
 	if step_index >= steps.size():
 		# El plato recién hecho es el mismo voxel que el emplatado.
 		_finish_prep(true)
@@ -720,32 +759,25 @@ func _skin_cancel_button() -> void:
 
 # --- Guía diferida (mano + texto) ---
 
-## La guía NO sale de inmediato: el jugador que ya sabe lo que hace no quiere
-## una mano gigante encima cada vez que toca la tabla. Solo aparece tras
-## GUIDE_DELAY segundos sin tocar nada, y se esconde al primer gesto.
-func _tick_guide(delta: float) -> void:
-	if state == State.IDLE:
-		return
-	if guide_shown:
-		return
-	idle_time += delta
-	if idle_time >= GUIDE_DELAY:
-		guide_shown = true
-		_update_instruction()
-		if state == State.CRAFTING:
-			_refresh_indicator()
-		else:
-			_refresh_indicator_ready()
+## La guía (mano + texto) está SIEMPRE puesta: se probó a mostrarla solo tras
+## unos segundos de inactividad y se descartó — es la referencia de qué toca
+## hacer en cada paso y esconderla dejaba al jugador a ciegas.
+func _tick_guide(_delta: float) -> void:
+	pass
 
 
-## Cualquier gesto del jugador reinicia la cuenta y retira la guía.
+## Cualquier gesto del jugador. Ya no oculta nada, pero se conserva el punto
+## de entrada por si vuelve a hacer falta.
 func _touch_activity() -> void:
 	idle_time = 0.0
-	if not guide_shown:
-		return
-	guide_shown = false
-	_hide_indicator()
-	instruction_label.visible = false
+
+
+## Al cambiar de paso o de receta se vuelve a dibujar la guía del paso nuevo.
+func _reset_guide(_delay := 0.0) -> void:
+	idle_time = 0.0
+	guide_shown = true
+	if hint_root != null:
+		hint_root.modulate.a = 1.0
 
 
 func _input(event: InputEvent) -> void:
@@ -1300,8 +1332,11 @@ func _ingredient_name(ing_id: String) -> String:
 ## Qué tiene que hacer el jugador AHORA MISMO, con las repeticiones que le
 ## quedan ("¡Pulsa x4!" va bajando a x3, x2...).
 func _instruction_text() -> String:
+	# Solo el VERBO: el cartel va rotado a un lado de la tabla y una frase
+	# larga ahí no se lee de un vistazo. Las repeticiones que quedan van en
+	# una segunda línea corta ("x3").
 	if state == State.READY:
-		return "¡Arrastra el plato a la cinta!"
+		return "¡A la cinta!"
 	if state != State.CRAFTING:
 		return ""
 	var step := _current_step()
@@ -1309,38 +1344,37 @@ func _instruction_text() -> String:
 	var left := 1
 	match step.get("type", ""):
 		"tap_ingredient":
-			return "¡Toca %s!" % _ingredient_name(step.get("ingredient", ""))
-		"drag_ingredient":
-			return "¡Arrastra %s a la tabla!" % _ingredient_name(step.get("ingredient", ""))
+			return "¡Toca!"
+		"drag_ingredient", "drag_stage":
+			return "¡Arrastra!"
 		"tap_board":
 			left = maxi(total - taps_done, 1)
-			var verb := "Corta" if bool(step.get("cutting", false)) else "Pulsa"
-			if total <= 1:
-				return "¡%s la tabla!" % verb
-			return "¡%s x%d!" % [verb, left]
+			var verb := "¡Corta!" if bool(step.get("cutting", false)) else "¡Pulsa!"
+			return verb if total <= 1 else "%s
+x%d" % [verb, left]
 		"hold_board":
-			return "¡Mantén pulsado!"
+			return "¡Mantén!"
 		"swipe_board":
 			left = maxi(total - swipes_done, 1)
-			var dir := "abajo" if step.get("direction", "down") == "down" else "arriba"
-			if total <= 1:
-				return "¡Desliza hacia %s!" % dir
-			return "¡Desliza hacia %s x%d!" % [dir, left]
+			return "¡Desliza!" if total <= 1 else "¡Desliza!
+x%d" % left
 		"stir_board":
 			left = maxi(total - stir_turns, 1)
-			if total <= 1:
-				return "¡Remueve en círculos!"
-			return "¡Remueve en círculos x%d!" % left
+			return "¡Remueve!" if total <= 1 else "¡Remueve!
+x%d" % left
 		"slice_board":
 			left = maxi(total - slices_done, 1)
-			if total <= 1:
-				return "¡Corta despacio!"
-			return "¡Corta despacio x%d!" % left
-		"drag_stage":
-			return "¡Arrástralo hasta el utensilio!"
+			return "¡Corta!" if total <= 1 else "¡Corta!
+x%d" % left
 	return ""
 
 
+## Coloca el cartel del gesto en el LADO DERECHO de la tabla, inclinado: ahí no
+## tapa ni la etapa ni la mano, y se lee como un letrero clavado.
+##
+## La distancia al borde se calcula sobre la HUELLA DEL TEXTO YA GIRADO, no con
+## un margen fijo: al bajar la inclinación el cartel se ensancha mucho y con un
+## número fijo se salía de la tabla.
 func _update_instruction() -> void:
 	var txt := _instruction_text()
 	if txt == "":
@@ -1348,7 +1382,16 @@ func _update_instruction() -> void:
 		return
 	if instruction_label.text != txt:
 		instruction_label.text = txt
+		instruction_label.reset_size()
 		_pop_instruction()
+	instruction_label.rotation_degrees = INSTRUCTION_ANGLE
+	instruction_label.pivot_offset = instruction_label.size / 2.0
+	var rad := deg_to_rad(INSTRUCTION_ANGLE)
+	var half_w := (instruction_label.size.x * absf(cos(rad))
+		+ instruction_label.size.y * absf(sin(rad))) * 0.5
+	var anchor := board_panel.position + Vector2(
+		board_panel.size.x - INSTRUCTION_MARGIN - half_w, board_panel.size.y * 0.5)
+	instruction_label.position = anchor - instruction_label.size / 2.0
 	instruction_label.visible = true
 
 

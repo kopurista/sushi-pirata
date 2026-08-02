@@ -24,14 +24,19 @@ const INGREDIENTS_PER_PAGE := 8
 ## Nombre y sprite de cada tipo de cliente (para los filtros y las fichas).
 const CLIENT_TYPES := ["E", "A", "G"]
 const CLIENT_NAMES := { "E": "Grumete", "A": "Pirata", "G": "Capitán" }
+## Retratos sacados de los MODELOS 3D del juego (tools/head_icons.gd), los
+## mismos que usa el HUD del nivel: nada de sprites antiguos.
 const CLIENT_SPRITES := {
-	"E": "res://assets/characters/grumete.webp",
-	"A": "res://assets/characters/pirata.webp",
-	"G": "res://assets/characters/capitan.webp",
+	"E": "res://assets/ui/head_E.png",
+	"A": "res://assets/ui/head_A.png",
+	"G": "res://assets/ui/head_G.png",
 }
 
 var ui: CanvasLayer = null
 var content: Control = null
+## Bloques que entran por lados distintos en la transición desde el menú.
+var top_bar: Control = null
+var tabs_row: Control = null
 var tab_buttons: Dictionary = {}
 var current_tab := "recetario"
 var money_label: Label = null
@@ -42,6 +47,10 @@ var filter_veg := false
 var filter_client := ""
 var recipe_page := 0
 var pantry_page := 0
+## Huecos del recetario que se repintan sin tocar el buscador.
+var recipe_book_host: Control = null
+var recipe_pager_host: Control = null
+var filter_refreshers: Array[Callable] = []
 
 var backdrop: Node3D = null
 var _t := 0.0
@@ -58,6 +67,30 @@ func _ready() -> void:
 	backdrop = SceneBackdrop.build(self, "", 17.0, 40.0, 6.0)
 	_setup_ui()
 	_show_tab("recetario")
+	if GameState.take_transition() == "inventario":
+		call_deferred("_play_intro")
+
+
+## Entrada desde el menú: la pantalla llega ya oscurecida y cada bloque entra
+## por un lado distinto (barra desde arriba, pestañas desde la izquierda,
+## contenido desde abajo).
+func _play_intro() -> void:
+	var pieces := [
+		[top_bar, Vector2(0, -220)],
+		[tabs_row, Vector2(-820, 0)],
+		[content, Vector2(0, 700)],
+	]
+	var tw := create_tween().set_parallel(true)
+	for p in pieces:
+		var node: Control = p[0]
+		if node == null:
+			continue
+		var home: Vector2 = node.position
+		node.position = home + (p[1] as Vector2)
+		node.modulate.a = 0.0
+		tw.tween_property(node, "position", home, 0.55) \
+				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(node, "modulate:a", 1.0, 0.4)
 
 
 func _process(delta: float) -> void:
@@ -96,7 +129,7 @@ func _setup_ui() -> void:
 	PrepBoard.skin_button(back)
 	back.add_theme_font_size_override("font_size", 26)
 	back.pressed.connect(func() -> void:
-		get_tree().change_scene_to_file("res://scenes/main_menu.tscn"))
+		GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45))
 	bar.add_child(back)
 	var title := Label.new()
 	title.text = "Inventario"
@@ -109,6 +142,7 @@ func _setup_ui() -> void:
 	title.add_theme_constant_override("outline_size", 10)
 	bar.add_child(title)
 	bar.add_child(_make_money_box())
+	top_bar = bar
 
 	# Pestañas.
 	var tabs := HBoxContainer.new()
@@ -130,6 +164,7 @@ func _setup_ui() -> void:
 		b.pressed.connect(_show_tab.bind(def[0]))
 		tabs.add_child(b)
 		tab_buttons[def[0]] = b
+	tabs_row = tabs
 
 	content = Control.new()
 	content.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -198,11 +233,14 @@ func _make_book(host: Control) -> Control:
 
 # --------------------------------------------------------------- recetario
 
+## El buscador y los filtros se construyen UNA VEZ y solo se repinta el libro:
+## reconstruir la pestaña entera a cada pulsación le quitaba el foco al
+## LineEdit y había que volver a tocarlo por cada letra escrita.
 func _build_recipe_book() -> Control:
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	filter_refreshers.clear()
 
-	# Buscador y filtros.
 	var top := VBoxContainer.new()
 	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	top.offset_bottom = 140.0
@@ -229,34 +267,55 @@ func _build_recipe_book() -> Control:
 	search.text_changed.connect(func(t: String) -> void:
 		search_text = t
 		recipe_page = 0
-		_show_tab("recetario"))
+		_refresh_recipe_pages())
 	top.add_child(search)
 
 	var filters := HBoxContainer.new()
 	filters.add_theme_constant_override("separation", 6)
 	filters.alignment = BoxContainer.ALIGNMENT_CENTER
 	top.add_child(filters)
-	filters.add_child(_make_filter_chip("Vegetarianas", filter_veg,
+	filters.add_child(_make_filter_chip("Vegetarianas",
+		func() -> bool: return filter_veg,
 		func() -> void:
 			filter_veg = not filter_veg
 			recipe_page = 0
-			_show_tab("recetario")))
+			_refresh_recipe_pages()))
 	for t in CLIENT_TYPES:
-		var on: bool = filter_client == t
-		filters.add_child(_make_filter_chip(str(CLIENT_NAMES[t]), on,
+		var type_id := str(t)
+		filters.add_child(_make_filter_chip(str(CLIENT_NAMES[type_id]),
+			func() -> bool: return filter_client == type_id,
 			func() -> void:
-				filter_client = "" if filter_client == t else t
+				filter_client = "" if filter_client == type_id else type_id
 				recipe_page = 0
-				_show_tab("recetario")))
+				_refresh_recipe_pages()))
 
-	# Libro con 4 recetas por página.
-	var book_host := Control.new()
-	book_host.set_anchors_preset(Control.PRESET_FULL_RECT)
-	book_host.offset_top = 150.0
-	book_host.offset_bottom = -96.0
-	root.add_child(book_host)
-	var pages := _make_book(book_host)
+	# Huecos que se repintan solos: el libro y el pie de página.
+	recipe_book_host = Control.new()
+	recipe_book_host.set_anchors_preset(Control.PRESET_FULL_RECT)
+	recipe_book_host.offset_top = 150.0
+	recipe_book_host.offset_bottom = -96.0
+	root.add_child(recipe_book_host)
+	recipe_pager_host = Control.new()
+	recipe_pager_host.set_anchors_preset(Control.PRESET_FULL_RECT)
+	recipe_pager_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(recipe_pager_host)
+	_refresh_recipe_pages()
+	return root
 
+
+## Repinta SOLO las páginas del libro y el pie; el buscador se queda como está
+## (con su texto y su foco).
+func _refresh_recipe_pages() -> void:
+	if recipe_book_host == null:
+		return
+	for c in recipe_book_host.get_children():
+		c.queue_free()
+	for c in recipe_pager_host.get_children():
+		c.queue_free()
+	for r in filter_refreshers:
+		r.call()
+
+	var pages := _make_book(recipe_book_host)
 	var ids := _filtered_recipes()
 	var total_pages := maxi(1, ceili(float(ids.size()) / float(RECIPES_PER_PAGE)))
 	recipe_page = clampi(recipe_page, 0, total_pages - 1)
@@ -283,11 +342,10 @@ func _build_recipe_book() -> Control:
 		for i in range(start, mini(start + RECIPES_PER_PAGE, ids.size())):
 			grid.add_child(_build_recipe_entry(ids[i]))
 
-	root.add_child(_make_pager(total_pages, recipe_page,
+	recipe_pager_host.add_child(_make_pager(total_pages, recipe_page,
 		func(delta: int) -> void:
 			recipe_page = clampi(recipe_page + delta, 0, total_pages - 1)
-			_show_tab("recetario")))
-	return root
+			_refresh_recipe_pages()))
 
 
 ## Recetas que pasan el buscador y los filtros, ordenadas por nivel y precio.
@@ -638,10 +696,8 @@ func _open_recipe_sheet(id: String) -> void:
 		body.add_child(_build_stats_block(data))
 		body.add_child(_section_title("Ingredientes"))
 		body.add_child(_build_ingredients_block(id))
-		body.add_child(_section_title("Quién se lo come"))
+		body.add_child(_section_title("Preferencias"))
 		body.add_child(_build_clients_block(data))
-		body.add_child(_section_title("Cómo se prepara"))
-		body.add_child(_build_demo_block(id))
 
 	var close := Button.new()
 	close.text = "Cerrar"
@@ -669,9 +725,7 @@ func _build_stats_block(data: Dictionary) -> Control:
 	grid.add_theme_constant_override("v_separation", 2)
 	var rows := [
 		["Precio", "$%d" % int(data.get("price", 0))],
-		["Llena", "%d de saciedad" % int(data.get("satiety", 1))],
 		["Espera", "%.1f s de cooldown" % float(data.get("cooldown", 0.0))],
-		["Pasos", "%d gestos" % int(data.get("steps", []).size())],
 	]
 	if data.get("vegetarian", false):
 		rows.append(["Dieta", "Apta para vegetarianos"])
@@ -755,116 +809,11 @@ func _take_chance(client_type: String, tier: int) -> float:
 
 ## La probabilidad, en cristiano.
 func _chance_text(chance: float) -> String:
-	if chance >= 0.9:
-		return "seguro que lo coge"
-	if chance >= 0.6:
-		return "muy probable"
-	if chance >= 0.4:
-		return "puede que sí"
-	if chance >= 0.15:
-		return "rara vez"
-	return "no le interesa"
-
-
-## Demostración: recorre los pasos de la receta mostrando la etapa y el gesto.
-func _build_demo_block(id: String) -> Control:
-	var steps: Array = RecipeData.RECIPES[id].get("steps", [])
-	var stages: Array = RecipeData.RECIPES[id].get("stages", [])
-	var host := Control.new()
-	host.custom_minimum_size = Vector2(0, 280)
-
-	var board := TextureRect.new()
-	board.texture = load("res://assets/props/tabla_cortar.png")
-	board.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	board.stretch_mode = TextureRect.STRETCH_SCALE
-	board.set_anchors_preset(Control.PRESET_FULL_RECT)
-	board.offset_bottom = -58.0
-	board.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	host.add_child(board)
-
-	var stage_rect := TextureRect.new()
-	stage_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	stage_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	stage_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
-	stage_rect.offset_left = 60.0
-	stage_rect.offset_top = 18.0
-	stage_rect.offset_right = -60.0
-	stage_rect.offset_bottom = -80.0
-	stage_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	host.add_child(stage_rect)
-
-	var step_l := Label.new()
-	step_l.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	step_l.offset_top = -56.0
-	step_l.offset_bottom = -26.0
-	step_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	step_l.add_theme_font_size_override("font_size", 24)
-	step_l.add_theme_color_override("font_color", DARK)
-	host.add_child(step_l)
-
-	var count_l := Label.new()
-	count_l.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	count_l.offset_top = -26.0
-	count_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	count_l.add_theme_font_size_override("font_size", 17)
-	count_l.add_theme_color_override("font_color", FADED)
-	host.add_child(count_l)
-
-	# El bucle avanza solo: se ve la receta entera sin tocar nada.
-	var idx := {"i": 0}
-	var show_step := func() -> void:
-		if steps.is_empty():
-			return
-		var i: int = int(idx["i"]) % steps.size()
-		var step: Dictionary = steps[i]
-		# La etapa que se ve es el resultado DE ESE paso.
-		var stage_id: String = str(stages[i]) if i < stages.size() else ""
-		stage_rect.texture = RecipeData.get_stage_texture(stage_id)
-		step_l.text = _step_text(step)
-		count_l.text = "Paso %d de %d" % [i + 1, steps.size()]
-		stage_rect.pivot_offset = stage_rect.size / 2.0
-		stage_rect.scale = Vector2(0.82, 0.82)
-		var tw := stage_rect.create_tween()
-		tw.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		tw.tween_property(stage_rect, "scale", Vector2.ONE, 0.25)
-	show_step.call()
-	var timer := Timer.new()
-	timer.wait_time = 1.7
-	timer.autostart = true
-	timer.timeout.connect(func() -> void:
-		idx["i"] = int(idx["i"]) + 1
-		show_step.call())
-	host.add_child(timer)
-	return host
-
-
-## Texto del gesto de un paso, para la demostración del recetario.
-func _step_text(step: Dictionary) -> String:
-	var count := int(step.get("count", 1))
-	match str(step.get("type", "")):
-		"tap_ingredient":
-			return "Toca %s" % _ing_name(step.get("ingredient", ""))
-		"drag_ingredient":
-			return "Arrastra %s a la tabla" % _ing_name(step.get("ingredient", ""))
-		"tap_board":
-			var verb := "Corta" if bool(step.get("cutting", false)) else "Pulsa"
-			return "%s la tabla" % verb if count <= 1 else "%s x%d" % [verb, count]
-		"hold_board":
-			return "Mantén pulsado %.1f s" % float(step.get("duration", 1.0))
-		"swipe_board":
-			var dir := "abajo" if step.get("direction", "down") == "down" else "arriba"
-			return "Desliza hacia %s x%d" % [dir, count]
-		"stir_board":
-			return "Remueve en círculos x%d" % count
-		"slice_board":
-			return "Corta despacio x%d" % count
-		"drag_stage":
-			return "Arrástralo hasta el utensilio"
-	return ""
-
-
-func _ing_name(ing: String) -> String:
-	return str(RecipeData.INGREDIENTS.get(ing, {}).get("name", ing))
+	if chance >= 0.7:
+		return "Es de sus favoritos"
+	if chance >= 0.3:
+		return "Puede apetecerle"
+	return "No le interesa"
 
 
 # ------------------------------------------------------------------ comunes
@@ -910,26 +859,34 @@ func _make_arrow(dir: String) -> TextureButton:
 	b.ignore_texture_size = true
 	b.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	b.custom_minimum_size = Vector2(76, 76)
+	PrepBoard.add_press_feedback(b)
 	return b
 
 
-## Chip de filtro: se enciende en verde cuando está activo.
-func _make_filter_chip(text: String, on: bool, action: Callable) -> Button:
+## Chip de filtro: se enciende en verde cuando está activo. Se repinta solo
+## (via filter_refreshers) para no tener que reconstruir la pestaña entera.
+func _make_filter_chip(text: String, is_on: Callable, action: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.custom_minimum_size = Vector2(0, 50)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.24, 0.55, 0.2, 0.95) if on else Color(0.2, 0.14, 0.08, 0.85)
-		sb.set_corner_radius_all(10)
-		sb.set_border_width_all(3)
-		sb.border_color = Color(0.5, 1.0, 0.5) if on else Color(0.55, 0.4, 0.22)
-		sb.content_margin_left = 10.0
-		sb.content_margin_right = 10.0
-		b.add_theme_stylebox_override(st, sb)
 	b.add_theme_font_size_override("font_size", 19)
 	b.add_theme_color_override("font_color", Color(1, 0.96, 0.86))
 	b.add_theme_color_override("font_hover_color", Color(1, 1, 0.94))
+	var repaint := func() -> void:
+		var on: bool = is_on.call()
+		for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = Color(0.24, 0.55, 0.2, 0.95) if on \
+					else Color(0.2, 0.14, 0.08, 0.85)
+			sb.set_corner_radius_all(10)
+			sb.set_border_width_all(3)
+			sb.border_color = Color(0.5, 1.0, 0.5) if on else Color(0.55, 0.4, 0.22)
+			sb.content_margin_left = 10.0
+			sb.content_margin_right = 10.0
+			b.add_theme_stylebox_override(st, sb)
+	repaint.call()
+	filter_refreshers.append(repaint)
+	PrepBoard.add_press_feedback(b, 0.94)
 	b.pressed.connect(action)
 	return b

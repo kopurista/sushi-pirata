@@ -107,6 +107,8 @@ var _body: Node3D
 var _anim: CharacterAnim = null
 var _model_scale := 1.0
 var _height := 1.75
+## Mancha de sombra que acompaña al cliente.
+var _blob: MeshInstance3D = null
 var _t := 0.0                 ## reloj local para respirar/sentado
 var _walk_t := 0.0            ## reloj del ciclo de marcha (solo avanza andando)
 var _eat_t := 0.0             ## reloj del bocado (solo avanza comiendo)
@@ -128,10 +130,21 @@ func _ready() -> void:
 	patience = patience_max
 	_height = float(TYPE_HEIGHTS.get(client_type, 1.75))
 	_spawn_model()
+	_make_blob()
 	_make_bars()
 	if not route.is_empty():
 		position = route[0] if position == Vector3.ZERO else position
 	_face_leg()
+
+
+## Mancha de sombra bajo los pies: el juego no usa sombras proyectadas (ver
+## SceneBackdrop.blob_shadow), así que sin esto los clientes flotan sobre la
+## cubierta. Cuelga del propio cliente, así que le sigue sola.
+func _make_blob() -> void:
+	var w := _height * 0.5
+	_blob = SceneBackdrop.blob_shadow(w, w * 0.68)
+	_blob.position = Vector3(0.0, 0.03, 0.0)
+	add_child(_blob)
 
 
 func _spawn_model() -> void:

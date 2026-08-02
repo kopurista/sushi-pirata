@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://b3c4ltqj5uklt"
-path="res://.godot/imported/tendero.glb-a1884ed5163b70d23d96381086b55ad3.scn"
+uid="uid://ggxqqcg3mrgv"
+path="res://.godot/imported/cabana.glb-4325d0a1d7a1781491a70a171cb1e510.scn"
 
 [deps]
 
-source_file="res://assets/models/tendero.glb"
-dest_files=["res://.godot/imported/tendero.glb-a1884ed5163b70d23d96381086b55ad3.scn"]
+source_file="res://assets/models/cabana.glb"
+dest_files=["res://.godot/imported/cabana.glb-4325d0a1d7a1781491a70a171cb1e510.scn"]
 
 [params]
 

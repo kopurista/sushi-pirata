@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://b3c4ltqj5uklt"
-path="res://.godot/imported/tendero.glb-a1884ed5163b70d23d96381086b55ad3.scn"
+uid="uid://b25wjwgkmds8b"
+path="res://.godot/imported/rocas.glb-8e296daa8de39784c484ec761ee14d56.scn"
 
 [deps]
 
-source_file="res://assets/models/tendero.glb"
-dest_files=["res://.godot/imported/tendero.glb-a1884ed5163b70d23d96381086b55ad3.scn"]
+source_file="res://assets/models/rocas.glb"
+dest_files=["res://.godot/imported/rocas.glb-8e296daa8de39784c484ec761ee14d56.scn"]
 
 [params]
 

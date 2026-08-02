@@ -24,12 +24,13 @@ var selected: Array[String] = []
 var perks_selected: Array[String] = []
 ## Pivote del modelo 3D del fondo (se mece con el oleaje).
 var backdrop: Node3D = null
+var leaving := false
 var _t := 0.0
 
 @onready var content: Control = $UI/Root/Margin/VBox/Scroll/Content
 @onready var sections: VBoxContainer = $UI/Root/Margin/VBox/Scroll/Content/Sections
 @onready var count_label: Label = $UI/Root/Margin/VBox/CountLabel
-@onready var start_button: Button = $UI/Root/Margin/VBox/StartButton
+@onready var start_button: Button = $UI/Root/StartButton
 
 
 ## Tope de fotogramas: aquí aún no se juega, 30 bastan y ahorran batería.
@@ -39,8 +40,11 @@ const MENU_FPS := 30
 func _ready() -> void:
 	Engine.max_fps = MENU_FPS
 	var board_script := load("res://scripts/prep_board.gd")
+	# En Arcade el fondo es SOLO EL MAR ("mar"): el barco acaba de salir por la
+	# derecha en la transición del menú, así que verlo aquí otra vez rompía el
+	# encadenado. En aventura, el escenario del nivel elegido.
 	var kind := CampaignData.get_kind(GameState.current_port) \
-			if GameState.is_adventure() else ""
+			if GameState.is_adventure() else "mar"
 	backdrop = SceneBackdrop.build(self, kind)
 	_add_shared_parchment()
 	# En aventura solo se listan las recetas desbloqueadas; en prueba, todas.
@@ -77,6 +81,49 @@ func _ready() -> void:
 	sections.resized.connect(_update_content_size)
 	call_deferred("_update_content_size")
 	_update_ui()
+	if GameState.take_transition() == "arcade":
+		call_deferred("_play_intro")
+
+
+# ------------------------------------------------------- entrada y salida
+
+## Viniendo del menú (Arcade), el panel de recetas BAJA desde arriba, el botón
+## de zarpar sube desde abajo y los textos se encienden.
+##
+## Se anima `Margin` (hijo directo de Root) y el botón, que está FUERA del
+## VBox: un contenedor recoloca a sus hijos cada frame, así que animarles la
+## posición no sirve de nada — el panel se quedaba fuera de la pantalla.
+func _play_intro() -> void:
+	# Se llega con la pantalla EN NEGRO: el velo es del autoload (GameState) y
+	# sigue puesto durante la carga, así que aquí no hace falta ninguno propio.
+	# Él solo se abre; esto es lo que entra por debajo.
+	var panel: Control = $UI/Root/Margin
+	var shade: ColorRect = $UI/Root/Shade
+	panel.position.y -= 1500.0
+	start_button.position.y += 340.0
+	shade.color.a = 0.0
+
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(panel, "position:y", 1500.0, 0.8).as_relative() 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(start_button, "position:y", -340.0, 0.6).as_relative() 			.set_delay(0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(shade, "color:a", 0.42, 0.5)
+
+
+## "Atrás" en Arcade: justo lo contrario, y el menú recoge el testigo para
+## traer de vuelta el barco, el logotipo y sus botones.
+func _leave_to_menu() -> void:
+	if leaving:
+		return
+	leaving = true
+	var panel: Control = $UI/Root/Margin
+	var shade: ColorRect = $UI/Root/Shade
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(panel, "position:y", -1500.0, 0.55).as_relative() 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tw.tween_property(start_button, "position:y", 340.0, 0.5).as_relative() 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tw.tween_property(shade, "color:a", 0.0, 0.5)
+	tw.chain().tween_callback(func() -> void:
+		GameState.transition = "menu"
+		GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.3, 0.45))
 
 
 ## Barra superior: botón de volver a la pantalla anterior y, en aventura, el
@@ -89,11 +136,14 @@ func _add_top_bar(board_script: GDScript) -> void:
 	back.custom_minimum_size = Vector2(150, 62)
 	board_script.skin_button(back)
 	back.add_theme_font_size_override("font_size", 26)
-	# La pantalla anterior es el mapa en aventura y el menú en Arcade.
-	var prev := "res://scenes/level_select3d.tscn" if GameState.is_adventure() \
-			else "res://scenes/main_menu.tscn"
+	# La pantalla anterior es el mapa en aventura y el menú en Arcade; al menú
+	# se vuelve con la transición animada, deshaciendo la de entrada.
 	back.pressed.connect(func() -> void:
-		get_tree().change_scene_to_file(prev))
+		if GameState.is_adventure():
+			GameState.transition = "mapa"
+			GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.3, 0.45)
+		else:
+			_leave_to_menu())
 	bar.add_child(back)
 	if GameState.is_adventure():
 		var port := CampaignData.get_port(GameState.current_port)
@@ -114,6 +164,15 @@ func _add_top_bar(board_script: GDScript) -> void:
 	var vbox: VBoxContainer = $UI/Root/Margin/VBox
 	vbox.add_child(bar)
 	vbox.move_child(bar, 0)
+
+
+## El escenario del fondo se mece con el oleaje.
+func _process(delta: float) -> void:
+	_t += delta
+	if backdrop != null:
+		backdrop.rotation_degrees.y = sin(_t * 0.18) * 6.0
+		backdrop.rotation_degrees.z = sin(_t * 0.7) * 1.4
+		backdrop.position.y = -0.1 + sin(_t * 0.9) * 0.07
 
 
 ## Potenciadores permanentes disponibles para esta travesía: se eligen a la vez
@@ -149,7 +208,6 @@ func _add_perk_bar(board_script: GDScript) -> void:
 
 	var vbox: VBoxContainer = $UI/Root/Margin/VBox
 	vbox.add_child(box)
-	vbox.move_child(box, vbox.get_child_count() - 2)
 
 
 func _build_perk_card(id: String, board_script: GDScript) -> Button:
@@ -208,15 +266,6 @@ func _build_perk_card(id: String, board_script: GDScript) -> Button:
 		else:
 			perks_selected.erase(id))
 	return b
-
-
-## El escenario del fondo se mece con el oleaje.
-func _process(delta: float) -> void:
-	_t += delta
-	if backdrop != null:
-		backdrop.rotation_degrees.y = sin(_t * 0.18) * 6.0
-		backdrop.rotation_degrees.z = sin(_t * 0.7) * 1.4
-		backdrop.position.y = -0.1 + sin(_t * 0.9) * 0.07
 
 
 ## Pergamino único y alargado (mismo estilo que el panel de fin de nivel) que
@@ -430,4 +479,4 @@ func _on_start_pressed() -> void:
 	GameState.selected_perks = perks_selected.duplicate()
 	# Nivel 3D low poly (el level.tscn 2D queda como referencia hasta acabar
 	# la conversion completa del juego).
-	get_tree().change_scene_to_file("res://scenes/level3d.tscn")
+	GameState.fade_to_scene("res://scenes/level3d.tscn", 0.35, 0.45)

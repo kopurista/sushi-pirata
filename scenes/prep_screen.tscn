@@ -29,7 +29,7 @@ anchor_bottom = 1.0
 theme_override_constants/margin_left = 8
 theme_override_constants/margin_top = 24
 theme_override_constants/margin_right = 8
-theme_override_constants/margin_bottom = 32
+theme_override_constants/margin_bottom = 140
 
 [node name="VBox" type="VBoxContainer" parent="UI/Root/Margin"]
 layout_mode = 2
@@ -70,10 +70,19 @@ offset_right = -52.0
 grow_horizontal = 2
 theme_override_constants/separation = 14
 
-[node name="StartButton" type="Button" parent="UI/Root/Margin/VBox"]
-custom_minimum_size = Vector2(420, 92)
-layout_mode = 2
-size_flags_horizontal = 4
+[node name="StartButton" type="Button" parent="UI/Root"]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -210.0
+offset_top = -122.0
+offset_right = 210.0
+offset_bottom = -30.0
+grow_horizontal = 2
+grow_vertical = 0
 theme_override_font_sizes/font_size = 34
 disabled = true
 text = "¡Zarpar!"

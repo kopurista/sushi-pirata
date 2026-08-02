@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://b3c4ltqj5uklt"
-path="res://.godot/imported/tendero.glb-a1884ed5163b70d23d96381086b55ad3.scn"
+uid="uid://ddc756v06k7nq"
+path="res://.godot/imported/palmera.glb-bc8b11fd287de9f24799b595b0f129e2.scn"
 
 [deps]
 
-source_file="res://assets/models/tendero.glb"
-dest_files=["res://.godot/imported/tendero.glb-a1884ed5163b70d23d96381086b55ad3.scn"]
+source_file="res://assets/models/palmera.glb"
+dest_files=["res://.godot/imported/palmera.glb-bc8b11fd287de9f24799b595b0f129e2.scn"]
 
 [params]
 

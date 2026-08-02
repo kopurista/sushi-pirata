@@ -13,10 +13,8 @@ config_version=5
 config/name="Sushi Pirata"
 run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
-config/icon="res://icon.svg"
-; Tope de 60 fps: en un movil de 120 Hz el juego renderizaria el doble de
-; fotogramas para nada y gastaria el doble de bateria.
 run/max_fps=60
+config/icon="res://icon.svg"
 
 [autoload]
 
@@ -43,17 +41,8 @@ pointing/emulate_touch_from_mouse=true
 rendering_device/driver.windows="d3d12"
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-; --- Ajustes para movil (bateria y gama baja) ---
-; El mapa de sombras por defecto (4096) es enorme para lo que se ve aqui: una
-; escena de pocos metros vista de lejos. 2048, y 1024 en movil.
 lights_and_shadows/directional_shadow/size=2048
 lights_and_shadows/directional_shadow/size.mobile=1024
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=0
-lights_and_shadows/directional_shadow/soft_shadow_filter_quality.mobile=0
-; Sin anisotropico ni MSAA: aqui no aportan nada y cuestan ancho de banda.
-textures/default_filters/anisotropic_filtering_level=0
-anti_aliasing/quality/msaa_3d=0
-anti_aliasing/quality/screen_space_aa=0
-; Las texturas 3D se transcodifican de Basis en carga; sin mipmaps la GPU
-; lee de mas en cada fragmento lejano.
 textures/default_filters/use_nearest_mipmap_filter=true
+textures/default_filters/anisotropic_filtering_level=0

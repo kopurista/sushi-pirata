@@ -22,6 +22,10 @@ class_name GeometryBatch
 ## las cajas con normalidad.
 
 const NO_BATCH_GROUP := "no_batch"
+## Un pivote marcado con este grupo entrega TODAS sus mallas al fusionado (con
+## su transformada ya compuesta). Sirve para atrezzo montado por partes —una
+## palmera son decenas de piezas— sin dejar de ser un solo objeto en el código.
+const DEEP_GROUP := "batch_children"
 ## Por debajo de esta altura (en su punto MÁS ALTO) una malla se considera
 ## suelo y deja de proyectar sombra.
 const GROUND_LEVEL := 0.06
@@ -33,11 +37,17 @@ static func bake(root: Node3D, prefix := "Batch") -> int:
 	var groups: Dictionary = {}
 	var victims: Array[MeshInstance3D] = []
 
+	# Hijos directos + todo lo que cuelgue de un pivote marcado como profundo.
+	var candidates: Array[MeshInstance3D] = []
 	for child in root.get_children():
-		if not (child is MeshInstance3D):
-			continue
-		var mi: MeshInstance3D = child
-		if mi.is_in_group(NO_BATCH_GROUP) or not mi.visible:
+		if child is MeshInstance3D:
+			candidates.append(child)
+		elif child is Node3D and child.is_in_group(DEEP_GROUP):
+			for m in child.find_children("*", "MeshInstance3D", true, false):
+				candidates.append(m)
+
+	for mi in candidates:
+		if mi.is_in_group(NO_BATCH_GROUP) or not mi.is_visible_in_tree():
 			continue
 		var mat := mi.material_override
 		if not (mat is StandardMaterial3D):
@@ -51,7 +61,8 @@ static func bake(root: Node3D, prefix := "Batch") -> int:
 		# guiones de la ruta) no proyecta ninguna sombra que se vea: el sol
 		# cae desde arriba. Sacarlo del pase de sombras es gratis y ahorra la
 		# mitad de su coste de dibujo.
-		if (mi.transform * mi.get_aabb()).end.y < GROUND_LEVEL:
+		var xform := root.global_transform.affine_inverse() * mi.global_transform
+		if (xform * mi.get_aabb()).end.y < GROUND_LEVEL:
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 		# La clave junta color y acabado: dos materiales del mismo color pero
@@ -65,13 +76,13 @@ static func bake(root: Node3D, prefix := "Batch") -> int:
 			st.begin(Mesh.PRIMITIVE_TRIANGLES)
 			groups[key] = { "st": st, "mat": sm, "shadow": mi.cast_shadow }
 		var tool: SurfaceTool = groups[key]["st"]
-		tool.append_from(mesh, 0, mi.transform)
+		tool.append_from(mesh, 0, xform)
 		victims.append(mi)
 
 	if victims.is_empty():
 		return 0
 	for mi in victims:
-		root.remove_child(mi)
+		mi.get_parent().remove_child(mi)
 		mi.queue_free()
 
 	var i := 0

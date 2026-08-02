@@ -110,6 +110,14 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   nivel (se descuenta 1 por ingrediente distinto al EMPEZAR la partida, no por
   plato). El arroz es infinito. `consume_ingredients_for_level()`,
   `complete_port()` (recompensas solo la 1ª vez que se alcanza `goal_stars`).
+  **Además es el dueño del FUNDIDO entre pantallas**: `fade_out/fade_in/
+  fade_to_scene(ruta, salida, entrada)`. El velo (CanvasLayer 128) cuelga del
+  AUTOLOAD, así que sobrevive al cambio de escena; los velos que se montaban en
+  la escena morían con ella y dejaban ver la **pantalla gris** del motor
+  mientras cargaba la siguiente. **Todo cambio de escena del juego va por
+  `fade_to_scene`**, nunca por `change_scene_to_file` a pelo. La escena que
+  entra no tiene que hacer nada: el telón se abre solo tres frames después
+  (algunas, como main_menu, colocan su interfaz un frame más tarde).
 - `scripts/prep_board.gd` — la tabla inferior: minijuego de elaboración por
   etapas, mano de gestos animada, cajas de guardado por pilas, cooldowns. Ocupa
   **588 px** de alto (llega bastante más arriba que antes) para que la tabla de
@@ -170,9 +178,56 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   `water_map_3d.gdshader` del mapa). El logotipo
   (`assets/ui/logo_sushi_pirata.webp`, generado con Ludo y recortado con
   `tools/logo_prep.gd`) flota y se balancea en el CanvasLayer 2D.
-  **Decisión ya tomada: en el mar SOLO va el barco.** Se probaron islas,
-  puertos y barcos pasando de largo, sombras de nubes cruzando el agua y
-  gaviotas en círculos; todo ello ensuciaba el encuadre y se quitó.
+  En el mar van el barco, unas **gaviotas** y **nubes translúcidas** que cruzan
+  por delante (en 3D, así que el logotipo y los botones siempre quedan encima).
+  **Decisiones ya tomadas:** el casco NO proyecta sombra real —al cabecear, la
+  sombra bailaba por el agua— sino una **mancha fija** bajo él
+  (`_make_blob_shadow`); las gaviotas van TODAS claras, con cuerpo pequeño y
+  alas en V (con cuerpo oscuro parecían martillos); y las islas/puertos que
+  pasaban de largo se quitaron por ensuciar el encuadre.
+- **El menú principal Y el mapa de campaña son LA MISMA ESCENA**
+  (`main_menu.gd` hereda de `level_select3d.gd`). Los nodos de la campaña
+  existen desde el arranque, pero el barco está fondeado en `MENU_ANCHOR`, muy
+  por debajo del nivel 1, así que ninguno asoma. Al pulsar Aventura el barco
+  navega hasta el último nivel abierto y entra la interfaz del mapa; "Atrás"
+  desanda el camino. Nadie debe abrir `level_select3d.tscn` a pelo: se pide
+  `GameState.transition = "mapa"` y se carga `main_menu.tscn`. Con la escena
+  en modo menú, `_unhandled_input` ignora el arrastre: si no, se podía
+  recorrer el mapa y ver los niveles antes de tiempo.
+- **Animar la interfaz del menú (3 trampas ya pisadas)**: 1) el logotipo vive
+  dentro de `logo_holder` — el balanceo mueve el LOGO y las transiciones mueven
+  el CONTENEDOR; compartiendo `position:y` los dos tweens se pisaban y el
+  logotipo se quedaba a medio camino. 2) Nada de `as_relative()` en las
+  salidas: cada una acumulaba desplazamiento. 3) La salida usa `TRANS_QUAD`,
+  no `TRANS_BACK`: la anticipación del rebote hace que el logotipo baje un
+  poco antes de subir y parece que no llega a irse.
+- **Encuadre menú ↔ mapa**: `menu_blend` (1 = menú, 0 = mapa) interpola el
+  offset de banda de la cámara durante el viaje. Cambiarlo de golpe con un
+  `if in_menu` daba un salto de ~200 px justo al arrancar, que es el "tirón"
+  que se veía al entrar y al salir de Aventura.
+- **Animar la interfaz del menú**: las posiciones de reposo se guardan en
+  `home_logo_y/home_box_y/home_coin_y` al construirla. `_ui_in` NO puede leer
+  la posición actual (después de una salida ya está desplazada: los botones se
+  quedaban fuera de la pantalla). El balanceo del logotipo se arranca al FINAL
+  de la entrada y con un temporizador aparte: lanzado a la vez, los dos tweens
+  pelean por `position:y` y el logotipo se queda a medio camino.
+- **Transiciones del menú** (`GameState.transition` encadena salida y entrada):
+  *Aventura* aleja la cámara y manda el barco al fondo; *Arcade* lo saca por la
+  derecha y el selector de recetas baja desde arriba (y al volver "Atrás" se
+  deshace el camino: panel arriba, Zarpar abajo, barco entrando por la
+  izquierda); *Tienda* trae un puerto por la derecha, el barco navega hacia él
+  **con la cámara detrás** (`cam_side`) y el zoom cierra sobre el atraque
+  (`SHOP_DOCK_AT/SHOP_SAIL/SHOP_ZOOM_SIDE/SHOP_ZOOM_SIZE`, calibrados para que
+  quepan barco Y muelle: el barco del menú es enorme y con `size` 7.5 el puerto
+  se salía de cuadro); *Inventario* apaga la pantalla y sus bloques entran por
+  lados distintos. La VUELTA de tienda e inventario es un fundido a negro
+  normal: deshacer el atraque no aportaba nada. Mientras dura una transición,
+  `leaving` corta el `_process` del fondo para que no pelee con el tween, y
+  `sky_leaving` para la colocación por frame de gaviotas y nubes (viven
+  alrededor del barco, así que `_process` les fijaba la posición entera cada
+  fotograma y se las veía desaparecer y reaparecer de golpe).
+  **El fondo del selector de recetas en Arcade es SOLO MAR** (`kind = "mar"`):
+  el barco acaba de salir por la derecha y volver a verlo rompía el encadenado.
 - `scripts/level_select.gd` — **mapa marítimo**: el barco del jugador navega por
   el mar entre los nodos de la campaña. Cada nivel es de un TIPO (`CampaignData.
   KINDS`): "isla", "puerto" o "abordaje" (asaltar otro barco); de momento el tipo
@@ -231,6 +286,12 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 - `scenes/*.tscn` — main_menu, level_select3d, shop_screen, inventory_screen,
   level3d, prep_screen, client, plate. (main_menu/level_select3d/shop_screen/
   inventory_screen son raíces vacías: toda su UI se construye por código.)
+- **Escenario de isla**: palmera, rocas y cabaña son MODELOS con textura
+  (`palmera.glb`, `rocas.glb`, `cabana.glb`), no geometría por código. La
+  palmera se intentó montar con cilindros y tablillas y desde la cámara
+  isométrica siempre se leía como una estrella plana. El muelle del puerto usa
+  `madera_muelle.webp`, distinta y más clara que la cubierta del barco
+  (`madera_desgastada.webp`): compartiéndola, los dos escenarios se parecían.
 - `assets/` — dishes, characters, ingredients, stages, ui, props, scenery, map
   (`map/`: `mar.png` textura de agua tileable, `barco.png` del jugador estático
   y `barco_anim.webp` su spritesheet 4x4 con las velas al viento, más los nodos
@@ -273,14 +334,60 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   s3tc y en navegadores móviles las texturas 3D no cargan. Los sprites 2D del
   juego de referencia van en `exclude_filter` del preset de export.
   **Al añadir un modelo nuevo hay que aplicárselo a mano**: Godot lo importa
-  con `compress/mode=2` (s3tc) y `size_limit=0`.
+  con `compress/mode=2` (s3tc) y `size_limit=0`. Ya pasó: `cabana`, `palmera`,
+  `rocas`, `caja` y `cofre` se quedaron en s3tc y hubo que corregirlas después.
+  Para comprobarlo de un vistazo:
+  `Select-String -Path assets/models/*.png.import -Pattern "compress/mode=2"`
+  no debe devolver nada.
+  `import_hooks/` (el post-import de decimado) va en `exclude_filter` del preset
+  de export: extiende `EditorScenePostImport`, que no existe fuera del editor.
 
 ## Rendimiento en móvil (medido, no a ojo)
 
-Lo que ahoga a un móvil aquí NO son los triángulos (el nivel tiene ~28k), sino
-los **draw calls** y los fotogramas de más. Para medirlo se inyecta un helper
-que imprime `RenderingServer.get_rendering_info(...)` por escena.
+Para medirlo se inyecta un helper que imprime
+`RenderingServer.get_rendering_info(...)` por escena. Dos trampas al medir:
+el frame sale clavado a 16,67 ms si no se quitan **`Engine.max_fps = 0` Y
+`DisplayServer.window_set_vsync_mode(VSYNC_DISABLED)`**, y el nivel recién
+arrancado está en fase de preparación **sin un solo cliente**, así que hay que
+forzar el peor caso (`prep_phase = false`, llenar asientos, servir platos) o se
+mide una escena vacía. Y conviene contar los triángulos INSTANCIADOS recorriendo
+el árbol, no solo los dibujados: el culling esconde media cubierta y hace creer
+que no hay problema.
 
+- **Presupuesto de triángulos por modelo** (`import_hooks/decimate_import.gd`):
+  los `.glb` vienen de imagen→3D con una densidad que no tiene nada que ver con
+  su tamaño en pantalla. Medido: `caja.glb` traía **19.592 triángulos por caja**
+  (tres cajas = 34% del nivel entero), `cofre.glb` 19.073, y
+  `futomaki_salmon`/`gunkan_tartar` 29.500 cuando los otros diez platos rondan
+  los 2.400. El script es un **post-import** (`import_script/path` en el
+  `.import`): decima en la importación, así las rutas `.glb` del juego no
+  cambian en ningún sitio y el original se conserva en el repositorio. Para
+  añadir un modelo: una línea en `BUDGETS` y `import_script/path` en su
+  `.import`. Resultado: 335.538 → 128.582 triángulos en disco; el mapa pasó de
+  315.747 a 85.977 instanciados y la tienda de 51.386 a 9.610 dibujados.
+  **El LOD automático NO sirve**: aunque `generate_lods` estuviera activo, bajo
+  GL Compatibility no se aplica (medido: 50.812 instanciados / 51.386 dibujados
+  en la tienda, o sea el modelo entero a plena densidad aunque se vea pequeño).
+  Por eso `generate_lods=false` en los 29 `.import`: guardarlos solo engordaba
+  el `.pck` y la VRAM. Lo que sí funciona es el simplificador de meshoptimizer
+  que Godot lleva dentro, expuesto en `ImporterMesh.generate_lods()`, generando
+  la cadena y **sustituyendo la malla** por el escalón que entra en presupuesto.
+  Dos detalles que costaron tiempo: en 4.7 el `_post_import` recibe la escena
+  **ya convertida** (`MeshInstance3D` con `ArrayMesh`, NO
+  `ImporterMeshInstance3D`, aunque la documentación sugiera lo contrario), y
+  `ImporterMesh.from_mesh()` no rellena nada — hay que poblarla superficie a
+  superficie con `add_surface()`. El simplificador tiene **suelo propio**: para
+  cuando una pasada no logra recortar ~25%, así que algunos modelos no llegan a
+  su tope (`map_enemigo` se queda en 16.410 con tope 4.000) y los ángulos de
+  fusión de normales NO cambian nada (probados 25/60 hasta 180/180).
+- **`create_shadow_meshes=false` en los 29 modelos**: generaba una copia extra
+  de cada malla para un pase de sombras que no existe (no hay sombras
+  proyectadas en el juego). Verificado: 0 de 29 mallas llevan ya malla de sombra.
+  **`ensure_tangents=false` en cambio NO sirve de nada aquí**: solo evita
+  GENERARLAS cuando faltan, y estos `.glb` ya las traen de origen. Se intentó
+  quitarlas poniendo `arrays[Mesh.ARRAY_TANGENT] = null` antes de
+  `add_surface_from_arrays` y **Godot las vuelve a poner** (el formato sale
+  idéntico). No insistir: la única vía sería regenerar los `.glb` de origen.
 - **Geometría estática fusionada** (`scripts/geometry_batch.gd`): el escenario
   se construye con ~130 cajas sueltas y cada una era un draw call (dos con el
   pase de sombra). `GeometryBatch.bake(self)` las funde **agrupando por color**
@@ -291,10 +398,16 @@ que imprime `RenderingServer.get_rendering_info(...)` por escena.
   color y se reutiliza el material original, que además garantiza que el
   resultado es idéntico. Quedan fuera del fusionado los materiales con shader
   (la banda de la cinta) y lo que esté en el grupo `no_batch`.
-- **Sombras que no se ven**: el mar (plano de 90x90), el suelo del escenario
-  (lo que no llega a `GROUND_LEVEL`) y los 9 modelos del mapa van en
-  `SHADOW_CASTING_SETTING_OFF`. El mapa bajó de 389k a 301k primitivas y la
-  imagen cambia un 2% de píxeles (comprobado con diff).
+  **Ojo con la escala**: todo lo que fusiona `GeometryBatch` suma ~8.000
+  triángulos en el nivel; el 95% de la geometría son los `.glb`. El fusionado
+  arregla los DRAW CALLS, no el triangulaje — para eso está el presupuesto por
+  modelo de arriba. No confundir los dos problemas.
+- **NO hay sombras proyectadas en todo el juego**: `sun.shadow_enabled = false`
+  en las cuatro escenas 3D. En su lugar, cada cosa lleva su MANCHA fija
+  (`SceneBackdrop.blob_shadow`): chef, ayudante, clientes (cuelga del propio
+  cliente y le sigue), palmeras, mostrador, barco del mapa y del menú. Con
+  personajes que se mecen la sombra dinámica bailaba y mostraba acné, y el
+  pase de sombras costaba tanto como dibujar la escena otra vez.
 - **30 fps en los menús** (`MENU_FPS`), 60 solo jugando (`GAME_FPS` en
   `level3d`). `Engine.max_fps` es global: cada pantalla fija el suyo al entrar.
   En un móvil de 120 Hz esto es la diferencia más grande en batería.
@@ -315,7 +428,19 @@ que imprime `RenderingServer.get_rendering_info(...)` por escena.
   se solapa con el marco, la solución es ensanchar el botón, no bajar el margen.
 - **Estrellas**: imágenes propias (`estrella_llena/vacia.png`) vía
   `make_star_row()`, nunca el carácter ★.
-- **Cinta**: cuatro **tramos rectos** independientes (`Line2D` con shader
+- **Cinta 3D (level3d)**: cuatro tramos rectos + un **codo cuadrado en cada
+  esquina con la MISMA banda** (`corner_mat`, mismo shader con sus propias
+  repeticiones, avanzado desde `_process` igual que `band_mat`). Antes las
+  esquinas eran placas de acero quietas y cortaban el movimiento cuatro veces
+  por vuelta. Los tramos miden `BELT_SIDE - BELT_W` para dejarles el hueco.
+- **Sprites con transparencias raras**: `tools/alpha_fix.gd`. El recorte por
+  inundación se comía trozos del sujeto cuando era claro (el arroz blanco sobre
+  fondo blanco: se veía la tabla a través). La herramienta sella los píxeles
+  semitransparentes interiores y, para los sprites de `PATCH`, cierra los
+  mordiscos con dilatación+erosión. **Al subir el alfa hay que arreglar TAMBIÉN
+  el RGB** (un píxel casi transparente suele traer el color a cero y sale
+  negro): se toma el color del vecino opaco más cercano.
+- **Cinta 2D (level.tscn, referencia)**: cuatro **tramos rectos** independientes (`Line2D` con shader
   `belt_scroll.gdshader` que desplaza la UV) + **placas romboidales metálicas**
   estáticas en las esquinas. Una `Line2D` cerrada con juntas parpadea porque la
   geometría de la junta recibe UV que se desplazan — por eso van en tramos.
@@ -327,6 +452,9 @@ que imprime `RenderingServer.get_rendering_info(...)` por escena.
   directamente sobre el 3D, legibles por contorno negro grueso (`outline_size`
   11-12) y sombra. Al quitarla, la banda visible del mundo empieza en y=0, así
   que `CAM_TARGET` de `level3d.gd` se recolocó (3.25) para recentrar la acción.
+  La **fila de cabezas de cliente** se añade por código y era el último hijo del
+  HUD, así que se dibujaba ENCIMA del selector de potenciadores; los carteles
+  modales (`powerup_panel`, `results_panel`) llevan `z_index = 120`.
 - **Guardado**: al soltar cerca de las cajas (con margen amplio) se guarda solo
   en la primera caja válida (misma receta con hueco → primera vacía). Servir a
   la cinta exige soltar sobre su franja. Desde una caja se sirve solo con
@@ -340,13 +468,23 @@ que imprime `RenderingServer.get_rendering_info(...)` por escena.
   perdía sobre el arroz blanco. El deslizamiento arranca 46 px por DEBAJO del
   centro de la etapa: desde el centro exacto, la mano grande se salía de la
   tabla por arriba.
-- **Instrucción escrita de cada paso** (`_instruction_text`): "¡Toca Arroz!",
-  "¡Pulsa x4!" (baja a x3, x2… en vivo), "¡Mantén pulsado!", "¡Desliza hacia
-  abajo x2!", "¡Remueve en círculos x3!", "¡Corta despacio x3!", "¡Arrástralo
-  hasta el utensilio!" y "¡Arrastra el plato a la cinta!" al terminar. Va
-  **DEBAJO de la tabla** (no encima): arriba chocaba con la mano, que sobresale
-  del panel cuando el objetivo es un ingrediente de la fila superior. Se
-  refresca desde `_update_ui()` y `_update_tap_bar()`, con un rebote al cambiar.
+- **La guía (mano + texto) está SIEMPRE puesta.** Se probó a mostrarla solo
+  tras unos segundos de inactividad y se descartó: es la referencia de qué
+  toca hacer y esconderla dejaba al jugador a ciegas. `_tick_guide` queda
+  vacío a propósito.
+- **Cartel del gesto** (`_instruction_text`): solo el VERBO — "¡Toca!",
+  "¡Pulsa!", "¡Corta!", "¡Mantén!", "¡Desliza!", "¡Remueve!", "¡Arrastra!" y
+  "¡A la cinta!" al terminar—, con las repeticiones que faltan en una segunda
+  línea ("x3"). Va pegado al **borde derecho de la tabla e inclinado 30°**
+  (`INSTRUCTION_ANGLE`): ahí no tapa la etapa ni la mano. Las frases largas no
+  se leían de un vistazo mientras se juega. Se probó a 80° (casi vertical) y
+  costaba leerlo; 30° se lee de corrido y sigue pareciendo un letrero clavado.
+  Las dos líneas van MUY juntas (`line_spacing` -32 en `level3d.tscn`): la
+  fuente del juego trae 75 px de caja por línea a tamaño 40, así que hasta -15
+  seguían pareciendo dos carteles sueltos.
+  La distancia al borde se calcula sobre la **huella del texto YA GIRADO**
+  (`INSTRUCTION_MARGIN`), no con un número fijo: cuanto menos inclinación, más
+  ancho ocupa, y con margen fijo se salía de la tabla.
 - **Layout móvil (importante)**: en la tabla inferior las **recetas van abajo**
   y la **tabla de manipulación arriba**, a propósito: un gesto de deslizar de
   abajo hacia arriba pegado al borde inferior del móvil cierra la app.
