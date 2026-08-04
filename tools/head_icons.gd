@@ -9,7 +9,12 @@ extends Node3D
 ## escena (NO con --script: hace falta render de verdad):
 ##   Godot_v4.7.1-stable_win64_console.exe "res://scenes/tmp_heads.tscn"
 
-const OUT := { "E": "grumete_rig", "A": "pirata_rig", "G": "capitan_rig" }
+## sufijo del icono -> modelo del que se renderiza. Los femeninos salen de los
+## modelos SIN riguear: el encuadre va por la caja del cuerpo, no por huesos.
+const OUT := {
+	"E": "grumete_rig", "A": "pirata_rig", "G": "capitan_rig",
+	"E_f": "grumete_fem", "A_f": "pirata_fem", "G_f": "capitan_fem",
+}
 const SIZE := 192
 ## Encuadre en fracciones de la ALTURA TOTAL del personaje, no del hueso de la
 ## cabeza: la distancia Neck->Head cambia muchisimo de un rig a otro (0.05 en

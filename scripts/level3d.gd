@@ -160,6 +160,8 @@ var helper_anim: CharacterAnim = null
 var helper_tween: Tween = null
 ## Platos servidos por el jugador (para el ayudante y para desbloquear perks).
 var dishes_served := 0
+## Platos que se han ido por la cinta sin que nadie los cogiera (logros).
+var plates_wasted := 0
 var chef_anim: CharacterAnim = null
 var chef_tween: Tween = null
 var chef_prop: Sprite3D
@@ -199,9 +201,12 @@ var scenery_kind := "abordaje"
 
 
 func _ready() -> void:
-	# Los menus bajan el tope a 30 fps para no gastar bateria; jugando hacen
-	# falta los 60 (aqui si importa la respuesta al dedo).
-	Engine.max_fps = GAME_FPS
+	# Los menus bajan el tope a la mitad para no gastar bateria; jugando manda
+	# el ajuste del usuario (aqui si importa la respuesta al dedo).
+	Engine.max_fps = GameState.fps_for(true)
+	# Logros de constancia.
+	GameState.bump_stat("runs")
+	GameState.mark_day_played()
 	world_ui = CanvasLayer.new()
 	world_ui.layer = 0
 	add_child(world_ui)
@@ -224,6 +229,7 @@ func _ready() -> void:
 	seat_clients.resize(seats.size())
 	prep_board.dish_served.connect(_on_player_dish_served)
 	prep_board.craft_event.connect(_on_craft_event)
+	prep_board.money_penalty.connect(_on_money_penalty)
 	retry_button.pressed.connect(_on_retry_pressed)
 	menu_button.pressed.connect(_on_menu_pressed)
 	results_panel.visible = false
@@ -289,7 +295,8 @@ func _apply_perks() -> void:
 ## Avatar del ayudante: solo aparece si se ha activado su potenciador. Se
 ## coloca al lado del chef, dentro del circuito, mirando al mismo sitio.
 func _setup_helper() -> void:
-	helper_pivot = _spawn_model(load("res://assets/models/ayudante_rig.glb"),
+	helper_pivot = _spawn_model(
+		load(CharacterData.model("ayudante", GameState.helper_gender())),
 		Vector3(-1.15, 0.0, -0.15), 1.62, self)
 	helper_pivot.rotation_degrees.y = 0.0
 	_add_blob_shadow(Vector3(-1.05, 0.02, -0.05), 1.05, 0.72)
@@ -1030,7 +1037,8 @@ func _setup_chef() -> void:
 		Color(0.40, 0.27, 0.14))
 	_box(Vector3(1.02, 0.07, 0.72), t_pos + Vector3(0.0, 0.815, 0.0),
 		Color(0.62, 0.45, 0.26))
-	chef_pivot = _spawn_model(load("res://assets/models/chef_rig.glb"),
+	chef_pivot = _spawn_model(
+		load(CharacterData.model("chef", GameState.player_gender)),
 		c_pos, CHEF_H, self)
 	chef_pivot.rotation_degrees.y = 0.0
 	_add_blob_shadow(c_pos + Vector3(0.12, 0.02, 0.1), 1.25, 0.85)
@@ -1358,6 +1366,10 @@ func _try_spawn_client() -> bool:
 		c.client_type = forced_types.pop_front()
 	else:
 		c.client_type = _pick_client_type()
+	# Cada cliente sale hombre o mujer al azar: la clientela cambia de una
+	# partida a otra sin tocar la mezcla de TIPOS, que es lo que equilibra el
+	# nivel (client_mix cuenta grumetes/piratas/capitanes, no generos).
+	c.gender = CharacterData.random_gender()
 	c.patience_scale = patience_mult
 	c.pay_mult = next_client_pay_mult
 	next_client_pay_mult = 1.0
@@ -1453,10 +1465,20 @@ func _pick_client_type() -> String:
 
 
 ## El dinero y las propinas ya se abonaron plato a plato (_on_client_served);
-## al marcharse solo se registra el resumen para el desglose final.
+## al marcharse solo queda registrar el resumen y, si se fue sin probar nada,
+## cobrar el castigo (client3d.LEAVE_PENALTY).
 func _on_client_finished(report: Dictionary, seat_idx: int) -> void:
 	seat_clients[seat_idx] = null
 	client_reports.append(report)
+	# Logros: solo cuenta como "dar de comer" el cliente que se lleva algo.
+	var eaten: Array = report.get("eaten", [])
+	if not eaten.is_empty():
+		GameState.bump_stat("clients_%s" % str(report.get("type", "E")))
+		GameState.bump_stat("clients_total")
+		GameState.max_stat("best_client_plates", eaten.size())
+	var penalty := int(report.get("penalty", 0))
+	if penalty > 0:
+		money_earned = maxi(money_earned - penalty, 0)
 	clients_finished += 1
 	_update_client_heads()
 	_update_hud()
@@ -1485,6 +1507,7 @@ func _tip_threshold(claimed: int) -> int:
 
 func _add_tip(amount: int) -> void:
 	tips_total += amount
+	GameState.bump_stat("tips_total", amount)
 	while tips_total >= _tip_threshold(powerups_claimed):
 		powerups_claimed += 1
 		pending_powerups += 1
@@ -1607,9 +1630,14 @@ func _use_manual_powerup(id: String, button: Button) -> void:
 
 # ------------------------------------------------------------------ platos
 
-func _on_dish_served(recipe_id: String) -> void:
+func _on_dish_served(recipe_id: String, price_override: int = 0, extras: Array = [],
+		level_override: int = 0) -> void:
 	var p: PathFollow3D = PLATE3D.new()
 	p.recipe_id = recipe_id
+	# El barco combinado vale lo que valen los platos que lleva dentro.
+	p.price_override = price_override
+	p.extras = extras
+	p.level_override = level_override
 	p.speed = PLATE_SPEED
 	belt_path.add_child(p)
 	p.progress = SPAWN_PROGRESS
@@ -1618,9 +1646,13 @@ func _on_dish_served(recipe_id: String) -> void:
 
 ## Plato que sale de la TABLA del jugador: cuenta para el ayudante (que cocina
 ## uno por su cuenta cada PerkData.HELPER_EVERY) y para desbloquear perks.
-func _on_player_dish_served(recipe_id: String) -> void:
+func _on_player_dish_served(recipe_id: String, price_override: int = 0,
+		extras: Array = [], level_override: int = 0) -> void:
 	dishes_served += 1
-	_on_dish_served(recipe_id)
+	# Logros: platos elaborados por el jugador (los del ayudante no cuentan).
+	GameState.bump_stat("dishes_made")
+	GameState.bump_stat("dish_%s" % recipe_id)
+	_on_dish_served(recipe_id, price_override, extras, level_override)
 	if helper_pivot != null and dishes_served % PerkData.HELPER_EVERY == 0:
 		_helper_cook()
 
@@ -1628,11 +1660,20 @@ func _on_player_dish_served(recipe_id: String) -> void:
 ## Un plato desechado (2 vueltas sin cogerse) cuesta el 30% de su precio.
 ## Con "Reciclaje de platos" vuelve a la receta como uso instantaneo.
 func _on_plate_discarded(recipe_id: String) -> void:
+	# Logro "aquí no se tira nada": la partida deja de ser limpia.
+	plates_wasted += 1
 	if recycle_active:
 		prep_board.recycle_recipe(recipe_id)
 		return
 	var price: int = RecipeData.get_recipe(recipe_id).get("price", 0)
 	money_earned -= int(round(price * 0.3))
+
+
+## Castigo por un gesto mal hecho (cortar deprisa el pescado caro). Nunca deja
+## el marcador en negativo: si no hay dinero, no se pierde más.
+func _on_money_penalty(amount: int) -> void:
+	money_earned = maxi(money_earned - amount, 0)
+	_update_hud()
 
 
 # -------------------------------------------------------------- resultados
@@ -1672,7 +1713,14 @@ func _finalize_results() -> void:
 		# Los potenciadores permanentes se ganan por combos, no por estrellas.
 		for p in _check_perk_unlocks():
 			new_recipes.append({ "perk": p })
-		GameState.save_game()
+	# Logros: los récords de dinero van por modo, el acumulado suma los dos.
+	GameState.max_stat("best_money_%s" % ("level" if GameState.is_adventure()
+		else "arcade"), total_money)
+	GameState.bump_stat("money_total", total_money)
+	GameState.max_stat("best_dishes_run", dishes_served)
+	if plates_wasted == 0 and dishes_served > 0:
+		GameState.bump_stat("clean_runs")
+	GameState.save_game()
 	GameState.last_score = float(total_money)
 	GameState.last_stars = stars
 	GameState.last_money_earned = total_money
@@ -1683,6 +1731,10 @@ const TYPE_NAMES := { "E": "Grumete", "A": "Pirata", "G": "Capitán" }
 
 
 func _show_results(stars: int, total_money: int, new_recipes: Array) -> void:
+	# El juego se dirige al jugador por su nombre (Opciones); sin nombre usa el
+	# tratamiento que toque por el género elegido.
+	$HUD/ResultsPanel/VBox/TitleLabel.text = "Fin del turno, %s" \
+			% GameState.player_title()
 	for c in stars_row.get_children():
 		c.queue_free()
 	stars_row.add_child(prep_board.make_star_row(stars, 3, 58))
@@ -1924,7 +1976,10 @@ func _breakdown_header(type: String, label_text: String) -> Button:
 	head.add_child(row)
 
 	var face := TextureRect.new()
-	face.texture = load("res://assets/ui/head_%s.png" % type)
+	# El desglose agrupa por TIPO (no por cliente concreto), asi que aqui la
+	# cara hace de emblema del tipo y va siempre la misma.
+	face.texture = load(CharacterData.head(
+		CharacterData.who_for_type(type), CharacterData.MALE))
 	face.custom_minimum_size = Vector2(46, 46)
 	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -1981,6 +2036,15 @@ func _breakdown_row(r: Dictionary) -> Control:
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(spacer)
+
+	var penalty := int(r.get("penalty", 0))
+	if penalty > 0:
+		# Se fue sin probar nada: en vez del dinero se enseña lo que costo.
+		var lost := _icon_amount("res://assets/ui/moneda.png", "-$%d" % penalty)
+		for l in lost.find_children("*", "Label", true, false):
+			l.add_theme_color_override("font_color", Color(0.72, 0.16, 0.12))
+		row.add_child(lost)
+		return row
 
 	row.add_child(_icon_amount("res://assets/ui/moneda.png", "$%d" % r.money))
 	if r.tip > 0:
@@ -2089,28 +2153,35 @@ func _update_client_heads() -> void:
 		return
 	for c in heads_row.get_children():
 		c.queue_free()
-	# Cuenta por tipo respetando el orden E -> A -> G (de menor a mayor rango).
-	var counts := { "E": 0, "A": 0, "G": 0 }
+	# Cuenta por tipo Y genero, en orden E -> A -> G (de menor a mayor rango) y
+	# dentro de cada uno los dos generos. Se separan a proposito: la fila esta
+	# para reconocer de un vistazo a QUIEN tienes en la barra, y una cara que
+	# no se corresponde con la que hay sentada confunde mas de lo que ahorra.
+	var counts := {}
 	for c in seat_clients:
-		if c != null and is_instance_valid(c):
-			counts[c.client_type] = int(counts.get(c.client_type, 0)) + 1
-	for type in ["E", "A", "G"]:
-		if counts[type] == 0:
+		if c == null or not is_instance_valid(c):
 			continue
-		heads_row.add_child(_head_badge(type, counts[type]))
+		var key: String = "%s_%s" % [c.client_type, c.gender]
+		counts[key] = int(counts.get(key, 0)) + 1
+	for type in ["E", "A", "G"]:
+		for g in [CharacterData.MALE, CharacterData.FEMALE]:
+			var n: int = int(counts.get("%s_%s" % [type, g], 0))
+			if n > 0:
+				heads_row.add_child(_head_badge(type, g, n))
 
 
 ## Icono de cabeza con su contador. El "xN" va DEBAJO y superpuesto sobre el
 ## borde inferior de la cara: al lado, la fila se ensanchaba y se separaba del
 ## grupo de caras.
-func _head_badge(type: String, count: int) -> Control:
+func _head_badge(type: String, gender: String, count: int) -> Control:
 	var box := Control.new()
 	box.custom_minimum_size = Vector2(HEAD_ICON, HEAD_ICON)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var ic := TextureRect.new()
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	ic.texture = load("res://assets/ui/head_%s.png" % type)
+	ic.texture = load(CharacterData.head(
+		CharacterData.who_for_type(type), gender))
 	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(ic)

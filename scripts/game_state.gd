@@ -28,6 +28,13 @@ var current_port: String = ""
 ## --- Progreso persistente ---
 ## Dinero total acumulado por el jugador.
 var money: int = 0
+## Género elegido por el jugador ("m"/"f"). Decide qué chef sale y, por
+## contraste, qué ayudante: el ayudante es SIEMPRE del género contrario.
+## La pantalla para elegirlo (con el nombre) está pendiente; hasta entonces
+## vale el valor por defecto y se puede cambiar a mano en el guardado.
+var player_gender: String = CharacterData.MALE
+## Nombre del jugador (lo pedirá esa misma pantalla).
+var player_name: String = ""
 ## Ids de recetas y potenciadores desbloqueados.
 var unlocked_recipes: Array[String] = []
 var unlocked_powerups: Array[String] = []
@@ -46,6 +53,29 @@ var perk_uses: Dictionary = {}
 ## `shop_day` guarda el día del surtido actual para saber cuándo renovarlo.
 var shop_stock: Array[String] = []
 var shop_day: String = ""
+## Contadores de toda la vida del jugador, de los que salen los LOGROS
+## (ver achievement_data.gd). Clave -> entero. Los que empiezan por "best_"
+## guardan un máximo, el resto se acumulan.
+var stats: Dictionary = {}
+## Ajustes del jugador (gráficos e identidad). `apply_graphics()` los aplica.
+var settings: Dictionary = {}
+
+## Ajustes por defecto. `quality` 0 = baja, 1 = media, 2 = alta.
+const DEFAULT_SETTINGS := {
+	"shadows": true,
+	"anim": true,
+	"quality": 2,
+	"fps": 60,
+	"name": "",
+	"gender": "x",
+}
+## Topes de fotogramas que se pueden elegir.
+const FPS_CHOICES := [30, 45, 60]
+## Escala de renderizado 3D por nivel de calidad (la interfaz 2D no se toca).
+const QUALITY_SCALE := [0.62, 0.8, 1.0]
+const QUALITY_NAMES := ["Baja", "Media", "Alta"]
+const GENDERS := ["f", "m", "x"]
+const GENDER_NAMES := { "f": "Cocinera", "m": "Cocinero", "x": "Grumete" }
 
 ## Artículos que ofrece el tendero y precio de renovarlos a mano.
 const SHOP_SLOTS := 8
@@ -62,6 +92,7 @@ func _ready() -> void:
 	# este en pausa (se sale de un nivel desde el cartel de confirmacion).
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	load_game()
+	apply_graphics()
 
 
 # --- Fundido a negro entre pantallas ---------------------------------------
@@ -189,6 +220,16 @@ func consume_ingredients_for_level(recipe_ids: Array) -> bool:
 	return true
 
 
+## Los EXTRAS (jengibre, wasabi, soja) NO van por partida: cada plato al que
+## se le echa uno gasta una unidad. Se descuentan al servirlo a la cinta.
+func consume_extra(id: String) -> bool:
+	if get_ingredient_uses(id) <= 0:
+		return false
+	ingredients[id] = get_ingredient_uses(id) - 1
+	bump_stat("extras_used")
+	return true
+
+
 # --- Tienda: surtido del día -----------------------------------------------
 
 func _today() -> String:
@@ -197,19 +238,31 @@ func _today() -> String:
 
 
 ## Renueva el surtido si ha cambiado el día (o si el guardado no traía uno).
+## También rehace un surtido viejo que se hubiera colado con extras dentro.
 func refresh_shop_if_new_day() -> void:
-	if shop_day == _today() and shop_stock.size() == SHOP_SLOTS:
+	if shop_day == _today() and shop_stock.size() == SHOP_SLOTS \
+			and not _stock_has_extras():
 		return
 	roll_shop_stock()
 	shop_day = _today()
 	save_game()
 
 
+func _stock_has_extras() -> bool:
+	for ing in shop_stock:
+		if ing in RecipeData.EXTRAS:
+			return true
+	return false
+
+
 ## Sortea 8 ingredientes distintos de entre los que se venden (el arroz es
-## infinito y no entra).
+## infinito y no entra). Los EXTRAS quedan fuera: tienen su propia balda y el
+## tendero los tiene SIEMPRE, así que sortearlos ocuparía un hueco del día.
 func roll_shop_stock() -> void:
 	var pool: Array[String] = []
 	for ing in RecipeData.INGREDIENTS:
+		if ing in RecipeData.EXTRAS:
+			continue
 		if int(RecipeData.INGREDIENTS[ing].get("cost", 0)) > 0:
 			pool.append(ing)
 	pool.shuffle()
@@ -223,6 +276,7 @@ func reroll_shop() -> bool:
 	if money < SHOP_REROLL_COST:
 		return false
 	money -= SHOP_REROLL_COST
+	bump_stat("money_spent", SHOP_REROLL_COST)
 	roll_shop_stock()
 	save_game()
 	return true
@@ -315,11 +369,137 @@ func complete_port(port_id: String, stars: int) -> Array:
 	return newly
 
 
+# --- Estadísticas y logros -------------------------------------------------
+
+func get_stat(id: String) -> int:
+	return int(stats.get(id, 0))
+
+
+## Suma al contador (platos hechos, clientes servidos, doblones gastados...).
+func bump_stat(id: String, amount := 1) -> void:
+	if amount == 0:
+		return
+	stats[id] = get_stat(id) + amount
+
+
+## Guarda un RÉCORD: solo se queda si supera al anterior (mejor partida, platos
+## de un mismo cliente...).
+func max_stat(id: String, value: int) -> void:
+	if value > get_stat(id):
+		stats[id] = value
+
+
+## Marca que hoy se ha jugado (para el logro de días distintos).
+func mark_day_played() -> void:
+	var today := _today()
+	if str(stats.get("last_day", "")) == today:
+		return
+	stats["last_day"] = today
+	bump_stat("days_played")
+
+
+## Progreso de un logro. Además de las claves de `stats`, entiende sumas
+## (Array de claves) y las "derived:*", que se calculan del progreso guardado.
+func achievement_value(a: Dictionary) -> int:
+	var stat: Variant = a.get("stat", "")
+	if stat is Array:
+		var total := 0
+		for s in stat:
+			total += get_stat(str(s))
+		return total
+	var key := str(stat)
+	match key:
+		"derived:estrellas":
+			var st := 0
+			for id in level_stars:
+				st += int(level_stars[id])
+			return st
+		"derived:niveles":
+			var done := 0
+			for port in CampaignData.PORTS:
+				var id := str(port.get("id", ""))
+				if int(level_stars.get(id, 0)) >= int(port.get("goal_stars", 1)):
+					done += 1
+			return done
+		"derived:recetas":
+			return unlocked_recipes.size()
+	return get_stat(key)
+
+
+## Recuento de medallas de todo el catálogo, para la cabecera de la pantalla.
+func medal_counts() -> Dictionary:
+	var out := { "bronce": 0, "plata": 0, "oro": 0, "total": 0 }
+	for a in AchievementData.all():
+		out["total"] = int(out["total"]) + 1
+		var m := AchievementData.medal_for(a, achievement_value(a))
+		if m >= 1:
+			out["bronce"] = int(out["bronce"]) + 1
+		if m >= 2:
+			out["plata"] = int(out["plata"]) + 1
+		if m >= 3:
+			out["oro"] = int(out["oro"]) + 1
+	return out
+
+
+# --- Ajustes ---------------------------------------------------------------
+
+func get_setting(key: String) -> Variant:
+	return settings.get(key, DEFAULT_SETTINGS.get(key))
+
+
+func set_setting(key: String, value: Variant) -> void:
+	settings[key] = value
+	apply_graphics()
+	save_game()
+
+
+## Nombre con el que el juego se dirige al jugador.
+func player_title() -> String:
+	var n := str(get_setting("name")).strip_edges()
+	if n != "":
+		return n
+	return str(GENDER_NAMES.get(str(get_setting("gender")), "Grumete"))
+
+
+## ¿Se dibujan las manchas de sombra y las animaciones de adorno?
+func shadows_on() -> bool:
+	return bool(get_setting("shadows"))
+
+
+func animations_on() -> bool:
+	return bool(get_setting("anim"))
+
+
+## Tope de fotogramas de la pantalla en curso: los menús se conforman con la
+## mitad, jugando manda el ajuste del usuario.
+## Género del ayudante de cocina: el contrario al del jugador.
+func helper_gender() -> String:
+	return CharacterData.opposite(player_gender)
+
+
+func fps_for(playing: bool) -> int:
+	var fps := int(get_setting("fps"))
+	return fps if playing else mini(fps, 30)
+
+
+## Aplica lo que es global: escala de renderizado 3D y tope de fotogramas.
+## Lo demás (sombras y animaciones) lo consulta cada escena al construirse.
+func apply_graphics() -> void:
+	Engine.max_fps = fps_for(false)
+	var tree := get_tree()
+	if tree == null or tree.root == null:
+		return
+	var q: int = clampi(int(get_setting("quality")), 0, QUALITY_SCALE.size() - 1)
+	tree.root.scaling_3d_scale = float(QUALITY_SCALE[q])
+
+
 # --- Guardado / carga ------------------------------------------------------
 
 func save_game() -> void:
 	var data := {
-		"version": 4,
+		"version": 5,
+		"stats": stats,
+		"settings": settings,
 		"money": money,
 		"unlocked_recipes": unlocked_recipes,
 		"unlocked_powerups": unlocked_powerups,
@@ -330,6 +510,8 @@ func save_game() -> void:
 		"perk_uses": perk_uses,
 		"shop_stock": shop_stock,
 		"shop_day": shop_day,
+		"player_gender": player_gender,
+		"player_name": player_name,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
@@ -373,17 +555,39 @@ func load_game() -> void:
 		perk_uses[str(k)] = int(perk_dict[k])
 	shop_stock = _to_string_array(parsed.get("shop_stock", []))
 	shop_day = str(parsed.get("shop_day", ""))
+	player_gender = str(parsed.get("player_gender", CharacterData.MALE))
+	player_name = str(parsed.get("player_name", ""))
+	# Las estadísticas viajan como números sueltos; "last_day" es texto.
+	stats = {}
+	var stat_dict: Dictionary = parsed.get("stats", {})
+	for k in stat_dict.keys():
+		var v: Variant = stat_dict[k]
+		stats[str(k)] = str(v) if str(k) == "last_day" else int(v)
+	settings = DEFAULT_SETTINGS.duplicate()
+	var set_dict: Dictionary = parsed.get("settings", {})
+	for k in set_dict.keys():
+		if DEFAULT_SETTINGS.has(str(k)):
+			settings[str(k)] = set_dict[k]
+	# Los guardados viejos traen los enteros como float al pasar por JSON.
+	for k in ["quality", "fps"]:
+		settings[k] = int(settings[k])
 	# Garantiza las recetas iniciales aunque el save sea antiguo/parcial.
 	for r in CampaignData.INITIAL_RECIPES:
 		unlock_recipe(r)
 
 
-## Borra el progreso y empieza de cero (útil para pruebas).
+## Borra el progreso y empieza de cero. Los AJUSTES (gráficos, nombre, género)
+## NO son progreso y sobreviven: se borra la partida, no la configuración.
 func reset_progress() -> void:
+	var keep := settings.duplicate()
 	_new_game()
+	settings = keep
+	save_game()
 
 
 func _new_game() -> void:
+	stats = {}
+	settings = DEFAULT_SETTINGS.duplicate()
 	money = 0
 	unlocked_recipes = []
 	unlocked_powerups = []

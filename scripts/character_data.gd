@@ -1,0 +1,88 @@
+class_name CharacterData
+extends RefCounted
+## Catálogo de PERSONAJES y su variante por género. Es la ÚNICA tabla que hay
+## que tocar para cambiar qué modelo sale: ni el nivel ni el cliente saben
+## nombres de archivo.
+##
+## Cada personaje tiene dos rutas, "m" y "f". La variante femenina puede NO
+## existir todavía (los modelos están hechos pero sin riguear, y sin esqueleto
+## no se pueden animar): `model()` comprueba el archivo y CAE al masculino si
+## falta. Gracias a eso el juego ya funciona con el género cableado, y el día
+## que aparezcan los `*_fem_rig.glb` entran solos, sin tocar una línea.
+
+## Género del ayudante: siempre el contrario al del jugador.
+const MALE := "m"
+const FEMALE := "f"
+
+## personaje -> { genero: ruta del modelo RIGUEADO }
+const MODELS := {
+	"grumete": {
+		MALE: "res://assets/models/grumete_rig.glb",
+		FEMALE: "res://assets/models/grumete_fem_rig.glb",
+	},
+	"pirata": {
+		MALE: "res://assets/models/pirata_rig.glb",
+		FEMALE: "res://assets/models/pirata_fem_rig.glb",
+	},
+	"capitan": {
+		MALE: "res://assets/models/capitan_rig.glb",
+		FEMALE: "res://assets/models/capitan_fem_rig.glb",
+	},
+	"vip": {
+		MALE: "res://assets/models/vip_rig.glb",
+		FEMALE: "res://assets/models/vip_fem_rig.glb",
+	},
+	"chef": {
+		MALE: "res://assets/models/chef_rig.glb",
+		FEMALE: "res://assets/models/chef_fem_rig.glb",
+	},
+	"ayudante": {
+		MALE: "res://assets/models/ayudante_rig.glb",
+		FEMALE: "res://assets/models/ayudante_fem_rig.glb",
+	},
+}
+
+## Iconos de cabeza del HUD (tools/head_icons.gd los saca de estos modelos).
+const HEADS := {
+	"grumete": { MALE: "res://assets/ui/head_E.png", FEMALE: "res://assets/ui/head_E_f.png" },
+	"pirata": { MALE: "res://assets/ui/head_A.png", FEMALE: "res://assets/ui/head_A_f.png" },
+	"capitan": { MALE: "res://assets/ui/head_G.png", FEMALE: "res://assets/ui/head_G_f.png" },
+	"vip": { MALE: "res://assets/ui/head_V.png", FEMALE: "res://assets/ui/head_V_f.png" },
+}
+
+## Tipo de cliente (el de client_mix / TAKE_CHANCES) -> personaje.
+const TYPE_TO_WHO := { "E": "grumete", "A": "pirata", "G": "capitan", "V": "vip" }
+
+
+## Ruta del modelo de ese personaje en ese género, con caída al masculino si
+## la variante todavía no está en disco (ver cabecera).
+static func model(who: String, gender: String) -> String:
+	return _pick(MODELS, who, gender)
+
+
+## Icono de cabeza para el contador de clientes del HUD.
+static func head(who: String, gender: String) -> String:
+	return _pick(HEADS, who, gender)
+
+
+## Personaje que le toca a un tipo de cliente ("E" -> "grumete").
+static func who_for_type(type: String) -> String:
+	return TYPE_TO_WHO.get(type, "grumete")
+
+
+## El género contrario: el ayudante siempre es del otro (decisión de diseño).
+static func opposite(gender: String) -> String:
+	return MALE if gender == FEMALE else FEMALE
+
+
+## Género al azar, para los clientes de cada partida.
+static func random_gender() -> String:
+	return FEMALE if randf() < 0.5 else MALE
+
+
+static func _pick(table: Dictionary, who: String, gender: String) -> String:
+	var entry: Dictionary = table.get(who, {})
+	var wanted: String = entry.get(gender, "")
+	if wanted != "" and ResourceLoader.exists(wanted):
+		return wanted
+	return entry.get(MALE, "")
