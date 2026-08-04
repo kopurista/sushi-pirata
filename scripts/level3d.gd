@@ -162,6 +162,8 @@ var helper_tween: Tween = null
 var dishes_served := 0
 ## Platos que se han ido por la cinta sin que nadie los cogiera (logros).
 var plates_wasted := 0
+## Segundos de esta partida (van al contador de horas jugadas de GameState).
+var play_time := 0.0
 var chef_anim: CharacterAnim = null
 var chef_tween: Tween = null
 var chef_prop: Sprite3D
@@ -297,10 +299,10 @@ func _apply_perks() -> void:
 func _setup_helper() -> void:
 	helper_pivot = _spawn_model(
 		load(CharacterData.model("ayudante", GameState.helper_gender())),
-		Vector3(-1.15, 0.0, -0.15), 1.62, self)
+		Vector3(-1.42, 0.0, -0.05), 1.62, self)
 	helper_pivot.rotation_degrees.y = 0.0
-	_add_blob_shadow(Vector3(-1.05, 0.02, -0.05), 1.05, 0.72)
-	_box(Vector3(0.72, 0.78, 0.56), Vector3(-1.15, 0.39, 0.72),
+	_add_blob_shadow(Vector3(-1.32, 0.02, 0.05), 1.05, 0.72)
+	_box(Vector3(0.72, 0.78, 0.56), Vector3(-1.42, 0.39, 0.82),
 		Color(0.40, 0.27, 0.14))
 	var skels := helper_pivot.find_children("*", "Skeleton3D", true, false)
 	if not skels.is_empty():
@@ -1251,6 +1253,11 @@ func _show_chef_tool(tool: String) -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	# Horas jugadas (pestaña Progreso de Opciones): SOLO cuenta aquí, dentro de
+	# una partida. Los menús no suman, y el reloj se para al acabar el nivel.
+	if not ended:
+		play_time += delta
+		GameState.add_play_time(delta)
 	# El ayudante trabaja a su ritmo, desfasado del chef para que no parezcan
 	# dos copias del mismo muñeco.
 	if helper_anim != null:
@@ -1666,7 +1673,9 @@ func _on_plate_discarded(recipe_id: String) -> void:
 		prep_board.recycle_recipe(recipe_id)
 		return
 	var price: int = RecipeData.get_recipe(recipe_id).get("price", 0)
-	money_earned -= int(round(price * 0.3))
+	# Como el resto de castigos, el marcador nunca baja de 0.
+	money_earned = maxi(money_earned - int(round(price * 0.3)), 0)
+	_update_hud()
 
 
 ## Castigo por un gesto mal hecho (cortar deprisa el pescado caro). Nunca deja
@@ -2278,7 +2287,8 @@ func _confirm_exit() -> void:
 	if prep_phase and GameState.is_adventure():
 		for ing in GameState.ingredients_for_selection(GameState.selected_recipes):
 			GameState.add_ingredient_uses(ing, 1)
-		GameState.save_game()
+	# Se guarda aunque se abandone: el rato jugado hasta aquí cuenta igual.
+	GameState.save_game()
 	get_tree().paused = false
 	if GameState.is_adventure():
 		GameState.transition = "mapa"

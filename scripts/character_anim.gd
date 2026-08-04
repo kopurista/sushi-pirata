@@ -58,6 +58,13 @@ const BODY_BOB_F := 0.052     ## sube y baja del cuerpo, fraccion de la pierna
 ## y como un pisoton al apoyar. Con el cuerpo un poco mas bajo la rodilla
 ## trabaja siempre en una zona estable y el paso sale suave.
 const CROUCH_F := 0.118
+## Cuanto se separa el brazo del costado EN REPOSO, en grados desde la
+## vertical. Los modelos vienen generados en pose de A —brazos muy abiertos,
+## comodo para riguear pero pesimo como reposo— y unos abren mucho mas que
+## otros: el chef neutro llegaba a 1.2 u de ancho y se metia dentro del
+## ayudante. Se mide la apertura de CADA personaje y se le recoge lo que le
+## sobre hasta este objetivo, asi que todos acaban con la misma silueta.
+const IDLE_ARM_SPREAD := 9.0
 const ARM_SWING := 22.0       ## balanceo de hombro (opuesto a su pierna)
 const ELBOW_BEND := 16.0      ## flexion fija de codo, da naturalidad
 ## La clavicula mueve el hombro entero, no solo el brazo: acompaña al brazo
@@ -152,6 +159,9 @@ var hand_mouth := Vector3.ZERO
 var hand_side := Vector3.ZERO
 var mouth := Vector3.ZERO
 var grab_clearance := 0.0
+## Grados que hay que recoger el brazo de ESTE personaje para dejarlo a
+## IDLE_ARM_SPREAD del costado (0 si ya lo tiene pegado).
+var arm_tuck := 0.0
 
 
 func _init(skeleton: Skeleton3D) -> void:
@@ -204,6 +214,14 @@ func _measure() -> void:
 	hand_side = sh_l + SIDE_OFF * _arm_len
 	hand_mouth = mouth + MOUTH_OFF * _arm_len
 	grab_clearance = GRAB_CLEARANCE_F * _arm_len
+
+	# Apertura del brazo en reposo: angulo del brazo respecto a la vertical,
+	# visto de frente. Lo que pase de IDLE_ARM_SPREAD se recoge al animar.
+	var el := _rest(_idx["R_Elbow"])
+	var dx: float = absf(el.x - sh.x)
+	var dy: float = sh.y - el.y
+	var spread := rad_to_deg(atan2(dx, maxf(dy, 0.0001)))
+	arm_tuck = maxf(spread - IDLE_ARM_SPREAD, 0.0)
 
 
 func has_humanoid_bones() -> bool:
@@ -271,13 +289,34 @@ func walk_advance(t: float, model_scale: float) -> float:
 ## Reposo de pie: respiracion lenta, sin desplazar los pies.
 func idle(t: float) -> void:
 	var breath := sin(t / IDLE_PERIOD * TAU)
+	# Dos ritmos distintos: el pecho respira lento y el cuerpo se balancea aun
+	# mas lento. Con un solo seno todo subia y bajaba a la vez y se notaba el
+	# bucle; desfasados, el reposo no se repite a simple vista.
+	var sway := sin(t / (IDLE_PERIOD * 1.7) * TAU)
 	_pitch("Spine1", 2.0 + breath * IDLE_BREATH * 0.5)
 	_pitch("Spine2", breath * IDLE_BREATH * 0.3)
+	_roll("Spine1", sway * 1.1)
+	_yaw("Spine2", sway * 1.6)
 	_pitch("Neck", -breath * IDLE_BREATH * 0.4)
-	_pitch("L_Shoulder", breath * 1.5)
-	_pitch("R_Shoulder", breath * 1.5)
-	_pitch("L_Elbow", -ELBOW_BEND * 0.6)
-	_pitch("R_Elbow", -ELBOW_BEND * 0.6)
+	_yaw("Neck", -sway * 2.2)
+	_arms_at_rest(breath)
+
+
+## Brazos colgando pegados al cuerpo, con el codo algo flexionado y un vaiven
+## suave. `breath` (-1..1) le da el movimiento.
+##
+## El recogido va en el HOMBRO y sobre su eje Z: girar ahi mueve el brazo en el
+## plano frontal, que es justo abrir y cerrar respecto al costado. En el lado
+## izquierdo (+X) un giro NEGATIVO lo baja hacia el cuerpo, y el derecho es su
+## espejo.
+func _arms_at_rest(breath: float) -> void:
+	for side in ["L", "R"]:
+		var mirror := -1.0 if side == "L" else 1.0
+		_roll("%s_Shoulder" % side, mirror * arm_tuck)
+		_pitch("%s_Shoulder" % side, breath * 1.5)
+		_pitch("%s_Elbow" % side, -ELBOW_BEND * 0.6)
+		# Las manos descansan cerradas, no con los dedos estirados.
+		_fist(side)
 
 
 ## Postura de sentado: caderas y rodillas dobladas casi en angulo recto, con
@@ -944,6 +983,10 @@ func _arm(side: String, swing: float) -> void:
 	# espejo del izquierdo, de ahi el cambio de signo.
 	var mirror := 1.0 if side == "L" else -1.0
 	_roll("%s_Collar" % side, mirror * COLLAR_LIFT * maxf(0.0, -swing))
+	# Recogido al costado ANTES del balanceo: si no, la zancada de brazos
+	# arrancaba desde la pose de A y el personaje andaba en cruz.
+	var tuck := -1.0 if side == "L" else 1.0
+	_roll("%s_Shoulder" % side, tuck * arm_tuck)
 	_pitch("%s_Shoulder" % side, -ARM_SWING * swing)
 	_pitch("%s_Elbow" % side, -ELBOW_BEND - maxf(0.0, swing) * ELBOW_BEND)
 	_fist(side)
