@@ -56,14 +56,12 @@ var backdrop: Node3D = null
 var _t := 0.0
 
 
-## Tope de fotogramas de las pantallas sin juego.
-const MENU_FPS := 30
 
 
 func _ready() -> void:
-	# Las pantallas de menu se conforman con 30 fps: aqui no se juega y
-	# renderizar el doble de fotogramas solo gasta bateria.
-	Engine.max_fps = MENU_FPS
+	# Las pantallas de menu van a la mitad de fotogramas que el juego
+	# (GameState.fps_for): aqui no se juega y renderizar mas gasta bateria.
+	Engine.max_fps = GameState.fps_for(false)
 	backdrop = SceneBackdrop.build(self, "", 17.0, 40.0, 6.0)
 	_setup_ui()
 	_show_tab("recetario")
@@ -95,7 +93,7 @@ func _play_intro() -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
-	if backdrop != null:
+	if backdrop != null and GameState.animations_on():
 		backdrop.rotation_degrees.y = 205.0 + sin(_t * 0.25) * 8.0
 		backdrop.rotation_degrees.z = sin(_t * 0.8) * 2.2
 		backdrop.position.y = -0.1 + sin(_t * 1.2) * 0.1
@@ -615,6 +613,7 @@ func _build_perk_row(id: String) -> Control:
 			if GameState.money < cost:
 				return
 			GameState.money -= cost
+			GameState.bump_stat("money_spent", cost)
 			GameState.add_perk_uses(id, 1)
 			GameState.save_game()
 			money_label.text = "%d" % GameState.money
@@ -779,10 +778,14 @@ func _build_ingredients_block(id: String) -> Control:
 ## Qué cliente es más probable que coja este plato de la cinta.
 func _build_clients_block(data: Dictionary) -> Control:
 	var tier := int(data.get("satiety", data.get("level", 1)))
+	# "only_type": los postres SOLO los coge un tipo; los demás ni lo miran,
+	# así que la ficha tiene que decirlo (si no, mentiría).
+	var only: String = data.get("only_type", "")
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 4)
 	for t in CLIENT_TYPES:
-		var chance := _take_chance(t, tier)
+		var chance := 0.0 if (only != "" and only != t) \
+				else float(data.get("take_chance", _take_chance(t, tier)))
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
 		var icon := TextureRect.new()

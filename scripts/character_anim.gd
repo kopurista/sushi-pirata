@@ -65,6 +65,10 @@ const CROUCH_F := 0.118
 ## ayudante. Se mide la apertura de CADA personaje y se le recoge lo que le
 ## sobre hasta este objetivo, asi que todos acaban con la misma silueta.
 const IDLE_ARM_SPREAD := 9.0
+## Lo minimo que puede medir un miembro para darlo por bueno, en fracciones del
+## alto del personaje. Los brazos sanos miden entre el 25% y el 35%; los rigs
+## fallidos dejan el brazo entero en el 1-2%. Ver _measure().
+const MIN_LIMB_FRAC := 0.15
 const ARM_SWING := 22.0       ## balanceo de hombro (opuesto a su pierna)
 const ELBOW_BEND := 16.0      ## flexion fija de codo, da naturalidad
 ## La clavicula mueve el hombro entero, no solo el brazo: acompaña al brazo
@@ -162,6 +166,8 @@ var grab_clearance := 0.0
 ## Grados que hay que recoger el brazo de ESTE personaje para dejarlo a
 ## IDLE_ARM_SPREAD del costado (0 si ya lo tiene pegado).
 var arm_tuck := 0.0
+## Si los huesos del brazo forman un brazo de verdad (ver _measure).
+var arms_ok := false
 
 
 func _init(skeleton: Skeleton3D) -> void:
@@ -189,8 +195,10 @@ func _measure() -> void:
 	var leg: Dictionary = _legs["L"]
 	_leg_len = leg["l1"] + leg["l2"]
 	var sh := _rest(_idx["R_Shoulder"])
-	_arm_len = sh.distance_to(_rest(_idx["R_Elbow"])) \
-		+ _rest(_idx["R_Elbow"]).distance_to(_rest(_idx["R_Wrist"]))
+	_arm_len = _limb_len("R_Shoulder", "R_Elbow", "R_Wrist")
+	# El brazo izquierdo se mide aparte: hay rigs que resuelven bien uno y
+	# dejan el otro degenerado, y con medir solo el derecho pasaban por buenos.
+	var arm_l := _limb_len("L_Shoulder", "L_Elbow", "L_Wrist")
 
 	stride = STRIDE_F * _leg_len
 	foot_lift = FOOT_LIFT_F * _leg_len
@@ -215,6 +223,17 @@ func _measure() -> void:
 	hand_mouth = mouth + MOUTH_OFF * _arm_len
 	grab_clearance = GRAB_CLEARANCE_F * _arm_len
 
+	# Un brazo tiene que MEDIR como un brazo. Hay rigs de Ludo que devuelven el
+	# hombro, el codo y la muñeca AMONTONADOS dentro del pecho, a un centimetro
+	# unos de otros: pasan por humanoides, pero animarlos gira la carne del
+	# brazo alrededor de un punto del torso y el personaje agita los brazos de
+	# forma imposible. Le paso al chef neutro, cuyos "brazos" median el 1% de su
+	# altura. Cuando se detecta, los brazos se dejan como se modelaron.
+	var height: float = _skeleton_height()
+	arms_ok = minf(_arm_len, arm_l) > height * MIN_LIMB_FRAC
+	if not arms_ok:
+		return
+
 	# Apertura del brazo en reposo: angulo del brazo respecto a la vertical,
 	# visto de frente. Lo que pase de IDLE_ARM_SPREAD se recoge al animar.
 	var el := _rest(_idx["R_Elbow"])
@@ -224,9 +243,35 @@ func _measure() -> void:
 	arm_tuck = maxf(spread - IDLE_ARM_SPREAD, 0.0)
 
 
+## Largo de un miembro de tres huesos, o 0 si al rig le falta alguno.
+func _limb_len(a: String, b: String, c: String) -> float:
+	for n in [a, b, c]:
+		if not _idx.has(n):
+			return 0.0
+	return _rest(_idx[a]).distance_to(_rest(_idx[b])) \
+		+ _rest(_idx[b]).distance_to(_rest(_idx[c]))
+
+
+## Alto total del esqueleto, de la coronilla a la planta.
+func _skeleton_height() -> float:
+	var top := -INF
+	var bottom := INF
+	for i in _skel.get_bone_count():
+		var y := _rest(i).y
+		top = maxf(top, y)
+		bottom = minf(bottom, y)
+	return maxf(top - bottom, 0.0001)
+
+
 func has_humanoid_bones() -> bool:
 	return _legs.has("L") and _legs.has("R") \
 		and _idx.has("L_Wrist") and _idx.has("R_Wrist")
+
+
+## Si ademas de existir, los brazos de este rig son brazos de verdad y se
+## pueden animar. Ver la explicacion en _measure().
+func has_usable_arms() -> bool:
+	return arms_ok
 
 
 ## Si la deteccion encontro ese hueso. Util para comprobar un rig nuevo.
@@ -310,6 +355,8 @@ func idle(t: float) -> void:
 ## izquierdo (+X) un giro NEGATIVO lo baja hacia el cuerpo, y el derecho es su
 ## espejo.
 func _arms_at_rest(breath: float) -> void:
+	if not arms_ok:
+		return
 	for side in ["L", "R"]:
 		var mirror := -1.0 if side == "L" else 1.0
 		_roll("%s_Shoulder" % side, mirror * arm_tuck)
@@ -534,6 +581,8 @@ func sit_idle(t: float) -> void:
 ## tiene que cruzarse hacia el centro del cuerpo para llegar a la boca.
 ## `target` es donde va la MANO y `focus` adonde miran los dedos.
 func _arm_ik(side: String, target: Vector3, focus: Vector3) -> void:
+	if not arms_ok:
+		return
 	var names := ["%s_Shoulder" % side, "%s_Elbow" % side, "%s_Wrist" % side]
 	for n in names:
 		if not _idx.has(n):
@@ -651,38 +700,50 @@ func _detect_bones() -> void:
 		root = _children(root)[0]
 	_name(&"Pelvis", root)
 
-	# Primero se aparta la COLUMNA, que es la rama que mas sube. Hace falta
-	# apartarla antes de buscar las piernas porque ella tambien baja mucho: de
-	# ella cuelgan los brazos, que llegan por debajo de la cadera.
-	# De las ramas que suben, la columna es la que llega mas ALTA yendo
-	# CENTRADA. Hacen falta las dos condiciones: quedarse con la que mas sube
-	# mete como columna alguna rama lateral que trepa hasta la coronilla, y
-	# quedarse con la mas centrada elige muñones de dos huesos que nacen justo
-	# en el eje. Se puntua la altura penalizando lo que se aparta del centro.
+	# Primero se aparta la COLUMNA. Hace falta apartarla antes de buscar las
+	# piernas porque ella tambien baja mucho: de ella cuelgan los brazos, que
+	# llegan por debajo de la cadera.
+	#
+	# La columna es la rama que se lleva CASI TODO EL ESQUELETO: de ella salen
+	# los dos brazos con sus dedos, el cuello y la cabeza. Se elige por NUMERO
+	# DE HUESOS y no por altura, que es lo que se hacia antes. Varios rigs de
+	# Ludo cuelgan de la cadera un MUÑON suelto de dos huesos (una cinta del
+	# delantal, un mechon) que sube MAS ALTO que la coronilla, y ese muñon
+	# ganaba la puntuacion; al tomarlo por columna, la "bifurcacion" de arriba
+	# era su punta, que no tiene hijos, asi que el personaje se quedaba SIN
+	# BRAZOS Y SIN CUELLO. El ayudante era exactamente eso.
 	var up := -1
-	var best := -INF
+	var best := -1
 	for c in _children(root):
 		if _subtree_y(c, false) <= _rest(root).y:
 			continue
-		var score: float = _subtree_y(c, false) \
-			- 3.0 * absf(_rest(c).x - _rest(root).x)
-		if score > best:
-			best = score
+		var size := _subtree_size(c)
+		if size > best:
+			best = size
 			up = c
-	# De lo que queda, las piernas son las dos ramas que mas bajan.
+	# De lo que queda, las piernas son las dos ramas que mas bajan, UNA DE CADA
+	# LADO. Quedarse sencillamente con las dos que mas bajan colaba ese mismo
+	# muñon como segunda pierna, y entonces las dos se registraban del mismo
+	# lado: el personaje se quedaba con media cadera y sin la otra pierna.
 	var down: Array[int] = []
 	for c in _children(root):
-		if c != up:
+		if c != up and _subtree_y(c, true) < _rest(root).y:
 			down.append(c)
-	# Las dos ramas que mas bajan son las piernas.
 	down.sort_custom(func(a, b): return _subtree_y(a, true) < _subtree_y(b, true))
-	if down.size() >= 2:
-		for leg in [down[0], down[1]]:
-			var side := "L" if _rest(leg).x >= 0.0 else "R"
-			var chain := _chain(leg, 3)
-			var parts := ["%s_Hip" % side, "%s_Knee" % side, "%s_Ankle" % side]
-			for k in mini(chain.size(), 3):
-				_name(parts[k], chain[k])
+	var legs: Array[int] = []
+	if not down.is_empty():
+		legs.append(down[0])
+		var first_x: float = _rest(down[0]).x - _rest(root).x
+		for c in down.slice(1):
+			if (_rest(c).x - _rest(root).x) * first_x < 0.0:
+				legs.append(c)
+				break
+	for leg in legs:
+		var side := "L" if _rest(leg).x >= _rest(root).x else "R"
+		var chain := _chain(leg, 3)
+		var parts := ["%s_Hip" % side, "%s_Knee" % side, "%s_Ankle" % side]
+		for k in mini(chain.size(), 3):
+			_name(parts[k], chain[k])
 
 	# La columna sube hasta bifurcarse; ahi salen los brazos y el cuello.
 	if up < 0:
@@ -724,7 +785,15 @@ func _detect_bones() -> void:
 
 
 ## Registra un hueso bajo su papel logico, SIN pisar el nombre que ya trajera
-## el rig: si el auto-rig lo nombro bien, su nombre manda sobre la deduccion.
+## el rig: si el auto-rig lo nombro, su nombre manda sobre la deduccion.
+##
+## Se probo lo contrario (que mandara siempre la forma) porque hay rigs cuyos
+## nombres MIENTEN: el VIP femenino trae un "L_Wrist" que es un mechon de pelo
+## sobre la coronilla. Pero al invertirlo se rompio el PIRATA, cuyos nombres son
+## buenos y cuya forma engaña —su rig no tiene dedos, y la muñeca se busca por
+## ser el hueso del que salen—, asi que se quedo el brazo en el 6% de su altura.
+## Ninguna de las dos fuentes es fiable por si sola; lo que si detecta los dos
+## casos es MEDIR el resultado, que es lo que hace `arms_ok` en _measure().
 func _name(logical: StringName, idx: int) -> void:
 	if not _idx.has(logical):
 		_idx[logical] = idx
@@ -740,6 +809,15 @@ func _children(i: int) -> Array[int]:
 
 func _rest(i: int) -> Vector3:
 	return _skel.get_bone_global_rest(i).origin
+
+
+## Cuantos huesos cuelgan de este, contandolo a el. Sirve para distinguir el
+## TRONCO (que se lleva brazos, dedos, cuello y cabeza) de un muñon suelto.
+func _subtree_size(i: int) -> int:
+	var n := 1
+	for c in _children(i):
+		n += _subtree_size(c)
+	return n
 
 
 ## Altura minima (o maxima) que alcanza toda la rama que cuelga de este hueso.
@@ -976,6 +1054,8 @@ func _leg_swing(cycle01: float) -> float:
 
 ## `swing`: +1 = ese brazo del todo hacia delante, -1 del todo hacia atras.
 func _arm(side: String, swing: float) -> void:
+	if not arms_ok:
+		return
 	# El hombro entero acompaña al brazo, con el giro repartido entre la
 	# clavicula y el hombro para que el movimiento salga del torso.
 	_pitch("%s_Collar" % side, -COLLAR_SWING * swing)

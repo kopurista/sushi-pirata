@@ -26,6 +26,11 @@ const TOTAL_CLIENTS := 10
 const TIME_LIMIT := 150.0
 ## Margen antes del final en el que ya no llega ningun cliente.
 const ARRIVAL_TAIL := 22.0
+## Tope de espera del cartel de fin mientras alguien termina su ultimo bocado
+## (un plato de nivel 3 puede llevar 17 s): red de seguridad, no debe hacer falta.
+const END_BITE_MAX := 25.0
+## Margen tras el ultimo cobro para que se lea el "+$N" antes del cartel.
+const END_PAY_LINGER := 1.6
 ## Umbrales de dinero para 1★/2★/3★ en el modo prueba (en aventura los define
 ## cada nivel de la campaña con "star_money").
 const DEFAULT_STAR_MONEY := [16, 30, 45]
@@ -107,6 +112,8 @@ var results_shown := false
 ## Con el andar lento la salida es larga: los resultados no esperan a que el
 ## ultimo cliente cruce la borda, solo a verlos levantarse.
 var end_grace := 0.0
+## Margen que queda tras el ultimo cobro para leer el "+$N" (ver END_PAY_LINGER).
+var pay_linger := 0.0
 
 var total_clients := TOTAL_CLIENTS
 var time_limit := TIME_LIMIT
@@ -158,12 +165,19 @@ var chef_pivot: Node3D
 var helper_pivot: Node3D = null
 var helper_anim: CharacterAnim = null
 var helper_tween: Tween = null
+## Lo que le queda de "amasado" al ayudante tras encargarle un plato; en reposo
+## vale 0 y entonces solo respira.
+const HELPER_GESTURE_DUR := 1.1
+var helper_gesture_t := 0.0
 ## Platos servidos por el jugador (para el ayudante y para desbloquear perks).
 var dishes_served := 0
 ## Platos que se han ido por la cinta sin que nadie los cogiera (logros).
 var plates_wasted := 0
 ## Segundos de esta partida (van al contador de horas jugadas de GameState).
 var play_time := 0.0
+## Cara que usa la fila de cabezas del HUD para cada tipo: la del PRIMER cliente
+## de ese tipo que ha llegado. tipo -> genero.
+var head_gender: Dictionary = {}
 var chef_anim: CharacterAnim = null
 var chef_tween: Tween = null
 var chef_prop: Sprite3D
@@ -232,6 +246,7 @@ func _ready() -> void:
 	prep_board.dish_served.connect(_on_player_dish_served)
 	prep_board.craft_event.connect(_on_craft_event)
 	prep_board.money_penalty.connect(_on_money_penalty)
+	prep_board.helper_used.connect(helper_cheer)
 	retry_button.pressed.connect(_on_retry_pressed)
 	menu_button.pressed.connect(_on_menu_pressed)
 	results_panel.visible = false
@@ -294,15 +309,18 @@ func _apply_perks() -> void:
 		_setup_helper()
 
 
-## Avatar del ayudante: solo aparece si se ha activado su potenciador. Se
-## coloca al lado del chef, dentro del circuito, mirando al mismo sitio.
+## Avatar del ayudante: solo aparece si se ha activado su potenciador. Va al
+## OTRO lado del chef, mirando como él. Ojo con la X: el mostrador de la cinta
+## ocupa de -2.35 a -1.25, así que el interior libre del circuito va de -1.25 a
+## 1.25 — con x=-1.42 el ayudante salía metido dentro del mostrador.
 func _setup_helper() -> void:
+	var h_pos := Vector3(0.72, 0.0, -0.60)
 	helper_pivot = _spawn_model(
 		load(CharacterData.model("ayudante", GameState.helper_gender())),
-		Vector3(-1.42, 0.0, -0.05), 1.62, self)
+		h_pos, 1.62, self)
 	helper_pivot.rotation_degrees.y = 0.0
-	_add_blob_shadow(Vector3(-1.32, 0.02, 0.05), 1.05, 0.72)
-	_box(Vector3(0.72, 0.78, 0.56), Vector3(-1.42, 0.39, 0.82),
+	_add_blob_shadow(h_pos + Vector3(0.1, 0.02, 0.1), 1.05, 0.72)
+	_box(Vector3(0.72, 0.78, 0.56), h_pos + Vector3(0.0, 0.39, 0.92),
 		Color(0.40, 0.27, 0.14))
 	var skels := helper_pivot.find_children("*", "Skeleton3D", true, false)
 	if not skels.is_empty():
@@ -327,15 +345,12 @@ func _check_perk_unlocks() -> Array:
 	return newly
 
 
-## El ayudante manda un plato a la cinta por su cuenta: da un saltito y sirve
-## una de las recetas elegidas.
-func _helper_cook() -> void:
-	if GameState.selected_recipes.is_empty() or ended:
-		return
-	var rid: String = GameState.selected_recipes.pick_random()
-	_on_dish_served(rid)
+## El ayudante se pone manos a la obra (lo llama prep_board al pulsar su
+## boton): da un saltito para que se vea quien ha hecho el plato.
+func helper_cheer() -> void:
 	if helper_pivot == null:
 		return
+	helper_gesture_t = HELPER_GESTURE_DUR
 	if helper_tween != null:
 		helper_tween.kill()
 	helper_tween = create_tween()
@@ -1258,11 +1273,15 @@ func _process(delta: float) -> void:
 	if not ended:
 		play_time += delta
 		GameState.add_play_time(delta)
-	# El ayudante trabaja a su ritmo, desfasado del chef para que no parezcan
-	# dos copias del mismo muñeco.
+	# El ayudante respira en reposo (desfasado del chef para que no parezcan dos
+	# copias del mismo muñeco) y solo amasa cuando le toca cocinar un plato.
 	if helper_anim != null:
 		helper_anim.reset()
-		helper_anim.chef_pat(fmod(_t * 1.35, 1.0))
+		if helper_gesture_t > 0.0:
+			helper_gesture_t = maxf(helper_gesture_t - delta, 0.0)
+			helper_anim.chef_pat(1.0 - helper_gesture_t / HELPER_GESTURE_DUR)
+		else:
+			helper_anim.idle(_t + 1.7)
 	if chef_anim != null:
 		chef_anim.reset()
 		if chef_gesture != "":
@@ -1294,13 +1313,20 @@ func _process(delta: float) -> void:
 			chef_anim.idle(_t)
 
 	if ended:
-		# Los reportes ya estan (force_leave es inmediato). Se esperan 4 s con
-		# todo parado (cinta, platos y tabla) para ver a los clientes irse
-		# antes de mostrar el cartel de fin de nivel.
+		# Se esperan 4 s con todo parado (cinta, platos y tabla) para ver a los
+		# clientes irse antes del cartel. A quien le pillo COMIENDO se le deja
+		# terminar el bocado —a toda prisa— y cobrarlo, asi que la espera se
+		# alarga mientras alguien mastique; el tope evita quedarse colgado.
+		# Tras el ULTIMO cobro se dejan END_PAY_LINGER s mas para que dé tiempo
+		# a leer el "+$N" que sale flotando sobre el cliente.
 		if not results_shown:
 			end_grace += delta
-			if end_grace >= 4.0:
-				_finalize_results()
+			if _anyone_finishing_bite() and end_grace < END_BITE_MAX:
+				pay_linger = END_PAY_LINGER
+			else:
+				pay_linger = maxf(pay_linger - delta, 0.0)
+				if end_grace >= 4.0 and pay_linger <= 0.0:
+					_finalize_results()
 		return
 
 	# La banda de la cinta avanza a la velocidad real de los platos (tambien
@@ -1355,6 +1381,9 @@ func _process(delta: float) -> void:
 		# Si no hay asiento libre lo reintenta cada frame hasta que lo haya.
 		if _try_spawn_client():
 			arrival_queue.pop_front()
+	# Potenciador ganado mientras el jugador sostenia un gesto: sale en cuanto
+	# levanta el dedo.
+	_try_open_powerup_choice()
 	_update_hud()
 
 
@@ -1377,6 +1406,10 @@ func _try_spawn_client() -> bool:
 	# partida a otra sin tocar la mezcla de TIPOS, que es lo que equilibra el
 	# nivel (client_mix cuenta grumetes/piratas/capitanes, no generos).
 	c.gender = CharacterData.random_gender()
+	# La fila de cabezas del HUD cuenta por TIPO, y la cara que enseña es la del
+	# PRIMERO de ese tipo que ha pisado el barco en esta partida.
+	if not head_gender.has(c.client_type):
+		head_gender[c.client_type] = c.gender
 	c.patience_scale = patience_mult
 	c.pay_mult = next_client_pay_mult
 	next_client_pay_mult = 1.0
@@ -1518,8 +1551,19 @@ func _add_tip(amount: int) -> void:
 	while tips_total >= _tip_threshold(powerups_claimed):
 		powerups_claimed += 1
 		pending_powerups += 1
-	if pending_powerups > 0 and not powerup_panel.visible and not ended:
-		_open_powerup_choice()
+	_try_open_powerup_choice()
+
+
+## Saca el cartel de potenciador SOLO si no pilla al jugador en mitad de un
+## gesto que hay que sostener (ver prep_board.is_gesture_locked): pausar el
+## juego ahi le arruinaria la receta. Si toca esperar, `_process` lo reintenta
+## en cuanto suelta el dedo.
+func _try_open_powerup_choice() -> void:
+	if pending_powerups <= 0 or powerup_panel.visible or ended:
+		return
+	if prep_board.is_gesture_locked():
+		return
+	_open_powerup_choice()
 
 
 func _open_powerup_choice() -> void:
@@ -1541,6 +1585,30 @@ func _open_powerup_choice() -> void:
 		powerup_options.add_child(b)
 	powerup_panel.visible = true
 	get_tree().paused = true
+	_animate_powerup_panel()
+
+
+## Entrada del cartel de potenciador: aparece de golpe desde pequeño con
+## rebote, se balancea un instante y luego late despacio. El panel está en
+## PROCESS_MODE_ALWAYS, así que el tween corre con el juego en pausa.
+func _animate_powerup_panel() -> void:
+	powerup_panel.pivot_offset = powerup_panel.size * 0.5
+	powerup_panel.scale = Vector2(0.55, 0.55)
+	powerup_panel.rotation = deg_to_rad(-5.0)
+	powerup_panel.modulate.a = 0.0
+	var tw := powerup_panel.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(powerup_panel, "scale", Vector2.ONE, 0.42) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(powerup_panel, "modulate:a", 1.0, 0.2)
+	tw.tween_property(powerup_panel, "rotation", 0.0, 0.5) \
+			.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	tw.chain().tween_callback(func() -> void:
+		var loop := powerup_panel.create_tween().set_loops()
+		loop.tween_property(powerup_panel, "scale", Vector2(1.02, 1.02), 0.85) \
+				.set_trans(Tween.TRANS_SINE)
+		loop.tween_property(powerup_panel, "scale", Vector2.ONE, 0.85) \
+				.set_trans(Tween.TRANS_SINE))
 
 
 func _on_powerup_chosen(id: String) -> void:
@@ -1651,8 +1719,8 @@ func _on_dish_served(recipe_id: String, price_override: int = 0, extras: Array =
 	p.discarded.connect(_on_plate_discarded)
 
 
-## Plato que sale de la TABLA del jugador: cuenta para el ayudante (que cocina
-## uno por su cuenta cada PerkData.HELPER_EVERY) y para desbloquear perks.
+## Plato que sale de la TABLA del jugador: cuenta para desbloquear perks y
+## para los logros.
 func _on_player_dish_served(recipe_id: String, price_override: int = 0,
 		extras: Array = [], level_override: int = 0) -> void:
 	dishes_served += 1
@@ -1660,8 +1728,6 @@ func _on_player_dish_served(recipe_id: String, price_override: int = 0,
 	GameState.bump_stat("dishes_made")
 	GameState.bump_stat("dish_%s" % recipe_id)
 	_on_dish_served(recipe_id, price_override, extras, level_override)
-	if helper_pivot != null and dishes_served % PerkData.HELPER_EVERY == 0:
-		_helper_cook()
 
 
 ## Un plato desechado (2 vueltas sin cogerse) cuesta el 30% de su precio.
@@ -1686,6 +1752,14 @@ func _on_money_penalty(amount: int) -> void:
 
 
 # -------------------------------------------------------------- resultados
+
+## ¿Queda alguien terminando su ultimo bocado tras el fin del nivel?
+func _anyone_finishing_bite() -> bool:
+	for c in get_tree().get_nodes_in_group("clients"):
+		if c.has_method("is_finishing_bite") and c.is_finishing_bite():
+			return true
+	return false
+
 
 ## Marca el fin del nivel: desaloja a los que queden, para los platos de la
 ## cinta (la banda deja de avanzar sola al estar "ended") y bloquea la tabla.
@@ -2162,21 +2236,19 @@ func _update_client_heads() -> void:
 		return
 	for c in heads_row.get_children():
 		c.queue_free()
-	# Cuenta por tipo Y genero, en orden E -> A -> G (de menor a mayor rango) y
-	# dentro de cada uno los dos generos. Se separan a proposito: la fila esta
-	# para reconocer de un vistazo a QUIEN tienes en la barra, y una cara que
-	# no se corresponde con la que hay sentada confunde mas de lo que ahorra.
-	var counts := {}
+	# Cuenta por TIPO, sin separar por genero: la fila dice CUANTOS grumetes,
+	# piratas y capitanes hay, y separarlos en dos caras por cada tipo llenaba
+	# la fila de iconos para no decir nada nuevo. La cara de cada tipo es la del
+	# primero que llego (`head_gender`), y ahi se queda toda la partida.
+	var counts := { "E": 0, "A": 0, "G": 0 }
 	for c in seat_clients:
 		if c == null or not is_instance_valid(c):
 			continue
-		var key: String = "%s_%s" % [c.client_type, c.gender]
-		counts[key] = int(counts.get(key, 0)) + 1
+		counts[c.client_type] = int(counts.get(c.client_type, 0)) + 1
 	for type in ["E", "A", "G"]:
-		for g in [CharacterData.MALE, CharacterData.FEMALE]:
-			var n: int = int(counts.get("%s_%s" % [type, g], 0))
-			if n > 0:
-				heads_row.add_child(_head_badge(type, g, n))
+		if int(counts[type]) > 0:
+			heads_row.add_child(_head_badge(type,
+				str(head_gender.get(type, CharacterData.MALE)), int(counts[type])))
 
 
 ## Icono de cabeza con su contador. El "xN" va DEBAJO y superpuesto sobre el
@@ -2282,11 +2354,14 @@ func _on_exit_pressed() -> void:
 
 
 func _confirm_exit() -> void:
-	# En la fase de preparacion la salida es gratis: se devuelven los usos de
-	# ingredientes que se descontaron al empezar el nivel.
+	# En la fase de preparacion la salida es gratis: se devuelve TODO lo que se
+	# descuento al empezar el nivel (usos de ingredientes y de potenciadores
+	# permanentes). Aun no se ha jugado nada, asi que no se pierde nada.
 	if prep_phase and GameState.is_adventure():
 		for ing in GameState.ingredients_for_selection(GameState.selected_recipes):
 			GameState.add_ingredient_uses(ing, 1)
+		for perk in GameState.selected_perks:
+			GameState.add_perk_uses(perk, 1)
 	# Se guarda aunque se abandone: el rato jugado hasta aquí cuenta igual.
 	GameState.save_game()
 	get_tree().paused = false

@@ -9,11 +9,12 @@ extends Node3D
 ## escena (NO con --script: hace falta render de verdad):
 ##   Godot_v4.7.1-stable_win64_console.exe "res://scenes/tmp_heads.tscn"
 
-## sufijo del icono -> modelo del que se renderiza. Los femeninos salen de los
-## modelos SIN riguear: el encuadre va por la caja del cuerpo, no por huesos.
+## sufijo del icono -> modelo del que se renderiza. SIEMPRE el modelo RIGUEADO,
+## que es el que sale en el juego: los femeninos se sacaban de la version sin
+## riguear y, al rehacerlos, el icono se quedo con la cara antigua.
 const OUT := {
 	"E": "grumete_rig", "A": "pirata_rig", "G": "capitan_rig",
-	"E_f": "grumete_fem", "A_f": "pirata_fem", "G_f": "capitan_fem",
+	"E_f": "grumete_fem_rig", "A_f": "pirata_fem_rig", "G_f": "capitan_fem_rig",
 }
 const SIZE := 192
 ## Encuadre en fracciones de la ALTURA TOTAL del personaje, no del hueso de la

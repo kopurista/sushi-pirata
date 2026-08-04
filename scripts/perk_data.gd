@@ -16,7 +16,7 @@ const PERKS: Dictionary = {
 	},
 	"ayudante": {
 		"name": "Ayudante de cocina",
-		"desc": "Un ayudante se suma a la cocina y prepara 1 de cada 4 platos por su cuenta, sin que tengas que elaborarlo.",
+		"desc": "Un ayudante se suma a la cocina: al empezar una receta puedes pasársela con su botón y la termina él solo. Descansa 30 s entre plato y plato.",
 		"icon": "res://assets/ui/ic_inventario.png",
 		"cost": 70,
 		"unlock": "Sirve 18 platos en una misma partida.",
@@ -27,8 +27,6 @@ const PERKS: Dictionary = {
 const UNLOCK_PLATES_ONE_CLIENT := 5
 ## Platos servidos en una partida para desbloquear "ayudante".
 const UNLOCK_PLATES_TOTAL := 18
-## Cada cuántos platos servidos por el jugador cocina uno el ayudante.
-const HELPER_EVERY := 4
 
 
 static func get_perk(id: String) -> Dictionary:

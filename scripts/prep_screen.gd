@@ -33,12 +33,10 @@ var _t := 0.0
 @onready var start_button: Button = $UI/Root/StartButton
 
 
-## Tope de fotogramas: aquí aún no se juega, 30 bastan y ahorran batería.
-const MENU_FPS := 30
 
 
 func _ready() -> void:
-	Engine.max_fps = MENU_FPS
+	Engine.max_fps = GameState.fps_for(false)
 	var board_script := load("res://scripts/prep_board.gd")
 	# En Arcade el fondo es SOLO EL MAR ("mar"): el barco acaba de salir por la
 	# derecha en la transición del menú, así que verlo aquí otra vez rompía el
@@ -50,6 +48,10 @@ func _ready() -> void:
 	# En aventura solo se listan las recetas desbloqueadas; en prueba, todas.
 	var available: Array = []
 	for id in RecipeData.RECIPES:
+		# El barco combinado no se elige aquí: se monta en partida con los
+		# platos que haya en las cajas.
+		if RecipeData.RECIPES[id].get("hidden", false):
+			continue
 		if GameState.mode == "test" or GameState.is_recipe_unlocked(id):
 			available.append(id)
 	# Agrupadas por nivel (1★, 2★, 3★); dentro de cada grupo, por precio.
@@ -169,7 +171,7 @@ func _add_top_bar(board_script: GDScript) -> void:
 ## El escenario del fondo se mece con el oleaje.
 func _process(delta: float) -> void:
 	_t += delta
-	if backdrop != null:
+	if backdrop != null and GameState.animations_on():
 		backdrop.rotation_degrees.y = sin(_t * 0.18) * 6.0
 		backdrop.rotation_degrees.z = sin(_t * 0.7) * 1.4
 		backdrop.position.y = -0.1 + sin(_t * 0.9) * 0.07

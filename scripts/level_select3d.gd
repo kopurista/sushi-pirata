@@ -89,14 +89,12 @@ func _world(p: Vector2) -> Vector3:
 	return R_HAT * ((p.x - 360.0) / PPU_X) + D_HAT * (p.y / PPU_Y)
 
 
-## Tope de fotogramas de las pantallas sin juego.
-const MENU_FPS := 30
 
 
 func _ready() -> void:
-	# Las pantallas de menu se conforman con 30 fps: aqui no se juega y
-	# renderizar el doble de fotogramas solo gasta bateria.
-	Engine.max_fps = MENU_FPS
+	# Las pantallas de menu van a la mitad de fotogramas que el juego
+	# (GameState.fps_for): aqui no se juega y renderizar mas gasta bateria.
+	Engine.max_fps = GameState.fps_for(false)
 	_setup_environment()
 	_setup_sea()
 	_setup_route()
@@ -640,10 +638,14 @@ func _process(delta: float) -> void:
 	# Balanceo del barco sobre las olas (sustituye a las velas animadas del
 	# spritesheet 2D) + el rolido extra del viaje.
 	if ship_pivot != null:
+		# El cabeceo sobre las olas es adorno: con "menos animaciones" el barco
+		# navega quieto (el rolido del viaje sí se mantiene, guía la mirada).
+		var bob := GameState.animations_on()
 		ship_pivot.position = _world(ship_px) \
-			+ Vector3(0.0, -0.06 + sin(_t * 1.4) * 0.03, 0.0)
+			+ Vector3(0.0, -0.06 + (sin(_t * 1.4) * 0.03 if bob else 0.0), 0.0)
 		ship_pivot.rotation_degrees = Vector3(
-			sin(_t * 1.1) * 2.0, SHIP_YAW, sin(_t * 1.7) * 2.5 + ship_roll)
+			sin(_t * 1.1) * 2.0 if bob else 0.0, SHIP_YAW,
+			(sin(_t * 1.7) * 2.5 if bob else 0.0) + ship_roll)
 		# La mancha sigue al barco pero NO cabecea con él: es una sombra en el
 		# agua, no una copia del casco.
 		if ship_blob != null:

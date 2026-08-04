@@ -15,6 +15,8 @@ const JOBS := [
 	{ "src": "ic_tienda", "dst": "ic_tienda", "white": 2.0, "margin": 2, "width": 192, "ext": "png" },
 	{ "src": "ic_inventario", "dst": "ic_inventario", "white": 2.0, "margin": 2, "width": 192, "ext": "png" },
 	{ "src": "ic_arcade", "dst": "ic_arcade", "white": 2.0, "margin": 2, "width": 192, "ext": "png" },
+	{ "src": "ic_opciones", "dst": "ic_opciones", "white": 2.0, "margin": 2, "width": 224, "ext": "png" },
+	{ "src": "ic_logros", "dst": "ic_logros", "white": 2.0, "margin": 2, "width": 224, "ext": "png" },
 ]
 
 

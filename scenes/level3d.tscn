@@ -212,10 +212,8 @@ stretch_mode = 5
 
 [node name="TapZone" type="Control" parent="HUD/PrepBoard/BoardPanel"]
 anchors_preset = 0
-offset_left = 4.0
-offset_top = 128.0
-offset_right = 516.0
-offset_bottom = 396.0
+offset_right = 520.0
+offset_bottom = 312.0
 
 [node name="StorageBox" type="GridContainer" parent="HUD/PrepBoard"]
 layout_mode = 0
@@ -230,9 +228,9 @@ columns = 2
 [node name="CancelButton" type="Button" parent="HUD/PrepBoard"]
 visible = false
 layout_mode = 0
-offset_left = 650.0
+offset_left = 660.0
 offset_top = 306.0
-offset_right = 706.0
+offset_right = 716.0
 offset_bottom = 362.0
 
 [node name="Buttons" type="HBoxContainer" parent="HUD/PrepBoard"]

@@ -118,6 +118,8 @@ static func blob_shadow(size_x: float, size_z: float) -> MeshInstance3D:
 	mi.mesh = plane
 	mi.material_override = _blob_mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Las manchas SON las sombras del juego: el ajuste "Sombras" las apaga.
+	mi.visible = GameState.shadows_on()
 	# Fuera del fusionado por color: lleva material propio y translúcido.
 	mi.add_to_group(GeometryBatch.NO_BATCH_GROUP)
 	return mi

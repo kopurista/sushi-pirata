@@ -30,6 +30,13 @@ const SHOP_DOCK_AT := 7.9
 const SHOP_SAIL := 300.0
 const SHOP_ZOOM_SIDE := 430.0
 const SHOP_ZOOM_SIZE := 9.4
+## Botones redondos de las esquinas: la medalla de Logros arriba a la izquierda
+## y la rueda de Opciones arriba a la derecha, en el hueco que dejó el monedero
+## (el dinero solo se enseña donde se puede ganar o gastar). El rótulo va
+## DENTRO del alto del botón: colgándolo por debajo se salía de la pantalla.
+const ROUND_SIZE := 112.0
+const ROUND_LABEL := 32.0
+const ROUND_MARGIN := 16.0
 
 var logo: TextureRect
 ## El logotipo vive dentro de este contenedor: el balanceo mueve el logo y las
@@ -39,7 +46,10 @@ var logo_float: Tween = null
 var logo_sway: Tween = null
 var ui_layer: CanvasLayer = null
 var button_box: VBoxContainer = null
-var coin_box: Control = null
+## Botones redondos de las esquinas: la rueda de ajustes abajo a la derecha y
+## la medalla de los logros arriba a la izquierda.
+var gear_button: Control = null
+var medal_button: Control = null
 ## true mientras se ve el menú (con el mapa fuera de pantalla).
 var in_menu := true
 ## Mientras hay una transición en marcha no se aceptan más pulsaciones.
@@ -55,7 +65,8 @@ var ui_tween: Tween = null
 ## construirla: después de una salida, la posición actual ya está desplazada.
 var home_logo_y := 96.0
 var home_box_y := 0.0
-var home_coin_y := 0.0
+var home_medal_y := 0.0
+var home_gear_y := 0.0
 ## 1 = encuadre de menú, 0 = encuadre de mapa. Se interpola durante el viaje
 ## para que la cámara no dé un salto al cambiar de estado.
 var menu_blend := 1.0
@@ -189,7 +200,7 @@ func _set_map_ui_visible(on: bool) -> void:
 
 
 func _set_menu_ui_visible(on: bool) -> void:
-	for node in [logo_holder, button_box, coin_box]:
+	for node in [logo_holder, button_box, gear_button, medal_button]:
 		if node != null:
 			node.visible = on
 	for b in birds:
@@ -204,6 +215,10 @@ func _set_menu_ui_visible(on: bool) -> void:
 ## La V y el cuerpo hacen falta: con las alas planas y alineadas, desde la
 ## cámara isométrica solo se veía una barra blanca.
 func _setup_birds() -> void:
+	# Con "menos animaciones" ni se crean: son adorno y cada una es geometría
+	# que se mueve por frame.
+	if not GameState.animations_on():
+		return
 	var wing_mat := StandardMaterial3D.new()
 	wing_mat.albedo_color = Color(0.98, 0.98, 0.96)
 	wing_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -243,6 +258,8 @@ func _setup_birds() -> void:
 ## Nubes bajas y TRANSLÚCIDAS que cruzan por delante del barco. Van en 3D, así
 ## que el logotipo y los botones (CanvasLayer) siempre quedan por encima.
 func _setup_clouds() -> void:
+	if not GameState.animations_on():
+		return
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color(1.0, 1.0, 1.0, 0.42)
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -305,31 +322,10 @@ func _setup_menu_ui() -> void:
 	ui_layer = CanvasLayer.new()
 	add_child(ui_layer)
 
-	# Monedero arriba a la derecha.
-	var money_box := HBoxContainer.new()
-	money_box.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	money_box.offset_left = -220.0
-	money_box.offset_top = 24.0
-	money_box.offset_right = -24.0
-	money_box.offset_bottom = 76.0
-	money_box.alignment = BoxContainer.ALIGNMENT_END
-	money_box.add_theme_constant_override("separation", 8)
-	var coin := TextureRect.new()
-	coin.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	coin.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	coin.texture = load("res://assets/ui/moneda.png")
-	coin.custom_minimum_size = Vector2(44, 44)
-	money_box.add_child(coin)
-	var money_label := Label.new()
-	money_label.text = "%d" % GameState.money
-	money_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	money_label.add_theme_font_size_override("font_size", 34)
-	money_label.add_theme_color_override("font_color", Color(1, 0.86, 0.4))
-	money_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	money_label.add_theme_constant_override("outline_size", 6)
-	money_box.add_child(money_label)
-	ui_layer.add_child(money_box)
-	coin_box = money_box
+	# En el MENÚ no se enseña el monedero: el dinero solo importa donde se
+	# puede gastar o ganar (mapa de aventura, tienda e inventario). Su hueco de
+	# la esquina superior derecha lo ocupa ahora la rueda de Opciones.
+
 
 	# Logotipo, flotando sobre el mar. Va dentro de un contenedor propio.
 	logo_holder = Control.new()
@@ -368,19 +364,82 @@ func _setup_menu_ui() -> void:
 		func() -> void: _go_shop()))
 	box.add_child(_make_mode_button("Inventario", "ic_inventario", 96, 36,
 		func() -> void: _go_inventory()))
+	# Botones redondos de las esquinas. Van SUELTOS (no en el VBox) para poder
+	# anclarlos a su esquina y animarlos por separado.
+	medal_button = _make_round_button("ic_logros", "Logros",
+		Control.PRESET_TOP_LEFT, Vector2(ROUND_MARGIN, ROUND_MARGIN),
+		func() -> void: _go_achievements())
+	gear_button = _make_round_button("ic_opciones", "Opciones",
+		Control.PRESET_TOP_RIGHT,
+		Vector2(-ROUND_MARGIN - ROUND_SIZE, ROUND_MARGIN),
+		func() -> void: _go_options())
+
 	# Las posiciones de reposo salen del propio layout (el que las anima no
 	# puede leerlas más tarde: para entonces ya estarían desplazadas).
 	var vp := get_viewport().get_visible_rect().size
 	home_logo_y = 96.0
 	home_box_y = vp.y - 486.0
-	home_coin_y = 24.0
+	home_medal_y = ROUND_MARGIN
+	home_gear_y = ROUND_MARGIN
+
+
+## Botón REDONDO de esquina: el propio dibujo (rueda de timón, medalla) es el
+## botón, con su mancha de sombra detrás y un rótulo pequeño debajo. No lleva
+## tablón de madera: sobre el mar se lee mejor la silueta suelta.
+func _make_round_button(icon: String, label: String, preset: int,
+		offset: Vector2, action: Callable) -> Control:
+	var holder := Control.new()
+	holder.set_anchors_preset(preset)
+	holder.position = offset
+	holder.size = Vector2(ROUND_SIZE, ROUND_SIZE + ROUND_LABEL)
+	holder.custom_minimum_size = holder.size
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_layer.add_child(holder)
+
+	var tex: Texture2D = load("res://assets/ui/%s.png" % icon)
+	var shadow := TextureRect.new()
+	shadow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	shadow.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	shadow.texture = tex
+	shadow.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shadow.offset_left = 4.0
+	shadow.offset_top = 6.0
+	shadow.offset_right = 4.0
+	shadow.offset_bottom = 6.0 - ROUND_LABEL
+	shadow.modulate = Color(0, 0, 0, 0.38)
+	shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.add_child(shadow)
+
+	var b := TextureButton.new()
+	b.texture_normal = tex
+	b.ignore_texture_size = true
+	b.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	b.set_anchors_preset(Control.PRESET_FULL_RECT)
+	b.offset_bottom = -ROUND_LABEL
+	b.pressed.connect(action)
+	PrepBoard.add_press_feedback(b, 0.9)
+	holder.add_child(b)
+
+	var l := Label.new()
+	l.text = label
+	l.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	l.offset_top = -ROUND_LABEL
+	l.offset_bottom = 0.0
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.add_theme_font_size_override("font_size", 19)
+	l.add_theme_color_override("font_color", Color(1, 0.95, 0.84))
+	l.add_theme_color_override("font_outline_color", Color(0.11, 0.06, 0.02))
+	l.add_theme_constant_override("outline_size", 8)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.add_child(l)
+	return holder
 
 
 ## Flotación y balanceo del logotipo. Se guardan para poder PARARLOS: si siguen
 ## corriendo durante una transición, tiran del logotipo hacia su sitio y no
 ## llega a salir de la pantalla.
 func _start_logo_idle() -> void:
-	if leaving or not in_menu:
+	if leaving or not in_menu or not GameState.animations_on():
 		return
 	logo.position.y = 0.0
 	logo_float = create_tween().set_loops().set_trans(Tween.TRANS_SINE)
@@ -454,7 +513,9 @@ func _ui_out() -> void:
 			.set_ease(Tween.EASE_IN)
 	ui_tween.tween_property(logo_holder, "position:y", -640.0, OUT_TIME)
 	ui_tween.tween_property(button_box, "position:y", home_box_y + 660.0, OUT_TIME)
-	ui_tween.tween_property(coin_box, "position:y", home_coin_y - 220.0, OUT_TIME)
+	# Los dos botones de esquina viven arriba: se van por el borde superior.
+	ui_tween.tween_property(medal_button, "position:y", home_medal_y - 260.0, OUT_TIME)
+	ui_tween.tween_property(gear_button, "position:y", home_gear_y - 260.0, OUT_TIME)
 
 
 ## Nubes y gaviotas se van hacia arriba, fuera del encuadre.
@@ -579,6 +640,27 @@ func _go_shop() -> void:
 		GameState.fade_to_scene("res://scenes/shop_screen.tscn", 0.45, 0.5))
 
 
+## LOGROS y OPCIONES: la interfaz se retira y se funde a negro. No traen
+## coreografía propia (no son un sitio al que se navegue por mar).
+func _go_achievements() -> void:
+	_leave_to("res://scenes/achievements_screen.tscn")
+
+
+func _go_options() -> void:
+	_leave_to("res://scenes/options_screen.tscn")
+
+
+func _leave_to(path: String) -> void:
+	if leaving:
+		return
+	leaving = true
+	_ui_out()
+	var tw := create_tween()
+	tw.tween_interval(OUT_TIME * 0.6)
+	tw.tween_callback(func() -> void:
+		GameState.fade_to_scene(path, 0.4, 0.4))
+
+
 ## INVENTARIO: la interfaz se retira y la pantalla se apaga.
 func _go_inventory() -> void:
 	if leaving:
@@ -602,11 +684,15 @@ func _ui_in() -> void:
 		ui_tween.kill()
 	logo_holder.position.y = -640.0
 	button_box.position.y = home_box_y + 660.0
-	coin_box.position.y = home_coin_y - 220.0
+	medal_button.position.y = home_medal_y - 260.0
+	gear_button.position.y = home_gear_y - 260.0
 	ui_tween = create_tween().set_parallel(true)
+	ui_tween.tween_property(medal_button, "position:y", home_medal_y, 0.55) \
+			.set_delay(0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	ui_tween.tween_property(gear_button, "position:y", home_gear_y, 0.55) \
+			.set_delay(0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	ui_tween.tween_property(logo_holder, "position:y", home_logo_y, 0.6) 			.set_delay(0.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	ui_tween.tween_property(button_box, "position:y", home_box_y, 0.6) 			.set_delay(0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	ui_tween.tween_property(coin_box, "position:y", home_coin_y, 0.5) 			.set_delay(0.15)
 	get_tree().create_timer(1.0).timeout.connect(_start_logo_idle)
 
 

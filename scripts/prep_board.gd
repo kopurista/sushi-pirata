@@ -5,12 +5,22 @@ extends Control
 ## El guardado funciona por pilas: cada caja apila hasta stack_max platos
 ## IGUALES (x2, x3...). Emite craft_event para que el chef reaccione.
 
-signal dish_served(recipe_id: String)
+## price_override > 0 cuando el plato no vale lo que dice su receta (el barco
+## combinado se cotiza por los platos con los que se montó).
+## extras: ids de los añadidos (jengibre/wasabi/soja) que lleva ESE plato.
+signal dish_served(recipe_id: String, price_override: int, extras: Array,
+		level_override: int)
 signal craft_event(kind: String, stage_id: String)
+## Un gesto mal hecho cuesta dinero (cortes de fugu y atún rojo). El nivel lo
+## descuenta del monedero sin bajar de 0.
+signal money_penalty(amount: int)
 ## Contenido de las cajas de guardado tras cada cambio: array paralelo a las
 ## cajas con {"id", "count"} o null si esa caja está vacía. El nivel lo usa
 ## para reflejar lo guardado en las cajas 3D que hay junto al chef.
 signal storage_changed(slots: Array)
+## El jugador le ha pasado la receta al ayudante: el nivel le hace dar un
+## saltito para que se vea quién ha cocinado ese plato.
+signal helper_used
 
 enum State { IDLE, CRAFTING, READY }
 
@@ -18,6 +28,13 @@ const SWIPE_THRESHOLD := 70.0
 ## Recorrido horizontal (px) que debe cubrir el corte lento, de izquierda a
 ## derecha, por todo el ancho de la tabla.
 const SLICE_SWEEP := 360.0
+## Recorrido del corte VERTICAL (`direction: "v"`, el dorayaki). Más corto que
+## el horizontal porque la tabla mide 312 px de alto y 520 de ancho.
+const SLICE_SWEEP_V := 150.0
+## Hueco entre los iconos redondos de debajo de las cajas (cancelar, barco,
+## combinar). Apretado de 14 a 6 px para que la fila entera quepa más a la
+## derecha y no quede pegada al borde de la mesa de elaboración.
+const BUTTON_GAP := 6.0
 const DISH_SIZE := Vector2(132, 120)
 ## Tamaño de cada ingrediente en la fila de la tabla.
 const ING_SIZE := Vector2(88, 76)
@@ -31,6 +48,10 @@ var taps_done: int = 0
 var swipes_done: int = 0
 var hold_time: float = 0.0
 var holding := false
+## hold_board con "move": hay que MANTENER Y MOVER (soplete). Se marca en cada
+## arrastre y se consume en _process, así que si el dedo se para, se para todo.
+var hold_moving := false
+var hold_last_pos := Vector2.ZERO
 var swipe_active := false
 var swipe_counted := false
 var swipe_start := Vector2.ZERO
@@ -46,6 +67,30 @@ var slice_start := Vector2.ZERO
 var slice_start_ms := 0
 ## Avance horizontal (px) del corte lento en curso, para llenar la barra.
 var slice_progress: float = 0.0
+## Avance (0-1) del deslizamiento EN CURSO, para la barra de progreso.
+var swipe_progress: float = 0.0
+## fry_board: reloj de la fritura y sprite del plato que saldrá (según el
+## punto en que se soltó: crudo, bien o quemado).
+var frying := false
+var fry_time: float = 0.0
+var fry_dish: String = ""
+## drag_choice: identidad del plato según el pescado elegido (aburi de atún).
+var choice_dish: String = ""
+## drag_choice: opción marcada con un toque. La elección se puede hacer en DOS
+## tiempos (tocar para elegir y luego arrastrar) o de una (arrastrar directo).
+var choice_selected: String = ""
+## Punto donde empezó el gesto sobre una opción, para distinguir toque de
+## arrastre de verdad.
+var choice_press_at := Vector2.ZERO
+var choice_moved := false
+## Lo mismo para los arrastres normales de ingrediente: la zona activa cubre
+## toda la mesa (fila de ingredientes incluida), así que hace falta el umbral
+## para que un toque no cuente como soltar.
+var drag_press_at := Vector2.ZERO
+var drag_moved := false
+## Receta ELEGIDA por el jugador, para el cooldown (el plato puede acabar
+## siendo otra: tempura poco hecha, aburi de atún...).
+var ready_base: String = ""
 ## Mensaje momentáneo sobre la tabla ("¡Más lento!").
 var message_label: Label = null
 var message_tween: Tween = null
@@ -152,7 +197,6 @@ var hint_tween: Tween = null
 
 ## Desplazamiento de la cinta del panel (misma velocidad que la de la cubierta).
 var panel_belt_scroll := 0.0
-
 
 ## Fondo 9-patch pirata para un Control.
 static func make_nine_patch(tex_path: String, margin: int) -> NinePatchRect:
@@ -264,6 +308,7 @@ static func make_star_row(count: int, total: int, star_size: float, shadow := fa
 	return row
 
 
+#
 func _ready() -> void:
 	if GameState.selected_recipes.is_empty():
 		# Fallback para poder probar level.tscn directamente sin pasar por la selección.
@@ -283,6 +328,12 @@ func _ready() -> void:
 		_add_storage_panel()
 	_skin_cancel_button()
 	cancel_button.pressed.connect(_cancel_prep)
+	_build_boat_button()
+	_build_combo_button()
+	if GameState.has_perk("ayudante"):
+		_build_helper_button()
+	_build_extra_buttons()
+	_update_extra_buttons()
 	# Al desaparecer un ingrediente ya usado, la fila se reordena y los que
 	# quedan se desplazan; hay que recolocar la mano de gestos sobre el nuevo
 	# objetivo o quedaría desajustada (recetas con 3+ ingredientes).
@@ -306,13 +357,26 @@ func _ready() -> void:
 	message_label.add_theme_constant_override("outline_size", 8)
 	message_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	message_label.visible = false
+	# Por encima de TODO lo que haya sobre la tabla: los platos terminados y el
+	# barco combinado se añaden después, así que sin esto el aviso ("¡Buen
+	# punto!", "¡Barco! $34") quedaba tapado justo cuando hay que leerlo.
+	message_label.z_index = 90
 	add_child(message_label)
 	# Todos los indicadores de ayuda cuelgan de un mismo nodo para poder
 	# aparecer y desaparecer JUNTOS con un solo fundido.
+	# La zona activa de la mesa solo se consulta por RECTÁNGULO desde `_input`
+	# (`tap_zone.get_global_rect()`), nunca por el sistema de interfaz. Si se
+	# queda en STOP se traga los toques de los botones de extras, que van
+	# DEBAJO de ella en el árbol.
+	tap_zone.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hint_root = Control.new()
 	hint_root.name = "Hints"
 	hint_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	hint_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Por encima de la fila de cabezas de cliente del HUD, que se añade después
+	# que la tabla y tapaba la mano justo cuando indica llevar el plato a la
+	# cinta. Los carteles modales van en 120, así que siguen por delante.
+	hint_root.z_index = 110
 	add_child(hint_root)
 	# La instrucción del paso ("¡Pulsa!") se enciende sola tras unos segundos
 	# de inactividad, junto con la mano.
@@ -381,6 +445,73 @@ func _ready() -> void:
 	belt_mat.shader = load("res://shaders/belt_scroll.gdshader")
 	belt_sprite.material = belt_mat
 	_update_ui()
+
+
+
+func _process(delta: float) -> void:
+	_tick_guide(delta)
+	# Cinta del panel siempre en marcha (sincronizada con la de la cubierta).
+	if belt_sprite.material != null:
+		var tex := belt_sprite.texture
+		var tile_px: float = tex.get_width() * (belt_sprite.size.y / tex.get_height())
+		panel_belt_scroll += 75.0 * delta / maxf(tile_px, 1.0)
+		belt_sprite.material.set_shader_parameter("scroll_offset", panel_belt_scroll)
+
+	if frying:
+		fry_time += delta
+		_update_tap_bar()
+	if boat_cooldown > 0.0:
+		boat_cooldown = maxf(boat_cooldown - delta, 0.0)
+		# El contador de segundos se refresca solo (repintar el botón entero
+		# cada frame obligaría a recorrer las cajas 60 veces por segundo).
+		var boat_timer: Label = boat_button.get_node_or_null("Timer") \
+				if boat_button != null else null
+		if boat_timer != null:
+			boat_timer.text = "%d" % ceili(boat_cooldown)
+		if boat_cooldown <= 0.0:
+			_update_boat_button()
+	if helper_cooldown > 0.0:
+		helper_cooldown = maxf(helper_cooldown - delta, 0.0)
+		_update_helper_button()
+	if cooldown_mult_timer > 0.0:
+		cooldown_mult_timer -= delta
+		if cooldown_mult_timer <= 0.0:
+			cooldown_mult = 1.0
+	for id in cooldowns:
+		if cooldowns[id] > 0.0:
+			cooldowns[id] = maxf(cooldowns[id] - delta, 0.0)
+	for id in buttons:
+		var b: Button = buttons[id]
+		var badge: Label = button_badges[id]
+		var cd: Label = button_cooldown_labels[id]
+		if cooldowns[id] > 0.0:
+			b.disabled = true
+			b.modulate = Color(0.55, 0.55, 0.55)
+			cd.visible = true
+			cd.text = "%d" % ceili(cooldowns[id])
+		else:
+			cd.visible = false
+			b.disabled = state != State.IDLE and state != State.READY
+			b.modulate = Color.WHITE if not b.disabled else Color(0.75, 0.75, 0.75)
+		badge.text = "x%d" % free_uses[id] if free_uses.get(id, 0) > 0 else ""
+
+	if state == State.CRAFTING and holding:
+		var step := _current_step()
+		if step.get("type", "") == "hold_board":
+			# Con "move" (soplete del aburi) no basta con dejar el dedo quieto:
+			# hay que ir paseándolo. hold_moving lo pone a true cada arrastre y
+			# se consume aquí, así que parar el dedo detiene el progreso.
+			if step.get("move", false):
+				if not hold_moving:
+					return
+				hold_moving = false
+			hold_time += delta
+			var duration: float = step.get("duration", 1.0)
+			if hold_time >= duration:
+				holding = false
+				_advance_step()
+			else:
+				_update_ui()
 
 
 ## Botón de receta: sprite grande del plato + estrellas de nivel.
@@ -455,6 +586,7 @@ func _build_recipe_button(id: String) -> void:
 	cooldowns[id] = 0.0
 
 
+
 func _add_storage_panel() -> void:
 	var p := Control.new()
 	p.custom_minimum_size = Vector2(90, 90)
@@ -483,53 +615,12 @@ func recycle_recipe(recipe_id: String) -> void:
 		free_uses[recipe_id] = free_uses.get(recipe_id, 0) + 1
 
 
-func _process(delta: float) -> void:
-	_tick_guide(delta)
-	# Cinta del panel siempre en marcha (sincronizada con la de la cubierta).
-	if belt_sprite.material != null:
-		var tex := belt_sprite.texture
-		var tile_px: float = tex.get_width() * (belt_sprite.size.y / tex.get_height())
-		panel_belt_scroll += 75.0 * delta / maxf(tile_px, 1.0)
-		belt_sprite.material.set_shader_parameter("scroll_offset", panel_belt_scroll)
-
-	if cooldown_mult_timer > 0.0:
-		cooldown_mult_timer -= delta
-		if cooldown_mult_timer <= 0.0:
-			cooldown_mult = 1.0
-	for id in cooldowns:
-		if cooldowns[id] > 0.0:
-			cooldowns[id] = maxf(cooldowns[id] - delta, 0.0)
-	for id in buttons:
-		var b: Button = buttons[id]
-		var badge: Label = button_badges[id]
-		var cd: Label = button_cooldown_labels[id]
-		if cooldowns[id] > 0.0:
-			b.disabled = true
-			b.modulate = Color(0.55, 0.55, 0.55)
-			cd.visible = true
-			cd.text = "%d" % ceili(cooldowns[id])
-		else:
-			cd.visible = false
-			b.disabled = state != State.IDLE and state != State.READY
-			b.modulate = Color.WHITE if not b.disabled else Color(0.75, 0.75, 0.75)
-		badge.text = "x%d" % free_uses[id] if free_uses.get(id, 0) > 0 else ""
-
-	if state == State.CRAFTING and holding:
-		var step := _current_step()
-		if step.get("type", "") == "hold_board":
-			hold_time += delta
-			var duration: float = step.get("duration", 1.0)
-			if hold_time >= duration:
-				holding = false
-				_advance_step()
-			else:
-				_update_ui()
-
 
 func _current_step() -> Dictionary:
 	if step_index >= 0 and step_index < steps.size():
 		return steps[step_index]
 	return {}
+
 
 
 func _current_stage_id() -> String:
@@ -540,9 +631,15 @@ func _current_stage_id() -> String:
 	return ""
 
 
+
 func _start_prep(id: String) -> void:
 	if state != State.IDLE or cooldowns[id] > 0.0:
 		return
+	# Restos de la elaboración anterior que no deben contaminar esta.
+	fry_dish = ""
+	choice_dish = ""
+	choice_selected = ""
+	extras_chosen.clear()
 	current_recipe = id
 	if instant_recipes > 0:
 		instant_recipes -= 1
@@ -567,14 +664,26 @@ func _start_prep(id: String) -> void:
 	_update_ui()
 
 
+## ¿Hay un gesto EN CURSO que no se puede interrumpir? El dedo está apoyado en
+## mitad de un mantener / remover / cortar lento / freír, o arrastrando un
+## plato. El nivel consulta esto antes de sacar el cartel de potenciador: si
+## salta a media faena, el gesto se corta y la receta se arruina.
+func is_gesture_locked() -> bool:
+	return holding or stirring or slice_active or frying or dragging_dish != null
+
+
 ## Cancelable en cualquier momento mientras se está elaborando.
 func _can_cancel() -> bool:
 	return state == State.CRAFTING
 
 
+
 func _cancel_prep() -> void:
 	if not _can_cancel():
 		return
+	# Cancelar el montaje del barco DEVUELVE los platos a sus cajas.
+	if current_recipe == BOAT_RECIPE:
+		_return_boat_parts()
 	state = State.IDLE
 	current_recipe = ""
 	steps = []
@@ -590,6 +699,520 @@ func _cancel_prep() -> void:
 	_clear_ingredients()
 	_update_prop()
 	craft_event.emit("cancel", "")
+	_update_ui()
+
+
+# --- Barco combinado ---
+## Platos "de carta" que admite la bandeja (ni picoteos ni sopas).
+const BOAT_DISHES := ["maki_aguacate", "nigiri_salmon", "gunkan_wakame",
+	"nigiri_atun", "maki_atun", "gunkan_ikura", "futomaki_salmon",
+	"nigiri_ebi", "hana_maki"]
+## Mínimo para armar un barco y tope que cabe en la bandeja. La prima por
+## número de clases DISTINTAS es lo que dispara el precio.
+const BOAT_MIN := 4
+const BOAT_MAX := 12
+const BOAT_VARIETY_BONUS := { 2: 10, 3: 24, 4: 52, 5: 88, 6: 132 }
+const BOAT_RECIPE := "moriawase"
+## Un barco por minuto: es la jugada gorda de la partida, no algo continuo.
+const BOAT_COOLDOWN := 60.0
+## Doblones que cuesta echar a perder una fritura (cruda o carbonizada).
+const FRY_WASTE_PENALTY := 5
+## Icono bajo las cajas; solo aparece cuando el barco se puede montar.
+var boat_button: Button = null
+var boat_cooldown: float = 0.0
+## Botón de COMBINAR (udon + tempura): al lado del barco.
+var combo_button: Button = null
+## AYUDANTE (potenciador permanente): botón con su cara que termina de golpe la
+## receta recién empezada. Solo existe si el jugador lo lleva a la partida; se
+## enciende en el PRIMER paso de una elaboración y luego enfría medio minuto.
+const HELPER_COOLDOWN := 30.0
+## Trozo del retrato de cuerpo entero que se ve en el disco del ayudante, en
+## fracciones de la imagen: la cabeza y algo de hombros.
+const HELPER_FACE := Rect2(0.28, 0.03, 0.44, 0.30)
+var helper_button: Button = null
+var helper_cooldown: float = 0.0
+## Montaje en curso: platos que faltan por colocar y sus nodos en la tabla.
+var boat_parts: Array = []
+var boat_pending: Array = []
+var boat_nodes: Array = []
+## Plato del montaje que se está arrastrando (-1 = ninguno).
+var boat_drag_index: int = -1
+## Overlay del barco cargado sobre la bandeja (se rellena plato a plato).
+var boat_fill: TextureRect = null
+## Nivel del plato listo cuando NO es el de su receta (barco combinado).
+var ready_level: int = 0
+## Precio del plato listo cuando NO vale el de su receta (barco combinado).
+var ready_price: int = 0
+## Latido de la llama del soplete mientras se está flameando.
+var flame_tween: Tween = null
+## Latido de la llama del soplete mientras se esta flameando.
+
+
+## --- Extras del plato (jengibre / wasabi / soja) ---
+## Botones que salen arriba a la izquierda de la tabla con el plato ya hecho.
+var extra_buttons: Dictionary = {}
+var extras_chosen: Dictionary = {}
+
+
+# --- Barco combinado -------------------------------------------------------
+# No es una receta que se elija: aparece como icono bajo las cajas cuando hay
+# guardados BOAT_MIN platos válidos de AL MENOS dos clases distintas. Al
+# pulsarlo, TODOS los platos guardados salen a la tabla y hay que ir
+# arrastrándolos al barco uno a uno.
+
+## Recuento por id de los platos guardados que valen para el barco.
+func _boat_stock() -> Dictionary:
+	var stock := {}
+	for i in stacks:
+		var id: String = stacks[i].id
+		if id in BOAT_DISHES:
+			stock[id] = stock.get(id, 0) + int(stacks[i].count)
+	return stock
+
+
+## Todos los platos válidos guardados (hasta BOAT_MAX), de más caro a más
+## barato. [] si no llegan al mínimo o son todos de la misma clase.
+func _boat_pick() -> Array:
+	var stock := _boat_stock()
+	if stock.size() < 2:
+		return []   # nunca un barco de un solo plato repetido
+	var kinds: Array = stock.keys()
+	kinds.sort_custom(func(a: String, b: String) -> bool:
+		return int(RecipeData.get_recipe(a).get("price", 0)) 			> int(RecipeData.get_recipe(b).get("price", 0)))
+	var picked: Array = []
+	# Ronda a ronda para que entren de todas las clases antes de repetir.
+	var left := true
+	while left and picked.size() < BOAT_MAX:
+		left = false
+		for k in kinds:
+			if picked.size() >= BOAT_MAX:
+				break
+			if stock[k] > 0:
+				stock[k] -= 1
+				picked.append(k)
+				left = true
+	return picked if picked.size() >= BOAT_MIN else []
+
+
+## Precio del barco: lo que valen sus platos más una prima por variedad.
+func _boat_price(picked: Array) -> int:
+	var total := 0
+	var kinds := {}
+	for id in picked:
+		total += int(RecipeData.get_recipe(id).get("price", 0))
+		kinds[id] = true
+	return total + int(BOAT_VARIETY_BONUS.get(kinds.size(), 0))
+
+
+## Nivel (estrellas) del barco: la MEDIA de los niveles de sus platos,
+## redondeada hacia abajo. Así un barco de 1★+3★ sale de 2★ (lo cata todo el
+## mundo) y uno de puros 3★ sigue siendo cosa de capitanes.
+func _boat_level(picked: Array) -> int:
+	if picked.is_empty():
+		return 1
+	var total := 0
+	for id in picked:
+		total += int(RecipeData.get_recipe(id).get("level", 1))
+	return clampi(int(floor(float(total) / picked.size())), 1, 3)
+
+
+## Pulsar el icono: saca los platos de las cajas a la tabla y empieza el
+## montaje. Todavía no hay barco: hay que arrastrarlos a la bandeja.
+func _make_boat() -> void:
+	if state != State.IDLE or boat_cooldown > 0.0:
+		return
+	var picked := _boat_pick()
+	if picked.is_empty():
+		_flash_message("¡Faltan platos!")
+		return
+	for id in picked:
+		_consume_stored(id)
+	boat_parts = picked.duplicate()
+	boat_pending = picked.duplicate()
+	state = State.CRAFTING
+	current_recipe = BOAT_RECIPE
+	steps = []
+	step_index = 0
+	_set_stage("")
+	# Los platos rescatados se reparten por la tabla, listos para arrastrar.
+	_layout_boat_parts()
+	_update_prop_boat()
+	craft_event.emit("select", "")
+	_update_ui()
+
+
+## Coloca en la tabla los platos que aún faltan por montar.
+func _layout_boat_parts() -> void:
+	for n in boat_nodes:
+		if is_instance_valid(n):
+			n.queue_free()
+	boat_nodes.clear()
+	var area := tap_zone.get_global_rect()
+	var cols := 4
+	for i in boat_pending.size():
+		var d := _make_dish_node(boat_pending[i])
+		d.scale = Vector2(0.62, 0.62)
+		add_child(d)
+		var col := i % cols
+		var row := i / cols
+		d.global_position = area.position + Vector2(18.0 + col * 84.0, 10.0 + row * 62.0)
+		boat_nodes.append(d)
+
+
+## La bandeja vacía a la que hay que llevar los platos. Encima lleva un
+## overlay del barco YA CARGADO que va apareciendo plato a plato.
+func _update_prop_boat() -> void:
+	prop_rect.texture = RecipeData.get_stage_texture("barco_vacio")
+	prop_rect.scale = Vector2.ONE
+	prop_target = board_panel.position + board_panel.size - prop_rect.size - Vector2(8, 10)
+	prop_rect.position = prop_target
+	prop_rect.modulate.a = 1.0
+	prop_rect.visible = true
+	if boat_fill == null:
+		boat_fill = TextureRect.new()
+		boat_fill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		boat_fill.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		boat_fill.texture = RecipeData.get_dish_texture(BOAT_RECIPE)
+		boat_fill.set_anchors_preset(Control.PRESET_FULL_RECT)
+		boat_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		prop_rect.add_child(boat_fill)
+	boat_fill.modulate.a = 0.0
+	boat_fill.visible = true
+
+
+## Cancelar el montaje: los platos VUELVEN a las cajas tal cual estaban.
+func _return_boat_parts() -> void:
+	if boat_fill != null:
+		boat_fill.visible = false
+	for n in boat_nodes:
+		if is_instance_valid(n):
+			n.queue_free()
+	boat_nodes.clear()
+	for id in boat_pending:
+		var slot := _slot_for(id)
+		if slot >= 0:
+			if stacks.has(slot):
+				stacks[slot].count += 1
+				stacks[slot].count_label.text = "x%d" % stacks[slot].count
+			else:
+				_create_stack(slot, id)
+	boat_pending.clear()
+	boat_parts.clear()
+	_emit_storage()
+
+
+## Caja donde cabe un plato de ese tipo (la suya con hueco, o una vacía).
+func _slot_for(id: String) -> int:
+	for i in storage_panels.size():
+		if stacks.has(i) and stacks[i].id == id and stacks[i].count < stack_max:
+			return i
+	for i in storage_panels.size():
+		if not stacks.has(i):
+			return i
+	return -1
+
+
+## ELECCIÓN de ingrediente (aburi): salen varios pescados y hay que llevar UNO
+## a la tabla; el elegido fija la etapa siguiente y la identidad del plato
+## (result_by), y el resto desaparece al avanzar (la poda hace su parte).
+##
+## Vale de las DOS maneras: arrastrando el pescado a la tabla de una, o
+## tocándolo primero (queda marcado y los demás se apagan) y arrastrándolo
+## después. Un toque suelto NUNCA lo lleva a la tabla: solo lo marca.
+func _handle_choice_drag(event: InputEvent, step: Dictionary) -> void:
+	var options: Array = step.get("options", [])
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			for ing_id in options:
+				var node: Control = ingredient_nodes.get(ing_id)
+				if node != null and node.get_global_rect().has_point(event.position) and ghost == null:
+					ghost = _make_ghost(ing_id)
+					ghost.set_meta("ing", ing_id)
+					add_child(ghost)
+					ghost.global_position = event.position - ghost.size / 2.0
+					choice_press_at = event.position
+					choice_moved = false
+					break
+		elif ghost != null:
+			var dropped := tap_zone.get_global_rect().intersects(
+					Rect2(ghost.global_position, ghost.size))
+			var chosen := str(ghost.get_meta("ing"))
+			ghost.queue_free()
+			ghost = null
+			# El orden importa: la zona activa cubre la fila de ingredientes, así
+			# que sin mirar primero si hubo arrastre, un toque para MARCAR
+			# contaría como haberlo soltado ya en la tabla.
+			if dropped and choice_moved:
+				choice_dish = str(step.get("result_by", {}).get(chosen, ""))
+				var stage_over := str(step.get("stage_by", {}).get(chosen, ""))
+				craft_event.emit("drag", _current_stage_id())
+				_advance_step()
+				if stage_over != "":
+					_set_stage(stage_over)
+			elif not choice_moved:
+				# Toque limpio: se queda marcado y la guía pasa a señalarlo solo.
+				choice_selected = "" if choice_selected == chosen else chosen
+				craft_event.emit("select", _current_stage_id())
+				_update_choice_highlight(options)
+				_update_ui()
+	elif event is InputEventScreenDrag and ghost != null:
+		if choice_press_at.distance_to(event.position) > 24.0:
+			choice_moved = true
+		ghost.global_position = event.position - ghost.size / 2.0
+
+
+## Marca la opción elegida y apaga las demás. Sin esto, tocar un pescado no
+## daba ninguna señal de que hubiera pasado algo.
+func _update_choice_highlight(options: Array) -> void:
+	for ing_id in options:
+		var node: Control = ingredient_nodes.get(ing_id)
+		if node == null:
+			continue
+		if choice_selected == "" or choice_selected == ing_id:
+			node.modulate = Color.WHITE
+		else:
+			node.modulate = Color(0.62, 0.62, 0.62, 0.55)
+
+
+## FREÍR: mantener pulsado sobre la sartén y soltar en el punto justo. El
+## contador corre a la vista (con milésimas) y al soltar se mira en qué franja
+## de RecipeData.FRY_WINDOWS cayó: de ahí salen el precio, el sprite y el aviso.
+func _handle_fry(event: InputEvent, step: Dictionary) -> void:
+	# Con "prop" el paso lleva utensilio a mano (el soplete del wagyu): se
+	# enciende al pulsar y sigue al dedo, igual que en hold_board.
+	var has_prop: bool = step.get("prop", "") != ""
+	if event is InputEventScreenDrag and frying and has_prop:
+		_move_prop_to(event.position)
+		return
+	if not (event is InputEventScreenTouch):
+		return
+	if event.pressed and tap_zone.get_global_rect().has_point(event.position):
+		frying = true
+		fry_time = 0.0
+		if has_prop:
+			_set_prop_lit(true)
+			_move_prop_to(event.position)
+		craft_event.emit("hold", _current_stage_id())
+	elif not event.pressed and frying:
+		frying = false
+		if has_prop:
+			_release_prop()
+		var windows := _fry_windows(step)
+		var best := 0
+		for w in windows:
+			best = maxi(best, int(w["price"]))
+		for w in windows:
+			if fry_time <= float(w["to"]):
+				_finish_fry(w, best)
+				return
+
+
+## Franjas de tiempo del paso: por defecto las de la tempura, pero cada receta
+## puede traer las suyas ("windows"), más o menos exigentes.
+func _fry_windows(step: Dictionary) -> Array:
+	var w: Array = step.get("windows", [])
+	return w if not w.is_empty() else RecipeData.FRY_WINDOWS
+
+
+## Resuelve la fritura: si la franja no paga nada, el plato va a la basura
+## (se desliza fuera de la pantalla por abajo) y encima cuesta 5 doblones.
+func _finish_fry(window: Dictionary, best_price: int = 0) -> void:
+	var price := int(window["price"])
+	var color: Color = window.get("color", Color(1.0, 0.86, 0.3))
+	_flash_message("%s%s" % [window["label"],
+		("" if price <= 0 else "  $%d" % price)], color)
+	if price <= 0:
+		# Ni crudo ni carbonizado se sirven: se pierde la elaboración, el
+		# plato malogrado se escurre por abajo y el descuido cuesta dinero.
+		_slide_out_dish(str(window["dish"]))
+		money_penalty.emit(FRY_WASTE_PENALTY)
+		var lost := current_recipe
+		_cancel_prep()
+		_apply_cooldown(lost)
+		return
+	fry_dish = str(window["dish"])
+	ready_price = price
+	# Logro: la franja del punto exacto es la que más paga de ESE paso (cada
+	# receta tiene sus propias franjas: la tempura, el yaki y el wagyu).
+	var top: int = best_price if best_price > 0 else RecipeData.FRY_BEST_PRICE
+	if price >= top:
+		GameState.bump_stat("fry_perfect")
+	_advance_step()
+
+
+## El plato arruinado aparece un instante y cae fuera de la pantalla.
+func _slide_out_dish(recipe_id: String) -> void:
+	var d := _make_dish_node(recipe_id)
+	add_child(d)
+	d.position = _dish_rest_position(0)
+	d.pivot_offset = DISH_SIZE / 2.0
+	var tw := create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_interval(0.35)
+	tw.tween_property(d, "position:y", size.y + DISH_SIZE.y, 0.55)
+	tw.parallel().tween_property(d, "rotation_degrees", 24.0, 0.55)
+	tw.tween_callback(d.queue_free)
+
+
+## Empieza a arrastrar uno de los platos del montaje del barco.
+func _try_start_boat_drag(event: InputEventScreenTouch) -> bool:
+	if state != State.CRAFTING or current_recipe != BOAT_RECIPE:
+		return false
+	for i in range(boat_nodes.size() - 1, -1, -1):
+		var d: Control = boat_nodes[i]
+		if is_instance_valid(d) and d.get_global_rect().has_point(event.position):
+			boat_drag_index = i
+			dragging_dish = d
+			drag_offset = event.position - d.global_position
+			return true
+	return false
+
+
+## Un plato del montaje llega a la bandeja: la bandeja da un pequeño BOTE y
+## el contenido del barco se va viendo más lleno con cada plato.
+func _boat_part_placed(node: Control, index: int) -> void:
+	node.queue_free()
+	boat_nodes.remove_at(index)
+	boat_pending.remove_at(index)
+	craft_event.emit("drag", "")
+	var placed := boat_parts.size() - boat_pending.size()
+	if boat_fill != null:
+		boat_fill.modulate.a = float(placed) / maxf(boat_parts.size(), 1.0)
+	prop_rect.pivot_offset = prop_rect.size / 2.0
+	if prop_tween != null:
+		prop_tween.kill()
+	prop_rect.scale = Vector2(1.14, 0.88)
+	prop_tween = create_tween().set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	prop_tween.tween_property(prop_rect, "scale", Vector2.ONE, 0.4)
+	if boat_pending.is_empty():
+		_finish_boat()
+	else:
+		_update_ui()
+
+
+## Con todos los platos dentro, el barco sale listo para servir.
+func _finish_boat() -> void:
+	if boat_fill != null:
+		boat_fill.visible = false
+	ready_recipe = BOAT_RECIPE
+	ready_price = _boat_price(boat_parts)
+	ready_level = _boat_level(boat_parts)
+	state = State.READY
+	current_recipe = ""
+	prop_rect.visible = false
+	boat_cooldown = BOAT_COOLDOWN
+	var d := _make_dish_node(BOAT_RECIPE)
+	add_child(d)
+	d.position = _dish_rest_position(0)
+	d.pivot_offset = DISH_SIZE / 2.0
+	d.scale = Vector2(0.5, 0.5)
+	create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT) 		.tween_property(d, "scale", Vector2.ONE, 0.3)
+	dishes.append(d)
+	_flash_message("¡Barco!  $%d" % ready_price)
+	craft_event.emit("done", "")
+	_update_ui()
+
+
+## Saca UN plato de ese tipo de las cajas.
+func _consume_stored(id: String) -> void:
+	for i in stacks:
+		if stacks[i].id != id:
+			continue
+		stacks[i].count -= 1
+		if stacks[i].count <= 0:
+			stacks[i].node.queue_free()
+			stacks.erase(i)
+		else:
+			stacks[i].count_label.text = "x%d" % stacks[i].count
+		_emit_storage()
+		return
+
+
+## El icono del barco solo se ofrece cuando de verdad se puede montar.
+## El barco está SIEMPRE a la vista (si no, nadie descubre que existe), pero
+## apagado mientras no se pueda montar. Durante el enfriamiento enseña los
+## segundos que faltan encima del icono.
+func _update_boat_button() -> void:
+	if boat_button == null:
+		return
+	var cooling := boat_cooldown > 0.0
+	var can_build: bool = state == State.IDLE and not cooling \
+			and not _boat_pick().is_empty()
+	boat_button.visible = true
+	boat_button.disabled = not can_build
+	boat_button.modulate = Color.WHITE if can_build else Color(0.72, 0.72, 0.72, 0.42)
+	var timer: Label = boat_button.get_node_or_null("Timer")
+	if timer != null:
+		timer.visible = cooling
+		if cooling:
+			timer.text = "%d" % ceili(boat_cooldown)
+
+
+## Botón de COMBINAR (udon + tempura): mismas reglas que el barco, pero la
+## pareja es exacta. También está siempre puesto y apagado cuando no toca.
+func _update_combo_button() -> void:
+	if combo_button == null:
+		return
+	var combo := _combo_ready()
+	var can_build: bool = state == State.IDLE and combo != ""
+	combo_button.visible = true
+	combo_button.disabled = not can_build
+	combo_button.modulate = Color.WHITE if can_build else Color(0.72, 0.72, 0.72, 0.42)
+	if combo != "":
+		combo_button.tooltip_text = RecipeData.get_recipe(combo).get("name", combo)
+
+
+## Primer combo de RecipeData.COMBOS cuyas dos partes estén guardadas, o "".
+func _combo_ready() -> String:
+	for id in RecipeData.COMBOS:
+		var parts: Array = RecipeData.COMBOS[id].get("parts", [])
+		var ok := true
+		for part in parts:
+			if _stored_count(part) <= 0:
+				ok = false
+				break
+		if ok and not parts.is_empty():
+			return id
+	return ""
+
+
+## Cuántas unidades de esa receta hay en las cajas.
+func _stored_count(id: String) -> int:
+	var n := 0
+	for i in stacks:
+		if stacks[i].id == id:
+			n += int(stacks[i].count)
+	return n
+
+
+## Monta el combo: gasta una unidad de cada parte y deja el plato resultante
+## sobre la tabla, con el precio sumado más el bonus.
+func _make_combo() -> void:
+	var id := _combo_ready()
+	if id == "" or state != State.IDLE:
+		return
+	var combo: Dictionary = RecipeData.COMBOS[id]
+	var parts: Array = combo.get("parts", [])
+	var total := int(combo.get("bonus", 0))
+	for part in parts:
+		total += int(RecipeData.get_recipe(part).get("price", 0))
+		_consume_stored(part)
+	ready_recipe = id
+	ready_base = id
+	ready_price = total
+	ready_level = int(RecipeData.get_recipe(id).get("level", 1))
+	state = State.READY
+	current_recipe = ""
+	extras_chosen.clear()
+	var d := _make_dish_node(id)
+	add_child(d)
+	d.position = _dish_rest_position(0)
+	d.pivot_offset = DISH_SIZE / 2.0
+	d.scale = Vector2(0.5, 0.5)
+	create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT) \
+		.tween_property(d, "scale", Vector2.ONE, 0.3)
+	dishes.append(d)
+	_flash_message("¡%s!  $%d" % [RecipeData.get_recipe(id).get("label", id), total])
+	craft_event.emit("done", "")
 	_update_ui()
 
 
@@ -610,14 +1233,18 @@ func _reset_step_progress() -> void:
 	swipes_done = 0
 	hold_time = 0.0
 	holding = false
+	hold_moving = false
 	swipe_active = false
 	swipe_counted = false
+	swipe_progress = 0.0
 	stir_turns = 0
 	stir_angle = 0.0
 	stirring = false
 	slices_done = 0
 	slice_active = false
 	slice_progress = 0.0
+	frying = false
+	fry_time = 0.0
 
 
 func _clear_ingredients() -> void:
@@ -636,6 +1263,10 @@ func _build_ingredients(recipe_id: String) -> void:
 	for ing_id in RecipeData.get_recipe_ingredients(recipe_id):
 		var holder := Control.new()
 		holder.custom_minimum_size = ING_SIZE
+		# Los ingredientes se detectan por rectángulo desde `_input`, no por el
+		# sistema de interfaz: dejando pasar el toque, los botones de extras que
+		# van DEBAJO de la fila siguen siendo pulsables.
+		holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var tex := _ingredient_texture(ing_id)
 		if tex != null:
 			var t := TextureRect.new()
@@ -653,9 +1284,9 @@ func _build_ingredients(recipe_id: String) -> void:
 func _prune_ingredients() -> void:
 	var needed := {}
 	for i in range(step_index, steps.size()):
-		var ing: String = steps[i].get("ingredient", "")
-		if ing != "":
-			needed[ing] = true
+		for ing in steps[i].get("options", [steps[i].get("ingredient", "")]):
+			if ing != "":
+				needed[ing] = true
 	for ing_id in ingredient_nodes.keys():
 		if not needed.has(ing_id):
 			var node: Control = ingredient_nodes[ing_id]
@@ -725,6 +1356,345 @@ func _advance_step() -> void:
 ## Botón de cancelar: una CRUZ roja redonda en vez del botón de madera con la
 ## palabra "Cancelar", que con el mismo aspecto que los botones de receta
 ## parecía una receta más y encima se comía media esquina de la tabla.
+## Botones de EXTRAS (jengibre / wasabi / soja): salen arriba a la izquierda de
+## la tabla cuando el plato ya está hecho, con una "+" en su esquina. Al
+## pulsarlos se marcan con un check y ese extra viaja con el plato.
+func _build_extra_buttons() -> void:
+	var i := 0
+	for id in RecipeData.EXTRAS:
+		var b := Button.new()
+		b.name = "Extra_" + id
+		# Esquina superior izquierda de la MESA, pero colgando del propio
+		# BoardPanel y colocados DELANTE de la fila de ingredientes en el árbol
+		# (`move_child` más abajo): así se dibujan sobre la madera pero POR
+		# DEBAJO de los ingredientes, la etapa y el plato, que nunca quedan
+		# tapados. La fila de ingredientes va en MOUSE_FILTER_IGNORE para que
+		# los toques sigan llegando a estos botones.
+		b.size = Vector2(64, 64)
+		b.position = Vector2(10.0 + i * 72.0, 10.0)
+		b.pivot_offset = b.size / 2.0
+		b.tooltip_text = RecipeData.get_ingredient(id).get("name", id)
+		for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+			b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+		var disc := Panel.new()
+		disc.set_anchors_preset(Control.PRESET_FULL_RECT)
+		disc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		disc.show_behind_parent = true
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0.20, 0.14, 0.08, 0.92)
+		sb.border_color = Color(0.95, 0.82, 0.40)
+		sb.set_border_width_all(3)
+		sb.set_corner_radius_all(14)
+		disc.add_theme_stylebox_override("panel", sb)
+		b.add_child(disc)
+		var ic := TextureRect.new()
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.texture = RecipeData.get_ingredient_texture(id)
+		ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+		ic.offset_left = 4.0
+		ic.offset_top = 4.0
+		ic.offset_right = -4.0
+		ic.offset_bottom = -4.0
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(ic)
+		# "+" en la esquina inferior derecha, montado sobre el propio botón.
+		var plus := Label.new()
+		plus.name = "Plus"
+		plus.text = "+"
+		plus.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+		plus.offset_left = -20.0
+		plus.offset_top = -24.0
+		plus.offset_right = 4.0
+		plus.offset_bottom = 4.0
+		plus.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		plus.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		plus.add_theme_font_size_override("font_size", 26)
+		plus.add_theme_color_override("font_color", Color(1, 0.95, 0.55))
+		plus.add_theme_color_override("font_outline_color", Color.BLACK)
+		plus.add_theme_constant_override("outline_size", 6)
+		plus.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(plus)
+		# Check verde que aparece al elegirlo (tapa la "+").
+		var check := TextureRect.new()
+		check.name = "Check"
+		check.visible = false
+		check.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		check.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		check.texture = load("res://assets/ui/check.png")
+		check.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+		check.offset_left = -26.0
+		check.offset_top = -26.0
+		check.offset_right = 4.0
+		check.offset_bottom = 4.0
+		check.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(check)
+		b.pressed.connect(_toggle_extra.bind(id))
+		board_panel.add_child(b)
+		# Delante de la fila de ingredientes en el árbol = detrás en el dibujo.
+		board_panel.move_child(b, i)
+		extra_buttons[id] = b
+		i += 1
+	# Los iconos de ingrediente se manejan desde `_input` comparando rectángulos,
+	# no por el sistema de interfaz, así que la fila puede dejar pasar los
+	# toques: sin esto tapaba los botones de extras que ahora van debajo.
+	ingredients_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+## Marca o desmarca un extra para el plato que está sobre la tabla.
+func _toggle_extra(id: String) -> void:
+	if state != State.READY:
+		return
+	if extras_chosen.get(id, false):
+		extras_chosen.erase(id)
+	else:
+		# Solo se puede echar si queda en la despensa.
+		if GameState.get_ingredient_uses(id) <= 0:
+			_flash_message("¡Sin %s!" % RecipeData.get_ingredient(id).get("short", id))
+			return
+		extras_chosen[id] = true
+	_bump_extra(extra_buttons.get(id, null))
+	_update_extra_buttons()
+
+
+## Golpecito al pulsar: se encoge y rebota. Sin esto el único aviso de que el
+## toque ha entrado era el check, que en un botón de 64 px se pierde.
+func _bump_extra(b: Button) -> void:
+	if b == null or not is_instance_valid(b):
+		return
+	# `get_meta` con valor por defecto sigue avisando por consola si la clave no
+	# existe: hay que preguntar antes con `has_meta`.
+	var t: Tween = null
+	if b.has_meta("bump"):
+		t = b.get_meta("bump") as Tween
+	if t != null and t.is_valid():
+		t.kill()
+	b.scale = Vector2.ONE
+	t = create_tween()
+	t.tween_property(b, "scale", Vector2(0.82, 0.82), 0.07) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.tween_property(b, "scale", Vector2(1.14, 1.14), 0.11) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_property(b, "scale", Vector2.ONE, 0.09) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	b.set_meta("bump", t)
+
+
+## Los extras están SIEMPRE a la vista (así se sabe que existen desde el primer
+## momento), pero apagados y sin responder mientras no haya un plato terminado
+## sobre la tabla o no quede existencia en la despensa.
+func _update_extra_buttons() -> void:
+	# "no_extras": a los postres (mochi, dorayaki, taiyaki) no se les echa nada.
+	var usable: bool = state == State.READY 			and not RecipeData.get_recipe(ready_recipe).get("no_extras", false)
+	for id in extra_buttons:
+		var b: Button = extra_buttons[id]
+		var stock: int = GameState.get_ingredient_uses(id)
+		var picked: bool = extras_chosen.get(id, false)
+		var on: bool = usable and (stock > 0 or picked)
+		b.visible = true
+		b.disabled = not on
+		b.get_node("Check").visible = picked
+		b.get_node("Plus").visible = not picked
+		b.modulate = Color.WHITE if on else Color(0.75, 0.75, 0.75, 0.38)
+
+
+## Icono del barco combinado: va justo al lado del botón de cancelar, debajo
+## de las cajas, y solo se ve cuando hay platos de sobra para montarlo.
+func _build_boat_button() -> void:
+	boat_button = Button.new()
+	boat_button.name = "BoatButton"
+	boat_button.size = cancel_button.size
+	boat_button.position = cancel_button.position - Vector2(cancel_button.size.x + BUTTON_GAP, 0.0)
+	boat_button.tooltip_text = "Barco combinado"
+	boat_button.visible = false
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		boat_button.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	var disc := Panel.new()
+	disc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	disc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	disc.show_behind_parent = true
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.36, 0.24, 0.11)
+	sb.border_color = Color(0.98, 0.82, 0.35)
+	sb.set_border_width_all(4)
+	sb.set_corner_radius_all(28)
+	sb.shadow_color = Color(0, 0, 0, 0.45)
+	sb.shadow_size = 5
+	disc.add_theme_stylebox_override("panel", sb)
+	boat_button.add_child(disc)
+	var ic := TextureRect.new()
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.texture = RecipeData.get_stage_texture("barco_vacio")
+	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ic.offset_left = 6.0
+	ic.offset_top = 6.0
+	ic.offset_right = -6.0
+	ic.offset_bottom = -6.0
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	boat_button.add_child(ic)
+	# Segundos que faltan de enfriamiento, encima del icono.
+	var timer := Label.new()
+	timer.name = "Timer"
+	timer.visible = false
+	timer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	timer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	timer.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	timer.add_theme_font_size_override("font_size", 28)
+	timer.add_theme_color_override("font_color", Color(1, 0.95, 0.75))
+	timer.add_theme_color_override("font_outline_color", Color.BLACK)
+	timer.add_theme_constant_override("outline_size", 8)
+	# El botón entero se atenúa mientras enfría; el contador compensa esa
+	# atenuación para seguir leyéndose (el modulate del padre multiplica).
+	timer.modulate = Color(1, 1, 1, 2.4)
+	timer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	boat_button.add_child(timer)
+	boat_button.pressed.connect(_make_boat)
+	add_child(boat_button)
+
+
+## Botón del AYUDANTE: disco con su cara, DEBAJO del botón de combinar (a la
+## izquierda de la fila de discos, lejos del de cancelar: pegado a él se pulsaba
+## uno por otro). Apagado salvo en el PRIMER paso de una elaboración; al pulsarlo
+## el ayudante termina el plato él solo y se toma HELPER_COOLDOWN de descanso.
+func _build_helper_button() -> void:
+	helper_button = Button.new()
+	helper_button.name = "HelperButton"
+	helper_button.size = cancel_button.size
+	helper_button.position = combo_button.position \
+			+ Vector2(0.0, cancel_button.size.y + BUTTON_GAP)
+	helper_button.tooltip_text = "Que lo haga el ayudante"
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		helper_button.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	var disc := Panel.new()
+	disc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	disc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	disc.show_behind_parent = true
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.22, 0.28, 0.44)
+	sb.border_color = Color(0.98, 0.82, 0.35)
+	sb.set_border_width_all(4)
+	sb.set_corner_radius_all(28)
+	sb.shadow_color = Color(0, 0, 0, 0.45)
+	sb.shadow_size = 5
+	disc.add_theme_stylebox_override("panel", sb)
+	helper_button.add_child(disc)
+	# La cara del ayudante es la del género CONTRARIO al del jugador. Los
+	# retratos son de CUERPO ENTERO (los del selector de Opciones), así que se
+	# recorta la cabeza: metido entero en un disco de 56 px no se le veía.
+	var ic := TextureRect.new()
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var face := "res://assets/ui/chef_%s.png" % GameState.helper_gender()
+	if ResourceLoader.exists(face):
+		var full: Texture2D = load(face)
+		var atlas := AtlasTexture.new()
+		atlas.atlas = full
+		var w := float(full.get_width())
+		var h := float(full.get_height())
+		atlas.region = Rect2(w * HELPER_FACE.position.x, h * HELPER_FACE.position.y,
+			w * HELPER_FACE.size.x, h * HELPER_FACE.size.y)
+		ic.texture = atlas
+	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ic.offset_left = 4.0
+	ic.offset_top = 4.0
+	ic.offset_right = -4.0
+	ic.offset_bottom = -4.0
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	helper_button.add_child(ic)
+	# Segundos que faltan de descanso, encima de la cara (igual que el barco).
+	var timer := Label.new()
+	timer.name = "Timer"
+	timer.visible = false
+	timer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	timer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	timer.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	timer.add_theme_font_size_override("font_size", 28)
+	timer.add_theme_color_override("font_color", Color(1, 0.95, 0.75))
+	timer.add_theme_color_override("font_outline_color", Color.BLACK)
+	timer.add_theme_constant_override("outline_size", 8)
+	timer.modulate = Color(1, 1, 1, 2.4)
+	timer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	helper_button.add_child(timer)
+	helper_button.pressed.connect(_helper_take_over)
+	add_child(helper_button)
+	_update_helper_button()
+
+
+## ¿Puede el ayudante hacerse cargo? Solo con una receta recién empezada (el
+## primer paso aún sin dar) y con su descanso terminado.
+func _helper_ready() -> bool:
+	return helper_button != null and helper_cooldown <= 0.0 \
+			and state == State.CRAFTING and step_index == 0 \
+			and current_recipe != BOAT_RECIPE
+
+
+func _update_helper_button() -> void:
+	if helper_button == null:
+		return
+	var can := _helper_ready()
+	helper_button.disabled = not can
+	helper_button.modulate = Color.WHITE if can else Color(0.72, 0.72, 0.72, 0.42)
+	var timer: Label = helper_button.get_node_or_null("Timer")
+	if timer != null:
+		timer.visible = helper_cooldown > 0.0
+		if helper_cooldown > 0.0:
+			timer.text = "%d" % ceili(helper_cooldown)
+
+
+## El ayudante termina la receta en curso: el plato sale hecho sin gastar más
+## gestos. Cuenta como bien hecha, así que DA MAESTRÍA igual que si la hubiera
+## cocinado el jugador (las recetas con `free_uses` sueltan sus platos extra).
+func _helper_take_over() -> void:
+	if not _helper_ready():
+		return
+	helper_cooldown = HELPER_COOLDOWN
+	helper_used.emit()
+	_finish_prep(true)
+	# El plato aparece hecho de golpe: los ingredientes que había preparados
+	# para elaborarlo ya no pintan nada en la tabla.
+	_clear_ingredients()
+	_update_helper_button()
+
+
+## Icono de COMBINAR: al lado del barco, con el plato resultante dentro.
+func _build_combo_button() -> void:
+	combo_button = Button.new()
+	combo_button.name = "ComboButton"
+	combo_button.size = cancel_button.size
+	combo_button.position = boat_button.position \
+			- Vector2(cancel_button.size.x + BUTTON_GAP, 0.0)
+	combo_button.tooltip_text = "Combinar platos"
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		combo_button.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	var disc := Panel.new()
+	disc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	disc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	disc.show_behind_parent = true
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.20, 0.34, 0.28)
+	sb.border_color = Color(0.98, 0.82, 0.35)
+	sb.set_border_width_all(4)
+	sb.set_corner_radius_all(28)
+	sb.shadow_color = Color(0, 0, 0, 0.45)
+	sb.shadow_size = 5
+	disc.add_theme_stylebox_override("panel", sb)
+	combo_button.add_child(disc)
+	var ic := TextureRect.new()
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.texture = RecipeData.get_dish_texture(RecipeData.COMBOS.keys()[0])
+	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ic.offset_left = 4.0
+	ic.offset_top = 4.0
+	ic.offset_right = -4.0
+	ic.offset_bottom = -4.0
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	combo_button.add_child(ic)
+	combo_button.pressed.connect(_make_combo)
+	add_child(combo_button)
+
+
 func _skin_cancel_button() -> void:
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		cancel_button.add_theme_stylebox_override(st, StyleBoxEmpty.new())
@@ -790,6 +1760,9 @@ func _input(event: InputEvent) -> void:
 		_continue_dish_drag(event)
 		return
 	if event is InputEventScreenTouch and event.pressed:
+		# Montando el barco: los platos rescatados se arrastran a la bandeja.
+		if _try_start_boat_drag(event):
+			return
 		if _try_start_dish_drag(event):
 			return
 		if _try_start_stack_drag(event):
@@ -819,6 +1792,15 @@ func _continue_dish_drag(event: InputEvent) -> void:
 		var d := dragging_dish
 		dragging_dish = null
 		var center := d.get_global_rect().get_center()
+		# Plato del montaje del barco: solo cuenta si cae en la bandeja.
+		if boat_drag_index >= 0:
+			var idx := boat_drag_index
+			boat_drag_index = -1
+			if prop_rect.visible and prop_rect.get_global_rect().grow(24.0).has_point(center):
+				_boat_part_placed(d, idx)
+			else:
+				_layout_boat_parts()
+			return
 		# Guardado con MUCHO margen (arriba, abajo y a los lados de las cajas):
 		# se comprueba primero, así soltar cerca de las cajas siempre guarda
 		# aunque también toque la franja de la cinta que pasa por encima.
@@ -841,13 +1823,23 @@ func _continue_dish_drag(event: InputEvent) -> void:
 func _serve_dish(d: Control) -> void:
 	dishes.erase(d)
 	d.queue_free()
-	dish_served.emit(ready_recipe)
+	# Los extras se gastan de la despensa AQUÍ, uno por plato servido; si al
+	# final no quedaba, ese extra simplemente no viaja con el plato.
+	var extras: Array = []
+	for id in extras_chosen:
+		if GameState.consume_extra(id):
+			extras.append(id)
+	dish_served.emit(ready_recipe, ready_price, extras, ready_level)
+	# Cada plato elige sus propios extras: el siguiente empieza limpio.
+	extras_chosen.clear()
+	_update_extra_buttons()
 	_after_dish_consumed()
 
 
 func _after_dish_consumed() -> void:
 	if dishes.is_empty():
-		_apply_cooldown(ready_recipe)
+		_apply_cooldown(ready_base if ready_base != "" else ready_recipe)
+		ready_base = ""
 		ready_recipe = ""
 		state = State.IDLE
 		_clear_ingredients()
@@ -890,6 +1882,9 @@ func _emit_storage() -> void:
 		slots.append({ "id": stacks[i].id, "count": stacks[i].count } \
 			if stacks.has(i) else null)
 	storage_changed.emit(slots)
+	# Al cambiar las cajas se enciende (o se apaga) lo que se monta con ellas.
+	_update_boat_button()
+	_update_combo_button()
 
 
 func _create_stack(panel_index: int, recipe_id: String) -> void:
@@ -955,7 +1950,7 @@ func _continue_stack_drag(event: InputEvent) -> void:
 		stack_ghost.queue_free()
 		stack_ghost = null
 		if served:
-			dish_served.emit(stacks[i].id)
+			dish_served.emit(stacks[i].id, 0, [], 0)
 			stacks[i].count -= 1
 			if stacks[i].count <= 0:
 				stacks[i].node.queue_free()
@@ -963,6 +1958,7 @@ func _continue_stack_drag(event: InputEvent) -> void:
 			else:
 				stacks[i].count_label.text = "x%d" % stacks[i].count
 			_emit_storage()
+
 
 
 # --- Interacción de elaboración ---
@@ -989,14 +1985,40 @@ func _handle_craft_input(event: InputEvent) -> void:
 				else:
 					_update_ui()
 		"hold_board":
+			var movable: bool = step.get("move", false)
 			if event is InputEventScreenTouch:
 				if event.pressed and tap_zone.get_global_rect().has_point(event.position):
 					holding = true
+					hold_moving = false
+					hold_last_pos = event.position
+					_set_prop_lit(true)
+					_move_prop_to(event.position)
 					craft_event.emit("hold", _current_stage_id())
 				elif not event.pressed:
 					holding = false
-					hold_time = 0.0
+					hold_moving = false
+					# Con utensilio, soltar NO reinicia: la barra se queda
+					# donde estaba y el soplete vuelve apagado a su rincón.
+					if movable:
+						_release_prop()
+					else:
+						hold_time = 0.0
 					_update_ui()
+			elif event is InputEventScreenDrag and holding:
+				# Sacar el soplete de la tabla lo devuelve a su sitio, apagado.
+				if movable and not tap_zone.get_global_rect().has_point(event.position):
+					holding = false
+					hold_moving = false
+					_release_prop()
+					_update_ui()
+					return
+				# El utensilio (soplete) va donde está el dedo.
+				_move_prop_to(event.position)
+				# Con "move" el paso EXIGE mover mientras se mantiene: el
+				# temporizador solo corre si el dedo se está desplazando.
+				if event.position.distance_to(hold_last_pos) > 3.0:
+					hold_moving = true
+					hold_last_pos = event.position
 		"swipe_board":
 			_handle_swipe(event, step)
 		"drag_ingredient":
@@ -1007,6 +2029,10 @@ func _handle_craft_input(event: InputEvent) -> void:
 			_handle_slice(event, step)
 		"drag_stage":
 			_handle_stage_drag(event)
+		"drag_choice":
+			_handle_choice_drag(event, step)
+		"fry_board":
+			_handle_fry(event, step)
 
 
 func _handle_swipe(event: InputEvent, step: Dictionary) -> void:
@@ -1018,22 +2044,47 @@ func _handle_swipe(event: InputEvent, step: Dictionary) -> void:
 		elif not event.pressed:
 			swipe_active = false
 	elif event is InputEventScreenDrag and swipe_active and not swipe_counted:
+		var dx: float = event.position.x - swipe_start.x
 		var dy: float = event.position.y - swipe_start.y
-		var direction: String = step.get("direction", "down")
-		var done := false
-		if direction == "down" and dy >= SWIPE_THRESHOLD:
-			done = true
-		elif direction == "up" and dy <= -SWIPE_THRESHOLD:
-			done = true
+		var direction: String = _swipe_direction(step)
+		# "distance": recorrido exigido; por defecto el umbral normal.
+		var need: float = float(step.get("distance", SWIPE_THRESHOLD))
+		# Avance del gesto EN CURSO, para que la barra se llene sobre la marcha
+		# (con count 1 solo saltaba de 0 a 1 al terminar y parecía rota).
+		var advance := 0.0
+		match direction:
+			"down": advance = dy
+			"up": advance = -dy
+			"right": advance = dx
+			"left": advance = -dx
+			"diag": advance = minf(dx, dy) / 0.7
+		swipe_progress = clampf(advance / maxf(need, 1.0), 0.0, 1.0)
+		var done: bool = advance >= need
+		if direction == "diag":
+			# Enrollado en cono (temaki): hay que bajar Y a la derecha a la vez,
+			# así que se exigen las DOS componentes, no solo la distancia.
+			done = dx >= need * 0.7 and dy >= need * 0.7
 		if done:
 			swipe_counted = true
 			swipes_done += 1
+			swipe_progress = 0.0
 			craft_event.emit("swipe", _current_stage_id())
-			_bump_stage(10.0 if direction == "down" else -10.0)
+			_bump_stage(10.0 if direction != "up" else -10.0)
 			if swipes_done >= int(step.get("count", 1)):
 				_advance_step()
 			else:
 				_update_ui()
+		else:
+			_update_tap_bar()
+
+
+## Dirección del deslizamiento en curso. Con "alt" se ALTERNA en cada pasada
+## (el rebozado en sésamo del California: de izquierda a derecha y de vuelta).
+func _swipe_direction(step: Dictionary) -> String:
+	var d: String = step.get("direction", "down")
+	if d == "alt":
+		return "left" if swipes_done % 2 == 1 else "right"
+	return d
 
 
 func _handle_ingredient_drag(event: InputEvent, step: Dictionary) -> void:
@@ -1045,15 +2096,27 @@ func _handle_ingredient_drag(event: InputEvent, step: Dictionary) -> void:
 				ghost = _make_ghost(ing_id)
 				add_child(ghost)
 				ghost.global_position = event.position - ghost.size / 2.0
+				drag_press_at = event.position
+				drag_moved = false
 		elif ghost != null:
-			var dropped_on_board := tap_zone.get_global_rect().intersects(
+			# Con "prop" en el paso (p. ej. el cuenco del edamame) hay que
+			# soltar SOBRE el utensilio; si no, vale toda la tabla.
+			var target: Rect2 = prop_rect.get_global_rect().grow(20.0) \
+					if step.get("prop", "") != "" and prop_rect.visible \
+					else tap_zone.get_global_rect()
+			var dropped_on_target := target.intersects(
 					Rect2(ghost.global_position, ghost.size))
 			ghost.queue_free()
 			ghost = null
-			if dropped_on_board:
+			# La zona activa cubre TODA la mesa, incluida la fila de
+			# ingredientes: sin exigir arrastre de verdad, un simple toque
+			# sobre el ingrediente ya contaría como soltarlo en la tabla.
+			if dropped_on_target and drag_moved:
 				craft_event.emit("drag", _current_stage_id())
 				_advance_step()
 	elif event is InputEventScreenDrag and ghost != null:
+		if drag_press_at.distance_to(event.position) > 24.0:
+			drag_moved = true
 		ghost.global_position = event.position - ghost.size / 2.0
 
 
@@ -1105,15 +2168,27 @@ func _handle_slice(event: InputEvent, step: Dictionary) -> void:
 			slice_progress = 0.0
 			_update_tap_bar()
 	elif event is InputEventScreenDrag and slice_active:
-		# Retroceso a la izquierda: el corte se reinicia desde aquí.
-		if event.position.x < slice_start.x:
+		# "direction": "v" corta de ARRIBA ABAJO (dorayaki partido por la
+		# mitad); "alt" alterna el sentido en cada pasada (ida y vuelta del
+		# pincel al glasear la anguila); por defecto es el barrido de izquierda
+		# a derecha de los pescados. El recorrido exigido es más corto en
+		# vertical porque la tabla es mucho menos alta que ancha.
+		var mode: String = step.get("direction", "h")
+		var vertical: bool = mode == "v"
+		# En "alt", las pasadas impares van de DERECHA a izquierda.
+		var way: float = -1.0 if (mode == "alt" and slices_done % 2 == 1) else 1.0
+		var advance: float = (event.position.y - slice_start.y) * way if vertical \
+				else (event.position.x - slice_start.x) * way
+		# Retroceso: el corte se reinicia desde aquí.
+		if advance < 0.0:
 			slice_start = event.position
 			slice_start_ms = Time.get_ticks_msec()
 			slice_progress = 0.0
 			_update_tap_bar()
 			return
-		slice_progress = event.position.x - slice_start.x
-		if slice_progress < SLICE_SWEEP:
+		var sweep: float = SLICE_SWEEP_V if vertical else SLICE_SWEEP
+		slice_progress = advance * (SLICE_SWEEP / sweep)
+		if advance < sweep:
 			_update_tap_bar()
 			return
 		# Recorrido completo: se evalúa la velocidad.
@@ -1121,11 +2196,19 @@ func _handle_slice(event: InputEvent, step: Dictionary) -> void:
 		slice_progress = 0.0
 		var elapsed := (Time.get_ticks_msec() - slice_start_ms) / 1000.0
 		if elapsed < float(step.get("duration", 0.7)):
-			_flash_message("¡Más lento!")
+			# "fail_penalty": cortar deprisa el pescado caro cuesta dinero (el
+			# corte se repite igual, pero cada fallo se paga).
+			var penalty := int(step.get("fail_penalty", 0))
+			if penalty > 0:
+				_flash_message("¡Más lento!  -$%d" % penalty)
+				money_penalty.emit(penalty)
+			else:
+				_flash_message("¡Más lento!")
 			_slice_fail_feedback()
 			_update_tap_bar()
 			return
 		slices_done += 1
+		GameState.bump_stat("slices_ok")
 		craft_event.emit("slice", _current_stage_id())
 		if slices_done >= int(step.get("count", 1)):
 			_advance_step()
@@ -1140,11 +2223,17 @@ func _handle_slice(event: InputEvent, step: Dictionary) -> void:
 
 
 ## Muestra un mensaje grande sobre el centro de la tabla que se desvanece.
-func _flash_message(text: String) -> void:
+func _flash_message(text: String, color: Color = Color(1.0, 0.86, 0.3)) -> void:
+	message_label.add_theme_color_override("font_color", color)
 	message_label.text = text
 	message_label.reset_size()
+	# Centrado en horizontal, pero POR ENCIMA del hueco donde se emplata: si se
+	# pone en el centro exacto, el plato (o el barco) se le monta encima.
 	var center := board_panel.position + board_panel.size / 2.0
-	message_label.position = center - message_label.size / 2.0 - Vector2(0, 20)
+	message_label.position = Vector2(
+		center.x - message_label.size.x / 2.0,
+		maxi(int(center.y - DISH_SIZE.y / 2.0 - message_label.size.y - 6.0),
+			int(board_panel.position.y + 8.0)))
 	message_label.modulate = Color(1, 1, 1, 1)
 	message_label.scale = Vector2(0.7, 0.7)
 	message_label.pivot_offset = message_label.size / 2.0
@@ -1218,7 +2307,13 @@ func _update_prop() -> void:
 			prop_tween = null
 		prop_rect.visible = false
 		return
-	prop_rect.texture = tex
+	# Los utensilios que se cogen (soplete) empiezan APAGADOS en su rincón.
+	var off := RecipeData.get_stage_texture(prop_id + "_off")
+	prop_rect.texture = off if off != null else tex
+	if flame_tween != null:
+		flame_tween.kill()
+		flame_tween = null
+	prop_rect.scale = Vector2.ONE
 	var target := board_panel.position + board_panel.size - prop_rect.size - Vector2(8, 10)
 	prop_target = target
 	prop_rect.position = target + Vector2(0, 240)
@@ -1229,6 +2324,55 @@ func _update_prop() -> void:
 	prop_tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	prop_tween.tween_property(prop_rect, "position", target, 0.45)
 	prop_tween.parallel().tween_property(prop_rect, "modulate:a", 1.0, 0.3)
+
+
+## Lleva el utensilio al dedo (soplete del aburi): la boquilla apunta al punto
+## que se está tostando, así que el sprite se ancla por su esquina inferior
+## izquierda, que es donde sale la llama.
+func _move_prop_to(global_pos: Vector2) -> void:
+	if not prop_rect.visible or not _current_step().get("move", false):
+		return
+	if prop_tween != null:
+		prop_tween.kill()
+		prop_tween = null
+	prop_rect.modulate.a = 1.0
+	prop_rect.global_position = global_pos - Vector2(prop_rect.size.x * 0.18,
+		prop_rect.size.y * 0.72)
+
+
+## Enciende o apaga el utensilio: el soplete tiene sprite con llama y sin ella,
+## y encendido la llama LATE (se anima con un pulso rápido de escala).
+func _set_prop_lit(lit: bool) -> void:
+	var prop_id: String = _current_step().get("prop", "")
+	if prop_id == "":
+		return
+	var tex := RecipeData.get_stage_texture(prop_id + ("_on" if lit else "_off"))
+	if tex == null:
+		tex = RecipeData.get_stage_texture(prop_id)
+	if tex != null:
+		prop_rect.texture = tex
+	if flame_tween != null:
+		flame_tween.kill()
+		flame_tween = null
+	prop_rect.pivot_offset = Vector2(prop_rect.size.x * 0.18, prop_rect.size.y * 0.72)
+	if lit:
+		# Llama viva: un latido continuo mientras se está flameando.
+		flame_tween = create_tween().set_loops()
+		flame_tween.tween_property(prop_rect, "scale", Vector2(1.08, 0.94), 0.09)
+		flame_tween.tween_property(prop_rect, "scale", Vector2(0.96, 1.06), 0.09)
+		flame_tween.tween_property(prop_rect, "scale", Vector2.ONE, 0.09)
+	else:
+		prop_rect.scale = Vector2.ONE
+
+
+## Suelta el soplete: se apaga y vuelve a su rincón, pero el progreso de la
+## barra se CONSERVA (no hay que empezar el tostado de cero).
+func _release_prop() -> void:
+	_set_prop_lit(false)
+	if prop_tween != null:
+		prop_tween.kill()
+	prop_tween = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	prop_tween.tween_property(prop_rect, "position", prop_target, 0.25)
 
 
 ## Copia del ingrediente que sigue al dedo mientras se arrastra.
@@ -1263,6 +2407,23 @@ func _make_dish_node(recipe_id: String) -> Control:
 func _finish_prep(grant_mastery: bool) -> void:
 	state = State.READY
 	ready_recipe = current_recipe
+	# El cooldown siempre es el de la receta ELEGIDA, aunque el plato salga
+	# con otra identidad (tempura poco hecha, aburi de atún...).
+	ready_base = current_recipe
+	# La fritura ya fijó precio y sprite (crudo / bien / quemado); el resto de
+	# recetas valen lo que dice su ficha.
+	if fry_dish != "":
+		ready_recipe = fry_dish
+		fry_dish = ""
+	else:
+		ready_price = 0
+	# La elección de pescado (aburi) también cambia la identidad del plato.
+	if choice_dish != "":
+		ready_recipe = choice_dish
+		choice_dish = ""
+	ready_level = 0
+	# Cada plato empieza SIN extras, aunque el anterior los llevara.
+	extras_chosen.clear()
 	current_recipe = ""
 	if grant_mastery:
 		var uses: int = RecipeData.get_recipe(ready_recipe).get("free_uses", 0)
@@ -1275,7 +2436,7 @@ func _finish_prep(grant_mastery: bool) -> void:
 	for i in count:
 		var d := _make_dish_node(ready_recipe)
 		add_child(d)
-		d.position = _dish_rest_position(i)
+		d.position = _dish_rest_position(i, count)
 		d.pivot_offset = DISH_SIZE / 2.0
 		d.scale = Vector2(0.5, 0.5)
 		var tw := create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -1285,10 +2446,15 @@ func _finish_prep(grant_mastery: bool) -> void:
 	_update_ui()
 
 
-func _dish_rest_position(index: int = 0) -> Vector2:
+## Sitio de reposo del plato terminado. Con varias piezas (recetas con "yield")
+## se reparten por el ancho de la mesa, apretándose para que quepan todas.
+func _dish_rest_position(index: int = 0, total: int = 0) -> Vector2:
 	var base := board_panel.position + (board_panel.size - DISH_SIZE) / 2.0
-	if dishes.size() > 1 or index > 0:
-		base.x += -80.0 + 160.0 * index
+	var n: int = maxi(maxi(total, dishes.size()), index + 1)
+	if n <= 1:
+		return base
+	var span: float = minf(160.0, (board_panel.size.x - DISH_SIZE.x) / float(n - 1))
+	base.x += (float(index) - float(n - 1) * 0.5) * span
 	return base
 
 
@@ -1303,6 +2469,10 @@ func _apply_cooldown(recipe_id: String) -> void:
 
 func _update_ui() -> void:
 	cancel_button.visible = _can_cancel()
+	_update_boat_button()
+	_update_combo_button()
+	_update_helper_button()
+	_update_extra_buttons()
 	# La guía (mano y texto) solo se dibuja si el jugador lleva un rato quieto;
 	# la lleva _tick_guide. Aquí únicamente se refresca la que YA está puesta.
 	if guide_shown:
@@ -1313,7 +2483,10 @@ func _update_ui() -> void:
 			_hide_indicator()
 		State.CRAFTING:
 			_update_tap_bar()
-			if guide_shown:
+			# Mientras se sopletea NO se rehace la guía: el recorrido en ocho
+			# tiene que seguir corriendo (si se reconstruye cada frame, la mano
+			# se queda clavada en el primer punto).
+			if guide_shown and not (holding and _current_step().get("move", false)):
 				call_deferred("_refresh_indicator")
 		State.READY:
 			tap_bar.visible = false
@@ -1347,13 +2520,22 @@ func _instruction_text() -> String:
 			return "¡Toca!"
 		"drag_ingredient", "drag_stage":
 			return "¡Arrastra!"
+		"drag_choice":
+			# Mientras no haya nada marcado se pide elegir; una vez elegido, lo
+			# que falta es llevarlo a la tabla.
+			return "¡Arrastra!" if choice_selected != "" else "¡Elige uno!"
 		"tap_board":
 			left = maxi(total - taps_done, 1)
 			var verb := "¡Corta!" if bool(step.get("cutting", false)) else "¡Pulsa!"
 			return verb if total <= 1 else "%s
 x%d" % [verb, left]
 		"hold_board":
-			return "¡Mantén!"
+			return "¡Tuesta!" if step.get("move", false) else "¡Mantén!"
+		"fry_board":
+			# Con las milésimas a la vista: el punto exacto vale el doble.
+			if frying:
+				return "%.2f s" % fry_time
+			return "¡Fríe %ds!" % int(step.get("target", 3.0))
 		"swipe_board":
 			left = maxi(total - swipes_done, 1)
 			return "¡Desliza!" if total <= 1 else "¡Desliza!
@@ -1364,8 +2546,10 @@ x%d" % left
 x%d" % left
 		"slice_board":
 			left = maxi(total - slices_done, 1)
-			return "¡Corta!" if total <= 1 else "¡Corta!
-x%d" % left
+			# "brush": el mismo gesto lento, pero pintando (glasear la anguila).
+			var verb2: String = "¡Unta!" if bool(step.get("brush", false)) else "¡Corta!"
+			return verb2 if total <= 1 else "%s
+x%d" % [verb2, left]
 	return ""
 
 
@@ -1489,24 +2673,61 @@ func _refresh_indicator() -> void:
 		"tap_board":
 			_hand_tap_at(stage_center, true)
 		"hold_board":
-			_hand_hold_at(stage_center)
+			# Con "move" la mano recorre un OCHO sin parar: enseña que hay que
+			# pasear el soplete, y sigue puesta aunque ya lo estés usando.
+			if step.get("move", false):
+				_hand_figure_eight(stage_center)
+			else:
+				_hand_hold_at(stage_center)
 		"swipe_board":
-			var dir := Vector2(0, 1) if step.get("direction", "down") == "down" else Vector2(0, -1)
+			var sdir: String = _swipe_direction(step)
+			var dir := Vector2(0, 1)
+			if sdir == "up":
+				dir = Vector2(0, -1)
+			elif sdir == "right":
+				dir = Vector2(1, 0)
+			elif sdir == "left":
+				dir = Vector2(-1, 0)
+			elif sdir == "diag":
+				dir = Vector2(1, 1).normalized()
 			# Algo por debajo de la etapa: con la mano grande, arrancar en el
 			# centro exacto la sacaba por encima de la tabla.
-			_hand_swipe(stage_center + Vector2(0, 46), dir)
+			# El recorrido de la mano acompaña al que se exige de verdad.
+			var span: float = float(step.get("distance", SWIPE_THRESHOLD)) * 0.85
+			_hand_swipe(stage_center + Vector2(0, 46), dir, 0.4, span)
 		"drag_ingredient":
 			var node: Control = ingredient_nodes.get(step.get("ingredient", ""))
 			if node == null:
 				return
 			ghost_hint.texture = _ingredient_texture(step.get("ingredient", ""))
 			ghost_hint.size = ING_SIZE
-			_hand_drag(_local_center(node), stage_center)
+			# Si el paso trae utensilio, la mano lleva el ingrediente HASTA él.
+			var drop_at := stage_center
+			if step.get("prop", "") != "" and prop_rect.visible:
+				drop_at = prop_target + prop_rect.size / 2.0
+			_hand_drag(_local_center(node), drop_at)
 		"stir_board":
 			_hand_circle_at(stage_center)
 		"slice_board":
-			# Corte lento de izquierda a derecha: deslizar pausado y ancho.
-			_hand_swipe(board_center, Vector2(1, 0), 1.2, 175.0)
+			# Corte lento: de izquierda a derecha, de arriba abajo con
+			# "direction": "v", o alternando el sentido en cada pasada con
+			# "alt" (el pincel del glaseado). Deslizar pausado y ancho.
+			var smode: String = step.get("direction", "h")
+			if smode == "v":
+				_hand_swipe(stage_center, Vector2(0, 1), 1.0, 70.0)
+			elif smode == "alt":
+				var way := Vector2(-1, 0) if slices_done % 2 == 1 else Vector2(1, 0)
+				_hand_swipe(stage_center, way, 1.0, 150.0)
+			else:
+				_hand_swipe(board_center, Vector2(1, 0), 1.2, 175.0)
+		"drag_choice":
+			var opts: Array = step.get("options", [])
+			if opts.is_empty():
+				return
+			# Si ya hay uno marcado, la mano deja de ofrecer y lleva ESE.
+			if choice_selected != "" and choice_selected in opts:
+				opts = [choice_selected]
+			_hand_drag_choice(opts, stage_center)
 		"drag_stage":
 			if not prop_rect.visible:
 				return
@@ -1578,6 +2799,50 @@ func _hand_drag(from_pos: Vector2, to_pos: Vector2) -> void:
 	indicator_tween.parallel().tween_property(ghost_hint, "modulate:a", 0.0, 0.2)
 
 
+## Elección entre varios ingredientes: la mano recorre TODAS las opciones, una
+## por vuelta, para que se vea que sirve cualquiera. Con una sola opción (ya
+## marcada) se comporta igual que un arrastre normal.
+func _hand_drag_choice(opts: Array, to_pos: Vector2) -> void:
+	var starts: Array[Vector2] = []
+	var texs: Array[Texture2D] = []
+	for ing_id in opts:
+		var node: Control = ingredient_nodes.get(ing_id)
+		if node == null:
+			continue
+		starts.append(_local_center(node))
+		texs.append(_ingredient_texture(ing_id))
+	if starts.is_empty():
+		return
+	ghost_hint.size = ING_SIZE
+	ghost_hint.texture = texs[0]
+	_hand_begin(starts[0])
+	ghost_hint.visible = true
+	ghost_hint.position = starts[0] - ghost_hint.size / 2.0
+	ghost_hint.modulate.a = 0.0
+	indicator_tween = create_tween().set_loops()
+	for i in starts.size():
+		var from_pos: Vector2 = starts[i]
+		var tex: Texture2D = texs[i]
+		indicator_tween.tween_callback(func() -> void:
+			ghost_hint.texture = tex
+			hand.texture = hand_up_tex
+			hand.position = _hand_at(from_pos)
+			hand.modulate.a = HAND_ALPHA
+			ghost_hint.position = from_pos - ghost_hint.size / 2.0
+			ghost_hint.modulate.a = 0.0)
+		indicator_tween.tween_property(ghost_hint, "modulate:a", 0.7, 0.15)
+		indicator_tween.tween_callback(func() -> void: hand.texture = hand_down_tex)
+		indicator_tween.tween_interval(0.12)
+		indicator_tween.tween_property(hand, "position", _hand_at(to_pos), 0.9) \
+				.set_trans(Tween.TRANS_SINE)
+		indicator_tween.parallel().tween_property(ghost_hint, "position",
+				to_pos - ghost_hint.size / 2.0, 0.9).set_trans(Tween.TRANS_SINE)
+		indicator_tween.tween_callback(func() -> void: hand.texture = hand_up_tex)
+		indicator_tween.tween_interval(0.25)
+		indicator_tween.tween_property(hand, "modulate:a", 0.0, 0.2)
+		indicator_tween.parallel().tween_property(ghost_hint, "modulate:a", 0.0, 0.2)
+
+
 ## Deslizamiento: dedo abajo y movimiento en la dirección dada (rápido por
 ## defecto; travel_time/span mayores para los cortes lentos).
 func _hand_swipe(center: Vector2, dir: Vector2, travel_time := 0.4, span := 88.0) -> void:
@@ -1614,6 +2879,16 @@ func _hand_circle_at(center: Vector2, radius: float = 74.0) -> void:
 		0.0, TAU, 1.4)
 
 
+## Recorrido en OCHO (lemniscata) para el soplete: enseña que hay que pasear
+## la llama por todo el pescado, no dejarla quieta en un punto.
+func _hand_figure_eight(center: Vector2, rx: float = 86.0, ry: float = 42.0) -> void:
+	_hand_begin(center, true)
+	indicator_tween = create_tween().set_loops()
+	indicator_tween.tween_method(func(t: float) -> void:
+		hand.position = _hand_at(center + Vector2(sin(t) * rx, sin(t * 2.0) * ry * 0.5)),
+		0.0, TAU, 2.0)
+
+
 func _update_tap_bar() -> void:
 	_update_instruction()
 	var step := _current_step()
@@ -1625,11 +2900,15 @@ func _update_tap_bar() -> void:
 		"swipe_board":
 			tap_bar.visible = true
 			tap_bar.max_value = int(step.get("count", 1))
-			tap_bar.value = swipes_done
+			# Progreso CONTINUO: las pasadas hechas más lo que lleva la actual.
+			tap_bar.value = swipes_done + swipe_progress
 		"hold_board":
 			tap_bar.visible = true
 			tap_bar.max_value = step.get("duration", 1.0)
 			tap_bar.value = hold_time
+		"fry_board":
+			# Sin barra: el contador con milésimas es la única guía (a pulso).
+			tap_bar.visible = false
 		"stir_board":
 			tap_bar.visible = true
 			tap_bar.max_value = int(step.get("count", 1))

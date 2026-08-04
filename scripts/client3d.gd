@@ -59,6 +59,9 @@ const PATIENCE_FOOD: Dictionary = { 1: 0.09, 2: 0.22, 3: 0.38 }
 const REPEAT_DECAY := 0.4
 ## Cada plato comido acelera el drenaje de paciencia en este factor.
 const PATIENCE_DRAIN_PER_PLATE := 0.025
+## Cuando el nivel ya ha terminado, el bocado que quedaba a medias corre a esta
+## velocidad: el jugador solo espera a cobrarlo, no tiene sentido hacerle mirar.
+const END_BITE_SPEED := 5.0
 ## Doblones extra que deja un plato de PICOTEO ("snack" en recipe_data, como el
 ## edamame) cuando el cliente lo coge SIN dejar de comer el plato que tenia.
 const SNACK_BONUS := 1
@@ -117,8 +120,8 @@ var current_id: String = ""
 var current_extras: Array = []
 var eaten_ids: Array[String] = []
 var declined: Array[int] = []
-## true si lo desaloja el fin del nivel: entonces no hay castigo por no comer.
-var _evacuated := false
+## Se ha acabado el nivel mientras comia: se marchara al acabar el bocado.
+var _leave_when_done := false
 var level_ref: Node = null
 
 ## El modelo cuelga de "body": el bob del andar y el ajuste de sentado van en
@@ -298,14 +301,18 @@ func _process(delta: float) -> void:
 				return
 			_scan_belt()
 		State.EATING:
-			_eat_t += delta
+			# Tras el fin del nivel el ultimo bocado va MUY deprisa: el jugador
+			# ya no puede hacer nada y solo espera a ver lo que le dejan.
+			var speed := END_BITE_SPEED if _leave_when_done else 1.0
+			_eat_t += delta * speed
 			if _anim != null:
 				_anim.reset()
 				_anim.bite(_eat_t)
-			eat_timer -= delta
+			eat_timer -= delta * speed
 			_eat_bar.value = maxf(eat_timer, 0.0)
 			# Sin dejar de comer puede picar un plato de "snack" (edamame).
-			_scan_belt(true)
+			if not _leave_when_done:
+				_scan_belt(true)
 			if eat_timer <= 0.0:
 				_finish_plate()
 		State.LEAVING:
@@ -580,6 +587,10 @@ func _finish_plate() -> void:
 			_float_text("+$%d" % bonus, Color(0.4, 1.0, 0.45), -95.0)
 		_leave()
 		return
+	# El nivel se acabo mientras comia: ya ha cobrado este plato, ahora se va.
+	if _leave_when_done:
+		_leave()
+		return
 	state = State.WAITING
 	_patience_bar.visible = true
 
@@ -615,20 +626,28 @@ func _float_text(text: String, color: Color, y_offset: float = 0.0) -> void:
 	tw.tween_callback(lbl.queue_free)
 
 
-## Desalojo por fin de nivel: no es culpa del jugador, asi que no se castiga
-## aunque el cliente no haya comido nada.
+## Desalojo por fin de nivel. Si le pilla COMIENDO no se levanta a medias:
+## termina su plato (y lo paga) y se marcha justo despues; el nivel espera.
 func force_leave() -> void:
-	_evacuated = true
+	if state == State.EATING:
+		_leave_when_done = true
+		return
 	_leave()
+
+
+## true si un cliente esta terminando su ultimo bocado tras el fin del nivel.
+func is_finishing_bite() -> bool:
+	return _leave_when_done and state == State.EATING
 
 
 func _leave() -> void:
 	if state == State.DONE or state == State.LEAVING:
 		return
 	_stop_eating_anim()
-	# Irse de vacio (paciencia agotada sin probar un solo plato) cuesta dinero.
+	# Irse sin haber probado NADA cuesta dinero, tanto si se le agoto la
+	# paciencia como si le pillo el final del nivel.
 	var penalty := 0
-	if eaten_ids.is_empty() and not _evacuated:
+	if eaten_ids.is_empty():
 		penalty = int(LEAVE_PENALTY.get(client_type, 0))
 		if penalty > 0:
 			_float_text("-$%d" % penalty, Color(1.0, 0.34, 0.28))

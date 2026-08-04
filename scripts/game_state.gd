@@ -28,12 +28,11 @@ var current_port: String = ""
 ## --- Progreso persistente ---
 ## Dinero total acumulado por el jugador.
 var money: int = 0
-## Género elegido por el jugador ("m"/"f"). Decide qué chef sale y, por
-## contraste, qué ayudante: el ayudante es SIEMPRE del género contrario.
-## La pantalla para elegirlo (con el nombre) está pendiente; hasta entonces
-## vale el valor por defecto y se puede cambiar a mano en el guardado.
+## Género elegido por el jugador ("m"/"f"/"x"). Decide qué chef sale y, por
+## contraste, qué ayudante: el ayudante es del género contrario (con el jugador
+## neutro le toca uno al azar). Se elige en Opciones, pestaña Perfil.
 var player_gender: String = CharacterData.MALE
-## Nombre del jugador (lo pedirá esa misma pantalla).
+## Nombre del jugador (de esa misma pestaña).
 var player_name: String = ""
 ## Ids de recetas y potenciadores desbloqueados.
 var unlocked_recipes: Array[String] = []
@@ -57,25 +56,37 @@ var shop_day: String = ""
 ## (ver achievement_data.gd). Clave -> entero. Los que empiezan por "best_"
 ## guardan un máximo, el resto se acumulan.
 var stats: Dictionary = {}
+## Segundos jugados de verdad (solo dentro de un nivel, nunca en los menús).
+var play_seconds: float = 0.0
 ## Ajustes del jugador (gráficos e identidad). `apply_graphics()` los aplica.
 var settings: Dictionary = {}
 
-## Ajustes por defecto. `quality` 0 = baja, 1 = media, 2 = alta.
+## Ajustes por defecto. `quality` 0 = baja, 1 = media, 2 = alta; `preset` es el
+## bloque de gráficos elegido (ver GRAPHICS_PRESETS; "custom" = a medida).
 const DEFAULT_SETTINGS := {
+	"preset": "alta",
 	"shadows": true,
 	"anim": true,
 	"quality": 2,
 	"fps": 60,
-	"name": "",
-	"gender": "x",
 }
 ## Topes de fotogramas que se pueden elegir.
 const FPS_CHOICES := [30, 45, 60]
 ## Escala de renderizado 3D por nivel de calidad (la interfaz 2D no se toca).
 const QUALITY_SCALE := [0.62, 0.8, 1.0]
 const QUALITY_NAMES := ["Baja", "Media", "Alta"]
-const GENDERS := ["f", "m", "x"]
-const GENDER_NAMES := { "f": "Cocinera", "m": "Cocinero", "x": "Grumete" }
+
+## Bloques de gráficos de la pantalla de Opciones. Elegir uno pisa los cuatro
+## ajustes de golpe; tocar cualquiera de ellos a mano pasa a "custom".
+const GRAPHICS_PRESETS := {
+	"alta": { "quality": 2, "fps": 60, "shadows": true, "anim": true },
+	"media": { "quality": 1, "fps": 30, "shadows": true, "anim": true },
+	"baja": { "quality": 0, "fps": 30, "shadows": false, "anim": false },
+}
+const PRESET_ORDER := ["alta", "media", "baja", "custom"]
+const PRESET_NAMES := {
+	"alta": "Alta", "media": "Media", "baja": "Baja", "custom": "Personalizado",
+}
 
 ## Artículos que ofrece el tendero y precio de renovarlos a mano.
 const SHOP_SLOTS := 8
@@ -389,6 +400,28 @@ func max_stat(id: String, value: int) -> void:
 		stats[id] = value
 
 
+## Segundos JUGADOS: los suma `level3d` mientras hay partida (aventura y
+## arcade). Los menús no cuentan, así que el contador de Opciones dice tiempo
+## de juego de verdad, no tiempo con el juego abierto.
+func add_play_time(seconds: float) -> void:
+	play_seconds += seconds
+
+
+## Horas jugadas con un decimal, para la pestaña de Progreso.
+func play_hours() -> float:
+	return play_seconds / 3600.0
+
+
+## "3 h 42 min" / "12 min": el texto que se enseña al jugador.
+func play_time_text() -> String:
+	var total := int(play_seconds)
+	var h := total / 3600
+	var m := (total % 3600) / 60
+	if h <= 0:
+		return "%d min" % m
+	return "%d h %d min" % [h, m]
+
+
 ## Marca que hoy se ha jugado (para el logro de días distintos).
 func mark_day_played() -> void:
 	var today := _today()
@@ -453,12 +486,37 @@ func set_setting(key: String, value: Variant) -> void:
 	save_game()
 
 
+## Aplica un bloque de gráficos entero (alta / media / baja). "custom" no toca
+## nada: son los cuatro ajustes que ya haya puestos a mano.
+func apply_preset(name: String) -> void:
+	settings["preset"] = name
+	var p: Dictionary = GRAPHICS_PRESETS.get(name, {})
+	for k in p:
+		settings[k] = p[k]
+	apply_graphics()
+
+
+## ¿A qué bloque corresponden los ajustes actuales? Si no encajan en ninguno,
+## "custom": así el cartel nunca miente sobre lo que hay puesto.
+func current_preset() -> String:
+	for name in GRAPHICS_PRESETS:
+		var p: Dictionary = GRAPHICS_PRESETS[name]
+		var same := true
+		for k in p:
+			if get_setting(k) != p[k]:
+				same = false
+				break
+		if same:
+			return str(name)
+	return "custom"
+
+
 ## Nombre con el que el juego se dirige al jugador.
 func player_title() -> String:
-	var n := str(get_setting("name")).strip_edges()
+	var n := player_name.strip_edges()
 	if n != "":
 		return n
-	return str(GENDER_NAMES.get(str(get_setting("gender")), "Grumete"))
+	return str(CharacterData.GENDER_TITLES.get(player_gender, "Chef"))
 
 
 ## ¿Se dibujan las manchas de sombra y las animaciones de adorno?
@@ -470,13 +528,13 @@ func animations_on() -> bool:
 	return bool(get_setting("anim"))
 
 
-## Tope de fotogramas de la pantalla en curso: los menús se conforman con la
-## mitad, jugando manda el ajuste del usuario.
 ## Género del ayudante de cocina: el contrario al del jugador.
 func helper_gender() -> String:
 	return CharacterData.opposite(player_gender)
 
 
+## Tope de fotogramas de la pantalla en curso: los menús se conforman con la
+## mitad, jugando manda el ajuste del usuario.
 func fps_for(playing: bool) -> int:
 	var fps := int(get_setting("fps"))
 	return fps if playing else mini(fps, 30)
@@ -500,6 +558,7 @@ func save_game() -> void:
 		"version": 5,
 		"stats": stats,
 		"settings": settings,
+		"play_seconds": play_seconds,
 		"money": money,
 		"unlocked_recipes": unlocked_recipes,
 		"unlocked_powerups": unlocked_powerups,
@@ -563,11 +622,18 @@ func load_game() -> void:
 	for k in stat_dict.keys():
 		var v: Variant = stat_dict[k]
 		stats[str(k)] = str(v) if str(k) == "last_day" else int(v)
+	play_seconds = float(parsed.get("play_seconds", 0.0))
 	settings = DEFAULT_SETTINGS.duplicate()
 	var set_dict: Dictionary = parsed.get("settings", {})
 	for k in set_dict.keys():
 		if DEFAULT_SETTINGS.has(str(k)):
 			settings[str(k)] = set_dict[k]
+	# Guardados de la primera versión de Opciones: el nombre y el género vivían
+	# dentro de `settings`. Se rescatan para no perder el perfil del jugador.
+	if str(set_dict.get("name", "")) != "" and player_name == "":
+		player_name = str(set_dict["name"])
+	if set_dict.has("gender") and not parsed.has("player_gender"):
+		player_gender = str(set_dict["gender"])
 	# Los guardados viejos traen los enteros como float al pasar por JSON.
 	for k in ["quality", "fps"]:
 		settings[k] = int(settings[k])
@@ -576,18 +642,26 @@ func load_game() -> void:
 		unlock_recipe(r)
 
 
-## Borra el progreso y empieza de cero. Los AJUSTES (gráficos, nombre, género)
-## NO son progreso y sobreviven: se borra la partida, no la configuración.
+## Borra el progreso y empieza de cero. Los AJUSTES (gráficos) y el PERFIL
+## (nombre y género) NO son progreso y sobreviven: se borra la partida, no la
+## configuración de quien la juega.
 func reset_progress() -> void:
 	var keep := settings.duplicate()
+	var keep_name := player_name
+	var keep_gender := player_gender
 	_new_game()
 	settings = keep
+	player_name = keep_name
+	player_gender = keep_gender
 	save_game()
 
 
 func _new_game() -> void:
 	stats = {}
 	settings = DEFAULT_SETTINGS.duplicate()
+	play_seconds = 0.0
+	player_gender = CharacterData.MALE
+	player_name = ""
 	money = 0
 	unlocked_recipes = []
 	unlocked_powerups = []

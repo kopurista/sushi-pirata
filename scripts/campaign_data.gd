@@ -18,6 +18,13 @@ class_name CampaignData
 ##    calibrado al techo de producción de cada nivel.
 ##  - reward_recipes: recetas que se desbloquean al superarlo la 1ª vez.
 ##    (Los potenciadores NO se desbloquean por campaña de momento.)
+##    El reparto sigue a la CLIENTELA del puerto: donde solo hay
+##    grumetes se sueltan recetas de nivel 1, los piratas traen las de
+##    nivel 2 y los capitanes las de nivel 3. Los postres caen en el
+##    puerto donde ya se sientan clientes de su tipo (`only_type`).
+##    Entre las iniciales y las recompensas quedan cubiertas las 34
+##    recetas visibles; las `hidden` (barco, combinados, variantes de
+##    fritura) no se desbloquean, salen de sus mecánicas.
 
 ## Con lo que arranca una partida nueva.
 const INITIAL_RECIPES: Array = ["maki_aguacate", "nigiri_salmon"]
@@ -36,7 +43,7 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		# Partida de 2:30 solo con L1 ($2-3): techo de producción ~$50-70.
 		"star_money": [16, 30, 45],
-		"reward_recipes": ["gunkan_wakame", "sopa_miso"],
+		"reward_recipes": ["gunkan_wakame", "sopa_miso", "edamame", "te_verde"],
 	},
 	{
 		"id": "nivel_2",
@@ -49,7 +56,7 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		"star_money": [16, 30, 45],
 		# Introducen el atún: el siguiente escalón de la carta (L2, precios 5-6).
-		"reward_recipes": ["maki_atun", "nigiri_atun"],
+		"reward_recipes": ["maki_atun", "nigiri_atun", "onigiri", "yaki_onigiri"],
 	},
 	{
 		"id": "nivel_3",
@@ -62,7 +69,7 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		# 3 piratas comiendo L2 ($5-6) suben el techo: ~$75-85.
 		"star_money": [20, 38, 55],
-		"reward_recipes": ["nigiri_inari"],
+		"reward_recipes": ["nigiri_inari", "caldo_dashi", "mochi"],
 	},
 	{
 		"id": "nivel_4",
@@ -75,7 +82,7 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		# 10 clientes con 4 piratas de L2: techo ~$90-100.
 		"star_money": [24, 45, 65],
-		"reward_recipes": ["sashimi_tamago"],
+		"reward_recipes": ["sashimi_tamago", "udon", "tempura"],
 	},
 	{
 		"id": "nivel_5",
@@ -88,7 +95,7 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		# Menos clientes pero de más nivel (el capitán come L2-L3): techo ~$95.
 		"star_money": [25, 48, 70],
-		"reward_recipes": ["gunkan_tartar"],
+		"reward_recipes": ["gunkan_tartar", "gunkan_ikura", "dorayaki"],
 	},
 	{
 		"id": "nivel_6",
@@ -101,7 +108,7 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		# 11 clientes y 2 capitanes: techo ~$110.
 		"star_money": [28, 55, 80],
-		"reward_recipes": ["futomaki_salmon"],
+		"reward_recipes": ["futomaki_salmon", "uramaki_california", "nigiri_pulpo"],
 	},
 	{
 		"id": "nivel_7",
@@ -114,7 +121,7 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		# Partida de 1:30 (~60% de producción) con futomaki L3 disponible: ~$65.
 		"star_money": [20, 40, 58],
-		"reward_recipes": ["sashimi_atun_rojo"],
+		"reward_recipes": ["sashimi_atun_rojo", "nigiri_anguila", "temaki"],
 	},
 	{
 		"id": "nivel_8",
@@ -127,7 +134,7 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		# Más clientes que asientos (8): rotación constante, techo ~$120-130.
 		"star_money": [32, 62, 90],
-		"reward_recipes": ["nigiri_ebi"],
+		"reward_recipes": ["nigiri_ebi", "aburi", "hana_maki", "taiyaki"],
 	},
 	{
 		"id": "nivel_9",
@@ -140,7 +147,8 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		# Final: 17 clientes (más del doble que asientos), techo ~$140.
 		"star_money": [36, 70, 100],
-		"reward_recipes": [],
+		"reward_recipes": ["fugu", "chirashi", "dragon_roll",
+			"nigiri_wagyu", "sashimi_variado"],
 	},
 ]
 

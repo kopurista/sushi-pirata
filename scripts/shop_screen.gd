@@ -17,6 +17,7 @@ const COLS := 4
 var money_label: Label = null
 var reroll_button: Button = null
 var grid: GridContainer = null
+var extras_row: HBoxContainer = null
 var ui: CanvasLayer = null
 var shopkeeper: Node3D = null
 ## Sprites del género expuesto en el mostrador (se rehacen al recargar).
@@ -24,16 +25,14 @@ var goods_root: Node3D = null
 var _t := 0.0
 
 
-## Tope de fotogramas de las pantallas sin juego.
-const MENU_FPS := 30
 
 
 func _ready() -> void:
-	# Las pantallas de menu se conforman con 30 fps: aqui no se juega y
-	# renderizar el doble de fotogramas solo gasta bateria.
-	Engine.max_fps = MENU_FPS
+	# Las pantallas de menu van a la mitad de fotogramas que el juego
+	# (GameState.fps_for): aqui no se juega y renderizar mas gasta bateria.
+	Engine.max_fps = GameState.fps_for(false)
 	GameState.refresh_shop_if_new_day()
-	SceneBackdrop.build(self, "puerto", 16.0, 250.0, 5.0)
+	SceneBackdrop.build(self, "puerto", 16.0, 372.0, 5.0)
 	_setup_shopkeeper()
 	# El mostrador y los cajones son fijos: una malla por color.
 	GeometryBatch.bake(self, "ShopBatch")
@@ -116,7 +115,7 @@ func _box(size: Vector3, pos: Vector3, color: Color) -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
-	if shopkeeper != null:
+	if shopkeeper != null and GameState.animations_on():
 		# Respira y se balancea: no tiene esqueleto, así que la vida se la da
 		# el propio pivote.
 		shopkeeper.position.y = sin(_t * 1.6) * 0.03
@@ -183,7 +182,7 @@ func _setup_ui() -> void:
 	shelf.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	shelf.offset_left = 14.0
 	shelf.offset_right = -14.0
-	shelf.offset_top = -752.0
+	shelf.offset_top = -900.0
 	shelf.offset_bottom = -128.0
 	root.add_child(shelf)
 	shelf.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 40))
@@ -193,10 +192,21 @@ func _setup_ui() -> void:
 	grid.offset_left = 44.0
 	grid.offset_top = 44.0
 	grid.offset_right = -44.0
-	grid.offset_bottom = -40.0
+	grid.offset_bottom = -237.0
 	grid.add_theme_constant_override("h_separation", 6)
 	grid.add_theme_constant_override("v_separation", 10)
 	shelf.add_child(grid)
+	# Los tres EXTRAS de siempre, pequeños y centrados en su propia balda: no
+	# cambian nunca, no compiten con el género del día.
+	extras_row = HBoxContainer.new()
+	extras_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	extras_row.add_theme_constant_override("separation", 26)
+	extras_row.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	extras_row.offset_left = 44.0
+	extras_row.offset_right = -44.0
+	extras_row.offset_top = -227.0
+	extras_row.offset_bottom = -87.0
+	shelf.add_child(extras_row)
 
 	# Recargar el surtido pagando.
 	reroll_button = Button.new()
@@ -240,15 +250,66 @@ func _refresh() -> void:
 		c.queue_free()
 	for ing in GameState.shop_stock:
 		grid.add_child(_build_item(ing))
+	# Los EXTRAS (jengibre, wasabi, soja) no entran en el sorteo del día: el
+	# tendero los tiene SIEMPRE, pequeños y centrados en su propia balda.
+	for c in extras_row.get_children():
+		c.queue_free()
+	for ing in RecipeData.EXTRAS:
+		extras_row.add_child(_build_item(ing, true))
 
 
 ## Un artículo del mostrador: icono, nombre, precio unitario y usos que ya
 ## tienes. Al pulsarlo se pregunta cuántos quieres.
-func _build_item(ing: String) -> Button:
+## Tarjeta compacta de EXTRA: icono, nombre y precio · cantidad debajo.
+## SIN fondo propio (el botón trae un panel oscuro del tema por defecto que
+## sobre el pergamino parecía una mancha y tapaba lo que era el artículo).
+func _fill_small_item(b: Button, ing: String, data: Dictionary, cost: int) -> Button:
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	var icon := TextureRect.new()
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.texture = RecipeData.get_ingredient_texture(ing)
+	icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+	icon.offset_left = 8.0
+	icon.offset_top = 2.0
+	icon.offset_right = -8.0
+	icon.offset_bottom = -58.0
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(icon)
+	var name_l := Label.new()
+	name_l.text = str(data.get("name", ing))
+	name_l.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	name_l.offset_top = -56.0
+	name_l.offset_bottom = -30.0
+	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_l.add_theme_font_size_override("font_size", 16)
+	name_l.add_theme_color_override("font_color", DARK)
+	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(name_l)
+	var info := Label.new()
+	info.text = "$%d · x%d" % [cost, GameState.get_ingredient_uses(ing)]
+	info.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	info.offset_top = -28.0
+	info.offset_bottom = -2.0
+	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	info.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	info.add_theme_font_size_override("font_size", 18)
+	info.add_theme_color_override("font_color", Color(0.45, 0.33, 0.2))
+	info.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(info)
+	b.pressed.connect(_open_buy_dialog.bind(ing))
+	return b
+
+
+func _build_item(ing: String, small: bool = false) -> Button:
 	var data: Dictionary = RecipeData.INGREDIENTS.get(ing, {})
 	var cost := int(data.get("cost", 0))
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(150, 226)
+	b.custom_minimum_size = Vector2(124, 140) if small else Vector2(150, 226)
+	if small:
+		return _fill_small_item(b, ing, data, cost)
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 
@@ -260,19 +321,21 @@ func _build_item(ing: String) -> Button:
 	icon.offset_left = 12.0
 	icon.offset_top = 6.0
 	icon.offset_right = -12.0
-	icon.offset_bottom = -92.0
+	icon.offset_bottom = -98.0
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(icon)
 
 	var name_l := Label.new()
 	name_l.text = str(data.get("name", ing))
 	name_l.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	name_l.offset_top = -88.0
+	# Alto para DOS líneas: "Huevas de salmón" partía en dos y la segunda se
+	# comía la fila del precio.
+	name_l.offset_top = -96.0
 	name_l.offset_bottom = -50.0
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	name_l.add_theme_font_size_override("font_size", 17)
+	name_l.add_theme_font_size_override("font_size", 16)
 	name_l.add_theme_color_override("font_color", DARK)
 	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(name_l)
@@ -414,7 +477,9 @@ func _open_buy_dialog(ing: String) -> void:
 		var qty: int = state["qty"]
 		var total := cost * qty
 		qty_l.text = "%d" % qty
-		total_l.text = "Total: $%d   (tienes $%d)" % [total, GameState.money]
+		# Junto al total interesa saber CUÁNTO DE ESE INGREDIENTE tienes ya,
+		# no el dinero (que sale arriba en el monedero).
+		total_l.text = "Total: $%d   (tienes %d)" % [total, GameState.get_ingredient_uses(ing)]
 		minus.modulate = Color(1, 1, 1, 0.4) if qty <= 1 else Color.WHITE
 		buy.disabled = total > GameState.money
 		buy.text = "Comprar" if total <= GameState.money else "Sin dinero"
@@ -430,6 +495,7 @@ func _open_buy_dialog(ing: String) -> void:
 		if total > GameState.money:
 			return
 		GameState.money -= total
+		GameState.bump_stat("money_spent", total)
 		GameState.add_ingredient_uses(ing, qty)
 		GameState.save_game()
 		overlay.queue_free()

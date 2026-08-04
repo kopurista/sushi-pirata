@@ -24,9 +24,31 @@ const BUDGETS := {
 	# Atrezzo estático, se ve a pocos píxeles desde la cámara isométrica.
 	"caja": 800,
 	"cofre": 900,
-	# Platos: los otros diez rondan 2.400, estos dos venían a 29.500.
+	# Platos: los otros diez rondan 2.400, estos venían a 29.500.
 	"futomaki_salmon": 2500,
 	"gunkan_tartar": 2500,
+	"gunkan_ikura": 2500,
+	"hana_maki": 2500,
+	"edamame": 2500,
+	"temaki": 2500,
+	"aburi": 2500,
+	"aburi_atun": 2500,
+	"chirashi": 2500,
+	"udon": 2500,
+	"gari": 2500,
+	"te_verde": 2500,
+	"fugu": 2500,
+	"moriawase": 2500,
+	"mochi": 2500,
+	"dorayaki": 2500,
+	"taiyaki": 2500,
+	"nigiri_anguila": 2500,
+	"yaki_onigiri": 2500,
+	"caldo_dashi": 2500,
+	"uramaki_california": 2500,
+	"dragon_roll": 2500,
+	"nigiri_wagyu": 2500,
+	"udon_tempura": 2500,
 	# Nodos del mapa: hay NUEVE en pantalla a la vez.
 	"map_isla": 4000,
 	"map_puerto": 4000,
@@ -35,6 +57,13 @@ const BUDGETS := {
 	# Personajes: el chef y los clientes rondan los 6.000, estos venían a 19.500.
 	"ayudante_rig": 6000,
 	"tendero": 6000,
+	"chef_neutro_rig": 6000,
+	"chef_fem_rig": 6000,
+	"grumete_fem_rig": 6000,
+	"pirata_fem_rig": 6000,
+	"capitan_fem_rig": 6000,
+	"vip_fem_rig": 6000,
+	"ayudante_fem_rig": 6000,
 }
 
 ## Tope de pasadas. Cada `generate_lods` recorta ~50%, así que 6 pasadas dan de

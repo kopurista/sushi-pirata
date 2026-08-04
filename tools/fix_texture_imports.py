@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""Deja los .import de las TEXTURAS DE MODELO como pide el export movil.
+
+Godot importa cada textura nueva con compress/mode=2 (s3tc) y sin limite de
+tamano: sin Basis Universal el export web no carga las texturas 3D en moviles.
+Este script fija el modo y, SOLO a las que no tienen limite puesto (0), les da
+el que toca a su familia:
+
+  - personajes y nodos del mapa .... 512 px
+  - platos y atrezzo ............... 256 px
+
+Un limite YA puesto no se toca: varias piezas del escenario estan afinadas a
+mano (la cabana y las rocas van a 512 aunque sean atrezzo) y pisarlas por
+regla general les bajaria la textura a la mitad sin que nadie lo pidiera.
+
+Uso:  python tools/fix_texture_imports.py [--check]
+"""
+
+import re
+import sys
+from pathlib import Path
+
+MODELS = Path(__file__).resolve().parent.parent / "assets" / "models"
+
+## Modelos que se ven GRANDES en pantalla: personajes y nodos del mapa.
+BIG_PREFIXES = (
+    "chef", "ayudante", "grumete", "pirata", "capitan", "vip", "tendero", "map_",
+)
+
+RULES = {
+    "compress/mode": "4",
+    "compress/rdo_quality_loss": "4.0",
+    "detect_3d/compress_to": "0",
+}
+
+
+def size_limit(name: str) -> str:
+    return "512" if name.startswith(BIG_PREFIXES) else "256"
+
+
+def main() -> int:
+    check = "--check" in sys.argv
+    bad = []
+    for path in sorted(MODELS.glob("*.png.import")):
+        # utf-8-sig se come el BOM si lo hubiera; luego se escribe sin el.
+        text = path.read_text(encoding="utf-8-sig")
+        out = text
+        rules = dict(RULES)
+        # El limite solo se pone si no habia ninguno: ver cabecera.
+        if re.search(r"^process/size_limit=0$", text, flags=re.MULTILINE):
+            rules["process/size_limit"] = size_limit(path.name)
+        for key, value in rules.items():
+            out = re.sub(
+                r"^%s=.*$" % re.escape(key), "%s=%s" % (key, value),
+                out, flags=re.MULTILINE)
+        if out != text or text != path.read_text(encoding="utf-8"):
+            bad.append(path.name)
+            if not check:
+                path.write_text(out, encoding="utf-8", newline="\n")
+    if check:
+        print("fuera de norma: %d" % len(bad))
+        for n in bad:
+            print("  " + n)
+    else:
+        print("corregidos: %d" % len(bad))
+    return 1 if (check and bad) else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

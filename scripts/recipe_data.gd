@@ -19,6 +19,16 @@ class_name RecipeData
 ##    "¡Más lento!" y hay que repetir. { "count": N, "duration": s }
 ##  - drag_stage: aparece un utensilio ("prop", sprite de assets/stages) a la
 ##    derecha de la tabla y hay que arrastrar el sprite de etapa hasta él. { "prop": id }
+##  - use_stored: montar un combinado con platos YA GUARDADOS: hay que arrastrar
+##    N platos desde las cajas hasta la tabla. { "count": N, "prop"?: bandeja }
+##
+## Extras de algunos pasos:
+##  - "prop" en drag_ingredient: el ingrediente se suelta SOBRE ese utensilio
+##    (el cuenco del edamame), no sobre la tabla entera.
+##  - "direction": "diag" en swipe_board: enrollado en cono (temaki), exige
+##    bajar y avanzar a la vez.
+##  - "fail_cancels" en slice_board: cortar deprisa ARRUINA el plato (fugu);
+##    se pierde la elaboración y entra el cooldown.
 ##
 ## "vegetarian": true marca las recetas aptas para clientes vegetarianos.
 ## "patience_mult": escala cuánta paciencia recarga el plato al comerlo
@@ -29,6 +39,20 @@ class_name RecipeData
 ## "tip_chance_bonus": suma a la probabilidad de propina del cliente la 1ª vez
 ##   que come este plato; cada repetición del MISMO plato suma la MITAD que la
 ##   anterior (tartar 3% > 1.5% > 0.75%...). Se aplica en client.gd::_roll_tip.
+## "snack": true = plato de PICOTEO. El cliente puede cogerlo aunque esté
+##   comiendo otro plato: le recarga la paciencia al instante sin interrumpir
+##   la comida en curso y paga +SNACK_BONUS doblones extra (client3d.gd).
+## "take_chance": fuerza la probabilidad de que CUALQUIER tipo de cliente coja
+##   el plato, ignorando la matriz TAKE_CHANCES (los capitanes no tocan nivel 1,
+##   pero el edamame es un acompañamiento que pica todo el mundo).
+## "snack_refill": cuánto alarga el bocado en curso un picoteo, como fracción
+##   de su duración (por defecto client3d.SNACK_EAT_REFILL). El gari lo deja
+##   casi a cero porque su gracia es la propina, no el tiempo.
+## "clears_boredom": el picoteo limpia el paladar (té verde): el cliente deja
+##   de estar aburrido del plato que le venías repitiendo.
+##
+## Un cliente solo pica UN plato de picoteo por cada plato que se come; hasta
+## que no termina ese plato no vuelve a coger otro (client3d.snack_taken).
 
 ## "cost": precio en doblones de 1 USO en la tienda (un uso = un nivel jugado
 ## con recetas que lleven ese ingrediente). El arroz es infinito (cost 0, no se
@@ -48,7 +72,126 @@ const INGREDIENTS: Dictionary = {
 	"atun_rojo": { "name": "Atún rojo", "short": "AtRojo", "color": Color(0.55, 0.12, 0.18), "cost": 30 },
 	"nori": { "name": "Alga nori", "short": "Nori", "color": Color(0.12, 0.22, 0.14), "cost": 8 },
 	"pepino": { "name": "Pepino", "short": "Pepino", "color": Color(0.35, 0.62, 0.28), "cost": 8 },
+	"huevas": { "name": "Huevas de salmón", "short": "Huevas", "color": Color(0.95, 0.45, 0.12), "cost": 23 },
+	"edamame": { "name": "Edamame", "short": "Edam", "color": Color(0.48, 0.75, 0.25), "cost": 5 },
+	"fideos": { "name": "Fideos udon", "short": "Fideos", "color": Color(0.94, 0.92, 0.84), "cost": 8 },
+	# --- EXTRAS: no son platos, se añaden ENCIMA de un plato ya emplatado y
+	# gastan una unidad POR PLATO (no por partida como el resto). Ver EXTRAS.
+	"jengibre": { "name": "Jengibre", "short": "Jengib", "color": Color(0.95, 0.72, 0.72),
+		"cost": 2, "extra": true },
+	"wasabi": { "name": "Wasabi", "short": "Wasabi", "color": Color(0.55, 0.8, 0.3),
+		"cost": 2, "extra": true },
+	"soja": { "name": "Salsa de soja", "short": "Soja", "color": Color(0.3, 0.18, 0.1),
+		"cost": 2, "extra": true },
+	"te": { "name": "Hojas de té", "short": "Té", "color": Color(0.42, 0.68, 0.3), "cost": 3 },
+	"fugu": { "name": "Pez globo", "short": "Fugu", "color": Color(0.85, 0.85, 0.88), "cost": 45 },
+	# "stock_id": gasta usos de OTRO ingrediente. El atún cocido sale de la
+	# misma lata que el crudo, así que en la despensa no ocupa una línea aparte.
+	"atun_cocido": { "name": "Atún cocido", "short": "AtCoc", "color": Color(0.78, 0.6, 0.42),
+		"cost": 15, "stock_id": "atun" },
+	# --- Postres y anguila (mochi, dorayaki, taiyaki, unagi) ---
+	"masa_mochi": { "name": "Masa de mochi", "short": "Masa", "color": Color(0.95, 0.94, 0.90),
+		"cost": 8 },
+	"judias_rojas": { "name": "Judías rojas", "short": "Judías", "color": Color(0.45, 0.12, 0.16),
+		"cost": 8 },
+	"bollo_dorayaki": { "name": "Bollo de dorayaki", "short": "Bollo",
+		"color": Color(0.83, 0.60, 0.30), "cost": 12 },
+	"masa_taiyaki": { "name": "Masa de taiyaki", "short": "MasaT",
+		"color": Color(0.95, 0.88, 0.62), "cost": 8 },
+	"chocolate": { "name": "Chocolate", "short": "Choco", "color": Color(0.28, 0.16, 0.10),
+		"cost": 15 },
+	"unagi": { "name": "Anguila", "short": "Unagi", "color": Color(0.45, 0.24, 0.12),
+		"cost": 26 },
+	"salsa_unagi": { "name": "Salsa tare", "short": "Tare", "color": Color(0.22, 0.12, 0.06),
+		"cost": 5 },
+	"matcha": { "name": "Té matcha", "short": "Matcha", "color": Color(0.42, 0.68, 0.28),
+		"cost": 10 },
+	"katsuobushi": { "name": "Bonito seco", "short": "Bonito", "color": Color(0.80, 0.55, 0.42),
+		"cost": 6 },
+	"kanikama": { "name": "Palitos de cangrejo", "short": "Kanik", "color": Color(0.95, 0.52, 0.38),
+		"cost": 10 },
+	"pulpo": { "name": "Pulpo", "short": "Pulpo", "color": Color(0.68, 0.30, 0.38), "cost": 20 },
+	"wagyu": { "name": "Wagyu", "short": "Wagyu", "color": Color(0.72, 0.22, 0.24), "cost": 38 },
+	# Gratis como el arroz (cost 0): no se compra ni gasta usos.
+	"sesamo": { "name": "Sésamo", "short": "Sésamo", "color": Color(0.92, 0.88, 0.78), "cost": 0 },
 }
+
+## COMBINACIONES: dos platos YA GUARDADOS en las cajas que se funden en uno
+## solo. A diferencia del barco combinado (que admite cualquier surtido de
+## BOAT_DISHES), cada combo exige una pareja EXACTA, una unidad de cada parte.
+## El precio del resultado es la SUMA de las partes más `bonus`.
+const COMBOS: Dictionary = {
+	"udon_tempura": { "parts": ["udon", "tempura"], "bonus": 3 },
+}
+
+## EXTRAS que el jugador puede añadir a CUALQUIER plato justo antes de
+## mandarlo a la cinta. No dan dinero: cambian cómo reacciona el cliente.
+## Se gastan por PLATO servido, no por partida.
+const EXTRAS := ["jengibre", "wasabi", "soja"]
+## Efecto de cada extra (se aplican en client3d):
+##  - jengibre  → el plato NO cuenta como repetido (limpia el paladar).
+##  - wasabi    → +15% de PROBABILIDAD de propina.
+##  - soja      → +15% de CUANTÍA de la propina.
+const EXTRA_TIP_CHANCE := 0.15
+const EXTRA_TIP_AMOUNT := 1.15
+
+## FREÍR (paso "fry_board"): el jugador mantiene pulsado y suelta cuando cree
+## que está en su punto. Cada franja da un resultado distinto; fuera de todas
+## ellas el plato se tira. Se lee de arriba abajo, la primera que encaja gana.
+##  "to": límite superior de la franja · "price": lo que vale (0 = a la basura)
+##  "dish": sprite del plato resultante · "label": aviso al jugador
+## "color": del aviso que aparece sobre el plato (verde = bien, dorado =
+## perfecto, naranja = regular, rojo = a la basura).
+const FRY_WINDOWS := [
+	{ "to": 1.80, "price": 0, "dish": "tempura_cruda", "label": "¡Cruda!",
+		"color": Color(1.0, 0.36, 0.30) },
+	{ "to": 2.50, "price": 5, "dish": "tempura_cruda", "label": "Poco hecha",
+		"color": Color(1.0, 0.72, 0.30) },
+	{ "to": 2.99, "price": 7, "dish": "tempura", "label": "¡Buen punto!",
+		"color": Color(0.45, 0.95, 0.45) },
+	{ "to": 3.02, "price": 15, "dish": "tempura", "label": "¡Perfecto!",
+		"color": Color(1.0, 0.85, 0.25) },
+	{ "to": 3.24, "price": 7, "dish": "tempura", "label": "¡Buen punto!",
+		"color": Color(0.45, 0.95, 0.45) },
+	{ "to": 4.50, "price": 5, "dish": "tempura_quemada", "label": "Pasada",
+		"color": Color(1.0, 0.72, 0.30) },
+	{ "to": 999.0, "price": 0, "dish": "tempura_quemada", "label": "¡Quemada!",
+		"color": Color(1.0, 0.36, 0.30) },
+]
+## Lo que paga la franja del punto EXACTO (la mejor de todas). El logro de la
+## tempura perfecta lo mira para no depender del orden de la lista.
+const FRY_BEST_PRICE := 15
+
+## Franjas del YAKI ONIGIRI a la plancha (paso "fry_board" con "windows").
+## Mucho más indulgente que la tempura: quedarse corto o pasarse NO tira el
+## plato, solo lo deja en 2 doblones. El punto exacto (2.00 s) paga 10.
+const YAKI_WINDOWS := [
+	{ "to": 1.25, "price": 2, "dish": "yaki_onigiri", "label": "Crudito",
+		"color": Color(1.0, 0.72, 0.30) },
+	{ "to": 1.99, "price": 5, "dish": "yaki_onigiri", "label": "¡Buen punto!",
+		"color": Color(0.45, 0.95, 0.45) },
+	{ "to": 2.01, "price": 10, "dish": "yaki_onigiri", "label": "¡Perfecto!",
+		"color": Color(1.0, 0.85, 0.25) },
+	{ "to": 2.75, "price": 5, "dish": "yaki_onigiri", "label": "¡Buen punto!",
+		"color": Color(0.45, 0.95, 0.45) },
+	{ "to": 999.0, "price": 2, "dish": "yaki_onigiri", "label": "Tostado",
+		"color": Color(1.0, 0.72, 0.30) },
+]
+
+## Franjas del SOPLETE del nigiri de wagyu. Mismo trato: nunca se pierde el
+## plato, solo cambia lo que paga. Clavarlo en 2.00 s dobla el precio bueno.
+const WAGYU_WINDOWS := [
+	{ "to": 1.50, "price": 11, "dish": "nigiri_wagyu", "label": "Poco hecho",
+		"color": Color(1.0, 0.72, 0.30) },
+	{ "to": 1.99, "price": 15, "dish": "nigiri_wagyu", "label": "¡Buen punto!",
+		"color": Color(0.45, 0.95, 0.45) },
+	{ "to": 2.01, "price": 30, "dish": "nigiri_wagyu", "label": "¡Perfecto!",
+		"color": Color(1.0, 0.85, 0.25) },
+	{ "to": 2.50, "price": 15, "dish": "nigiri_wagyu", "label": "¡Buen punto!",
+		"color": Color(0.45, 0.95, 0.45) },
+	{ "to": 999.0, "price": 11, "dish": "nigiri_wagyu", "label": "Muy hecho",
+		"color": Color(1.0, 0.72, 0.30) },
+]
 
 const RECIPES: Dictionary = {
 	"maki_aguacate": {
@@ -123,7 +266,7 @@ const RECIPES: Dictionary = {
 		"name": "Sopa de miso",
 		"level": 1,
 		"satiety": 1,
-		"cooldown": 4.0,
+		"cooldown": 5.5,
 		"price": 4,
 		"vegetarian": true,
 		"patience_mult": 1.2,
@@ -215,17 +358,17 @@ const RECIPES: Dictionary = {
 		"steps": [
 			{ "type": "tap_ingredient", "ingredient": "atun_rojo" },
 			{ "type": "slice_board", "count": 2, "duration": 0.7, "direction": "right",
-				"cut_stage": "corte_atun_rojo" },
+				"cut_stage": "corte_atun_rojo", "fail_penalty": 5 },
 		],
 		"stages": ["bloque_atun_rojo", ""],
 	},
 	"nigiri_ebi": {
 		"label": "NiEbi",
 		"name": "Nigiri de gamba ebi",
-		"level": 3,
-		"satiety": 3,
-		"cooldown": 7.0,
-		"price": 11,
+		"level": 1,
+		"satiety": 1,
+		"cooldown": 3.5,
+		"price": 4,
 		"steps": [
 			{ "type": "tap_ingredient", "ingredient": "arroz" },
 			{ "type": "tap_board", "count": 5 },
@@ -255,6 +398,554 @@ const RECIPES: Dictionary = {
 		],
 		"stages": ["pepino_tabla", "pepino_cubos", "salmon_pepino", "tartar_mont", "arroz_bola", "tartar_mont", ""],
 	},
+	"gunkan_ikura": {
+		"label": "GuIku",
+		"name": "Gunkan de huevas de salmón",
+		"level": 2,
+		"satiety": 2,
+		"cooldown": 5.5,
+		"price": 8,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "arroz" },
+			{ "type": "tap_board", "count": 4 },
+			{ "type": "drag_ingredient", "ingredient": "nori" },
+			{ "type": "drag_ingredient", "ingredient": "huevas" },
+		],
+		"stages": ["arroz_bola", "arroz_bola", "gunkan_base", ""],
+	},
+	"hana_maki": {
+		"label": "HaMak",
+		"name": "Hana maki",
+		"level": 3,
+		"satiety": 3,
+		"cooldown": 7.0,
+		"price": 12,
+		"free_uses": 3,
+		"patience_mult": 1.3,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "arroz" },
+			{ "type": "tap_board", "count": 3 },
+			{ "type": "drag_ingredient", "ingredient": "aguacate" },
+			{ "type": "swipe_board", "count": 2, "direction": "down" },
+			{ "type": "tap_board", "count": 3, "cutting": true },
+			{ "type": "drag_ingredient", "ingredient": "salmon" },
+			{ "type": "drag_ingredient", "ingredient": "huevas" },
+		],
+		"stages": ["arroz_bola", "arroz_plano", "plano_aguacate", "rollo_aguacate",
+			"corte_aguacate", "hana_salmon", ""],
+	},
+	"edamame": {
+		"label": "Edam",
+		"name": "Edamame",
+		"level": 1,
+		"satiety": 1,
+		"cooldown": 2.0,
+		"price": 1,
+		"vegetarian": true,
+		"snack": true,
+		"take_chance": 0.9,
+		"steps": [
+			# El cuenco vacío aparece como utensilio y hay que soltarle encima
+			# las vainas (con "prop" el destino del arrastre es el cuenco, no
+			# la tabla entera).
+			{ "type": "drag_ingredient", "ingredient": "edamame", "prop": "cuenco_vacio" },
+		],
+		"stages": [""],
+	},
+	"tempura": {
+		"label": "Tempu",
+		"name": "Tempura de gamba",
+		"level": 2,
+		"satiety": 2,
+		"cooldown": 5.5,
+		"price": 7,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "gamba" },
+			{ "type": "swipe_board", "count": 1, "direction": "down" },
+			{ "type": "drag_ingredient", "ingredient": "harina" },
+			{ "type": "tap_ingredient", "ingredient": "masa_tempura" },
+			{ "type": "stir_board", "count": 1 },
+			{ "type": "drag_stage", "prop": "sarten" },
+			# FREÍR: el contador corre y hay que soltar en el punto justo.
+			# Fuera de las ventanas buenas el plato se tira (ver FRY_WINDOWS).
+			{ "type": "fry_board", "target": 3.0 },
+		],
+		"stages": ["gamba_tabla", "gamba_cortada", "gamba_harina", "gamba_masa",
+			"gamba_masa", "sarten_frito", ""],
+	},
+	# Variantes de la tempura según el punto de fritura. No se eligen ni
+	# aparecen en el selector: las sirve el paso "fry_board" con su precio.
+	"tempura_cruda": {
+		"label": "TempC",
+		"name": "Tempura poco hecha",
+		"level": 2, "satiety": 2, "cooldown": 5.5, "price": 5,
+		"hidden": true, "steps": [], "stages": [],
+	},
+	"tempura_quemada": {
+		"label": "TempQ",
+		"name": "Tempura pasada",
+		"level": 2, "satiety": 2, "cooldown": 5.5, "price": 5,
+		"hidden": true, "steps": [], "stages": [],
+	},
+	"onigiri": {
+		"label": "Onigi",
+		"name": "Onigiri",
+		"level": 1,
+		"satiety": 1,
+		"cooldown": 3.5,
+		"price": 4,
+		# Salen DOS bolas en total: la que se hace a mano y una gratis.
+		"free_uses": 1,
+		# Comida de a bordo: la pican todos por igual, sea grumete o capitán.
+		"take_chance": 0.5,
+		# Llena más que un plato de su nivel: es contundente.
+		"patience_mult": 1.4,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "arroz" },
+			{ "type": "tap_board", "count": 3 },
+			{ "type": "drag_ingredient", "ingredient": "atun_cocido" },
+			{ "type": "tap_board", "count": 5 },
+			{ "type": "drag_ingredient", "ingredient": "nori" },
+		],
+		"stages": ["arroz_bola", "arroz_plano", "onigiri_relleno", "onigiri_forma", ""],
+	},
+	"temaki": {
+		"label": "Temak",
+		"name": "Temaki de salmón",
+		"level": 3,
+		"satiety": 3,
+		"cooldown": 7.0,
+		"price": 10,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "nori" },
+			{ "type": "tap_ingredient", "ingredient": "arroz" },
+			{ "type": "tap_board", "count": 4 },
+			{ "type": "drag_ingredient", "ingredient": "salmon" },
+			# El pepino se corta en BASTONES largos (dos pasadas de arriba abajo)
+			# antes de entrar en el cono.
+			{ "type": "tap_ingredient", "ingredient": "pepino" },
+			{ "type": "swipe_board", "count": 2, "direction": "down" },
+			# Enrollar en CONO: diagonal y con un recorrido largo.
+			{ "type": "swipe_board", "count": 2, "direction": "diag", "distance": 190.0 },
+		],
+		"stages": ["nori_tabla", "nori_arroz_bola", "nori_arroz", "temaki_relleno",
+			"pepino_tabla", "pepino_rodajas", ""],
+	},
+	"aburi": {
+		"label": "Aburi",
+		"name": "Nigiri flambeado",
+		"level": 3,
+		"satiety": 3,
+		"cooldown": 7.0,
+		# Precio y efecto de la variante de SALMÓN; eligiendo atún el plato
+		# sale como "aburi_atun" (15, propina más gorda).
+		"price": 12,
+		"tip_chance_bonus": 0.04,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "arroz" },
+			{ "type": "tap_board", "count": 3 },
+			# ELECCIÓN: salen los dos pescados y se arrastra UNO; el otro
+			# desaparece. El elegido decide la identidad del plato final.
+			{ "type": "drag_choice", "options": ["salmon", "atun"],
+				"stage_by": { "salmon": "aburi_crudo", "atun": "aburi_crudo_atun" },
+				"result_by": { "salmon": "", "atun": "aburi_atun" } },
+			# El soplete sigue al dedo: hay que MANTENER Y MOVER para tostar.
+			{ "type": "hold_board", "duration": 2.0, "prop": "soplete", "move": true },
+		],
+		"stages": ["arroz_bola", "nigiri_base", "aburi_crudo", ""],
+	},
+	# Variante del flambeado con atún: no se elige en el selector, sale del
+	# paso drag_choice del aburi. Más cara y con la propina más GORDA (el de
+	# salmón la hace más PROBABLE).
+	"aburi_atun": {
+		"label": "AbuAt",
+		"name": "Nigiri flambeado de atún",
+		"level": 3, "satiety": 3, "cooldown": 7.0, "price": 15,
+		"tip_amount_mult": 1.15,
+		"hidden": true, "steps": [], "stages": [],
+	},
+	"chirashi": {
+		"label": "Chira",
+		"name": "Chirashi",
+		"level": 3,
+		"satiety": 3,
+		"cooldown": 8.0,
+		"price": 16,
+		"steps": [
+			# Primero la bola de arroz, y al moldearla queda dentro del cuenco.
+			{ "type": "tap_ingredient", "ingredient": "arroz" },
+			{ "type": "tap_board", "count": 5 },
+			{ "type": "drag_ingredient", "ingredient": "salmon" },
+			{ "type": "drag_ingredient", "ingredient": "atun" },
+			{ "type": "drag_ingredient", "ingredient": "wakame" },
+			# El pepino se trocea en la tabla y se echa al cuenco.
+			{ "type": "tap_ingredient", "ingredient": "pepino" },
+			{ "type": "tap_board", "count": 3, "cutting": true },
+			{ "type": "drag_stage", "prop": "chirashi_wakame" },
+			{ "type": "drag_ingredient", "ingredient": "huevas" },
+		],
+		"stages": ["arroz_bola", "bol_arroz", "chirashi_medio", "chirashi_atun",
+			"chirashi_wakame", "pepino_tabla", "pepino_cubos", "chirashi_pepino", ""],
+	},
+	"udon": {
+		"label": "Udon",
+		"name": "Udon",
+		"level": 2,
+		"satiety": 2,
+		"cooldown": 5.0,
+		"price": 6,
+		"vegetarian": true,
+		# Ocupa al cliente MUCHO rato pero le retiene poco: sirve para aparcar
+		# a un cliente pesado sin alargarle la estancia.
+		"eat_mult": 1.8,
+		"patience_mult": 0.7,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "agua" },
+			{ "type": "hold_board", "duration": 2.0 },
+			{ "type": "drag_ingredient", "ingredient": "fideos" },
+			{ "type": "stir_board", "count": 2 },
+		],
+		"stages": ["bol_agua", "bol_agua", "bol_udon", ""],
+	},
+	"te_verde": {
+		"label": "TeVer",
+		"name": "Té verde",
+		"level": 1,
+		"satiety": 1,
+		"cooldown": 2.0,
+		"price": 1,
+		"vegetarian": true,
+		"snack": true,
+		"take_chance": 0.9,
+		"snack_refill": 0.2,
+		# Limpia el aburrimiento: el cliente vuelve a disfrutar el plato que
+		# le venías repitiendo.
+		"clears_boredom": true,
+		"steps": [
+			{ "type": "drag_ingredient", "ingredient": "te", "prop": "cuenco_vacio" },
+			{ "type": "hold_board", "duration": 1.5 },
+		],
+		"stages": ["bol_agua", ""],
+	},
+	"fugu": {
+		"label": "Fugu",
+		"name": "Sashimi de fugu",
+		"level": 3,
+		"satiety": 3,
+		"cooldown": 9.0,
+		"price": 11,
+		# Hermano del atún rojo: aquí la propina es MÁS GORDA cuando cae
+		# (+15% de cuantía), mientras que el atún rojo la hace más probable.
+		"tip_amount_mult": 1.15,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "fugu" },
+			# Cortar deprisa cuesta 5 doblones por fallo (el corte se repite).
+			{ "type": "slice_board", "count": 2, "duration": 0.9,
+				"cut_stage": "corte_fugu", "fail_penalty": 5 },
+		],
+		"stages": ["bloque_fugu", ""],
+	},
+	# --- POSTRES QUE LIBERAN EL ASIENTO ------------------------------------
+	# Los tres funcionan igual: SOLO los coge un tipo de cliente ("only_type"),
+	# y en cuanto se lo termina paga, deja la propina acumulada con un extra
+	# ("leave_tip_bonus") y SE VA, dejando la silla libre para el siguiente.
+	# Es la única manera de echar a un cliente sin esperar a su paciencia.
+	"mochi": {
+		"label": "Mochi",
+		"name": "Mochi de matcha",
+		"level": 1,
+		"satiety": 1,
+		"cooldown": 4.0,
+		"price": 3,
+		"vegetarian": true,
+		"only_type": "E",
+		"leaves_seat": true,
+		"leave_tip_bonus": 0.05,
+		"tip_always": true,
+		"no_extras": true,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "masa_mochi" },
+			{ "type": "tap_board", "count": 3 },
+			{ "type": "drag_ingredient", "ingredient": "matcha" },
+			# Cerrar la bola: se recoge la masa hacia arriba y luego hacia abajo.
+			# El recorrido es MÁS LARGO que el de un deslizamiento normal.
+			{ "type": "swipe_board", "count": 1, "direction": "up", "distance": 130.0 },
+			{ "type": "swipe_board", "count": 1, "direction": "down", "distance": 130.0 },
+		],
+		"stages": ["mochi_masa", "mochi_masa", "mochi_matcha", "mochi_matcha", ""],
+	},
+	"dorayaki": {
+		"label": "Dora",
+		"name": "Dorayaki",
+		"level": 2,
+		"satiety": 2,
+		"cooldown": 5.5,
+		"price": 5,
+		"vegetarian": true,
+		"only_type": "A",
+		"leaves_seat": true,
+		"leave_tip_bonus": 0.10,
+		"tip_always": true,
+		"no_extras": true,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "bollo_dorayaki" },
+			{ "type": "drag_ingredient", "ingredient": "judias_rojas" },
+			{ "type": "tap_board", "count": 3 },
+			# Corte VERTICAL (de arriba abajo), no el barrido lateral de los
+			# pescados: parte el dorayaki por la mitad.
+			{ "type": "slice_board", "count": 1, "duration": 0.5, "direction": "v" },
+		],
+		"stages": ["dorayaki_bollo", "dorayaki_relleno", "dorayaki_relleno", ""],
+	},
+	"taiyaki": {
+		"label": "Taiya",
+		"name": "Taiyaki de chocolate",
+		"level": 3,
+		"satiety": 3,
+		"cooldown": 7.0,
+		"price": 10,
+		"vegetarian": true,
+		"only_type": "G",
+		"leaves_seat": true,
+		"leave_tip_bonus": 0.15,
+		"tip_always": true,
+		"no_extras": true,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "masa_taiyaki" },
+			{ "type": "stir_board", "count": 2 },
+			{ "type": "drag_stage", "prop": "molde_taiyaki" },
+			{ "type": "drag_ingredient", "ingredient": "chocolate" },
+			{ "type": "hold_board", "duration": 2.0 },
+		],
+		"stages": ["cuenco_batido", "cuenco_batido", "taiyaki_masa",
+			"taiyaki_choco", ""],
+	},
+	# --- ANGUILA: se come volando y CONGELA la paciencia -------------------
+	"nigiri_anguila": {
+		"label": "Anguila",
+		"name": "Nigiri de anguila",
+		"level": 2,
+		"satiety": 2,
+		"cooldown": 5.5,
+		"price": 9,
+		# Se despacha en menos de la mitad de tiempo, y al terminarlo la barra
+		# de paciencia se queda CONGELADA 5 s: da margen para colarle otro
+		# plato sin que la espera le cueste nada.
+		"eat_mult": 0.45,
+		"patience_freeze": 5.0,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "arroz" },
+			{ "type": "tap_board", "count": 4 },
+			{ "type": "drag_ingredient", "ingredient": "unagi" },
+			# Coger la salsa y GLASEAR con el pincel: dos pasadas lentas, ida y
+			# vuelta ("alt" alterna el sentido en cada pasada).
+			{ "type": "tap_ingredient", "ingredient": "salsa_unagi" },
+			{ "type": "slice_board", "count": 2, "duration": 0.55,
+				"direction": "alt", "brush": true, "prop": "pincel" },
+		],
+		"stages": ["arroz_bola", "nigiri_base", "nigiri_anguila",
+			"nigiri_anguila", ""],
+	},
+	# --- TANDA NUEVA -------------------------------------------------------
+	"yaki_onigiri": {
+		"label": "Yaki",
+		"name": "Yaki onigiri",
+		"level": 1,
+		"satiety": 1,
+		"cooldown": 4.0,
+		# El precio REAL lo pone el punto de la plancha (ver "windows"); este es
+		# el de referencia para las tarjetas.
+		"price": 5,
+		# Es el onigiri de siempre pasado por la sartén: mismos ingredientes.
+		"take_chance": 0.5,
+		"patience_mult": 1.4,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "arroz" },
+			{ "type": "tap_board", "count": 3 },
+			{ "type": "drag_ingredient", "ingredient": "atun_cocido" },
+			{ "type": "tap_board", "count": 5 },
+			{ "type": "drag_ingredient", "ingredient": "nori" },
+			# A la plancha 2 s. Mucho más indulgente que la tempura: pasarse o
+			# quedarse corto NO tira el plato, solo lo deja en 2 doblones.
+			{ "type": "fry_board", "target": 2.0, "windows": YAKI_WINDOWS },
+		],
+		"stages": ["arroz_bola", "arroz_plano", "onigiri_relleno", "onigiri_forma",
+			"yaki_sarten", ""],
+	},
+	"caldo_dashi": {
+		"label": "Dashi",
+		"name": "Caldo dashi",
+		"level": 1,
+		"satiety": 1,
+		"cooldown": 3.5,
+		"price": 4,
+		# Caldo caliente: se toma despacio y reconforta, así que aguanta al
+		# cliente sentado mucho más de lo que cuesta.
+		"eat_mult": 1.4,
+		"patience_mult": 1.3,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "agua" },
+			{ "type": "hold_board", "duration": 1.2 },
+			{ "type": "drag_ingredient", "ingredient": "katsuobushi" },
+			{ "type": "stir_board", "count": 1 },
+		],
+		"stages": ["bol_agua", "bol_agua", "bol_dashi", ""],
+	},
+	"uramaki_california": {
+		"label": "Cali",
+		"name": "Uramaki California",
+		"level": 2,
+		"satiety": 2,
+		"cooldown": 5.0,
+		"price": 8,
+		"patience_mult": 0.8,
+		# Como los makis: sale UNA pieza y las 2 siguientes salen ya hechas.
+		"free_uses": 2,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "arroz" },
+			{ "type": "tap_board", "count": 4 },
+			{ "type": "drag_ingredient", "ingredient": "kanikama" },
+			{ "type": "drag_ingredient", "ingredient": "aguacate" },
+			{ "type": "swipe_board", "count": 2, "direction": "down" },
+			# Rebozado en sésamo: se coge el bote y se rueda el rollo de un lado
+			# a otro. Recorrido LARGO pero a velocidad normal (no es un corte).
+			{ "type": "tap_ingredient", "ingredient": "sesamo" },
+			{ "type": "swipe_board", "count": 2, "direction": "alt", "distance": 210.0 },
+			{ "type": "tap_board", "count": 5, "cutting": true },
+		],
+		"stages": ["arroz_bola", "arroz_plano", "cali_relleno", "cali_aguacate",
+			"rollo_cali", "rollo_cali", "rollo_cali_sesamo", ""],
+	},
+	"nigiri_pulpo": {
+		"label": "Pulpo",
+		"name": "Nigiri de pulpo",
+		"level": 2,
+		"satiety": 2,
+		"cooldown": 4.5,
+		"price": 7,
+		# El pulpo se mastica: ocupa al cliente más rato que un nigiri normal.
+		"eat_mult": 1.35,
+		# TEMPORAL: sin modelo 3D propio todavía (Ludo no lo sacó). Toma
+		# prestada la malla del nigiri de atún para no salir invisible en la
+		# cinta; quitar "model" en cuanto exista nigiri_pulpo.glb.
+		"model": "nigiri_atun",
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "arroz" },
+			{ "type": "tap_board", "count": 3 },
+			{ "type": "tap_ingredient", "ingredient": "pulpo" },
+			{ "type": "slice_board", "count": 1, "duration": 0.6, "direction": "v" },
+			{ "type": "drag_ingredient", "ingredient": "pulpo" },
+		],
+		"stages": ["arroz_bola", "nigiri_base", "pulpo_tabla", "pulpo_cortado", ""],
+	},
+	"dragon_roll": {
+		"label": "Dragon",
+		"name": "Dragon roll",
+		"level": 3,
+		"satiety": 3,
+		"cooldown": 7.0,
+		"price": 15,
+		"tip_chance_bonus": 0.04,
+		# Como los makis: sale UNA pieza y las 4 siguientes salen ya hechas.
+		"free_uses": 4,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "arroz" },
+			{ "type": "tap_board", "count": 5 },
+			{ "type": "tap_ingredient", "ingredient": "salmon" },
+			{ "type": "slice_board", "count": 1, "duration": 0.6, "direction": "v" },
+			# La gamba se pela de un tajo SECO: aquí el corte rápido es lo
+			# correcto, así que no exige lentitud (duration 0).
+			{ "type": "tap_ingredient", "ingredient": "gamba" },
+			{ "type": "slice_board", "count": 1, "duration": 0.0, "direction": "v" },
+			{ "type": "tap_ingredient", "ingredient": "pepino" },
+			{ "type": "slice_board", "count": 1, "duration": 0.6, "direction": "v" },
+			{ "type": "swipe_board", "count": 3, "direction": "up" },
+			{ "type": "drag_ingredient", "ingredient": "aguacate" },
+			{ "type": "tap_board", "count": 5, "cutting": true },
+		],
+		"stages": ["arroz_bola", "arroz_plano", "dragon_salmon", "dragon_salmon_cort",
+			"dragon_gamba", "dragon_gamba_cort", "dragon_pepino", "dragon_pepino_cort",
+			"rollo_dragon", "dragon_aguacate", ""],
+	},
+	"nigiri_wagyu": {
+		"label": "Wagyu",
+		"name": "Nigiri de wagyu flameado",
+		"level": 3,
+		"satiety": 3,
+		"cooldown": 7.5,
+		# Precio de referencia; el REAL lo pone el punto del soplete.
+		"price": 15,
+		"tip_amount_mult": 1.2,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "arroz" },
+			{ "type": "tap_board", "count": 3 },
+			{ "type": "tap_ingredient", "ingredient": "wagyu" },
+			{ "type": "slice_board", "count": 1, "duration": 0.6 },
+			{ "type": "drag_ingredient", "ingredient": "wagyu" },
+			# Soplete CRONOMETRADO (por segundos, no por barra): 2 s clavados.
+			{ "type": "fry_board", "target": 2.0, "windows": WAGYU_WINDOWS,
+				"prop": "soplete" },
+		],
+		"stages": ["arroz_bola", "nigiri_base", "wagyu_tabla", "wagyu_cortado",
+			"wagyu_crudo", ""],
+	},
+	"sashimi_variado": {
+		"label": "SashVar",
+		"name": "Sashimi variado",
+		"level": 3,
+		"satiety": 3,
+		"cooldown": 6.5,
+		"price": 14,
+		# Sin arroz: se come rápido pero recarga poco.
+		"eat_mult": 0.8,
+		"patience_mult": 0.85,
+		# TEMPORAL: igual que el nigiri de pulpo, sin malla propia todavía.
+		"model": "sashimi_atun_rojo",
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "salmon" },
+			{ "type": "slice_board", "count": 1, "duration": 0.55 },
+			{ "type": "tap_ingredient", "ingredient": "atun" },
+			{ "type": "slice_board", "count": 1, "duration": 0.55 },
+			{ "type": "tap_ingredient", "ingredient": "pulpo" },
+			{ "type": "slice_board", "count": 1, "duration": 0.55 },
+		],
+		"stages": ["sashimi_salmon", "sashimi_salmon_cort", "sashimi_atun",
+			"sashimi_atun_cort", "sashimi_tres", ""],
+	},
+	# --- COMBINACIÓN (ver COMBOS): no se elabora, se monta juntando un udon
+	# y una tempura que ya estén GUARDADOS en las cajas.
+	"udon_tempura": {
+		"label": "UdonT",
+		"name": "Udon con tempura",
+		"level": 3,
+		"satiety": 3,
+		"cooldown": 6.0,
+		# Referencia para las tarjetas; el precio REAL lo calcula prep_board
+		# sumando las dos partes más el bonus del combo.
+		"price": 16,
+		"hidden": true,
+		# Hereda lo de los dos: retiene poco (udon) y ocupa AÚN MÁS rato.
+		"eat_mult": 2.2,
+		"patience_mult": 0.7,
+		"steps": [],
+		"stages": [],
+	},
+	"moriawase": {
+		"label": "Moria",
+		"name": "Barco combinado",
+		"level": 3,
+		"satiety": 3,
+		"cooldown": 8.0,
+		# El precio REAL lo pone prep_board según los platos con los que se
+		# monte (suma + prima por variedad); este es solo el mínimo de
+		# referencia para las tarjetas.
+		"price": 26,
+		# NO se elige en el selector: aparece como icono bajo las cajas cuando
+		# hay 4 platos guardados de al menos dos clases distintas.
+		"hidden": true,
+		"steps": [],
+		"stages": [],
+	},
 }
 
 
@@ -281,9 +972,17 @@ static func get_recipe(id: String) -> Dictionary:
 static func get_ingredients(recipe_id: String) -> Array[String]:
 	var out: Array[String] = []
 	for step in get_recipe(recipe_id).get("steps", []):
-		var ing: String = step.get("ingredient", "")
-		if ing != "" and ing != "arroz" and not ing in out:
-			out.append(ing)
+		# Un paso de elección (aburi) ofrece varios pescados: hay que llevar
+		# usos de TODOS, porque en partida se puede elegir cualquiera.
+		var cands: Array = step.get("options", [step.get("ingredient", "")])
+		for ing in cands:
+			if ing == "" or ing == "arroz":
+				continue
+			# Los que comparten despensa gastan usos del ingrediente "padre"
+			# (el atún cocido descuenta del atún).
+			ing = get_ingredient(ing).get("stock_id", ing)
+			if not ing in out:
+				out.append(ing)
 	return out
 
 
@@ -297,11 +996,13 @@ static func get_ingredient(id: String) -> Dictionary:
 	return INGREDIENTS.get(id, {})
 
 
-## Ingredientes únicos que usa una receta, en orden de aparición.
+## Ingredientes únicos que usa una receta, en orden de aparición (incluye las
+## opciones de los pasos de elección, para que salgan en la fila de la tabla).
 static func get_recipe_ingredients(id: String) -> Array[String]:
 	var result: Array[String] = []
 	for step in get_recipe(id).get("steps", []):
-		var ing: String = step.get("ingredient", "")
-		if ing != "" and not ing in result:
-			result.append(ing)
+		var cands: Array = step.get("options", [step.get("ingredient", "")])
+		for ing in cands:
+			if ing != "" and not ing in result:
+				result.append(ing)
 	return result
