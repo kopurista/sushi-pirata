@@ -369,7 +369,11 @@ func _filtered_recipes() -> Array:
 		if filter_client != "":
 			# Se listan las recetas que ese tipo de cliente coge con ganas.
 			var tier := int(data.get("satiety", data.get("level", 1)))
-			if _take_chance(filter_client, tier) < 0.4:
+			var only_f: String = data.get("only_type", "")
+			if only_f != "" and only_f != filter_client:
+				continue
+			if _forced_chance(data, filter_client,
+					_take_chance(filter_client, tier)) < 0.4:
 				continue
 		out.append(id)
 	out.sort_custom(func(a: String, b: String) -> bool:
@@ -802,8 +806,9 @@ func _build_clients_block(data: Dictionary) -> Control:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 4)
 	for t in CLIENT_TYPES:
-		var chance := 0.0 if (only != "" and only != t) \
-				else float(data.get("take_chance", _take_chance(t, tier)))
+		var chance: float = 0.0
+		if only == "" or only == t:
+			chance = _forced_chance(data, t, _take_chance(t, tier))
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
 		var icon := TextureRect.new()
@@ -821,6 +826,17 @@ func _build_clients_block(data: Dictionary) -> Control:
 		row.add_child(l)
 		col.add_child(row)
 	return col
+
+
+## Aplica el "take_chance" de la receta si lo trae, igual que hace el cliente:
+## un número vale para todos y un diccionario {E,A,G} da uno por tipo.
+func _forced_chance(data: Dictionary, client_type: String, fallback: float) -> float:
+	var forced: Variant = data.get("take_chance", null)
+	if forced is Dictionary:
+		return float(forced.get(client_type, fallback))
+	if forced != null:
+		return float(forced)
+	return fallback
 
 
 ## Probabilidad real de que un tipo de cliente coja un plato de ese nivel.

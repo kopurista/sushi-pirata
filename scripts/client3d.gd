@@ -31,9 +31,9 @@ const TYPE_HEIGHTS: Dictionary = { "E": 1.45, "A": 1.75, "G": 1.95 }
 
 ## Probabilidad de coger un plato segun tipo de cliente y nivel del plato.
 const TAKE_CHANCES: Dictionary = {
-	"E": { 1: 0.95, 2: 0.15, 3: 0.10 },
-	"A": { 1: 0.45, 2: 0.92, 3: 0.25 },
-	"G": { 1: 0.0, 2: 0.70, 3: 0.95 },
+	"E": { 1: 0.95, 2: 0.20, 3: 0.10 },
+	"A": { 1: 0.45, 2: 0.95, 3: 0.25 },
+	"G": { 1: 0.10, 2: 0.55, 3: 0.95 },
 }
 
 const FAVORITE_TIER: Dictionary = { "E": 1, "A": 2, "G": 3 }
@@ -455,9 +455,16 @@ func _scan_belt(snack_only: bool = false) -> void:
 		var plate_satiety: int = int(data.get("satiety", 1))
 		if plate.level_override > 0:
 			plate_satiety = plate.level_override
-		# "take_chance" salta la matriz por tipo (el edamame lo pica cualquiera).
-		var chance: float = data.get("take_chance",
-			TAKE_CHANCES.get(client_type, {}).get(plate_satiety, 0.0))
+		# "take_chance" salta la matriz por nivel. Admite las DOS formas: un
+		# número, que vale igual para todos (el edamame lo pica cualquiera), o
+		# un diccionario {E,A,G} con uno por tipo (el onigiri gusta a los tres,
+		# pero no por igual).
+		var chance: float = TAKE_CHANCES.get(client_type, {}).get(plate_satiety, 0.0)
+		var forced: Variant = data.get("take_chance", null)
+		if forced is Dictionary:
+			chance = float(forced.get(client_type, chance))
+		elif forced != null:
+			chance = float(forced)
 		if _aroma_active() and plate_satiety == FAVORITE_TIER.get(client_type, 0):
 			chance = maxf(chance, 0.95)
 		if guaranteed_next and not snack_only:

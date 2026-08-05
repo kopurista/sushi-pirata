@@ -314,23 +314,18 @@ func _reponer_extras() -> bool:
 func _nivel_4() -> void:
 	await _say([
 		{ "text": "**Arrecife del Ron**. Dos piratas hoy, y vienen por el **atún**.", "mood": "hablando" },
-		{ "text": "Antes de empezar, mira si llevas de todo. Si te falta algún ingrediente, date una vuelta por la **tienda** de Saverio antes de zarpar: sin género no hay plato.", "mood": "serio" },
+		{ "text": "Antes de nada: si te falta algún ingrediente, date una vuelta por la **tienda** de Saverio antes de zarpar. Sin género no hay plato.", "mood": "serio" },
 	])
-	_play()
-	await _tras_la_preparacion()
-
-	# El barco pide cuatro platos guardados de al menos dos clases.
-	await _esperar(func() -> bool:
-		return lv.ended or _platos_guardados() >= 3)
-	if lv.ended:
-		return
+	# El barco se presenta de entrada, con el foco en su botón: es la novedad
+	# del nivel y hay que verla ANTES de ponerse a cocinar.
 	_focus_boat()
 	await _say_raised([
-		{ "text": "¿Ves ese icono redondo de ahí abajo? Es el **barco combinado**, y hoy lo estrenas.", "mood": "feliz" },
-		{ "text": "Junta **cuatro platos** en las cajas, de al menos **dos clases distintas**, y el botón se enciende. Al pulsarlo los monta todos en una bandeja y la sirve de una vez.", "mood": "hablando" },
+		{ "text": "¡Oye! ¿Has visto esta función nueva? Ese icono redondo de ahí abajo es el **barco combinado**, y hoy lo estrenas.", "mood": "feliz" },
+		{ "text": "Junta **cuatro platos** en las cajas, de al menos **dos clases distintas**, y el botón se enciende.", "mood": "hablando" },
+		{ "text": "Al pulsarlo te saca los platos a la tabla: solo tienes que **arrastrarlos a la bandeja** uno a uno. Cuando esté cargada, sale a la cinta como un solo plato.", "mood": "hablando" },
 		{ "text": "Y aquí está el truco: el barco se paga por la **variedad**. Cuantas más clases distintas lleve, más prima. Cuatro clases valen mucho más que cuatro platos iguales.", "mood": "serio" },
 		{ "text": "¡BARCO! ¡BARCO! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "Guarda variado durante la preparación y suéltalo cuando se te junte la clientela. Es la mejor manera de servir a varios a la vez.", "mood": "hablando" },
+		{ "text": "Guarda variado durante la preparación y suéltalo cuando se te junte la clientela. Es la mejor forma de servir a varios de golpe.", "mood": "hablando" },
 	], -1.0, EXTRAS_RAISE)
 	_play()
 

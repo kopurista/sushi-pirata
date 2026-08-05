@@ -42,9 +42,10 @@ class_name RecipeData
 ## "snack": true = plato de PICOTEO. El cliente puede cogerlo aunque esté
 ##   comiendo otro plato: le recarga la paciencia al instante sin interrumpir
 ##   la comida en curso y paga +SNACK_BONUS doblones extra (client3d.gd).
-## "take_chance": fuerza la probabilidad de que CUALQUIER tipo de cliente coja
-##   el plato, ignorando la matriz TAKE_CHANCES (los capitanes no tocan nivel 1,
-##   pero el edamame es un acompañamiento que pica todo el mundo).
+## "take_chance": fuerza la probabilidad de coger el plato, ignorando la matriz
+##   TAKE_CHANCES. Admite un número (igual para los tres tipos: el edamame es un
+##   acompañamiento que pica todo el mundo) o un diccionario {E,A,G} con uno por
+##   tipo (el onigiri lo comen los tres, pero es plato de grumete).
 ## "snack_refill": cuánto alarga el bocado en curso un picoteo, como fracción
 ##   de su duración (por defecto client3d.SNACK_EAT_REFILL). El gari lo deja
 ##   casi a cero porque su gracia es la propina, no el tiempo.
@@ -496,8 +497,8 @@ const RECIPES: Dictionary = {
 		"price": 4,
 		# Salen DOS bolas en total: la que se hace a mano y una gratis.
 		"free_uses": 1,
-		# Comida de a bordo: la pican todos por igual, sea grumete o capitán.
-		"take_chance": 0.5,
+		# Comida de a bordo: la comen los tres tipos, pero es plato de grumete.
+		"take_chance": { "E": 0.85, "A": 0.70, "G": 0.70 },
 		# Llena más que un plato de su nivel: es contundente.
 		"patience_mult": 1.4,
 		"steps": [
@@ -756,8 +757,9 @@ const RECIPES: Dictionary = {
 		# El precio REAL lo pone el punto de la plancha (ver "windows"); este es
 		# el de referencia para las tarjetas.
 		"price": 5,
-		# Es el onigiri de siempre pasado por la sartén: mismos ingredientes.
-		"take_chance": 0.5,
+		# Es el onigiri de siempre pasado por la sartén: mismos ingredientes y
+		# el mismo reparto por tipo de cliente.
+		"take_chance": { "E": 0.85, "A": 0.70, "G": 0.70 },
 		"patience_mult": 1.4,
 		"steps": [
 			{ "type": "tap_ingredient", "ingredient": "arroz" },

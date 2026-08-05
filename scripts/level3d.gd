@@ -315,10 +315,11 @@ func _ready() -> void:
 		# combinados todavía no se presentan en ningún puerto.
 		prep_board.hide_boat = not bool(port.get("boat", false))
 		prep_board.hide_combo = not bool(port.get("combo", false))
-		# Los botones ya se construyeron en el _ready de la tabla: hay que
-		# repasarlos para que se escondan de verdad.
-		if prep_board.hide_extras:
-			prep_board.refresh_extra_ui()
+		# Los botones ya se construyeron en el _ready de la tabla, así que hay
+		# que repasarlos SIEMPRE: haciéndolo solo cuando se ocultaban los
+		# extras, un puerto con extras pero sin barco (el 4) se quedaba con el
+		# botón de combinar tal y como lo dejó _ready, o sea visible.
+		prep_board.refresh_extra_ui()
 		# Puertos NARRADOS: David se asoma en momentos concretos del nivel.
 		# El guion solo la PRIMERA vez: repetir un nivel ya superado se juega
 		# sin interrupciones.

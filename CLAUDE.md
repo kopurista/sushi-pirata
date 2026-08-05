@@ -1074,8 +1074,14 @@ que no hay problema.
   n9 36/70/100); pendientes de afinar tras probar.
   NO hay dinero extra por estrellas (economía limpia para la tienda).
   En aventura el dinero va al monedero persistente; en Prueba no toca el progreso.
-- **Probabilidades de coger plato** (`TAKE_CHANCES`): piratas L1 0.45, capitanes
-  L2 0.70 (subidas a propósito); tiempos de comida por tipo×nivel (`EAT_TIMES`).
+- **Probabilidades de coger plato** (`client3d.TAKE_CHANCES`), por tipo × nivel:
+  grumete 0.95/0.20/0.10 · pirata 0.45/0.95/0.25 · capitán 0.10/0.55/0.95. Cada
+  tipo tiene su nivel favorito casi asegurado y va bajando hacia los otros dos;
+  **el dado se tira UNA vez por plato** (si falla entra en `declined` y no se
+  vuelve a mirar). `take_chance` en la receta salta la matriz y admite las dos
+  formas: un número igual para todos (edamame y té verde 0.9) o un diccionario
+  `{E,A,G}` con uno por tipo (onigiri y yaki onigiri 0.85/0.70/0.70). Tiempos de
+  comida por tipo×nivel en `EAT_TIMES`.
 - **Propinas por plato** (`client.gd::TIP_RULES`, se tira al terminar CADA
   plato desde el 1º; la probabilidad se mantiene en la base hasta el 3er plato
   (`ramp`) y a partir de ahí crece por plato; cuantía = % del dinero ACUMULADO

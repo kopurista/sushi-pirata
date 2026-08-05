@@ -101,7 +101,7 @@ const PORTS: Array = [
 		"arrival_scale": 0.8,
 		"goal_stars": 3,
 		"star_money": [24, 42, 60],
-		"reward_recipes": ["udon", "tempura"],
+		"reward_recipes": ["sopa_miso", "caldo_dashi"],
 		# Isla: carta cerrada con los dos escalones de la carta, salmón y atún.
 		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "maki_atun",
 			"nigiri_atun"],
@@ -121,8 +121,8 @@ const PORTS: Array = [
 		# Menos clientes pero de más nivel (el capitán come L2-L3): techo ~$95.
 		"star_money": [25, 48, 70],
 		"boat": true,
-		"reward_recipes": ["sopa_miso", "sashimi_tamago", "nigiri_inari",
-			"caldo_dashi", "gunkan_tartar", "gunkan_ikura"],
+		"reward_recipes": ["sashimi_tamago", "nigiri_inari", "udon",
+			"tempura", "gunkan_tartar", "gunkan_ikura"],
 	},
 	{
 		"id": "nivel_6",

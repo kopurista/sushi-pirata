@@ -982,6 +982,20 @@ func _layout_boat_parts() -> void:
 		var row := i / cols
 		d.global_position = area.position + Vector2(18.0 + col * 84.0, 10.0 + row * 62.0)
 		boat_nodes.append(d)
+	_boat_hint()
+
+
+## Mano guía del BARCO: mientras queden platos sueltos en la tabla, señala uno
+## y enseña el arrastre hasta la bandeja. Sin esto, al pulsar el botón salían
+## los platos y no había forma de saber qué hacer con ellos.
+func _boat_hint() -> void:
+	_hide_indicator()
+	if boat_nodes.is_empty():
+		return
+	var d: Control = boat_nodes[0]
+	if not is_instance_valid(d):
+		return
+	_hand_drag(_local_center(d), _local_center(prop_rect))
 
 
 ## La bandeja vacía a la que hay que llevar los platos. Encima lleva un
@@ -1007,6 +1021,7 @@ func _update_prop_boat() -> void:
 
 ## Cancelar el montaje: los platos VUELVEN a las cajas tal cual estaban.
 func _return_boat_parts() -> void:
+	_hide_indicator()
 	if boat_fill != null:
 		boat_fill.visible = false
 	for n in boat_nodes:
@@ -1199,6 +1214,8 @@ func _boat_part_placed(node: Control, index: int) -> void:
 	boat_nodes.remove_at(index)
 	boat_pending.remove_at(index)
 	craft_event.emit("drag", "")
+	# La mano pasa al siguiente plato (y se apaga sola con el último).
+	_boat_hint.call_deferred()
 	var placed := boat_parts.size() - boat_pending.size()
 	if boat_fill != null:
 		boat_fill.modulate.a = float(placed) / maxf(boat_parts.size(), 1.0)
