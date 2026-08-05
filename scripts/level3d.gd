@@ -1937,7 +1937,11 @@ func _end_level() -> void:
 	for i in seats.size():
 		var c = seat_clients[i]
 		if c != null:
-			c.force_leave()
+			# Si el turno se cierra por haber alcanzado el OBJETIVO, los que
+			# quedaban sentados NO se cobran: el trabajo ya estaba hecho y
+			# cobrarlos podía dejar el marcador por debajo del objetivo otra
+			# vez. Si se acaba el tiempo, el castigo sí cuenta.
+			c.force_leave(not goal_reached)
 	for p in get_tree().get_nodes_in_group("plates"):
 		p.set_process(false)
 	prep_board.process_mode = Node.PROCESS_MODE_DISABLED

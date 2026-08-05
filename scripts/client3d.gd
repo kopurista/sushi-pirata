@@ -47,8 +47,9 @@ const EAT_TIMES: Dictionary = {
 }
 
 ## Castigo (doblones) si el cliente se marcha SIN haber probado NADA: cuanto
-## mas importante es el cliente, mas cuesta desatenderlo. NO se aplica cuando
-## lo desaloja el fin del nivel (ver force_leave).
+## mas importante es el cliente, mas cuesta desatenderlo. Se cobra tanto si se
+## le agoto la paciencia como si le pillo el fin del TIEMPO; la unica excepcion
+## es cerrar el turno por haber alcanzado el objetivo (ver force_leave).
 const LEAVE_PENALTY: Dictionary = { "E": 5, "A": 8, "G": 12 }
 
 ## Al recibir un plato la paciencia sube (fraccion del maximo) segun el nivel.
@@ -92,6 +93,8 @@ var guaranteed_next: bool = false
 ## Multiplicador extra del tiempo de comer. Solo lo toca el guion del tutorial,
 ## que necesita bocados largos para poder explicar cosas mientras el cliente come.
 var slow_eat: float = 1.0
+## Perdona el castigo de marcharse sin comer (ver force_leave).
+var _sin_castigo := false
 ## Puntos de la ruta de entrada (el nivel los define; el ultimo es el asiento).
 var route: Array = []
 ## Punto por el que desaparece al marcharse (la borda).
@@ -617,7 +620,8 @@ func _finish_plate() -> void:
 
 ## Texto flotante que PARPADEA sobre el cliente y sube desvaneciendose, en el
 ## CanvasLayer world_ui del nivel (la camara es fija: se ancla una vez).
-func _float_text(text: String, color: Color, y_offset: float = 0.0) -> void:
+func _float_text(text: String, color: Color, y_offset: float = 0.0,
+		con_moneda := false) -> void:
 	var ui := _world_ui()
 	if ui == null:
 		return
@@ -632,6 +636,16 @@ func _float_text(text: String, color: Color, y_offset: float = 0.0) -> void:
 	lbl.add_theme_constant_override("outline_size", 7)
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lbl.pivot_offset = Vector2(70, 18)
+	# Las cifras de dinero llevan la moneda del juego, nunca el símbolo del dólar.
+	if con_moneda:
+		var coin := TextureRect.new()
+		coin.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		coin.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		coin.texture = load("res://assets/ui/moneda.png")
+		coin.size = Vector2(26, 26)
+		coin.position = Vector2(88, 6)
+		coin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lbl.add_child(coin)
 	ui.add_child(lbl)
 	lbl.scale = Vector2(0.5, 0.5)
 	var tw := lbl.create_tween()
@@ -648,7 +662,11 @@ func _float_text(text: String, color: Color, y_offset: float = 0.0) -> void:
 
 ## Desalojo por fin de nivel. Si le pilla COMIENDO no se levanta a medias:
 ## termina su plato (y lo paga) y se marcha justo despues; el nivel espera.
-func force_leave() -> void:
+## Desalojo por fin de nivel. `cobrar` a false perdona el castigo de irse de
+## vacío: se usa cuando el turno se cierra porque YA se alcanzó el dinero
+## objetivo, y sería absurdo penalizar por los clientes que sobraban.
+func force_leave(cobrar := true) -> void:
+	_sin_castigo = not cobrar
 	if state == State.EATING:
 		_leave_when_done = true
 		return
@@ -667,10 +685,10 @@ func _leave() -> void:
 	# Irse sin haber probado NADA cuesta dinero, tanto si se le agoto la
 	# paciencia como si le pillo el final del nivel.
 	var penalty := 0
-	if eaten_ids.is_empty():
+	if eaten_ids.is_empty() and not _sin_castigo:
 		penalty = int(LEAVE_PENALTY.get(client_type, 0))
 		if penalty > 0:
-			_float_text("-$%d" % penalty, Color(1.0, 0.34, 0.28))
+			_float_text("-%d" % penalty, Color(1.0, 0.34, 0.28), 0.0, true)
 	finished.emit({
 		"type": client_type,
 		"money": money_earned,
