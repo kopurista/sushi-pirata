@@ -49,8 +49,14 @@ func _ready() -> void:
 	# pergamino con la parrilla de recetas.
 	backdrop = SceneBackdrop.build(self, kind, 19.0, -230.0)
 	if GameState.is_adventure():
-		slots = int(CampaignData.get_port(GameState.current_port).get(
-				"recipe_slots", MAX_RECIPES))
+		# El recorte de huecos de un puerto (`recipe_slots`) es parte de su
+		# reto la PRIMERA vez; al repetirlo ya superado se juega con los cuatro
+		# de siempre.
+		var puerto := CampaignData.get_port(GameState.current_port)
+		var superado: bool = int(GameState.level_stars.get(
+				GameState.current_port, 0)) >= int(puerto.get("goal_stars", 1))
+		slots = MAX_RECIPES if superado \
+				else int(puerto.get("recipe_slots", MAX_RECIPES))
 	# La lista de recetas se recorre con el DEDO (con inercia): el
 	# ScrollContainer de Godot no se arrastra con eventos táctiles.
 	TouchScroll.attach($UI/Root/Margin/VBox/Scroll)

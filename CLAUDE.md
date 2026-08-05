@@ -121,6 +121,21 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   capitán de la fila es Pablo. Su icono lo genera `tools/head_icons.gd` como
   el resto, con un encuadre propio en `FRAME_OVERRIDE` (su sombrero es mucho
   más alto y se le cortaba por arriba).
+- **El contador de clientes del HUD cuenta los que HAN LLEGADO**
+  (`clients_spawned`), no los que se han ido: con los idos se quedaba en 0 con
+  la barra llena, que es justo cuando interesa saber cuánta clientela queda.
+  Y quien adelante una llegada a mano (`_adelantar_tipo` del guion) tiene que
+  **gastar su hueco de `arrival_queue`**, o entra un cliente de más y el
+  contador se pasa del total.
+- **`recipe_slots` solo recorta la carta la PRIMERA vez**: al repetir un puerto
+  ya superado se juega con los cuatro huecos de siempre (`prep_screen` y la
+  ficha del mapa lo comprueban con `level_stars`).
+- **La mano guía se monta DIFERIDA, en el mismo fotograma que el cambio de
+  paso**: por eso un `drag_stage` con `from` tiene que volver a pedirla cuando
+  cambia la etapa medio segundo después (si no, arrastra el sprite viejo), y
+  por eso el barco combinado la repinta con cada plato colocado. El barco usa
+  `_hand_drag_cycle`, que recorre TODOS los platos pendientes con su propio
+  dibujo, igual que los pasos de elección.
 - **`gift_recipes` en un puerto**: recetas que REGALA David dentro del nivel
   (el nigiri de atún del 3, el tsuke don del 5). No están en `reward_recipes`,
   así que hay que declararlas para dos cosas: `recipes_for_port` las suma a la

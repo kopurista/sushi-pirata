@@ -477,4 +477,8 @@ func _adelantar_tipo(tipo: String) -> void:
 			lv.type_queue.remove_at(i)
 			lv.type_queue.push_front(tipo)
 			break
-	lv._try_spawn_client()
+	# Adelantarlo GASTA su hueco del horario: sin esto el reloj seguía teniendo
+	# todas las llegadas apuntadas y entraba un cliente de más, así que el
+	# contador del HUD pasaba del total del nivel.
+	if lv._try_spawn_client() and not lv.arrival_queue.is_empty():
+		lv.arrival_queue.pop_front()

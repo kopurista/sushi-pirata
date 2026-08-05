@@ -1001,14 +1001,23 @@ func _layout_boat_parts() -> void:
 ## Mano guía del BARCO: mientras queden platos sueltos en la tabla, señala uno
 ## y enseña el arrastre hasta la bandeja. Sin esto, al pulsar el botón salían
 ## los platos y no había forma de saber qué hacer con ellos.
+## Va SEÑALANDO UNO A UNO todos los platos que quedan por cargar, con el
+## fantasma de cada plato: con un solo destino fijo (el primero de la lista) la
+## mano repetía siempre el mismo viaje y el dibujo que arrastraba no se
+## correspondía con el plato que tocaba coger.
 func _boat_hint() -> void:
 	_hide_indicator()
-	if boat_nodes.is_empty():
+	var desde: Array[Vector2] = []
+	var texs: Array[Texture2D] = []
+	for i in boat_nodes.size():
+		var d: Control = boat_nodes[i]
+		if not is_instance_valid(d):
+			continue
+		desde.append(_local_center(d))
+		texs.append(RecipeData.get_dish_texture(str(boat_pending[i])))
+	if desde.is_empty():
 		return
-	var d: Control = boat_nodes[0]
-	if not is_instance_valid(d):
-		return
-	_hand_drag(_local_center(d), _local_center(prop_rect))
+	_hand_drag_cycle(desde, texs, DISH_SIZE * 0.62, _local_center(prop_rect))
 
 
 ## La bandeja vacía a la que hay que llevar los platos. Encima lleva un
@@ -1529,7 +1538,11 @@ func _swap_stage_from() -> void:
 	t.tween_callback(func() -> void:
 		# Si mientras tanto se ha cancelado o se ha avanzado, no tocar nada.
 		if state == State.CRAFTING and step_index == paso:
-			_set_stage(desde))
+			_set_stage(desde)
+			# Y la mano guía se repinta: se montó con la etapa ANTERIOR (el
+			# repintado va diferido, en el mismo fotograma que el cambio de
+			# paso), así que arrastraba el cuenco de destino en vez del salmón.
+			_refresh_indicator())
 
 
 ## Botón de cancelar: una CRUZ roja redonda en vez del botón de madera con la
@@ -3004,7 +3017,17 @@ func _hand_drag_choice(opts: Array, to_pos: Vector2) -> void:
 		texs.append(_ingredient_texture(ing_id))
 	if starts.is_empty():
 		return
-	ghost_hint.size = ING_SIZE
+	_hand_drag_cycle(starts, texs, ING_SIZE, to_pos)
+
+
+## Arrastre guiado que recorre VARIOS orígenes, uno por vuelta, cada uno con su
+## propio dibujo: los ingredientes de un paso de elección y los platos que
+## quedan por subir al barco combinado.
+func _hand_drag_cycle(starts: Array[Vector2], texs: Array[Texture2D],
+		tamano: Vector2, to_pos: Vector2) -> void:
+	if starts.is_empty():
+		return
+	ghost_hint.size = tamano
 	ghost_hint.texture = texs[0]
 	_hand_begin(starts[0])
 	ghost_hint.visible = true

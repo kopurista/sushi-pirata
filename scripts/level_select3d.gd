@@ -580,7 +580,10 @@ func _fill_recipes_row(port: Dictionary, id: String) -> void:
 		l.add_theme_font_size_override("font_size", 19)
 		l.add_theme_color_override("font_color", Color(0.55, 0.34, 0.08))
 		info_recipes_row.add_child(l)
-		var huecos := int(port.get("recipe_slots", 4))
+		# El recorte de huecos solo vale la primera vez (ver prep_screen).
+		var superado: bool = int(GameState.level_stars.get(selected_id, 0)) \
+				>= int(port.get("goal_stars", 1))
+		var huecos := 4 if superado else int(port.get("recipe_slots", 4))
 		if huecos != 4:
 			var h := Label.new()
 			h.text = "(solo %d)" % huecos

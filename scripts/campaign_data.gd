@@ -121,9 +121,10 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		# Dos minutos con cinco bocas, una de ellas un capitán que come de 3
 		# estrellas: el techo lo marca la producción, no la clientela.
-		"star_money": [26, 45, 65],
+		"star_money": [28, 48, 70],
 		"boat": true,
-		# Carta LIBRE, pero solo tres huecos: hay que elegir bien.
+		# Carta LIBRE, pero solo tres huecos LA PRIMERA VEZ: al repetir el
+		# puerto se juega con los cuatro de siempre (ver prep_screen).
 		"recipe_slots": 3,
 		# El capitán del nivel es Pablo el Rubio: mismo comportamiento que un
 		# capitán normal, pero con su propio modelo (ver CharacterData).

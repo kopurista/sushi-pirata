@@ -636,7 +636,7 @@ const RECIPES: Dictionary = {
 			# Y al final se recoge el salmón de la soja y se vuelca en el cuenco.
 			{ "type": "drag_stage", "prop": "cuenco_pepino", "from": "soja_salmon" },
 		],
-		"stages": ["arroz_bola", "bol_arroz", "sashimi_salmon", "sashimi_salmon_cort",
+		"stages": ["arroz_bola", "bol_arroz", "sashimi_salmon", "salmon_lonchas",
 			"bol_arroz", "cuenco_wakame", "pepino_tabla", "cuenco_pepino", ""],
 	},
 	"udon": {

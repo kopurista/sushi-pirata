@@ -2651,4 +2651,7 @@ func _update_hud() -> void:
 	time_label.text = "%d:%02d" % [int(remaining) / 60, int(remaining) % 60]
 	money_label.text = "%d / %d" % [_score_money(), int(star_money.back())]
 	jar_label.text = "%d / %d" % [tips_total, _tip_threshold(powerups_claimed)]
-	clients_label.text = "%d/%d" % [clients_finished, total_clients]
+	# Cuenta los que YA HAN VENIDO, no los que se han ido: con los idos el
+	# marcador se quedaba en 0 con la barra llena, que es justo cuando el
+	# jugador quiere saber cuánta clientela le queda por llegar.
+	clients_label.text = "%d/%d" % [clients_spawned, total_clients]
