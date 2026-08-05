@@ -316,7 +316,10 @@ func _ready() -> void:
 		if prep_board.hide_extras:
 			prep_board.refresh_extra_ui()
 		# Puertos NARRADOS: David se asoma en momentos concretos del nivel.
-		if str(port.get("director", "")) != "":
+		# El guion solo la PRIMERA vez: repetir un nivel ya superado se juega
+		# sin interrupciones.
+		var ya_superado: bool = int(GameState.level_stars.get(GameState.current_port, 0)) 				>= int(port.get("goal_stars", 1))
+		if str(port.get("director", "")) != "" and not ya_superado:
 			var guia := preload("res://scripts/level_director.gd").new()
 			guia.name = "LevelDirector"
 			add_child.call_deferred(guia)
@@ -2170,13 +2173,13 @@ func _build_breakdown() -> void:
 	breakdown_box.add_child(header)
 
 	# De dónde sale el dinero del turno: platos, propinas y las primas de cierre.
-	_breakdown_note("Platos: %d" % money_earned)
+	_breakdown_note("Por platos servidos", money_earned)
 	if tips_total > 0:
-		_breakdown_note("Propinas: %d" % tips_total)
+		_breakdown_note("Por propinas", tips_total)
 	if bonus_clients > 0:
-		_breakdown_note("Clientes que no hizo falta atender: %d" % bonus_clients)
+		_breakdown_note("Por clientes sobrantes", bonus_clients)
 	if bonus_time > 0:
-		_breakdown_note("Tiempo de sobra: %d" % bonus_time)
+		_breakdown_note("Por tiempo sobrante", bonus_time)
 
 	for type in ["E", "A", "G"]:
 		var reports: Array = []
@@ -2203,14 +2206,23 @@ func _build_breakdown() -> void:
 			caret.text = "▼" if rows.visible else "▶")
 
 
-## Línea suelta del desglose (de dónde viene el dinero del turno).
-func _breakdown_note(t: String) -> void:
+## Línea del desglose: "concepto  N 🪙", con la moneda del juego al final.
+func _breakdown_note(concepto: String, cantidad: int) -> void:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 6)
 	var l := Label.new()
-	l.text = t
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.text = "%s:  %d" % [concepto, cantidad]
 	l.add_theme_font_size_override("font_size", 20)
 	l.add_theme_color_override("font_color", Color(0.34, 0.23, 0.12))
-	breakdown_box.add_child(l)
+	row.add_child(l)
+	var coin := TextureRect.new()
+	coin.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	coin.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	coin.texture = load("res://assets/ui/moneda.png")
+	coin.custom_minimum_size = Vector2(24, 24)
+	row.add_child(coin)
+	breakdown_box.add_child(row)
 
 
 ## Cabecera plegable de un tipo de cliente. Antes era un pergamino de 9-slice

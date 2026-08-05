@@ -36,7 +36,12 @@ func _ready() -> void:
 	# (GameState.fps_for): aqui no se juega y renderizar mas gasta bateria.
 	Engine.max_fps = GameState.fps_for(false)
 	GameState.refresh_shop_if_new_day()
-	SceneBackdrop.build(self, "puerto", 16.0, 372.0, 5.0)
+	# El escenario es el MISMO muelle del nivel de puerto (mar animado + tarima
+	# girada 45º con pilotes, norays y farol); lo que cambia es el centro: en
+	# vez de la cinta y el chef, el puesto de Saverio. Por eso el fondo se pide
+	# con kind "mar" (solo agua) y el muelle se construye aquí.
+	SceneBackdrop.build(self, "mar", 16.0, 372.0, 5.0)
+	_build_dock()
 	_setup_shopkeeper()
 	# El mostrador y los cajones son fijos: una malla por color.
 	GeometryBatch.bake(self, "ShopBatch")
@@ -82,21 +87,90 @@ func _presentacion() -> void:
 
 ## El tendero, en su puesto, MONTADO SOBRE UN MUELLE: antes el mostrador
 ## flotaba sobre el agua y parecía que vendía a nado.
-func _setup_shopkeeper() -> void:
-	var deck_c := Color(0.55, 0.41, 0.25)
-	var deck_dark := Color(0.47, 0.34, 0.20)
-	# Entarimado de tablones bajo todo el puesto.
-	var plank_n := 11
-	for i in plank_n:
-		var z := -1.7 + i * 0.62
-		_box(Vector3(7.4, 0.16, 0.6), Vector3(1.1, -0.05, z),
-			deck_c if i % 2 == 0 else deck_dark)
-	# Postes que bajan al agua por el borde del muelle.
-	for px in [-2.3, 0.4, 3.1, 4.4]:
-		for pz in [-1.85, 4.55]:
-			_box(Vector3(0.22, 1.5, 0.22), Vector3(px, -0.75, pz),
-				Color(0.38, 0.27, 0.16))
+## Muelle del nivel de puerto: tarima girada 45º con su canto, pilotes, norays
+## y farol. Misma madera gris azulada que en el nivel (el marrón cálido es la
+## del barco, y con ella los dos escenarios se confundían).
+## Madera del muelle: la textura clara de tablas del puerto, tintada de gris
+## azulado (la marrón cálida es la del barco y los dos escenarios se confundían).
+func _wood(tinte: Color, uv: float) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = tinte
+	m.roughness = 0.95
+	var ruta := "res://assets/props/madera_muelle.webp"
+	if ResourceLoader.exists(ruta):
+		m.albedo_texture = load(ruta)
+		m.uv1_scale = Vector3(uv, uv, 1.0)
+	return m
 
+
+func _build_dock() -> void:
+	var tabla := Color(0.74, 0.78, 0.80)
+	var poste := Color(0.48, 0.50, 0.52)
+	# OJO con la altura: el plano del mar del fondo está en y=0, así que una
+	# tarima con la cara superior justo en 0 pelea por profundidad y sale a
+	# franjas. Se levanta un poco sobre el agua.
+	var deck := _box_ret(Vector3(13.0, 0.30, 12.4), Vector3(1.1, 0.06, 1.3), tabla)
+	deck.rotation_degrees.y = 45.0
+	deck.material_override = _wood(Color(0.86, 0.88, 0.90), 3.2)
+	var canto := _box_ret(Vector3(12.4, 0.62, 11.8), Vector3(1.1, -0.35, 1.3), poste)
+	canto.rotation_degrees.y = 45.0
+	# Pilotes asomando por los bordes.
+	for pp in [Vector3(-5.3, 0.0, -1.6), Vector3(-1.9, 0.0, -5.4),
+			Vector3(7.5, 0.0, 4.2), Vector3(4.1, 0.0, 8.0),
+			Vector3(-5.5, 0.0, 5.2), Vector3(7.1, 0.0, -3.4)]:
+		_cyl_ret(0.16, 0.18, 1.15, pp + Vector3(0.0, 0.45, 0.0), Color(0.35, 0.26, 0.15))
+		_cyl_ret(0.20, 0.22, 0.14, pp + Vector3(0.0, 1.08, 0.0), Color(0.30, 0.22, 0.13))
+	# Norays de amarre con su cabo enrollado.
+	for bb in [Vector3(-3.4, 0.0, 4.9), Vector3(6.0, 0.0, -0.6)]:
+		_cyl_ret(0.17, 0.21, 0.5, bb + Vector3(0.0, 0.25, 0.0), Color(0.22, 0.20, 0.19))
+		_cyl_ret(0.26, 0.26, 0.09, bb + Vector3(0.0, 0.16, 0.0), Color(0.52, 0.42, 0.26))
+	# Farol de muelle.
+	var fx := Vector3(-3.0, 0.0, -0.2)
+	_cyl_ret(0.09, 0.12, 2.6, fx + Vector3(0.0, 1.3, 0.0), Color(0.30, 0.30, 0.32))
+	_box(Vector3(0.34, 0.42, 0.34), fx + Vector3(0.0, 2.75, 0.0), Color(0.33, 0.30, 0.20))
+	var luz := OmniLight3D.new()
+	luz.position = fx + Vector3(0.0, 2.75, 0.0)
+	luz.light_color = Color(1.0, 0.82, 0.5)
+	luz.light_energy = 1.2
+	luz.omni_range = 5.0
+	luz.shadow_enabled = false
+	add_child(luz)
+
+
+## Como _box/_cyl pero devolviendo el nodo, para poder girarlo.
+func _box_ret(size: Vector3, pos: Vector3, color: Color) -> MeshInstance3D:
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.position = pos
+	var m := StandardMaterial3D.new()
+	m.albedo_color = color
+	m.roughness = 0.95
+	mi.material_override = m
+	add_child(mi)
+	return mi
+
+
+func _cyl_ret(rt: float, rb: float, hh: float, pos: Vector3,
+		color: Color) -> MeshInstance3D:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = rt
+	mesh.bottom_radius = rb
+	mesh.height = hh
+	mesh.radial_segments = 10
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.position = pos
+	var m := StandardMaterial3D.new()
+	m.albedo_color = color
+	m.roughness = 0.95
+	mi.material_override = m
+	add_child(mi)
+	return mi
+
+
+func _setup_shopkeeper() -> void:
 	shopkeeper = SceneBackdrop._spawn_model(self,
 		load("res://assets/models/tendero.glb"), 1.5)
 	shopkeeper.position = Vector3(1.2, 0.03, 1.2)
@@ -264,7 +338,13 @@ func _setup_ui() -> void:
 	reroll_button.offset_right = -30.0
 	reroll_button.offset_top = -REROLL_SIZE - 14.0
 	reroll_button.offset_bottom = -14.0
-	reroll_button.pressed.connect(_on_reroll)
+	reroll_button.pressed.connect(func() -> void:
+		# Bote al pulsar: el disco no se hunde solo como el tablón de madera.
+		reroll_button.pivot_offset = reroll_button.size * 0.5
+		var tw := reroll_button.create_tween()
+		tw.tween_property(reroll_button, "scale", Vector2(0.86, 0.86), 0.08)
+		tw.tween_property(reroll_button, "scale", Vector2.ONE, 0.16) 				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		_on_reroll())
 	shelf.add_child(reroll_button)
 	var disco := TextureRect.new()
 	disco.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -474,7 +554,7 @@ func _on_reroll() -> void:
 	entra.tween_property(panel, "modulate:a", 1.0, 0.18)
 
 	var texto := Label.new()
-	texto.text = "¿Recargar los artículos\npor $%d?" % GameState.SHOP_REROLL_COST
+	texto.text = "¿Recargar los artículos\npor %d doblones?" % GameState.SHOP_REROLL_COST
 	texto.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	texto.offset_left = 56.0
 	texto.offset_right = -56.0
@@ -497,10 +577,10 @@ func _on_reroll() -> void:
 	for opcion in [["Sí", true], ["No", false]]:
 		var b := Button.new()
 		b.text = str(opcion[0])
-		b.custom_minimum_size = Vector2(180, 68)
-		PrepBoard.skin_button(b)
-		b.add_theme_font_size_override("font_size", 26)
+		b.custom_minimum_size = Vector2(196, 72)
 		var si: bool = bool(opcion[1])
+		PrepBoard.skin_action_button(b, si)
+		b.add_theme_font_size_override("font_size", 26)
 		b.pressed.connect(func() -> void:
 			var sale := panel.create_tween().set_parallel(true)
 			sale.tween_property(panel, "scale", Vector2(0.7, 0.7), 0.2) 					.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
@@ -591,13 +671,14 @@ func _open_buy_dialog(ing: String) -> void:
 	btn_row.add_theme_constant_override("separation", 20)
 	var cancel := Button.new()
 	cancel.text = "Cancelar"
-	cancel.custom_minimum_size = Vector2(216, 78)
-	PrepBoard.skin_button(cancel)
+	cancel.custom_minimum_size = Vector2(216, 80)
+	PrepBoard.skin_action_button(cancel, false)
 	cancel.add_theme_font_size_override("font_size", 23)
 	cancel.pressed.connect(overlay.queue_free)
 	var buy := Button.new()
-	buy.custom_minimum_size = Vector2(216, 78)
-	PrepBoard.skin_button(buy)
+	buy.custom_minimum_size = Vector2(216, 80)
+	buy.text = "Comprar"
+	PrepBoard.skin_action_button(buy, true)
 	buy.add_theme_font_size_override("font_size", 23)
 	btn_row.add_child(cancel)
 	btn_row.add_child(buy)
@@ -609,10 +690,10 @@ func _open_buy_dialog(ing: String) -> void:
 		qty_l.text = "%d" % qty
 		# Junto al total interesa saber CUÁNTO DE ESE INGREDIENTE tienes ya,
 		# no el dinero (que sale arriba en el monedero).
-		total_l.text = "Total: $%d   (tienes %d)" % [total, GameState.get_ingredient_uses(ing)]
+		total_l.text = "Total: %d doblones   (tienes %d usos)" % [total, GameState.get_ingredient_uses(ing)]
 		minus.modulate = Color(1, 1, 1, 0.4) if qty <= 1 else Color.WHITE
 		buy.disabled = total > GameState.money
-		buy.text = "Comprar" if total <= GameState.money else "Sin dinero"
+		buy.text = "✔  Comprar" if total <= GameState.money else "Sin dinero"
 	minus.pressed.connect(func() -> void:
 		state["qty"] = maxi(int(state["qty"]) - 1, 1)
 		refresh.call())

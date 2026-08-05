@@ -279,3 +279,29 @@ static func first_port_id() -> String:
 	if PORTS.is_empty():
 		return ""
 	return PORTS[0].id
+
+
+## Recetas que se pueden LLEVAR a este puerto.
+##
+## Si el puerto trae `fixed_recipes`, esa es la carta y punto (las islas con
+## menú cerrado). Si no, valen las iniciales más las recompensas de los puertos
+## ANTERIORES: aunque el jugador tenga media carta desbloqueada por haber
+## avanzado, un puerto temprano no debe ofrecer recetas de más adelante.
+static func recipes_for_port(port_id: String) -> Array[String]:
+	var out: Array[String] = []
+	var port := get_port(port_id)
+	var fijas: Array = port.get("fixed_recipes", [])
+	if not fijas.is_empty():
+		for r in fijas:
+			out.append(str(r))
+		return out
+	for r in INITIAL_RECIPES:
+		out.append(str(r))
+	var idx := port_index(port_id)
+	for i in PORTS.size():
+		if idx >= 0 and i >= idx:
+			break
+		for r in PORTS[i].get("reward_recipes", []):
+			if not str(r) in out:
+				out.append(str(r))
+	return out

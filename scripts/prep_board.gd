@@ -221,6 +221,21 @@ const BUTTON_MARGIN := 52
 
 ## Aspecto pirata para un botón: tabla de madera con marco dorado y remaches,
 ## sombra proyectada para despegarlo del fondo y hundido al pulsarlo.
+## Botón de ACEPTAR o de CANCELAR. Mismo tablón de madera, pero teñido de verde
+## o de rojo y con su marca delante, para que se distingan de un vistazo cuál
+## confirma y cuál echa atrás.
+static func skin_action_button(b: Button, ok: bool) -> void:
+	skin_button(b)
+	var tinte := Color(0.55, 1.0, 0.58) if ok else Color(1.0, 0.55, 0.48)
+	for c in b.get_children():
+		if c is NinePatchRect and c.name != "SkinShadow":
+			(c as NinePatchRect).self_modulate = tinte
+	if not b.text.begins_with("✔") and not b.text.begins_with("✘"):
+		b.text = ("✔  " if ok else "✘  ") + b.text
+	b.add_theme_color_override("font_color",
+		Color(0.93, 1.0, 0.9) if ok else Color(1.0, 0.94, 0.92))
+
+
 static func skin_button(b: Button) -> void:
 	var empty := StyleBoxEmpty.new()
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:

@@ -64,6 +64,15 @@ func _ready() -> void:
 			continue
 		if GameState.mode == "test" or GameState.is_recipe_unlocked(id):
 			available.append(id)
+	# En aventura cada puerto tiene su carta: las islas de menú cerrado solo
+	# dejan sus recetas, y el resto no adelanta las de puertos posteriores.
+	if GameState.is_adventure():
+		var permitidas := CampaignData.recipes_for_port(GameState.current_port)
+		var filtradas: Array = []
+		for id in available:
+			if id in permitidas:
+				filtradas.append(id)
+		available = filtradas
 	# Agrupadas por nivel (1★, 2★, 3★); dentro de cada grupo, por precio.
 	var by_level: Dictionary = {}
 	for id in available:
