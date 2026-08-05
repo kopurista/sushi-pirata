@@ -962,6 +962,9 @@ func _make_boat() -> void:
 	# Los platos rescatados se reparten por la tabla, listos para arrastrar.
 	_layout_boat_parts()
 	_update_prop_boat()
+	# La mano va DESPUÉS de colocar la bandeja: antes apuntaba a donde estaba
+	# el utensilio en la receta anterior.
+	_boat_hint()
 	craft_event.emit("select", "")
 	_update_ui()
 
@@ -982,7 +985,6 @@ func _layout_boat_parts() -> void:
 		var row := i / cols
 		d.global_position = area.position + Vector2(18.0 + col * 84.0, 10.0 + row * 62.0)
 		boat_nodes.append(d)
-	_boat_hint()
 
 
 ## Mano guía del BARCO: mientras queden platos sueltos en la tabla, señala uno
@@ -2810,6 +2812,12 @@ func _hand_at(tip_pos: Vector2) -> Vector2:
 
 func _refresh_indicator() -> void:
 	if state != State.CRAFTING:
+		return
+	# El barco combinado no tiene `steps`: su guía es arrastrar los platos a la
+	# bandeja. Sin esta rama, el repintado normal encontraba la lista de pasos
+	# vacía y apagaba la mano que acababa de poner _layout_boat_parts.
+	if current_recipe == BOAT_RECIPE:
+		_boat_hint()
 		return
 	_hide_indicator()
 	var step := _current_step()
