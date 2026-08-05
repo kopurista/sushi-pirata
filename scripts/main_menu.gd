@@ -81,7 +81,10 @@ func _ready() -> void:
 	# frames: el telón negro del autoload lo tapa.
 	if not GameState.tutorial_done:
 		GameState.fade_out(0.0)
-		GameState.fade_to_scene("res://scenes/david_intro.tscn", 0.0, 0.5)
+		# DIFERIDO a propósito: cambiar de escena dentro de _ready pilla al árbol
+		# montando nodos y el motor suelta "Parent node is busy adding/removing
+		# children". Se ve solo con una partida nueva, que es justo cuando pasa.
+		_ir_a_la_intro.call_deferred()
 		return
 	# El padre monta el mundo del mapa entero y su interfaz.
 	super._ready()
@@ -108,6 +111,11 @@ func _ready() -> void:
 		await get_tree().create_timer(0.9).timeout
 		_show_reveal(nuevas)
 
+
+
+## Salto a la bienvenida de David (partida nueva), fuera del _ready.
+func _ir_a_la_intro() -> void:
+	GameState.fade_to_scene("res://scenes/david_intro.tscn", 0.0, 0.5)
 
 # ------------------------------------------------- estados de la escena
 

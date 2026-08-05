@@ -97,8 +97,6 @@ func _world(p: Vector2) -> Vector3:
 	return R_HAT * ((p.x - 360.0) / PPU_X) + D_HAT * (p.y / PPU_Y)
 
 
-
-
 func _ready() -> void:
 	# Las pantallas de menu van a la mitad de fotogramas que el juego
 	# (GameState.fps_for): aqui no se juega y renderizar mas gasta bateria.
@@ -642,22 +640,6 @@ func _update_info(id: String) -> void:
 
 	sail_button.disabled = not unlocked
 	sail_button.text = "¡Zarpar!" if unlocked else "Bloqueado"
-
-
-func _mix_total(mix: Dictionary) -> int:
-	var n := 0
-	for k in mix:
-		n += int(mix[k])
-	return n
-
-
-func _mix_text(mix: Dictionary) -> String:
-	var parts: Array[String] = []
-	var names := { "E": "grumetes", "A": "piratas", "G": "capitanes" }
-	for k in ["E", "A", "G"]:
-		if int(mix.get(k, 0)) > 0:
-			parts.append("%d %s" % [int(mix[k]), names[k]])
-	return " · ".join(parts)
 
 
 # --- Selección, viaje y scroll ----------------------------------------------
