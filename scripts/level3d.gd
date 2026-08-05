@@ -196,6 +196,9 @@ var play_time := 0.0
 ## Cara que usa la fila de cabezas del HUD para cada tipo: la del PRIMER cliente
 ## de ese tipo que ha llegado. tipo -> genero.
 var head_gender: Dictionary = {}
+## Y el PERSONAJE de cada tipo: normalmente el que le toca por tipo, pero si el
+## puerto trae un cliente especial (Pablo el Rubio) la fila enseña SU cara.
+var head_who: Dictionary = {}
 ## Cliente ESPECIAL del puerto (`special_client` en CampaignData): un personaje
 ## con nombre y modelo propios que sustituye a UNO de los clientes de su tipo.
 ## De momento solo Pablo el Rubio, en el nivel 5.
@@ -1532,6 +1535,9 @@ func _try_spawn_client() -> bool:
 	# PRIMERO de ese tipo que ha pisado el barco en esta partida.
 	if not head_gender.has(c.client_type):
 		head_gender[c.client_type] = c.gender
+	if not head_who.has(c.client_type):
+		head_who[c.client_type] = CharacterData.who_for_type(c.client_type) \
+				if c.who_override == "" else c.who_override
 	c.patience_scale = patience_mult
 	c.pay_mult = next_client_pay_mult
 	next_client_pay_mult = 1.0
@@ -2491,22 +2497,22 @@ func _update_client_heads() -> void:
 		counts[c.client_type] = int(counts.get(c.client_type, 0)) + 1
 	for type in ["E", "A", "G"]:
 		if int(counts[type]) > 0:
-			heads_row.add_child(_head_badge(type,
+			heads_row.add_child(_head_badge(
+				str(head_who.get(type, CharacterData.who_for_type(type))),
 				str(head_gender.get(type, CharacterData.MALE)), int(counts[type])))
 
 
 ## Icono de cabeza con su contador. El "xN" va DEBAJO y superpuesto sobre el
 ## borde inferior de la cara: al lado, la fila se ensanchaba y se separaba del
 ## grupo de caras.
-func _head_badge(type: String, gender: String, count: int) -> Control:
+func _head_badge(who: String, gender: String, count: int) -> Control:
 	var box := Control.new()
 	box.custom_minimum_size = Vector2(HEAD_ICON, HEAD_ICON)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var ic := TextureRect.new()
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	ic.texture = load(CharacterData.head(
-		CharacterData.who_for_type(type), gender))
+	ic.texture = load(CharacterData.head(who, gender))
 	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(ic)

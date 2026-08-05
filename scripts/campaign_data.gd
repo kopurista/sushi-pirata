@@ -90,6 +90,7 @@ const PORTS: Array = [
 		# de atún en plena partida (ver level_director.gd).
 		"late_type": "A",
 		"director": "nivel_3",
+		"gift_recipes": ["nigiri_atun"],
 	},
 	{
 		"id": "nivel_4",
@@ -114,13 +115,13 @@ const PORTS: Array = [
 		"name": "Flota del capitán Pablo el Rubio",
 		"desc": "Abordaje a la flota de un viejo conocido de David.",
 		"client_mix": { "E": 2, "A": 2, "G": 1 },
-		"time_limit": 90.0,
+		"time_limit": 120.0,
 		"patience_mult": 0.9,
 		"arrival_scale": 0.7,
 		"goal_stars": 3,
-		# Partida exprés de 1:30 con cinco bocas: el techo lo marca la
-		# producción, no la clientela.
-		"star_money": [20, 35, 50],
+		# Dos minutos con cinco bocas, una de ellas un capitán que come de 3
+		# estrellas: el techo lo marca la producción, no la clientela.
+		"star_money": [26, 45, 65],
 		"boat": true,
 		# Carta LIBRE, pero solo tres huecos: hay que elegir bien.
 		"recipe_slots": 3,
@@ -132,6 +133,7 @@ const PORTS: Array = [
 		"director": "nivel_5",
 		# David avisa en el selector de recetas antes de zarpar.
 		"prep_dialog": "nivel_5",
+		"gift_recipes": ["salmon_tsuke_don"],
 		"reward_recipes": ["aburi", "sashimi_atun_rojo"],
 	},
 	{
@@ -322,9 +324,20 @@ static func recipes_for_port(port_id: String) -> Array[String]:
 		out.append(str(r))
 	var idx := port_index(port_id)
 	for i in PORTS.size():
-		if idx >= 0 and i >= idx:
+		if idx >= 0 and i > idx:
 			break
-		for r in PORTS[i].get("reward_recipes", []):
+		# Las recompensas solo cuentan de los puertos ANTERIORES.
+		if idx < 0 or i < idx:
+			for r in PORTS[i].get("reward_recipes", []):
+				if not str(r) in out:
+					out.append(str(r))
+		# Las recetas que REGALA David en plena partida (`gift_recipes`) no
+		# están en ninguna recompensa, así que sin esto se quedaban fuera de la
+		# carta para siempre: el nigiri de atún del nivel 3 no salía luego en el
+		# 5. La del puerto EN CURSO también entra, para cuando se repite un
+		# nivel ya jugado (la primera vez no está desbloqueada y el selector la
+		# descarta solo).
+		for r in PORTS[i].get("gift_recipes", []):
 			if not str(r) in out:
 				out.append(str(r))
 	return out

@@ -624,16 +624,20 @@ const RECIPES: Dictionary = {
 			{ "type": "tap_ingredient", "ingredient": "arroz" },
 			{ "type": "tap_board", "count": 5 },
 			{ "type": "tap_ingredient", "ingredient": "salmon" },
-			{ "type": "slice_board", "count": 2, "duration": 0.7, "direction": "right",
-				"cut_stage": "sashimi_salmon_cort", "fail_penalty": 4 },
+			# UN solo corte, y lento: lo que queda es el sashimi de salmón.
+			{ "type": "slice_board", "count": 1, "duration": 0.7, "direction": "right",
+				"fail_penalty": 4 },
 			{ "type": "drag_stage", "prop": "cuenco_soja" },
+			# El salmón se queda reposando en la soja y la tabla vuelve al
+			# CUENCO DE ARROZ: el wakame y el pepino van ahí, no a la soja.
 			{ "type": "drag_ingredient", "ingredient": "wakame" },
 			{ "type": "tap_ingredient", "ingredient": "pepino" },
 			{ "type": "tap_board", "count": 3, "cutting": true },
+			# Y al final se recoge el salmón de la soja y se vuelca en el cuenco.
 			{ "type": "drag_stage", "prop": "cuenco_pepino", "from": "soja_salmon" },
 		],
 		"stages": ["arroz_bola", "bol_arroz", "sashimi_salmon", "sashimi_salmon_cort",
-			"soja_salmon", "cuenco_wakame", "pepino_tabla", "cuenco_pepino", ""],
+			"bol_arroz", "cuenco_wakame", "pepino_tabla", "cuenco_pepino", ""],
 	},
 	"udon": {
 		"label": "Udon",

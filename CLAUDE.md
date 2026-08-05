@@ -116,7 +116,17 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   propio (`client3d.who_override` → `CharacterData.MODELS`), sin tocar el
   equilibrio: come, paga y aguanta como los de su tipo. Con `late_type` del
   mismo tipo, entra el último. Lo usa Pablo el Rubio en el nivel 5. La fila de
-  cabezas del HUD sigue contándolo como capitán (no tiene icono propio).
+  cabezas del HUD sigue contando por TIPO, pero la CARA sale de `head_who`
+  (el personaje del primero de ese tipo que llegó), así que en el nivel 5 el
+  capitán de la fila es Pablo. Su icono lo genera `tools/head_icons.gd` como
+  el resto, con un encuadre propio en `FRAME_OVERRIDE` (su sombrero es mucho
+  más alto y se le cortaba por arriba).
+- **`gift_recipes` en un puerto**: recetas que REGALA David dentro del nivel
+  (el nigiri de atún del 3, el tsuke don del 5). No están en `reward_recipes`,
+  así que hay que declararlas para dos cosas: `recipes_for_port` las suma a la
+  carta de los puertos siguientes —y a la del suyo propio, para cuando se
+  repite— y `complete_port` las desbloquea al superar el nivel, por si la
+  partida se cerró por objetivo antes de que David llegara a darlas.
 - **`prep_board.free_mistakes`**: mientras un guion ESTÁ ENSEÑANDO un gesto,
   fallar el corte lento no cuesta dinero (el aviso y el destello rojo siguen).
   El guion se entera por la señal `slice_failed`, aparte de `money_penalty`
@@ -277,13 +287,25 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   Rubio** (`assets/characters/pablo/pablo_<mood>.png`, 7: serio, hablando,
   feliz, riendo, sorprendido, guason y punal). Todas
   derivadas por `editImage` del mismo base para conservar la identidad.
-  **La navaja de Pablo costó cinco intentos**: pedir "un puñal en lugar de
-  mano" da SIEMPRE una mano sosteniendo un puñal, por mucho que se prohíban
-  los dedos. Lo que funcionó fue describirlo como PRÓTESIS con la referencia
-  del garfio: "su antebrazo acaba en un casquillo de metal y cuero del que
-  sale una hoja recta EN LA MISMA DIRECCIÓN del antebrazo, como el garfio de
-  un pirata pero con hoja". Y una vez conseguida, las expresiones se derivan
-  repitiendo esa descripción como invariante en cada `editImage`.
+  **La navaja de Pablo costó una docena de intentos**: pedir "un puñal en
+  lugar de mano" da SIEMPRE una mano sosteniendo un puñal, por mucho que se
+  prohíban los dedos. Lo que funcionó fue describirlo como PRÓTESIS con la
+  referencia del garfio y por PIEZAS, en orden desde el hombro: "manga, correa
+  de cuero, CASQUILLO DE ACERO CERRADO que sella el muñón, y la hoja saliendo
+  del centro de ese casquillo en la misma dirección del antebrazo".
+  Reglas que salieron de ahí y conviene no volver a aprender:
+  1) **un cambio por pasada**. Envejecerlo Y arreglarle el brazo a la vez
+  devolvía siempre la mano con empuñadura; por separado salió a la primera.
+  2) Todo lo que suene a *dibujar más brazo* ("enséñame el antebrazo", "aleja
+  la cámara") reintroduce la mano; lo que sí funciona es enumerar las piezas.
+  3) Al envejecerlo **se le cae el bigote**: hay que devolvérselo en otra
+  pasada. 4) En las expresiones hay que blindar la hoja ("delante de la
+  mejilla, con su contorno, sin cruzar los ojos ni la cabeza") y prohibir
+  explícitamente la perilla, o aparecen solas.
+  El FONDO BLANCO no se quita por inundación: se pasa cada expresión por el
+  `removeBackground` de Ludo y se compone después el lienzo (`AIRE` sobre la
+  cabeza para que su cara mida como la de David: el recorte de Ludo va a
+  sangre y sin ese aire se veía un palmo más grande que los demás).
   David lleva SIEMPRE a su loro **Gigi** al hombro, y por eso sus moods van en
   dos familias: con el loro CALLADO (serio, hablando, feliz, riendo,
   sorprendido, gritando, triste, mira_loro) y con el loro CHILLANDO con las

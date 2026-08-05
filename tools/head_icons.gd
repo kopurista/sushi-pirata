@@ -15,6 +15,8 @@ extends Node3D
 const OUT := {
 	"E": "grumete_rig", "A": "pirata_rig", "G": "capitan_rig",
 	"E_f": "grumete_fem_rig", "A_f": "pirata_fem_rig", "G_f": "capitan_fem_rig",
+	# Cliente con nombre propio del nivel 5.
+	"P": "pablo_rig",
 }
 const SIZE := 192
 ## Encuadre en fracciones de la ALTURA TOTAL del personaje, no del hueso de la
@@ -22,6 +24,10 @@ const SIZE := 192
 ## el pirata, 0.16 en el capitan) y encuadrar por ella daba cabezas cortadas en
 ## uno y diminutas en otro. Por altura total salen las tres igual de grandes.
 const FRAME_F := 0.34
+## Ajuste por icono cuando el modelo se sale de la norma: el sombrero de Pablo
+## es mucho más alto que el del resto y con el encuadre general se le cortaba
+## por arriba.
+const FRAME_OVERRIDE := { "P": 0.44 }
 ## Centro del encuadre bajando desde la coronilla (incluye gorro/sombrero).
 const HEAD_DROP_F := 0.13
 
@@ -86,7 +92,7 @@ func _render(id: String, model: String) -> void:
 
 	var cam := Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	cam.size = body_h * FRAME_F
+	cam.size = body_h * float(FRAME_OVERRIDE.get(id, FRAME_F))
 	# De frente (el personaje mira a +Z) y un pelin desde arriba.
 	cam.rotation_degrees = Vector3(-8.0, 0.0, 0.0)
 	vp.add_child(cam)

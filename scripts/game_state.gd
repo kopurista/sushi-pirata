@@ -452,6 +452,13 @@ func complete_port(port_id: String, stars: int) -> Array:
 		for r in port.get("reward_recipes", []):
 			if unlock_recipe(r):
 				newly.append(r)
+		# Lo que REGALA David dentro del nivel se desbloquea igualmente al
+		# superarlo: si la partida se cerró por objetivo antes de que llegara su
+		# momento (el salmón tsuke don del nivel 5), la receta se quedaba sin
+		# aprender aunque el puerto estuviera superado.
+		for r in port.get("gift_recipes", []):
+			if unlock_recipe(r):
+				newly.append(r)
 		# Toda receta nueva llega con despensa para estrenarla.
 		gift_ingredients_for(newly, PORT_GIFT)
 		if not newly.is_empty():
