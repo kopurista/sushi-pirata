@@ -1,4 +1,9 @@
 class_name PerkData
+## Los potenciadores permanentes NO se desbloquean todavía: el usuario decidirá
+## cuándo entran en la progresión. Con esto en false, `_check_perk_unlocks` no
+## concede ninguno por mucho combo que se haga.
+const UNLOCKS_ENABLED := false
+
 ## Potenciadores PERMANENTES (distintos de los de `powerup_data.gd`, que salen
 ## del bote de propinas dentro de un nivel).
 ##

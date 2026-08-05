@@ -100,6 +100,20 @@ func _nivel_1() -> void:
 		])
 	_play()
 
+	# Si en algún momento el bote de propinas suelta un potenciador, se explica.
+	var potes: int = lv.powerups_claimed
+	await _esperar(func() -> bool:
+		return lv.ended or lv.powerups_claimed > potes)
+	if lv.ended:
+		return
+	await _say([
+		{ "text": "¡RAAAK! ¡ALGO BRILLA! ¡LA CLIENTELA HA SOLTADO ALGO!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "¡Se ha llenado el bote de las **propinas**! Cuando eso pasa, la clientela agradecida te regala un **potenciador**.", "mood": "feliz" },
+		{ "text": "Son ayudas de un solo uso para la faena: acelerar la **cinta**, cocinar sin esperas, sacar dos platos de golpe... Elige el que te saque del apuro en ese momento.", "mood": "hablando" },
+		{ "text": "Y no lo guardes para luego: el turno se acaba y lo que no gastas no vale nada.", "mood": "serio" },
+	])
+	_play()
+
 
 # ------------------------------------------------------------------- nivel 2
 
@@ -146,6 +160,10 @@ func _nivel_2() -> void:
 		{ "text": "¡LOS CLIENTES NO ME GUSTAN, PERO SU DINERO SÍ! ¡RAAAK! ¡Y el dinero de los que ni vienen me gusta AÚN MÁS!", "who": "gigi", "mood": "loro_sorpresa" },
 		{ "text": "Por una vez, el bicho lo ha resumido mejor que yo. Ser rápido paga doble, %s." % GameState.player_title(), "mood": "loro_resignado" },
 	])
+	# El guion termina aquí: si no se cierra a mano, el retrato y el pergamino
+	# se quedan clavados encima del panel de resultados.
+	dialog.close()
+	_clear_focus()
 
 
 # ------------------------------------------------------------------- nivel 3
@@ -155,6 +173,20 @@ func _nivel_2() -> void:
 func _nivel_3() -> void:
 	await _say([
 		{ "text": "**Isla del Mono**. Poca clientela hoy, pero fíjate bien en quién baja del bote.", "mood": "hablando" },
+	])
+	_play()
+
+	# Nada más ver el primer plato terminado, los EXTRAS.
+	await _esperar(func() -> bool: return lv.ended or lv.dishes_served > 0)
+	if lv.ended:
+		return
+	await _say_raised([
+		{ "text": "¡Alto ahí! Antes de seguir, mira la esquina de tu tabla: los **extras**.", "mood": "hablando" },
+		{ "text": "Se le echan a un plato YA TERMINADO, antes de mandarlo a la cinta, y se gastan por plato servido.", "mood": "serio" },
+		{ "text": "El **jengibre** limpia el paladar: ese plato no le cuenta al cliente como repetido, así que le sabe a nuevo.", "mood": "hablando" },
+		{ "text": "El **wasabi** hace más **probable** que te dejen propina, y la **soja** hace que, cuando cae, caiga más **gorda**.", "mood": "hablando" },
+		{ "text": "¡ECHA WASABI A TODO! ¡RAAAK! ¡A TODO!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "A todo no, plumas, que se gastan. Úsalos en los platos caros, que es donde se nota.", "mood": "loro_resignado" },
 	])
 	_play()
 	await _tras_la_preparacion()

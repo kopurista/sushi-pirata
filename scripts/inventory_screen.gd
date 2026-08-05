@@ -741,7 +741,7 @@ func _build_stats_block(data: Dictionary) -> Control:
 	grid.add_theme_constant_override("h_separation", 18)
 	grid.add_theme_constant_override("v_separation", 2)
 	var rows := [
-		["Precio", "$%d" % int(data.get("price", 0))],
+		["Precio", "%d doblones" % int(data.get("price", 0))],
 		["Espera", "%.1f s de cooldown" % float(data.get("cooldown", 0.0))],
 	]
 	if data.get("vegetarian", false):

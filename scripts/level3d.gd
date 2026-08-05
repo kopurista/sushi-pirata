@@ -387,6 +387,10 @@ func _setup_helper() -> void:
 ## Combos de la partida que desbloquean potenciadores permanentes. Devuelve
 ## los ids recién conseguidos, para anunciarlos en los resultados.
 func _check_perk_unlocks() -> Array:
+	# Los potenciadores permanentes están APAGADOS a propósito: se abrirán
+	# cuando el diseño de la campaña lo pida (ver PerkData.UNLOCKS_ENABLED).
+	if not PerkData.UNLOCKS_ENABLED:
+		return []
 	var newly: Array = []
 	var most := 0
 	for r in client_reports:
@@ -1273,6 +1277,15 @@ func _skin_panels() -> void:
 	vbox.move_child(stars_row, stars_label.get_index() + 1)
 	for b in [retry_button, menu_button]:
 		prep_board.skin_button(b)
+		# El tablón de madera tiene el relieve arriba: sin este empujón el
+		# texto se ve montado en el borde superior en vez de centrado.
+		b.add_theme_constant_override("icon_max_width", 0)
+		b.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		b.add_theme_constant_override("line_spacing", 0)
+		b.add_theme_stylebox_override("normal", _button_pad(b, "normal"))
+		b.add_theme_stylebox_override("hover", _button_pad(b, "hover"))
+		b.add_theme_stylebox_override("pressed", _button_pad(b, "pressed"))
+	menu_button.text = "Siguiente"
 
 
 ## Reacciones del chef a cada gesto del jugador: dispara la animacion de
@@ -1618,10 +1631,15 @@ func _on_client_served(food: int, tip: int) -> void:
 ## En cuanto se junta el dinero OBJETIVO (el umbral de las 3 estrellas) el turno
 ## se da por bueno y se cierra antes de tiempo: lo que sobra de clientes y de
 ## reloj se cobra como prima en los resultados.
+## Lo que se mide contra los umbrales de estrella: platos MÁS propinas.
+func _score_money() -> int:
+	return money_earned + tips_total
+
+
 func _check_goal_reached() -> void:
 	if ended or goal_reached or star_money.is_empty():
 		return
-	if money_earned >= int(star_money.back()):
+	if _score_money() >= int(star_money.back()):
 		goal_reached = true
 		_end_level()
 
@@ -1650,6 +1668,7 @@ func _tip_threshold(claimed: int) -> int:
 func _add_tip(amount: int) -> void:
 	tips_total += amount
 	GameState.bump_stat("tips_total", amount)
+	_check_goal_reached()
 	while tips_total >= _tip_threshold(powerups_claimed):
 		powerups_claimed += 1
 		pending_powerups += 1
@@ -1818,7 +1837,7 @@ func _on_dish_served(recipe_id: String, price_override: int = 0, extras: Array =
 	p.speed = PLATE_SPEED
 	belt_path.add_child(p)
 	p.progress = SPAWN_PROGRESS
-	p.discarded.connect(_on_plate_discarded)
+	p.discarded.connect(_on_plate_discarded.bind(p))
 
 
 ## Plato que sale de la TABLA del jugador: cuenta para desbloquear perks y
@@ -1834,16 +1853,52 @@ func _on_player_dish_served(recipe_id: String, price_override: int = 0,
 
 ## Un plato desechado (2 vueltas sin cogerse) cuesta el 30% de su precio.
 ## Con "Reciclaje de platos" vuelve a la receta como uso instantaneo.
-func _on_plate_discarded(recipe_id: String) -> void:
+func _on_plate_discarded(recipe_id: String, plate: Node3D = null) -> void:
 	# Logro "aquí no se tira nada": la partida deja de ser limpia.
 	plates_wasted += 1
 	if recycle_active:
 		prep_board.recycle_recipe(recipe_id)
 		return
 	var price: int = RecipeData.get_recipe(recipe_id).get("price", 0)
+	# Siempre cuesta algo: hasta el plato más barato se cobra un doblón.
+	var castigo: int = maxi(int(round(price * WASTE_PENALTY)), 1)
 	# Como el resto de castigos, el marcador nunca baja de 0.
-	money_earned = maxi(money_earned - int(round(price * WASTE_PENALTY)), 0)
+	money_earned = maxi(money_earned - castigo, 0)
+	_waste_text(castigo, plate)
 	_update_hud()
+
+
+## Lo que cuesta el plato tirado, flotando sobre él mientras cae a la basura.
+func _waste_text(castigo: int, plate: Node3D) -> void:
+	if world_ui == null or plate == null or not is_instance_valid(plate):
+		return
+	var lbl := Label.new()
+	lbl.text = "-%d" % castigo
+	lbl.custom_minimum_size = Vector2(130, 0)
+	lbl.position = cam.unproject_position(
+		plate.global_position + Vector3.UP * 0.35) + Vector2(-65, -34)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.add_theme_font_size_override("font_size", 32)
+	lbl.add_theme_color_override("font_color", Color(1.0, 0.42, 0.35))
+	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.92))
+	lbl.add_theme_constant_override("outline_size", 7)
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.pivot_offset = Vector2(65, 18)
+	world_ui.add_child(lbl)
+	var coin := TextureRect.new()
+	coin.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	coin.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	coin.texture = load("res://assets/ui/moneda.png")
+	coin.size = Vector2(26, 26)
+	coin.position = Vector2(84, 6)
+	coin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.add_child(coin)
+	lbl.scale = Vector2(0.5, 0.5)
+	var tw := lbl.create_tween()
+	tw.tween_property(lbl, "scale", Vector2.ONE, 0.14) 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(lbl, "position:y", lbl.position.y - 54.0, 0.75) 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(lbl, "modulate:a", 0.0, 0.75)
+	tw.tween_callback(lbl.queue_free)
 
 
 ## Castigo por un gesto mal hecho (cortar deprisa el pescado caro). Nunca deja
@@ -1892,7 +1947,7 @@ func _finalize_results() -> void:
 	# producción del turno, y es el umbral que dispara el cierre anticipado.
 	var stars := 0
 	for threshold in star_money:
-		if money_earned >= int(threshold):
+		if _score_money() >= int(threshold):
 			stars += 1
 
 	# Lo que se cobra SÍ incluye propinas y las primas por lo que ha sobrado.
@@ -1902,7 +1957,7 @@ func _finalize_results() -> void:
 		bonus_clients += int(LEFTOVER_BONUS.get(t, 0)) * int(leftover[t])
 	bonus_time = int(floor(maxf(time_limit - elapsed, 0.0) / TIME_BONUS_BLOCK)) \
 			* TIME_BONUS
-	var total_money := money_earned + tips_total + bonus_clients + bonus_time
+	var total_money := _score_money() + bonus_clients + bonus_time
 
 	var new_recipes: Array = []
 	if GameState.is_adventure():
@@ -1937,9 +1992,9 @@ func _show_results(stars: int, total_money: int, new_recipes: Array) -> void:
 	for c in stars_row.get_children():
 		c.queue_free()
 	stars_row.add_child(prep_board.make_star_row(stars, 3, 58))
-	earn_label.text = "Dinero ganado: $%d" % total_money
+	earn_label.text = "Dinero ganado: %d" % total_money
 	if stars < 3:
-		score_label.text = "Siguiente estrella: $%d" % int(star_money[stars])
+		score_label.text = "Siguiente estrella: %d" % int(star_money[stars])
 		score_label.visible = true
 	else:
 		score_label.visible = false
@@ -2115,13 +2170,13 @@ func _build_breakdown() -> void:
 	breakdown_box.add_child(header)
 
 	# De dónde sale el dinero del turno: platos, propinas y las primas de cierre.
-	_breakdown_note("Platos: $%d" % money_earned)
+	_breakdown_note("Platos: %d" % money_earned)
 	if tips_total > 0:
-		_breakdown_note("Propinas: $%d" % tips_total)
+		_breakdown_note("Propinas: %d" % tips_total)
 	if bonus_clients > 0:
-		_breakdown_note("Clientes que no hizo falta atender: $%d" % bonus_clients)
+		_breakdown_note("Clientes que no hizo falta atender: %d" % bonus_clients)
 	if bonus_time > 0:
-		_breakdown_note("Tiempo de sobra: $%d" % bonus_time)
+		_breakdown_note("Tiempo de sobra: %d" % bonus_time)
 
 	for type in ["E", "A", "G"]:
 		var reports: Array = []
@@ -2264,7 +2319,7 @@ func _breakdown_row(r: Dictionary) -> Control:
 		row.add_child(lost)
 		return row
 
-	row.add_child(_icon_amount("res://assets/ui/moneda.png", "$%d" % r.money))
+	row.add_child(_icon_amount("res://assets/ui/moneda.png", "%d" % r.money))
 	if r.tip > 0:
 		row.add_child(_icon_amount("res://assets/ui/bolsa.png", "+$%d" % r.tip))
 	return row
@@ -2513,14 +2568,28 @@ func _on_retry_pressed() -> void:
 	get_tree().reload_current_scene()
 
 
+## "Siguiente" devuelve al MAPA de la campaña (no al menú principal), que es
+## desde donde se elige el puerto siguiente.
 func _on_menu_pressed() -> void:
 	get_tree().paused = false
+	if GameState.is_adventure():
+		GameState.transition = "mapa"
 	GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45)
+
+
+## Copia del estilo del botón con unos píxeles de margen arriba, para bajar el
+## texto hasta el centro real del tablón.
+func _button_pad(b: Button, estado: String) -> StyleBox:
+	var sb: StyleBox = b.get_theme_stylebox(estado)
+	var out: StyleBox = sb.duplicate() if sb != null else StyleBoxEmpty.new()
+	out.content_margin_top = 10.0
+	out.content_margin_bottom = 0.0
+	return out
 
 
 func _update_hud() -> void:
 	var remaining := maxf(time_limit - elapsed, 0.0)
 	time_label.text = "%d:%02d" % [int(remaining) / 60, int(remaining) % 60]
-	money_label.text = "$%d / $%d" % [money_earned, int(star_money.back())]
-	jar_label.text = "$%d / $%d" % [tips_total, _tip_threshold(powerups_claimed)]
+	money_label.text = "%d / %d" % [_score_money(), int(star_money.back())]
+	jar_label.text = "%d / %d" % [tips_total, _tip_threshold(powerups_claimed)]
 	clients_label.text = "%d/%d" % [clients_finished, total_clients]

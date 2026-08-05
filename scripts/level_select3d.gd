@@ -634,9 +634,9 @@ func _update_info(id: String) -> void:
 	var thresholds: Array = port.get("star_money", [])
 	var goal := int(port.get("goal_stars", 1))
 	var goal_money: int = int(thresholds[goal - 1]) if thresholds.size() >= goal else 0
-	info_goal.text = "Objetivo: %d estrellas  ($%d)" % [goal, goal_money]
+	info_goal.text = "Objetivo: %d estrellas  (%d)" % [goal, goal_money]
 	var rec := GameState.get_level_score(id)
-	info_record.text = "Récord: $%d" % rec if rec > 0 else "Récord: sin jugar"
+	info_record.text = "Récord: %d" % rec if rec > 0 else "Récord: sin jugar"
 
 	_fill_reward_row(port.get("reward_recipes", []),
 			bool(port.get("unlocks_shop", false)))

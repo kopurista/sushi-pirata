@@ -77,7 +77,7 @@ func _run() -> void:
 	])
 	await _focus_node(lv.jar_label, 24.0)
 	await _say([
-		{ "text": "Este bote es el de las **propinas**. Cuando se llena, la clientela agradecida te regala un **potenciador**: una ayuda en plena faena. ¡No lo desprecies nunca!", "mood": "feliz" },
+		{ "text": "Justo **debajo del oro** está el bote de las **propinas**. Cuando se llena, la clientela agradecida te regala un **potenciador**: una ayuda en plena faena. ¡No lo desprecies nunca!", "mood": "feliz" },
 	])
 	await _focus_node(lv.clients_label, 24.0)
 	await _say([
@@ -233,6 +233,11 @@ func _run() -> void:
 	await _wait_served()
 	_play()
 	pb.allowed_recipes = ["__nada__"]
+	# En cuanto le llega el té, el bocado del nigiri se acaba enseguida: ya ha
+	# cumplido su papel de dar tiempo y alargarlo más solo aburre.
+	if _cliente_vivo():
+		client.slow_eat = 1.0
+		client.eat_timer = minf(client.eat_timer, 2.2)
 
 	# ---- La barra de paciencia (ya ha terminado de comer) ----
 	# Con el té ya servido, el bocado vuelve a su ritmo normal para que el

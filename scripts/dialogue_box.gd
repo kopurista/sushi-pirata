@@ -63,8 +63,9 @@ const DARK := Color(0.26, 0.16, 0.08)
 const KEYWORD_BB := "[b][color=#a03c0e]%s[/color][/b]"
 ## Tinte del retrato de quien NO está hablando.
 const IDLE_TINT := Color(0.52, 0.5, 0.55)
-## Cuánto se hunde el retrato de quien no habla.
+## Cuánto se hunde y se encoge el retrato de quien no habla.
 const IDLE_SINK := 26.0
+const IDLE_SCALE := 0.9
 
 var _queue: Array = []
 var _index := -1
@@ -181,6 +182,10 @@ func _ready() -> void:
 	_text.add_theme_font_size_override("bold_font_size", 27)
 	_text.add_theme_color_override("default_color", DARK)
 	_text.add_theme_constant_override("line_separation", 3)
+	# Maqueta el texto ENTERO y luego lo va destapando. Con el modo por
+	# defecto el salto de línea se recalcula a cada carácter, así que una
+	# palabra empezaba en un renglón y saltaba de golpe al siguiente.
+	_text.visible_characters_behavior = TextServer.VC_CHARS_AFTER_SHAPING
 	var bold := load("res://fonts/static/Exo2-Bold.ttf")
 	if bold != null:
 		_text.add_theme_font_override("bold_font", bold)
@@ -305,6 +310,9 @@ func _set_speaker(who: String, mood: String) -> void:
 		var q: TextureRect = _portraits[s]
 		var hablando: bool = (s == side)
 		q.modulate = Color.WHITE if hablando else IDLE_TINT
+		# El que escucha se ve algo más lejos: apagado y un punto más pequeño.
+		q.pivot_offset = Vector2(q.size.x * 0.5, q.size.y)
+		q.scale = Vector2.ONE if hablando else Vector2(IDLE_SCALE, IDLE_SCALE)
 		var sink: float = 0.0 if hablando else IDLE_SINK
 		q.offset_top = _portrait_home_y + dy + sink
 		q.offset_bottom = -334.0 + dy + sink

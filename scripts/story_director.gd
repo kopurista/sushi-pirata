@@ -54,7 +54,12 @@ func _ready() -> void:
 	focus_mat = ShaderMaterial.new()
 	focus_mat.shader = load("res://shaders/tutorial_focus.gdshader")
 	focus_rect.material = focus_mat
-	focus_rect.visible = false
+	# Los uniformes se fijan YA: si el paño se hacía visible antes de que
+	# llegaran, el primer fotograma se dibujaba con los valores por defecto del
+	# shader (pantalla oscura con un agujero en el centro) y se veía un
+	# parpadeo negro justo al aparecer el primer foco.
+	_apagar_velo()
+	focus_rect.visible = true
 	focus_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	focus_layer.add_child(focus_rect)
 
@@ -125,10 +130,12 @@ func _say(lines: Array, espera := -1.0, congelar := true) -> void:
 	if not lv.clock_hold:
 		await get_tree().create_timer(
 				PAUSA_ANTES if espera < 0.0 else espera).timeout
-	lv.clock_hold = congelar
+	# El reloj se retiene SIEMPRE mientras alguien habla; `congelar` solo decide
+	# si además se para el árbol (a veces interesa ver lo que pasa detrás).
+	lv.clock_hold = true
 	get_tree().paused = congelar
 	# Sin foco puesto, el fondo se oscurece un poco igualmente mientras hablan.
-	var velo_propio := not focus_rect.visible
+	var velo_propio: bool = float(focus_mat.get_shader_parameter("dim")) <= 0.0
 	if velo_propio:
 		_soft_dim()
 	# `keep_open`: la caja NO se oculta al agotar la tanda. Entre dos tandas
@@ -138,7 +145,7 @@ func _say(lines: Array, espera := -1.0, congelar := true) -> void:
 	await dialog.finished
 	get_tree().paused = false
 	if velo_propio:
-		focus_rect.visible = false
+		_apagar_velo()
 
 
 ## Como _say pero con la caja ELEVADA: para hablar de los pergaminos de
@@ -169,7 +176,6 @@ func _focus_screen_rect(r: Rect2) -> void:
 	focus_mat.set_shader_parameter("radius", radius)
 	focus_mat.set_shader_parameter("feather", clampf(radius * 0.55, 34.0, 100.0))
 	focus_mat.set_shader_parameter("dim", DIM_FOCO)
-	focus_rect.visible = true
 
 
 ## Velo LEVE de pantalla completa, sin agujero: solo para hablar.
@@ -178,7 +184,6 @@ func _soft_dim() -> void:
 	focus_mat.set_shader_parameter("radius", 0.0)
 	focus_mat.set_shader_parameter("feather", 0.001)
 	focus_mat.set_shader_parameter("dim", DIM_SUAVE)
-	focus_rect.visible = true
 
 
 ## Foco sobre un Control. ESPERA DOS FOTOGRAMAS antes de medirlo: los
@@ -211,7 +216,16 @@ func _focus_bar(bar: Control) -> void:
 
 
 func _clear_focus() -> void:
-	focus_rect.visible = false
+	_apagar_velo()
+
+
+## Deja el paño transparente (sigue en el árbol, para no volver a estrenar el
+## shader y provocar otro parpadeo).
+func _apagar_velo() -> void:
+	focus_mat.set_shader_parameter("center", Vector2(-9999.0, -9999.0))
+	focus_mat.set_shader_parameter("radius", 0.0)
+	focus_mat.set_shader_parameter("feather", 0.001)
+	focus_mat.set_shader_parameter("dim", 0.0)
 
 
 ## Espera N gestos de un tipo concreto de la tabla (craft_event).
