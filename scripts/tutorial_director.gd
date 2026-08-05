@@ -8,11 +8,11 @@ extends StoryDirector
 ## clientes): termina este guion, que entrega las 4 recetas
 ## (GameState.complete_tutorial) y devuelve al menú.
 
-## Asiento del cliente del tutorial. Con la cámara isométrica (yaw 45) el eje
-## +X cae hacia ABAJO-DERECHA de la pantalla, así que la cara +X son los
-## asientos 2 y 3; el 3 es el más bajo de los dos. Además esa cara entra por la
-## borda inferior, que es justo lo que se quiere.
-const SEAT := 3
+## Asiento del cliente del tutorial: el MÁS ALTO de la pantalla. Con la cámara
+## isométrica (yaw 45) la altura en pantalla es -(x+z), y los asientos 0 y 6
+## empatan en lo más alto; el 0 está en la cara -Z, que entra por la borda de
+## ARRIBA. Los platos tardan lo justo en llegarle desde el emplatado.
+const SEAT := 0
 ## Lo que se alarga el nigiri del tutorial: da tiempo a explicar el té mientras
 ## el grumete sigue masticando.
 const NIGIRI_LENTO := 4.5
@@ -121,13 +121,15 @@ func _run() -> void:
 	await _wait_craft("done")
 
 	# ---- Cinta y cajas ----
+	# 0,4 s de margen: felicitarle en el mismo fotograma en que suelta el
+	# gesto se sentía atropellado.
 	await _say([
 		{ "text": "¡Genial! Tu primer maki. Casi me caen las lágrimas.", "mood": "riendo" },
 		{ "text": "Ahora tienes dos opciones. Una: arrastrarlo arriba, a la **cinta**, y que navegue hasta los clientes.", "mood": "hablando" },
 		{ "text": "Dos: guardarlo en una **caja**, a la derecha. Cada caja apila varios platos **iguales**.", "mood": "hablando" },
 		{ "text": "Y eso importa más de lo que parece: acumulando platos puedes soltar **varios de golpe** y llegar también a los clientes que están **lejos** en la cinta, no solo al primero de la fila.", "mood": "serio" },
 		{ "text": "Cinta o caja, tú mandas. ¡Coloca ese maki!", "mood": "feliz" },
-	])
+	], 0.4)
 	_play("Lleva el maki a la **cinta** o guárdalo en una **caja**.")
 	# ¿Cinta o caja? El guion se adapta a lo que haga el jugador.
 	var to_belt := false
@@ -158,6 +160,7 @@ func _run() -> void:
 		await _wait_served()
 	if _cliente_vivo():
 		client.guaranteed_next = true
+	pb.allowed_recipes = ["__nada__"]
 	await _focus_node(pb.buttons["maki_aguacate"], 12.0)
 	await _say_raised([
 		{ "text": "Y un secreto de cocina: hay platos que con una elaboración rinden **varios usos**. ¿Ves el **x2** en el pergamino del maki? Los dos siguientes saldrán solos, sin trabajo.", "mood": "feliz" },
@@ -196,6 +199,7 @@ func _run() -> void:
 		client.slow_eat = NIGIRI_LENTO
 	await _wait_served()
 	_play()
+	pb.allowed_recipes = ["__nada__"]
 
 	# ---- Gigi explica la barra de comida (el grumete está masticando) ----
 	while _cliente_vivo() and not client.is_eating():
@@ -206,9 +210,7 @@ func _run() -> void:
 		{ "text": "¡RAAK! ¿Ves esa barrita de ahí? Es lo que le queda de **bocado**. Mientras baja está comiendo, y no coge NADA más de la cinta.", "who": "gigi", "mood": "loro" },
 		{ "text": "¡Cuanto más gordo el plato, más tarda! ¡Y este salmón se lo está tomando con calma, el muy zoquete!", "who": "gigi", "mood": "loro_sorpresa" },
 		{ "text": "Aprovecha ese rato: mientras uno mastica, tú adelantas el siguiente plato. Ahí está el oficio.", "mood": "loro_resignado" },
-	])
-	if _cliente_vivo():
-		client.slow_eat = 1.0
+	], 0.8)
 
 	# ---- Té verde (sigue comiendo: da tiempo de sobra) ----
 	pb.allowed_recipes = ["maki_aguacate", "nigiri_salmon", "te_verde"]
@@ -222,12 +224,21 @@ func _run() -> void:
 	await _focus_node(pb.buttons["te_verde"], 12.0)
 	_play("¡El **té verde**! Toca su pergamino y sigue la mano.")
 	focus_rect.visible = true
+	await _wait_craft("select")
+	# En cuanto elige la receta el foco sobra: lo que toca ya está en la tabla.
+	_clear_focus()
+	_recordatorio = "Sigue la mano hasta terminar el té."
 	await _wait_craft("done")
 	_play("Manda el té a la **cinta**.")
 	await _wait_served()
 	_play()
+	pb.allowed_recipes = ["__nada__"]
 
 	# ---- La barra de paciencia (ya ha terminado de comer) ----
+	# Con el té ya servido, el bocado vuelve a su ritmo normal para que el
+	# cliente termine y aparezca la barra de paciencia que toca explicar.
+	if _cliente_vivo():
+		client.slow_eat = 1.0
 	while _cliente_vivo() and client.is_eating():
 		await get_tree().process_frame
 	await get_tree().create_timer(0.7).timeout
@@ -237,6 +248,7 @@ func _run() -> void:
 		{ "text": "Ahora fíjate en esa otra barra de encima de su cabeza: es su **paciencia**.", "mood": "hablando" },
 		{ "text": "Cuando no está comiendo, la paciencia BAJA sola. Si se le agota, se levanta y se larga... y si se va sin haber probado nada, encima nos cuesta oro.", "mood": "serio" },
 		{ "text": "Cada plato que se come se la vuelve a llenar, y cuanto mejor es el plato, más la llena. Ese es el juego: que ninguna paciencia llegue al fondo.", "mood": "hablando" },
+		{ "text": "Y al revés: si lo que quieres es que un cliente **se vaya**, no hay nada como ofrecerle un **postre**. En su caso, un **mochi de matcha**.", "mood": "serio" },
 		{ "text": "¡Y este ya lleva un buen rato ahí sentado! ¡RAAAK!", "who": "gigi", "mood": "loro" },
 	])
 
@@ -258,6 +270,7 @@ func _run() -> void:
 	_play("Manda el mochi a la **cinta**.")
 	await _wait_served()
 	_play()
+	pb.allowed_recipes = ["__nada__"]
 	# El mochi despide al grumete: se espera a verlo levantarse e irse.
 	if _cliente_vivo():
 		await client.finished
@@ -270,7 +283,7 @@ func _run() -> void:
 		{ "text": "¡Uno! Te llevas su **propina** segura y el bote se llena antes: ¡potenciador para ti! ¡Y dos! Un pesado sentado al **principio de la cinta** se zampa todo lo que pasa, y los de más atrás se quedan mirando.", "who": "gigi", "mood": "loro_sorpresa" },
 		{ "text": "Por una vez el plumas ha dicho algo sensato. Una silla libre es una silla que puedes volver a llenar.", "mood": "loro_resignado" },
 		{ "text": "Y cada plato con truco lo tienes apuntado en el **recetario**, dentro del **Inventario**. Cuando dudes de una receta, consúltalo: ahí está todo.", "mood": "hablando" },
-	])
+	], -1.0, false)
 
 	# ---- Fin del tutorial ----
 	GameState.complete_tutorial()

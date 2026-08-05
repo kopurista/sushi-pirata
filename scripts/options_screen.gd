@@ -424,6 +424,21 @@ func _build_progress(box: VBoxContainer) -> void:
 	pad.custom_minimum_size = Vector2(0, 20)
 	box.add_child(pad)
 
+	_header(box, "Tutorial")
+	_note(box, "Vuelve a jugar la clase de David Jones. No toca el progreso: "
+		+ "ni el dinero, ni las recetas, ni las estrellas.")
+	var again := Button.new()
+	again.text = "Repetir tutorial"
+	again.custom_minimum_size = Vector2(0, 78)
+	PrepBoard.skin_button(again)
+	again.add_theme_font_size_override("font_size", 28)
+	again.pressed.connect(_on_repeat_tutorial)
+	box.add_child(again)
+
+	var pad2 := Control.new()
+	pad2.custom_minimum_size = Vector2(0, 20)
+	box.add_child(pad2)
+
 	_header(box, "Borrar progreso")
 	_note(box, "Se pierden el dinero, las recetas, las estrellas, la despensa "
 		+ "y los logros. El perfil y los gráficos se conservan.")
@@ -746,3 +761,16 @@ func _flash(text: String) -> void:
 	tw.tween_interval(1.0)
 	tw.tween_property(l, "modulate:a", 0.0, 0.5)
 	tw.tween_callback(l.queue_free)
+
+
+## Repite el tutorial: va DIRECTO al nivel guiado (sin la bienvenida de nombre
+## y género) y no toca el progreso.
+func _on_repeat_tutorial() -> void:
+	GameState.mode = "tutorial"
+	GameState.current_port = ""
+	var recs: Array[String] = []
+	for r in CampaignData.INITIAL_RECIPES:
+		recs.append(r)
+	GameState.selected_recipes = recs
+	GameState.selected_perks = []
+	GameState.fade_to_scene("res://scenes/level3d.tscn", 0.35, 0.45)

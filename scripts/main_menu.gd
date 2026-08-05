@@ -397,8 +397,7 @@ func _setup_menu_ui() -> void:
 		shop_btn.modulate = Color(0.52, 0.52, 0.52)
 	box.add_child(_make_mode_button("Inventario", "ic_inventario", 96, 36,
 		func() -> void: _go_inventory()))
-	box.add_child(_make_mode_button("Tutorial", "ic_tutorial", 78, 28,
-		func() -> void: _go_tutorial()))
+
 	# Botones redondos de las esquinas. Van SUELTOS (no en el VBox) para poder
 	# anclarlos a su esquina y animarlos por separado.
 	medal_button = _make_round_button("ic_logros", "Logros",
@@ -783,12 +782,17 @@ func _show_reveal(ids: Array) -> void:
 		tw.tween_property(f, "modulate:a", 1.0, 0.14)
 		tw.parallel().tween_property(f, "scale", Vector2.ONE, 0.28) \
 				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	# Al tocarlo se cierra con su animación (encoge y se desvanece), no de golpe.
+	var cerrando := { "on": false }
 	panel.gui_input.connect(func(e: InputEvent) -> void:
-		var tocado: bool = (e is InputEventScreenTouch and e.pressed) \
-				or (e is InputEventMouseButton and e.pressed)
-		if not tocado:
+		if not (e is InputEventScreenTouch and e.pressed) or cerrando["on"]:
 			return
-		panel.queue_free())
+		cerrando["on"] = true
+		var out := panel.create_tween().set_parallel(true)
+		out.tween_property(panel, "scale", Vector2(0.72, 0.72), 0.22) \
+				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+		out.tween_property(panel, "modulate:a", 0.0, 0.22)
+		out.chain().tween_callback(panel.queue_free))
 
 
 ## TIENDA: entra un puerto por la derecha, el barco navega hasta él con la

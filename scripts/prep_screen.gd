@@ -47,7 +47,7 @@ func _ready() -> void:
 			if GameState.is_adventure() else "mar"
 	# El escenario va CENTRADO en la pantalla (band_off 0): arriba lo tapaba el
 	# pergamino con la parrilla de recetas.
-	backdrop = SceneBackdrop.build(self, kind, 19.0, 0.0)
+	backdrop = SceneBackdrop.build(self, kind, 19.0, -230.0)
 	if GameState.is_adventure():
 		slots = int(CampaignData.get_port(GameState.current_port).get(
 				"recipe_slots", MAX_RECIPES))

@@ -68,10 +68,14 @@ func _tras_la_preparacion() -> void:
 ## explicar qué pasa cuando un plato da la vuelta entera sin que nadie lo coja.
 func _nivel_1() -> void:
 	await _say([
-		{ "text": "¡Bienvenido a **Cala Tortuga**, tu primer puerto de verdad! Cuatro grumetes y las cuatro recetas que te enseñé.", "mood": "feliz" },
+		{ "text": "¡Bienvenido a **Cala Tortuga**, tu primer trabajo de verdad! Cuatro grumetes y las cuatro recetas que te enseñé.", "mood": "feliz" },
 		{ "text": "Hoy mando yo menos y cocinas tú más. Yo te aviso si veo algo que debas saber.", "mood": "hablando" },
 		{ "text": "¡Y NO LA LÍES! ¡RAAAK!", "who": "gigi", "mood": "loro" },
 	])
+	# IMPRESCINDIBLE soltar el reloj antes de esperar a nada del nivel: con
+	# `clock_hold` puesto `elapsed` no avanza, así que la fase de preparación no
+	# terminaba nunca y el guion se quedaba colgado sin que llegara un cliente.
+	_play()
 	await _tras_la_preparacion()
 
 	# Lo suyo es explicarlo EN CALIENTE, la primera vez que se pierde un plato;
@@ -109,6 +113,7 @@ func _nivel_2() -> void:
 		{ "text": "Dos: si alguien se te atasca en la silla, dale un **mochi**. Se va contento, te deja la propina y libera el sitio para el siguiente.", "mood": "hablando" },
 		{ "text": "¡SITIO PARA EL SIGUIENTE! ¡RAAAK!", "who": "gigi", "mood": "loro" },
 	])
+	_play()
 	await _tras_la_preparacion()
 
 	# Lo del cliente que se va de vacío se explica EN CALIENTE si pasa; si no
@@ -151,6 +156,7 @@ func _nivel_3() -> void:
 	await _say([
 		{ "text": "**Isla del Mono**. Poca clientela hoy, pero fíjate bien en quién baja del bote.", "mood": "hablando" },
 	])
+	_play()
 	await _tras_la_preparacion()
 
 	# El pirata va el último en la cola; si el jugador va sobrado, se adelanta.

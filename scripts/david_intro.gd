@@ -136,9 +136,8 @@ func _build_deck() -> void:
 	_build_cannon(-2.55, true)
 	_build_cannon(2.55, false)
 	_build_cargo()
-	_build_flag()
+	_build_mast()
 	_build_lantern()
-	_build_rigging()
 
 	var cam := Camera3D.new()
 	cam.fov = CAM_FOV
@@ -186,11 +185,12 @@ func _build_island() -> void:
 	sand.material_override = _mat(Color(0.88, 0.8, 0.58))
 	add_child(sand)
 
-	for spot in [Vector3(-4.4, 0.1, -38.0), Vector3(0.4, 0.1, -39.5),
-			Vector3(3.0, -0.1, -41.0)]:
+	# Hundidas en la cúpula de arena: con y=0 flotaban por encima de la isla.
+	for spot in [Vector3(-4.4, -0.62, -38.0), Vector3(0.4, -0.5, -39.5),
+			Vector3(3.0, -0.66, -41.0)]:
 		_spawn_prop("res://assets/models/palmera.glb", spot, 5.4,
 				randf_range(-40.0, 40.0))
-	_spawn_prop("res://assets/models/rocas.glb", Vector3(-7.2, -0.4, -39.0), 2.6, 20.0)
+	_spawn_prop("res://assets/models/rocas.glb", Vector3(-7.2, -0.95, -39.0), 2.6, 20.0)
 
 
 func _build_clouds() -> void:
@@ -266,46 +266,69 @@ func _build_bulwarks() -> void:
 			Color(0.44, 0.3, 0.16))
 
 
-## Barandilla de popa con balaustres: el mar se ve entre ellos.
+## Antepecho de proa: un murete corrido de tablones con dos TRONERAS por donde
+## asoman los cañones, rematado con balaustres a los lados. Antes era una simple
+## barandilla y los cañones apuntaban contra ella.
 func _build_railing() -> void:
 	var z := -6.4
-	for i in range(15):
-		var x := -4.2 + i * 0.6
-		_box(Vector3(0.11, 0.85, 0.11), Vector3(x, 0.42, z), Color(0.4, 0.27, 0.14))
-	_box(Vector3(9.2, 0.16, 0.24), Vector3(0.0, 0.92, z), Color(0.48, 0.33, 0.17))
-	_box(Vector3(9.2, 0.1, 0.18), Vector3(0.0, 0.5, z), Color(0.44, 0.3, 0.15))
-	# Postes gordos en los extremos.
-	for s: float in [-1.0, 1.0]:
-		_box(Vector3(0.28, 1.3, 0.28), Vector3(s * 4.5, 0.65, z), Color(0.36, 0.24, 0.12))
+	var trona := [-2.55, 2.55]   # centros de las troneras
+	# Murete por tramos, dejando el hueco de cada tronera.
+	var tramos := [[-4.7, -3.25], [-1.85, 1.85], [3.25, 4.7]]
+	for t: Array in tramos:
+		var a: float = t[0]
+		var b: float = t[1]
+		var w := b - a
+		var mur := MeshInstance3D.new()
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(w, 1.05, 0.26)
+		mur.mesh = mesh
+		mur.position = Vector3((a + b) * 0.5, 0.52, z)
+		mur.material_override = _tex_mat("res://assets/props/madera_desgastada.webp",
+				Vector3(w * 0.5, 0.7, 1.0), Color(1.2, 1.06, 0.9))
+		mur.add_to_group(GeometryBatch.NO_BATCH_GROUP)
+		add_child(mur)
+	# Dintel sobre cada tronera, para que el hueco se lea como una portilla.
+	for cx: float in trona:
+		_box(Vector3(1.4, 0.22, 0.3), Vector3(cx, 0.94, z), Color(0.42, 0.29, 0.15))
+	# Pasamanos corrido y balaustres a los extremos.
+	_box(Vector3(9.6, 0.16, 0.34), Vector3(0.0, 1.13, z), Color(0.48, 0.33, 0.17))
+	for i in range(5):
+		_box(Vector3(0.11, 0.5, 0.11), Vector3(-4.6 + i * 0.34, 1.38, z),
+			Color(0.4, 0.27, 0.14))
+		_box(Vector3(0.11, 0.5, 0.11), Vector3(4.6 - i * 0.34, 1.38, z),
+			Color(0.4, 0.27, 0.14))
+	for s2: float in [-1.0, 1.0]:
+		_box(Vector3(0.3, 1.75, 0.3), Vector3(s2 * 4.85, 0.87, z),
+			Color(0.36, 0.24, 0.12))
 
 
-## Cañón sobre su cureña, apuntando al costado.
-func _build_cannon(x: float, izq: bool) -> void:
-	var z := -3.6
-	var dir := -1.0 if izq else 1.0
-	# Cureña.
-	_box(Vector3(1.0, 0.34, 0.72), Vector3(x, 0.27, z), Color(0.42, 0.26, 0.13))
-	_box(Vector3(0.75, 0.26, 0.6), Vector3(x, 0.55, z), Color(0.36, 0.22, 0.11))
-	for dz in [-0.34, 0.34]:
-		for dx in [-0.36, 0.36]:
-			_cyl(0.19, 0.19, 0.1, Vector3(x + dx, 0.19, z + dz),
+## Cañón sobre su cureña, apuntando A PROA por una tronera de la barandilla.
+## Antes miraban al costado y la boca quedaba clavada contra la borda.
+func _build_cannon(x: float, _izq: bool) -> void:
+	var z := -5.1
+	# Cureña de tablones.
+	_box(Vector3(0.78, 0.30, 1.05), Vector3(x, 0.25, z), Color(0.42, 0.26, 0.13))
+	_box(Vector3(0.60, 0.24, 0.86), Vector3(x, 0.50, z), Color(0.36, 0.22, 0.11))
+	for dz in [-0.36, 0.36]:
+		for dx in [-0.32, 0.32]:
+			_cyl(0.17, 0.17, 0.09, Vector3(x + dx, 0.17, z + dz),
 				Color(0.3, 0.2, 0.1), Vector3(0.0, 0.0, 90.0))
-	# Tubo: eje horizontal hacia el costado, con la boca un poco alzada.
-	_cyl(0.15, 0.21, 1.5, Vector3(x + dir * 0.5, 0.78, z),
-		Color(0.17, 0.18, 0.2), Vector3(0.0, 0.0, dir * 84.0))
-	_cyl(0.24, 0.24, 0.18, Vector3(x - dir * 0.28, 0.74, z),
-		Color(0.14, 0.15, 0.17), Vector3(0.0, 0.0, dir * 84.0))
+	# Tubo tumbado a lo largo de Z, con la boca asomando por la tronera.
+	_cyl(0.15, 0.21, 1.6, Vector3(x, 0.76, z - 0.42),
+		Color(0.17, 0.18, 0.2), Vector3(90.0, 0.0, 0.0))
+	_cyl(0.24, 0.24, 0.18, Vector3(x, 0.76, z + 0.40),
+		Color(0.14, 0.15, 0.17), Vector3(90.0, 0.0, 0.0))
 	# Pila de balas al lado.
-	for b in [Vector3(0.0, 0.0, 0.0), Vector3(0.26, 0.0, 0.06),
-			Vector3(0.13, 0.21, 0.03)]:
+	for b in [Vector3(0.0, 0.0, 0.0), Vector3(0.25, 0.0, 0.06),
+			Vector3(0.12, 0.20, 0.03)]:
 		var ball := MeshInstance3D.new()
-		var s := SphereMesh.new()
-		s.radius = 0.13
-		s.height = 0.26
-		s.radial_segments = 8
-		s.rings = 5
-		ball.mesh = s
-		ball.position = Vector3(x - dir * 0.95, 0.13, z + 0.9) + b
+		var sm := SphereMesh.new()
+		sm.radius = 0.12
+		sm.height = 0.24
+		sm.radial_segments = 8
+		sm.rings = 5
+		ball.mesh = sm
+		ball.position = Vector3(x + 0.72, 0.12, z + 0.55) + b
 		ball.material_override = _mat(Color(0.16, 0.17, 0.19))
 		add_child(ball)
 
@@ -318,20 +341,64 @@ func _build_cargo() -> void:
 	_spawn_prop("res://assets/models/caja.glb", Vector3(-2.7, 0.9, -0.9), 0.68, 12.0)
 
 
-## Bandera pirata en su asta, ondeando.
-func _build_flag() -> void:
-	var x := -3.35
-	var z := -5.4
-	_cyl(0.07, 0.09, 7.2, Vector3(x, 3.6, z), Color(0.38, 0.26, 0.13))
+## Mástil de babor con su verga, la vela recogida, las jarcias que bajan al
+## costado y la bandera pirata arriba. Antes la bandera colgaba de un asta
+## suelta (y se salía por arriba) y las jarcias no llegaban a ninguna parte.
+func _build_mast() -> void:
+	var mx := -2.15
+	var mz := -3.9
+	var alto := 6.6
+	# Palo, con textura de madera.
+	var palo := MeshInstance3D.new()
+	var cil := CylinderMesh.new()
+	cil.top_radius = 0.11
+	cil.bottom_radius = 0.17
+	cil.height = alto
+	cil.radial_segments = 10
+	palo.mesh = cil
+	palo.position = Vector3(mx, alto * 0.5, mz)
+	palo.material_override = _tex_mat("res://assets/props/madera_desgastada.webp",
+			Vector3(1.0, 3.0, 1.0), Color(1.15, 1.0, 0.85))
+	palo.add_to_group(GeometryBatch.NO_BATCH_GROUP)
+	add_child(palo)
+	# Cofa y verga.
+	_box(Vector3(0.9, 0.1, 0.9), Vector3(mx, 4.45, mz), Color(0.4, 0.27, 0.14))
+	_box(Vector3(2.1, 0.13, 0.13), Vector3(mx, 4.9, mz), Color(0.42, 0.29, 0.15))
+	# Vela recogida sobre la verga.
+	var vela := MeshInstance3D.new()
+	var vm := BoxMesh.new()
+	vm.size = Vector3(1.8, 0.32, 0.28)
+	vela.mesh = vm
+	vela.position = Vector3(mx, 4.72, mz)
+	vela.material_override = _mat(Color(0.86, 0.83, 0.72))
+	add_child(vela)
+	# Jarcias: de la cofa BAJAN hasta el pasamanos de la borda, que es donde
+	# van amarradas de verdad.
+	var pie_x := -3.55
+	for i in range(5):
+		var top := Vector3(mx - 0.35 + i * 0.18, 4.4, mz)
+		var bot := Vector3(pie_x, 1.9, mz - 0.9 + i * 0.45)
+		var mid := (top + bot) * 0.5
+		var largo := top.distance_to(bot)
+		var cuerda := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.045, largo, 0.045)
+		cuerda.mesh = bm
+		cuerda.position = mid
+		cuerda.look_at_from_position(mid, bot, Vector3.UP)
+		cuerda.rotate_object_local(Vector3.RIGHT, PI * 0.5)
+		cuerda.material_override = _mat(Color(0.72, 0.64, 0.47))
+		add_child(cuerda)
+	# Bandera pirata al tope, ENTERA dentro del encuadre.
 	_flag = Node3D.new()
-	_flag.position = Vector3(x, 6.35, z)
+	_flag.position = Vector3(mx, alto - 0.55, mz)
 	_flag.add_to_group(GeometryBatch.NO_BATCH_GROUP)
 	add_child(_flag)
 	var cloth := MeshInstance3D.new()
 	var mesh := QuadMesh.new()
-	mesh.size = Vector2(1.9, 1.25)
+	mesh.size = Vector2(1.5, 1.0)
 	cloth.mesh = mesh
-	cloth.position = Vector3(0.95, 0.0, 0.0)
+	cloth.position = Vector3(0.78, 0.0, 0.0)
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = load("res://assets/props/bandera_pirata.png")
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -348,12 +415,12 @@ func _build_lantern() -> void:
 	_box(Vector3(0.5, 0.08, 0.08), Vector3(p.x - 0.22, 2.58, p.z), Color(0.32, 0.21, 0.1))
 	_box(Vector3(0.34, 0.42, 0.34), Vector3(p.x - 0.44, 2.3, p.z), Color(0.33, 0.26, 0.12))
 	var glow := MeshInstance3D.new()
-	var s := SphereMesh.new()
-	s.radius = 0.13
-	s.height = 0.26
-	s.radial_segments = 8
-	s.rings = 5
-	glow.mesh = s
+	var sm := SphereMesh.new()
+	sm.radius = 0.13
+	sm.height = 0.26
+	sm.radial_segments = 8
+	sm.rings = 5
+	glow.mesh = sm
 	glow.position = Vector3(p.x - 0.44, 2.3, p.z)
 	var gm := StandardMaterial3D.new()
 	gm.albedo_color = Color(1.0, 0.85, 0.5)
@@ -370,29 +437,6 @@ func _build_lantern() -> void:
 	_lantern.omni_range = 4.5
 	_lantern.shadow_enabled = false
 	add_child(_lantern)
-
-
-## Jarcias: dos escalas de cuerda subiendo por los costados.
-func _build_rigging() -> void:
-	for s: float in [-1.0, 1.0]:
-		var x: float = s * 3.6
-		var z := -5.0
-		for i in range(5):
-			var top := Vector3(x - s * 0.55 + s * i * 0.14, 5.4, z)
-			var bot := Vector3(x, 1.9, z)
-			var mid := (top + bot) * 0.5
-			var largo := top.distance_to(bot)
-			var rope := MeshInstance3D.new()
-			var mesh := BoxMesh.new()
-			mesh.size = Vector3(0.05, largo, 0.05)
-			rope.mesh = mesh
-			rope.position = mid
-			rope.rotation_degrees.z = rad_to_deg(atan2(top.x - bot.x, largo))
-			rope.material_override = _mat(Color(0.7, 0.62, 0.45))
-			add_child(rope)
-		for j in range(6):
-			_box(Vector3(0.72, 0.045, 0.045),
-				Vector3(x - s * 0.18, 2.2 + j * 0.55, z), Color(0.7, 0.62, 0.45))
 
 
 ## Instancia un GLB normalizado por su altura, apoyado en el suelo.
@@ -450,6 +494,7 @@ func _run_intro() -> void:
 		{ "text": "Temible para las galletas, sobre todo.", "mood": "loro_resignado" },
 		{ "text": "Te estarás preguntando qué haces aquí. Verás: mi tripulación es valiente como un tifón... pero come como un banco de pirañas.", "mood": "serio" },
 		{ "text": "Mi último cocinero saltó por la borda. Dijo algo de \"vacaciones\"... y de \"no aguantar ni un asalto más\".", "mood": "triste" },
+		{ "text": "¡TRABAJO! ¡HAY QUE TRABAJAR! ¡RAAAK! ¡Nadie quiere trabajar!", "who": "gigi", "mood": "loro_sorpresa" },
 		{ "text": "Necesito manos rápidas y estómago firme: ¡un **cocinero de sushi** para la cinta kaiten de mi barco!", "mood": "hablando" },
 		{ "text": "Pero antes de nada... dime quién eres, marinero.", "mood": "feliz" },
 	])

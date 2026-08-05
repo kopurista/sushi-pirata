@@ -40,15 +40,15 @@ const PrepBoard := preload("res://scripts/prep_board.gd")
 const SPEAKERS := {
 	"david": {
 		"dir": "res://assets/characters/david", "file": "david",
-		"name": "David Jones", "side": "left", "mood": "serio",
+		"name": "David Jones", "side": "left", "plate": "right", "mood": "serio",
 	},
 	"gigi": {
 		"dir": "res://assets/characters/david", "file": "david",
-		"name": "Gigi", "side": "left", "mood": "loro",
+		"name": "Gigi", "side": "left", "plate": "left", "mood": "loro",
 	},
 	"saverio": {
 		"dir": "res://assets/characters/saverio", "file": "saverio",
-		"name": "Saverio", "side": "right", "mood": "serio",
+		"name": "Saverio", "side": "right", "plate": "left", "mood": "serio",
 	},
 }
 const DEFAULT_SPEAKER := "david"
@@ -76,6 +76,8 @@ var _visible_chars := 0.0
 var _total_chars := 0
 var _typing := false
 var _raised := false
+## Con esto puesto, agotar la cola no oculta la caja (ver say()).
+var _keep_open := false
 
 var _panel: Control
 var _name_plate: Control
@@ -153,7 +155,14 @@ func _ready() -> void:
 	_name_label.add_theme_font_size_override("font_size", 27)
 	_name_label.add_theme_color_override("font_color", Color(1.0, 0.94, 0.8))
 	_name_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	_name_label.add_theme_constant_override("outline_size", 5)
+	_name_label.add_theme_constant_override("outline_size", 9)
+	_name_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
+	_name_label.add_theme_constant_override("shadow_offset_x", 3)
+	_name_label.add_theme_constant_override("shadow_offset_y", 3)
+	# Negrita CURSIVA: la Exo 2 trae su propio archivo BoldItalic.
+	var plate_font := load("res://fonts/static/Exo2-BoldItalic.ttf")
+	if plate_font != null:
+		_name_label.add_theme_font_override("font", plate_font)
 	_name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_name_plate.add_child(_name_label)
 	_set_plate_side("left")
@@ -198,11 +207,21 @@ func _ready() -> void:
 ## Muestra una tanda de líneas. Cada línea puede ser un String o un Dictionary
 ## { "text": String, "mood": String, "who": String }. Al terminar la tanda, la
 ## caja se oculta y se emite `finished`.
-func say(lines: Array) -> void:
+## `keep_open`: al agotar la cola la caja NO se oculta, solo emite `finished`.
+## Lo usan los guiones para encadenar tandas sin que la caja y el retrato
+## parpadeen un par de fotogramas mientras se recoloca el foco.
+func say(lines: Array, keep_open := false) -> void:
 	_queue = lines.duplicate()
 	_index = -1
+	_keep_open = keep_open
 	visible = true
 	_advance()
+
+
+## Cierra la caja y saca a los personajes de escena.
+func close() -> void:
+	visible = false
+	clear_stage()
 
 
 func is_talking() -> bool:
@@ -277,9 +296,9 @@ func _set_speaker(who: String, mood: String) -> void:
 		p.texture = load(path)
 	p.visible = true
 	_name_label.text = str(info["name"])
-	# El tablón va en el lado CONTRARIO al retrato: encima del suyo le tapaba
-	# el pecho y se salía por el borde.
-	_set_plate_side("right" if side == "left" else "left")
+	# Cada hablante tiene su lado de tablón FIJO (`plate`): David a la derecha,
+	# Gigi a la izquierda. Así se distingue de un vistazo quién está hablando.
+	_set_plate_side(str(info.get("plate", "right")))
 	# El que habla, a plena luz y arriba; el otro, apagado y algo hundido.
 	var dy := -RAISE if _raised else 0.0
 	for s in _portraits.keys():
@@ -294,7 +313,8 @@ func _set_speaker(who: String, mood: String) -> void:
 func _advance() -> void:
 	_index += 1
 	if _index >= _queue.size():
-		visible = false
+		if not _keep_open:
+			visible = false
 		finished.emit()
 		return
 	var line: Variant = _queue[_index]
@@ -341,9 +361,11 @@ func _finish_typing() -> void:
 
 
 func _gui_input(event: InputEvent) -> void:
-	var tapped: bool = (event is InputEventScreenTouch and event.pressed) \
-			or (event is InputEventMouseButton and event.pressed)
-	if not tapped:
+	# SOLO eventos táctiles. Con `pointing/emulate_touch_from_mouse` un clic
+	# genera DOS eventos (el de ratón y el táctil sintetizado) y llegaban los
+	# dos seguidos: el primero avanzaba de línea y el segundo la completaba de
+	# golpe, así que solo la PRIMERA línea de cada tanda se veía escribirse.
+	if not (event is InputEventScreenTouch and event.pressed):
 		return
 	accept_event()
 	if _typing:

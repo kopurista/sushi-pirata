@@ -616,8 +616,11 @@ func _update_info(id: String) -> void:
 
 	info_title.text = "Nivel %d — %s" % [idx + 1, port.get("name", id)]
 	info_kind.text = CampaignData.kind_name(id)
-	info_desc.text = port.get("desc", "") if unlocked \
+	# La frase descriptiva sobra: la ficha ya lo cuenta todo con sus iconos.
+	# Solo queda el aviso de nivel bloqueado.
+	info_desc.text = "" if unlocked \
 		else "Bloqueado: supera el nivel anterior para navegar hasta aquí."
+	info_desc.visible = not unlocked
 
 	for c in info_stars_box.get_children():
 		c.queue_free()

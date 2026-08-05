@@ -17,6 +17,13 @@ extends Node
 
 ## Segundos de quietud antes de que Gigi espabile al jugador.
 const INACTIVIDAD := 10.0
+## Respiro antes de que alguien hable cuando se venía de jugar: que una acción
+## del jugador no dispare un diálogo en el mismo fotograma.
+const PAUSA_ANTES := 0.3
+## Cuánto se oscurece la pantalla: FUERTE alrededor del foco, SUAVE cuando solo
+## se está hablando (ahí no se señala nada, solo se baja el ruido de fondo).
+const DIM_FOCO := 0.78
+const DIM_SUAVE := 0.34
 
 var lv: Node3D
 var dialog: DialogueBox
@@ -110,19 +117,35 @@ func _espabila() -> void:
 
 ## Alguien habla: el juego ENTERO se pausa (clientes y platos parados) y el
 ## reloj queda retenido para cuando se reanude.
-func _say(lines: Array) -> void:
-	lv.clock_hold = true
-	get_tree().paused = true
-	dialog.say(lines)
+## `espera` sustituye al respiro por defecto (algunos momentos piden más).
+## `congelar` a false deja el juego CORRIENDO mientras se habla: para cuando lo
+## interesante es justo lo que está pasando detrás (un cliente que se marcha).
+func _say(lines: Array, espera := -1.0, congelar := true) -> void:
+	# Si veníamos de jugar, un respiro antes de hablar.
+	if not lv.clock_hold:
+		await get_tree().create_timer(
+				PAUSA_ANTES if espera < 0.0 else espera).timeout
+	lv.clock_hold = congelar
+	get_tree().paused = congelar
+	# Sin foco puesto, el fondo se oscurece un poco igualmente mientras hablan.
+	var velo_propio := not focus_rect.visible
+	if velo_propio:
+		_soft_dim()
+	# `keep_open`: la caja NO se oculta al agotar la tanda. Entre dos tandas
+	# seguidas se recoloca el foco, y ocultarla dejaba un parpadeo en el que
+	# desaparecían el retrato y el pergamino.
+	dialog.say(lines, true)
 	await dialog.finished
 	get_tree().paused = false
+	if velo_propio:
+		focus_rect.visible = false
 
 
 ## Como _say pero con la caja ELEVADA: para hablar de los pergaminos de
 ## recetas, que quedan justo debajo de la caja y el retrato.
-func _say_raised(lines: Array) -> void:
+func _say_raised(lines: Array, espera := -1.0) -> void:
 	dialog.set_raised(true)
-	await _say(lines)
+	await _say(lines, espera)
 	dialog.set_raised(false)
 
 
@@ -132,6 +155,7 @@ func _play(aviso := "") -> void:
 	lv.clock_hold = false
 	_recordatorio = aviso
 	_quieto = 0.0
+	dialog.close()
 	_clear_focus()
 
 
@@ -144,6 +168,16 @@ func _focus_screen_rect(r: Rect2) -> void:
 	focus_mat.set_shader_parameter("center", c)
 	focus_mat.set_shader_parameter("radius", radius)
 	focus_mat.set_shader_parameter("feather", clampf(radius * 0.55, 34.0, 100.0))
+	focus_mat.set_shader_parameter("dim", DIM_FOCO)
+	focus_rect.visible = true
+
+
+## Velo LEVE de pantalla completa, sin agujero: solo para hablar.
+func _soft_dim() -> void:
+	focus_mat.set_shader_parameter("center", Vector2(-999.0, -999.0))
+	focus_mat.set_shader_parameter("radius", 0.0)
+	focus_mat.set_shader_parameter("feather", 0.001)
+	focus_mat.set_shader_parameter("dim", DIM_SUAVE)
 	focus_rect.visible = true
 
 

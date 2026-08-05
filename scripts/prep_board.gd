@@ -679,6 +679,15 @@ func add_storage_slot() -> void:
 
 
 ## Potenciador "Reciclaje de platos": vuelve como uso instantáneo (xN).
+## Repasa los botones de barco, combinar y extras. Hay que llamarlo cuando
+## `hide_extras` se pone DESPUÉS del _ready de la tabla (lo hace level3d al leer
+## el puerto): si no, los botones se quedan como se construyeron, visibles.
+func refresh_extra_ui() -> void:
+	_update_boat_button()
+	_update_combo_button()
+	_update_extra_buttons()
+
+
 ## Añade una receta a la tabla EN PLENA PARTIDA: la usa el guion del nivel 3,
 ## donde David regala el nigiri de atún al aparecer el primer pirata.
 func add_recipe(id: String) -> void:

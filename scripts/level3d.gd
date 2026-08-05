@@ -311,6 +311,10 @@ func _ready() -> void:
 			total_clients = type_queue.size()
 		# Puertos que aún no han presentado extras, combinados ni barco.
 		prep_board.hide_extras = bool(port.get("no_extras", false))
+		# Los botones ya se construyeron en el _ready de la tabla: hay que
+		# repasarlos para que se escondan de verdad.
+		if prep_board.hide_extras:
+			prep_board.refresh_extra_ui()
 		# Puertos NARRADOS: David se asoma en momentos concretos del nivel.
 		if str(port.get("director", "")) != "":
 			var guia := preload("res://scripts/level_director.gd").new()
