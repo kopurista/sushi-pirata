@@ -44,6 +44,13 @@ const MODELS := {
 		MALE: "res://assets/models/vip_rig.glb",
 		FEMALE: "res://assets/models/vip_fem_rig.glb",
 	},
+	# Cliente ESPECIAL de un solo puerto: Pablo el Rubio, el capitán de la flota
+	# del nivel 5. Come como un capitán, pero con su propio modelo (y su navaja
+	# en lugar de mano derecha). No tiene variante femenina: es un personaje
+	# concreto, no un tipo de cliente.
+	"pablo": {
+		MALE: "res://assets/models/pablo_rig.glb",
+	},
 	"chef": {
 		MALE: "res://assets/models/chef_rig.glb",
 		FEMALE: "res://assets/models/chef_fem_rig.glb",

@@ -14,6 +14,10 @@ signal craft_event(kind: String, stage_id: String)
 ## Un gesto mal hecho cuesta dinero (cortes de fugu y atún rojo). El nivel lo
 ## descuenta del monedero sin bajar de 0.
 signal money_penalty(amount: int)
+## Corte lento hecho DEMASIADO RÁPIDO. Va aparte de `money_penalty` porque el
+## guion del nivel 5 perdona el dinero mientras enseña el corte, pero Gigi
+## tiene que regañar igual.
+signal slice_failed
 ## Contenido de las cajas de guardado tras cada cambio: array paralelo a las
 ## cajas con {"id", "count"} o null si esa caja está vacía. El nivel lo usa
 ## para reflejar lo guardado en las cajas 3D que hay junto al chef.
@@ -25,6 +29,9 @@ signal helper_used
 enum State { IDLE, CRAFTING, READY }
 
 const SWIPE_THRESHOLD := 70.0
+## Cuánto se ve la etapa del paso anterior antes de cambiarla por el sprite
+## "from" de un drag_stage (ver _swap_stage_from).
+const FROM_SWAP_DELAY := 0.5
 ## Recorrido horizontal (px) que debe cubrir el corte lento, de izquierda a
 ## derecha, por todo el ancho de la tabla.
 const SLICE_SWEEP := 360.0
@@ -843,6 +850,10 @@ var hide_extras := false
 ## puerto de campaña el que las levanta (level3d las fija al leer el nivel).
 var hide_boat := false
 var hide_combo := false
+## Mientras un guion ESTÁ ENSEÑANDO un gesto, equivocarse no cuesta dinero (el
+## corte del salmón que explica David en el nivel 5). El aviso y el destello
+## rojo siguen saliendo: lo único que se perdona es el bolsillo.
+var free_mistakes := false
 ## Sin tipar a Array[String] a propósito: el director asigna literales de
 ## Array y el tipado estricto rechazaba la asignación.
 var allowed_recipes: Array = []
@@ -1499,8 +1510,26 @@ func _advance_step() -> void:
 	var stage_id: String = stages[step_index - 1] if step_index - 1 < stages.size() else ""
 	_set_stage(stage_id)
 	_update_prop()
+	_swap_stage_from()
 	craft_event.emit("stage", stage_id)
 	_update_ui()
+
+
+## "from" de un paso drag_stage: lo que se arrastra NO es el resultado del paso
+## anterior. Se enseña ese resultado un instante (el cuenco de arroz recién
+## montado, que es a donde hay que llevar el salmón) y después la etapa cambia
+## sola al sprite indicado, que es lo que el dedo va a coger.
+func _swap_stage_from() -> void:
+	var desde: String = str(_current_step().get("from", ""))
+	if desde == "":
+		return
+	var paso := step_index
+	var t := create_tween()
+	t.tween_interval(FROM_SWAP_DELAY)
+	t.tween_callback(func() -> void:
+		# Si mientras tanto se ha cancelado o se ha avanzado, no tocar nada.
+		if state == State.CRAFTING and step_index == paso:
+			_set_stage(desde))
 
 
 ## Botón de cancelar: una CRUZ roja redonda en vez del botón de madera con la
@@ -2354,12 +2383,13 @@ func _handle_slice(event: InputEvent, step: Dictionary) -> void:
 			# "fail_penalty": cortar deprisa el pescado caro cuesta dinero (el
 			# corte se repite igual, pero cada fallo se paga).
 			var penalty := int(step.get("fail_penalty", 0))
-			if penalty > 0:
+			if penalty > 0 and not free_mistakes:
 				_flash_message("¡Más lento!  -$%d" % penalty)
 				money_penalty.emit(penalty)
 			else:
 				_flash_message("¡Más lento!")
 			_slice_fail_feedback()
+			slice_failed.emit()
 			_update_tap_bar()
 			return
 		slices_done += 1

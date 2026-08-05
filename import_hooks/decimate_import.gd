@@ -49,6 +49,7 @@ const BUDGETS := {
 	"dragon_roll": 2500,
 	"nigiri_wagyu": 2500,
 	"udon_tempura": 2500,
+	"salmon_tsuke_don": 2500,
 	# Nodos del mapa: hay NUEVE en pantalla a la vez.
 	"map_isla": 4000,
 	"map_puerto": 4000,
@@ -64,6 +65,7 @@ const BUDGETS := {
 	"capitan_fem_rig": 6000,
 	"vip_fem_rig": 6000,
 	"ayudante_fem_rig": 6000,
+	"pablo_rig": 6000,
 }
 
 ## Tope de pasadas. Cada `generate_lods` recorta ~50%, así que 6 pasadas dan de

@@ -372,8 +372,7 @@ func _filtered_recipes() -> Array:
 			var only_f: String = data.get("only_type", "")
 			if only_f != "" and only_f != filter_client:
 				continue
-			if _forced_chance(data, filter_client,
-					_take_chance(filter_client, tier)) < 0.4:
+			if _forced_chance(data, filter_client, tier) < 0.4:
 				continue
 		out.append(id)
 	out.sort_custom(func(a: String, b: String) -> bool:
@@ -808,7 +807,7 @@ func _build_clients_block(data: Dictionary) -> Control:
 	for t in CLIENT_TYPES:
 		var chance: float = 0.0
 		if only == "" or only == t:
-			chance = _forced_chance(data, t, _take_chance(t, tier))
+			chance = _forced_chance(data, t, tier)
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
 		var icon := TextureRect.new()
@@ -828,20 +827,18 @@ func _build_clients_block(data: Dictionary) -> Control:
 	return col
 
 
-## Aplica el "take_chance" de la receta si lo trae, igual que hace el cliente:
-## un número vale para todos y un diccionario {E,A,G} da uno por tipo.
-func _forced_chance(data: Dictionary, client_type: String, fallback: float) -> float:
+## La probabilidad REAL de que ese tipo coja el plato, con la misma cuenta que
+## hace el cliente: matriz propia de la receta si la trae ("take_chances", el
+## barco), y encima el "take_chance" (número para todos o {E,A,G} por tipo).
+func _forced_chance(data: Dictionary, client_type: String, tier: int) -> float:
+	var table: Dictionary = data.get("take_chances", Client3D.TAKE_CHANCES)
+	var base: float = float(table.get(client_type, {}).get(tier, 0.0))
 	var forced: Variant = data.get("take_chance", null)
 	if forced is Dictionary:
-		return float(forced.get(client_type, fallback))
+		return float(forced.get(client_type, base))
 	if forced != null:
 		return float(forced)
-	return fallback
-
-
-## Probabilidad real de que un tipo de cliente coja un plato de ese nivel.
-func _take_chance(client_type: String, tier: int) -> float:
-	return float(Client3D.TAKE_CHANCES.get(client_type, {}).get(tier, 0.0))
+	return base
 
 
 ## La probabilidad, en cristiano.

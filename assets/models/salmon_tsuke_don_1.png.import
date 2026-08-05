@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ct7dmngqs3r2o"
-path="res://.godot/imported/map_isla_1.png-9d2016f86cedafe8b241622f3fa01927.ctex"
+uid="uid://vm53mserulyp"
+path="res://.godot/imported/salmon_tsuke_don_1.png-e926d7f381092a8abf39d1c8129e8630.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "0171e0d2e3a745435fd781eaec106762"
+"md5": "8837aef97764a94f2680077089b336a6"
 }
 
 [deps]
 
-source_file="res://assets/models/map_isla_1.png"
-dest_files=["res://.godot/imported/map_isla_1.png-9d2016f86cedafe8b241622f3fa01927.ctex"]
+source_file="res://assets/models/salmon_tsuke_don_1.png"
+dest_files=["res://.godot/imported/salmon_tsuke_don_1.png-e926d7f381092a8abf39d1c8129e8630.ctex"]
 
 [params]
 
@@ -39,5 +39,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=512
+process/size_limit=256
 detect_3d/compress_to=0

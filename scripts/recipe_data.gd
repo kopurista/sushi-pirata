@@ -19,6 +19,10 @@ class_name RecipeData
 ##    "¡Más lento!" y hay que repetir. { "count": N, "duration": s }
 ##  - drag_stage: aparece un utensilio ("prop", sprite de assets/stages) a la
 ##    derecha de la tabla y hay que arrastrar el sprite de etapa hasta él. { "prop": id }
+##    Con "from" se arrastra OTRO sprite en vez del resultado del paso anterior:
+##    en el tsuke don el paso previo deja montado el cuenco de arroz (que es el
+##    destino) y lo que se coge es el salmón que reposaba en la soja. La etapa
+##    del paso anterior se ve un instante y luego cambia sola al sprite "from".
 ##  - use_stored: montar un combinado con platos YA GUARDADOS: hay que arrastrar
 ##    N platos desde las cajas hasta la tabla. { "count": N, "prop"?: bandeja }
 ##
@@ -46,6 +50,10 @@ class_name RecipeData
 ##   TAKE_CHANCES. Admite un número (igual para los tres tipos: el edamame es un
 ##   acompañamiento que pica todo el mundo) o un diccionario {E,A,G} con uno por
 ##   tipo (el onigiri lo comen los tres, pero es plato de grumete).
+## "take_chances": sustituye la matriz ENTERA por tipo × nivel. Lo usa el barco
+##   combinado (BOAT_TAKE_CHANCES), que se coge mucho más que un plato suelto
+##   del mismo nivel. Se indexa por el nivel REAL del plato, así que el barco
+##   usa el que sale de su contenido.
 ## "snack_refill": cuánto alarga el bocado en curso un picoteo, como fracción
 ##   de su duración (por defecto client3d.SNACK_EAT_REFILL). El gari lo deja
 ##   casi a cero porque su gracia es la propina, no el tiempo.
@@ -193,6 +201,17 @@ const WAGYU_WINDOWS := [
 	{ "to": 999.0, "price": 11, "dish": "nigiri_wagyu", "label": "Muy hecho",
 		"color": Color(1.0, 0.72, 0.30) },
 ]
+
+## Matriz PROPIA del barco combinado (campo "take_chances" de la receta). Un
+## barco no es un plato más: es una bandeja para compartir, así que entra por
+## los ojos a todo el mundo y casi nadie la deja pasar. Se indexa por el nivel
+## REAL del barco, que sale de los platos que lleva dentro (level_override),
+## no por el nivel nominal de la receta.
+const BOAT_TAKE_CHANCES: Dictionary = {
+	"E": { 1: 1.00, 2: 0.60, 3: 0.30 },
+	"A": { 1: 0.80, 2: 1.00, 3: 0.70 },
+	"G": { 1: 0.60, 2: 0.80, 3: 1.00 },
+}
 
 const RECIPES: Dictionary = {
 	"maki_aguacate": {
@@ -588,6 +607,34 @@ const RECIPES: Dictionary = {
 		"stages": ["arroz_bola", "bol_arroz", "chirashi_medio", "chirashi_atun",
 			"chirashi_wakame", "pepino_tabla", "pepino_cubos", "chirashi_pepino", ""],
 	},
+	# Regalo de David en el nivel 5, cuando aparece Pablo el Rubio. El salmón
+	# se corta LENTO, reposa en un cuenco de soja mientras se monta el cuenco de
+	# arroz con wakame y pepino, y al final se vuelca sobre él: por eso el
+	# último paso lleva "from" (lo que se arrastra es el cuenco de soja, no el
+	# resultado del paso anterior, que es justamente el destino).
+	"salmon_tsuke_don": {
+		"label": "Tsuke",
+		"name": "Salmón Tsuke Don",
+		"level": 3,
+		"satiety": 3,
+		"cooldown": 7.5,
+		"price": 14,
+		"tip_chance_bonus": 0.03,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "arroz" },
+			{ "type": "tap_board", "count": 5 },
+			{ "type": "tap_ingredient", "ingredient": "salmon" },
+			{ "type": "slice_board", "count": 2, "duration": 0.7, "direction": "right",
+				"cut_stage": "sashimi_salmon_cort", "fail_penalty": 4 },
+			{ "type": "drag_stage", "prop": "cuenco_soja" },
+			{ "type": "drag_ingredient", "ingredient": "wakame" },
+			{ "type": "tap_ingredient", "ingredient": "pepino" },
+			{ "type": "tap_board", "count": 3, "cutting": true },
+			{ "type": "drag_stage", "prop": "cuenco_pepino", "from": "soja_salmon" },
+		],
+		"stages": ["arroz_bola", "bol_arroz", "sashimi_salmon", "sashimi_salmon_cort",
+			"soja_salmon", "cuenco_wakame", "pepino_tabla", "cuenco_pepino", ""],
+	},
 	"udon": {
 		"label": "Udon",
 		"name": "Udon",
@@ -945,6 +992,8 @@ const RECIPES: Dictionary = {
 		# NO se elige en el selector: aparece como icono bajo las cajas cuando
 		# hay 4 platos guardados de al menos dos clases distintas.
 		"hidden": true,
+		# Se cogen mucho más que un plato suelto del mismo nivel (ver arriba).
+		"take_chances": BOAT_TAKE_CHANCES,
 		"steps": [],
 		"stages": [],
 	},

@@ -104,11 +104,30 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   y, al cerrar, las primas de sobrantes. Nivel 3: el pirata entra el último
   (`late_type` en el puerto) o se adelanta al 70% del objetivo, y David regala
   el **nigiri de atún** metiéndolo en la tabla EN MARCHA
-  (`prep_board.add_recipe`).
+  (`prep_board.add_recipe`). Nivel 4: presenta el BARCO combinado nada más
+  empezar. Nivel 5: la flota de **Pablo el Rubio** — presentación de Pablo
+  (con su broma de apuñalar a David), y cuando por fin se sienta a la barra,
+  regalo del **salmón tsuke don** con la explicación del corte lento.
+  **El `match` de `_run()` hay que ampliarlo con cada guion nuevo**: `_nivel_4`
+  estaba escrito pero sin su rama, así que David no aparecía en el nivel 4
+  ni con partida nueva.
+- **Cliente ESPECIAL de un puerto** (`special_client` en `CampaignData`):
+  `{who, type}` hace que UNO de los clientes de ese tipo salga con un modelo
+  propio (`client3d.who_override` → `CharacterData.MODELS`), sin tocar el
+  equilibrio: come, paga y aguanta como los de su tipo. Con `late_type` del
+  mismo tipo, entra el último. Lo usa Pablo el Rubio en el nivel 5. La fila de
+  cabezas del HUD sigue contándolo como capitán (no tiene icono propio).
+- **`prep_board.free_mistakes`**: mientras un guion ESTÁ ENSEÑANDO un gesto,
+  fallar el corte lento no cuesta dinero (el aviso y el destello rojo siguen).
+  El guion se entera por la señal `slice_failed`, aparte de `money_penalty`
+  justamente para poder regañar sin cobrar.
+- **`prep_dialog` en un puerto**: aviso de David en el SELECTOR DE RECETAS
+  antes de zarpar (`prep_screen._aviso_antes_de_zarpar`). Como los guiones de
+  nivel, solo suena si el puerto no está superado.
 
 ## Arquitectura (archivos y responsabilidad)
 
-- `scripts/recipe_data.gd` — datos const de las 39 recetas: nivel, saciedad,
+- `scripts/recipe_data.gd` — datos const de las recetas: nivel, saciedad,
   cooldown, precio, `free_uses` (maestría), `vegetarian` (apta para clientes
   vegetarianos, aún sin efecto en cliente), `steps` (secuencia de gestos) y
   `stages` (sprite por paso). Ingredientes y helpers `get_dish_texture` /
@@ -136,10 +155,15 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   momento en el que señala solo esa), `fry_board` {target}
   (freír a pulso: contador con milésimas, SIN barra; al soltar se resuelve por
   `FRY_WINDOWS`; crudo/carbonizado se desliza fuera de pantalla, cuesta
-  `FRY_WASTE_PENALTY`=5 y entra el cooldown), `drag_stage` {prop}
+  `FRY_WASTE_PENALTY`=5 y entra el cooldown), `drag_stage` {prop, from?}
   (aparece un utensilio —sprite de `assets/stages`— animado en la esquina
   inferior derecha de la tabla y se arrastra el sprite de etapa hasta él;
-  exige arrastre REAL >24 px y soltar sobre el prop, un toque no cuenta).
+  exige arrastre REAL >24 px y soltar sobre el prop, un toque no cuenta. Con
+  `from` lo que se arrastra NO es el resultado del paso anterior: se ve ese
+  resultado medio segundo y luego la etapa cambia sola al sprite indicado. Lo
+  necesita el **salmón tsuke don**, donde el paso previo deja montado el cuenco
+  de arroz —que es el DESTINO— y lo que se coge es el salmón que reposaba en la
+  soja).
   `stages` tiene un id de sprite por paso ("" = ninguno); el último stage
   no-vacío se descarta al emplatar (el plato final es el mismo voxel que el
   emplatado).
@@ -248,9 +272,18 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   cambia la tipografía entera. Las negritas del diálogo usan `Exo2-Bold.ttf`
   de verdad, no `variation_embolden`.
 - **PERSONAJES 2D del guion** (`DialogueBox.SPEAKERS`): **David Jones**
-  (`assets/characters/david/david_<mood>.png`, 12 expresiones) y **Saverio**
-  el tendero (`assets/characters/saverio/saverio_<mood>.png`, 5). Todas
+  (`assets/characters/david/david_<mood>.png`, 12 expresiones), **Saverio**
+  el tendero (`assets/characters/saverio/saverio_<mood>.png`, 5) y **Pablo el
+  Rubio** (`assets/characters/pablo/pablo_<mood>.png`, 7: serio, hablando,
+  feliz, riendo, sorprendido, guason y punal). Todas
   derivadas por `editImage` del mismo base para conservar la identidad.
+  **La navaja de Pablo costó cinco intentos**: pedir "un puñal en lugar de
+  mano" da SIEMPRE una mano sosteniendo un puñal, por mucho que se prohíban
+  los dedos. Lo que funcionó fue describirlo como PRÓTESIS con la referencia
+  del garfio: "su antebrazo acaba en un casquillo de metal y cuero del que
+  sale una hoja recta EN LA MISMA DIRECCIÓN del antebrazo, como el garfio de
+  un pirata pero con hoja". Y una vez conseguida, las expresiones se derivan
+  repitiendo esa descripción como invariante en cada `editImage`.
   David lleva SIEMPRE a su loro **Gigi** al hombro, y por eso sus moods van en
   dos familias: con el loro CALLADO (serio, hablando, feliz, riendo,
   sorprendido, gritando, triste, mira_loro) y con el loro CHILLANDO con las
@@ -881,6 +914,7 @@ que no hay problema.
   udon 6, nigiri_atun/inari 6, sashimi_tamago 6, gunkan_tartar 7 (L2),
   temaki 7, gunkan_ikura 8, futomaki 10, sashimi_atun_rojo 11, nigiri_ebi 11,
   fugu 11, hana_maki 12, aburi 12, chirashi 16; moriawase dinámico (~26-90).
+  salmon_tsuke_don 14 (regalo de David en el nivel 5).
   Postres: mochi 3, dorayaki 5, taiyaki 10 (baratos a propósito: su valor es
   vaciar la silla y la propina asegurada). Tanda nueva: caldo_dashi 4,
   nigiri_pulpo 7, uramaki_california 8 (+2 gratis), nigiri_anguila 9,
@@ -1080,8 +1114,12 @@ que no hay problema.
   **el dado se tira UNA vez por plato** (si falla entra en `declined` y no se
   vuelve a mirar). `take_chance` en la receta salta la matriz y admite las dos
   formas: un número igual para todos (edamame y té verde 0.9) o un diccionario
-  `{E,A,G}` con uno por tipo (onigiri y yaki onigiri 0.85/0.70/0.70). Tiempos de
-  comida por tipo×nivel en `EAT_TIMES`.
+  `{E,A,G}` con uno por tipo (onigiri y yaki onigiri 0.85/0.70/0.70). Y
+  `take_chances` sustituye la MATRIZ ENTERA: lo usa el barco combinado
+  (`RecipeData.BOAT_TAKE_CHANCES`, 100/80/60 · 60/100/80 · 30/70/100), que es
+  una bandeja para compartir y entra por los ojos a todo el mundo; se indexa por
+  el nivel REAL del barco, el que sale de su contenido. Tiempos de comida por
+  tipo×nivel en `EAT_TIMES`.
 - **Propinas por plato** (`client.gd::TIP_RULES`, se tira al terminar CADA
   plato desde el 1º; la probabilidad se mantiene en la base hasta el 3er plato
   (`ramp`) y a partir de ahí crece por plato; cuantía = % del dinero ACUMULADO

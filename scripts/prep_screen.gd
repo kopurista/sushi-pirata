@@ -104,6 +104,37 @@ func _ready() -> void:
 	_update_ui()
 	if GameState.take_transition() == "arcade":
 		call_deferred("_play_intro")
+	_aviso_antes_de_zarpar.call_deferred()
+
+
+## Algunos puertos traen un aviso de David ANTES de elegir la carta
+## (`prep_dialog` en CampaignData). Como los guiones dentro del nivel, solo
+## suena la primera vez: si el puerto ya está superado, el jugador sabe de sobra
+## a lo que va.
+func _aviso_antes_de_zarpar() -> void:
+	if not GameState.is_adventure():
+		return
+	var port := CampaignData.get_port(GameState.current_port)
+	var guion := str(port.get("prep_dialog", ""))
+	if guion == "":
+		return
+	var superado: bool = int(GameState.level_stars.get(GameState.current_port, 0)) \
+			>= int(port.get("goal_stars", 1))
+	if superado:
+		return
+	if guion != "nivel_5":
+		return
+	var caja := DialogueBox.new()
+	$UI.add_child(caja)
+	caja.say([
+		{ "text": "Antes de zarpar, escúchame bien: hoy abordamos la **flota de Pablo el Rubio**.", "mood": "serio" },
+		{ "text": "Pablo es un viejo amigo mío, pero de los que se ríen mientras te cobran. Y es **capitán**, así que come de tres estrellas.", "mood": "hablando" },
+		{ "text": "Solo puedes llevar **tres recetas** y el turno dura minuto y medio. Carga sobre todo platos de **una y dos estrellas**: son los que sacas rápido y los que van a comer los grumetes y los piratas.", "mood": "hablando" },
+		{ "text": "De lo gordo ya me encargo yo cuando llegue Pablo. Tú confía y cocina.", "mood": "feliz" },
+		{ "text": "¡CONFÍA Y COCINA! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+	])
+	await caja.finished
+	caja.queue_free()
 
 
 # ------------------------------------------------------- entrada y salida

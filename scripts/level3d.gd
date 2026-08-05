@@ -196,6 +196,12 @@ var play_time := 0.0
 ## Cara que usa la fila de cabezas del HUD para cada tipo: la del PRIMER cliente
 ## de ese tipo que ha llegado. tipo -> genero.
 var head_gender: Dictionary = {}
+## Cliente ESPECIAL del puerto (`special_client` en CampaignData): un personaje
+## con nombre y modelo propios que sustituye a UNO de los clientes de su tipo.
+## De momento solo Pablo el Rubio, en el nivel 5.
+var special_who := ""
+var special_type := ""
+var special_spawned := false
 var chef_anim: CharacterAnim = null
 var chef_tween: Tween = null
 var chef_prop: Sprite3D
@@ -309,6 +315,11 @@ func _ready() -> void:
 				type_queue = resto
 				type_queue.append_array(tardios)
 			total_clients = type_queue.size()
+		# Cliente con nombre propio de este puerto (Pablo el Rubio en el 5):
+		# el primero de su tipo que se siente sale con SU modelo.
+		var especial: Dictionary = port.get("special_client", {})
+		special_who = str(especial.get("who", ""))
+		special_type = str(especial.get("type", ""))
 		# Puertos que aún no han presentado extras, combinados ni barco.
 		prep_board.hide_extras = bool(port.get("no_extras", false))
 		# El barco se estrena en el nivel 4 y desde ahí sale siempre; los
@@ -1510,6 +1521,13 @@ func _try_spawn_client() -> bool:
 	# partida a otra sin tocar la mezcla de TIPOS, que es lo que equilibra el
 	# nivel (client_mix cuenta grumetes/piratas/capitanes, no generos).
 	c.gender = CharacterData.random_gender()
+	# El cliente ESPECIAL del puerto ocupa el primer hueco de su tipo que salga
+	# (con `late_type` puesto, el último de la cola). Es un personaje concreto,
+	# así que ni se sortea su género ni se repite.
+	if special_who != "" and not special_spawned and c.client_type == special_type:
+		special_spawned = true
+		c.who_override = special_who
+		c.gender = CharacterData.MALE
 	# La fila de cabezas del HUD cuenta por TIPO, y la cara que enseña es la del
 	# PRIMERO de ese tipo que ha pisado el barco en esta partida.
 	if not head_gender.has(c.client_type):

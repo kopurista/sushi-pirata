@@ -111,18 +111,28 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_5",
-		"name": "Cabo del Capitán",
-		"desc": "Baja a tierra el primer capitán: exige lo mejor de la carta.",
-		"client_mix": { "E": 4, "A": 3, "G": 1 },
-		"time_limit": 180.0,
+		"name": "Flota del capitán Pablo el Rubio",
+		"desc": "Abordaje a la flota de un viejo conocido de David.",
+		"client_mix": { "E": 2, "A": 2, "G": 1 },
+		"time_limit": 90.0,
 		"patience_mult": 0.9,
-		"arrival_scale": 0.75,
+		"arrival_scale": 0.7,
 		"goal_stars": 3,
-		# Menos clientes pero de más nivel (el capitán come L2-L3): techo ~$95.
-		"star_money": [25, 48, 70],
+		# Partida exprés de 1:30 con cinco bocas: el techo lo marca la
+		# producción, no la clientela.
+		"star_money": [20, 35, 50],
 		"boat": true,
-		"reward_recipes": ["sashimi_tamago", "nigiri_inari", "udon",
-			"tempura", "gunkan_tartar", "gunkan_ikura"],
+		# Carta LIBRE, pero solo tres huecos: hay que elegir bien.
+		"recipe_slots": 3,
+		# El capitán del nivel es Pablo el Rubio: mismo comportamiento que un
+		# capitán normal, pero con su propio modelo (ver CharacterData).
+		"special_client": { "who": "pablo", "type": "G" },
+		# Pablo entra el ÚLTIMO; si el jugador va sobrado, el guion lo adelanta.
+		"late_type": "G",
+		"director": "nivel_5",
+		# David avisa en el selector de recetas antes de zarpar.
+		"prep_dialog": "nivel_5",
+		"reward_recipes": ["aburi", "sashimi_atun_rojo"],
 	},
 	{
 		"id": "nivel_6",
@@ -137,7 +147,8 @@ const PORTS: Array = [
 		"star_money": [28, 55, 80],
 		"boat": true,
 		"reward_recipes": ["yaki_onigiri", "futomaki_salmon",
-			"uramaki_california", "nigiri_pulpo"],
+			"uramaki_california", "nigiri_pulpo", "sashimi_tamago",
+			"nigiri_inari"],
 	},
 	{
 		"id": "nivel_7",
@@ -151,7 +162,7 @@ const PORTS: Array = [
 		# Partida de 1:30 (~60% de producción) con futomaki L3 disponible: ~$65.
 		"star_money": [20, 40, 58],
 		"boat": true,
-		"reward_recipes": ["sashimi_atun_rojo", "nigiri_anguila", "temaki"],
+		"reward_recipes": ["nigiri_anguila", "temaki", "udon", "tempura"],
 	},
 	{
 		"id": "nivel_8",
@@ -165,7 +176,8 @@ const PORTS: Array = [
 		# Más clientes que asientos (8): rotación constante, techo ~$120-130.
 		"star_money": [32, 62, 90],
 		"boat": true,
-		"reward_recipes": ["nigiri_ebi", "aburi", "hana_maki", "taiyaki"],
+		"reward_recipes": ["nigiri_ebi", "hana_maki", "taiyaki",
+			"gunkan_tartar", "gunkan_ikura"],
 	},
 	{
 		"id": "nivel_9",
@@ -197,7 +209,7 @@ const KINDS: Dictionary = {
 	"nivel_2": "puerto",
 	"nivel_3": "isla",
 	"nivel_4": "isla",
-	"nivel_5": "puerto",
+	"nivel_5": "abordaje",
 	"nivel_6": "abordaje",
 	"nivel_7": "abordaje",
 	"nivel_8": "puerto",

@@ -30,6 +30,10 @@ func _run() -> void:
 			await _nivel_2()
 		"nivel_3":
 			await _nivel_3()
+		"nivel_4":
+			await _nivel_4()
+		"nivel_5":
+			await _nivel_5()
 
 
 # ------------------------------------------------------------------ utilidades
@@ -266,12 +270,7 @@ func _hay_pirata() -> bool:
 
 ## Saca al pirata de la cola y lo manda al principio, para que entre ya.
 func _adelantar_pirata() -> void:
-	for i in lv.type_queue.size():
-		if lv.type_queue[i] == "A":
-			lv.type_queue.remove_at(i)
-			lv.type_queue.push_front("A")
-			break
-	lv._try_spawn_client()
+	_adelantar_tipo("A")
 
 
 ## ¿Hay un plato TERMINADO esperando en la tabla?
@@ -345,3 +344,137 @@ func _focus_boat() -> void:
 	var b: Control = lv.prep_board.boat_button
 	if b != null and is_instance_valid(b):
 		_focus_screen_rect(b.get_global_rect().grow(14.0))
+
+
+# ------------------------------------------------------------------- nivel 5
+
+## Regalo de David cuando aparece Pablo el Rubio.
+const RECETA_PABLO := "salmon_tsuke_don"
+## Fracción del objetivo a la que Pablo se adelanta si el jugador va sobrado
+## (en este puerto entra el último, y sería una pena que no diera tiempo).
+const AVISO_PABLO := 0.8
+## Aviso que repite Gigi si el jugador se queda parado con la receta nueva.
+const AVISO_TSUKE := "¡El **tsuke don**! ¡Que se lo pongas al de las gafas!"
+
+## ¿Se está enseñando el corte del salmón? Mientras dure, cortar deprisa no
+## cuesta dinero (`prep_board.free_mistakes`) y Gigi explica cómo se hace.
+var _ensenando_corte := false
+var _regano_corte := false
+var _tsuke_servido := false
+
+
+## Flota del capitán Pablo el Rubio: abordaje exprés. Al empezar se presenta
+## Pablo (viejo amigo de David, y muy pesado con la broma del puñal), y cuando
+## por fin se sienta a la barra David regala el salmón tsuke don.
+func _nivel_5() -> void:
+	await _say([
+		{ "text": "Agárrate, %s: eso de ahí enfrente no es un puerto, es la **flota de Pablo el Rubio**." % GameState.player_title(), "mood": "hablando" },
+		{ "text": "¡PIRATAS! ¡RAAAK! ¡NOS ABORDAN! ¡ESCONDED EL ARROZ!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "Que no, plumas, que Pablo es de los míos. Nos conocemos de hace años.", "mood": "loro_resignado" },
+		{ "text": "¡**David Jones**! ¡Cuánto bueno por estas aguas!", "who": "pablo", "mood": "feliz" },
+		{ "text": "¡Pablo! Te presento a mi cocinero. Pablo, guarda eso an...", "mood": "hablando" },
+		{ "text": "¡ZAS! ¡Te pillé! Tranquilo, hombre, que es de broma. **Casi** siempre.", "who": "pablo", "mood": "punal" },
+		{ "text": "¡LE HA CLAVADO LA NAVAJA! ¡RAAAK! ¡AL CAPITÁN! ¡QUE ALGUIEN HAGA ALGO!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "No me ha clavado nada, bicho, me ha rozado el chaleco. Hace la misma gracia desde hace quince años.", "mood": "loro_resignado" },
+		{ "text": "Y sigue teniéndola. Me quedo un rato por aquí: quiero probar qué sabe hacer tu chico.", "who": "pablo", "mood": "guason" },
+		{ "text": "Ya lo has oído. Hoy solo llevas **tres recetas** y hay poco tiempo, así que ve soltando platos sin parar. Yo te echo un cable cuando llegue Pablo.", "mood": "serio" },
+	])
+	_play()
+	await _tras_la_preparacion()
+
+	# Pablo entra el ÚLTIMO de la cola; si el jugador va sobrado, se adelanta
+	# para que dé tiempo a estrenar su receta con él.
+	await _esperar(func() -> bool:
+		return lv.ended or _hay_pablo() or _progreso() >= AVISO_PABLO)
+	if lv.ended:
+		return
+	if not _hay_pablo():
+		_adelantar_tipo("G")
+		await _esperar(func() -> bool: return lv.ended or _hay_pablo())
+	if lv.ended:
+		return
+	var pablo := _pablo()
+	# Un momento para verlo sentarse antes de que nadie hable.
+	await get_tree().create_timer(1.4).timeout
+	_focus_client(pablo)
+	await _say([
+		{ "text": "¡Ahí lo tienes! Un **capitán** en tu barra, y de los que pagan bien.", "mood": "feliz" },
+		{ "text": "¡Qué barco tan mono tenéis! Se ve pequeñito desde el mío.", "who": "pablo", "mood": "guason" },
+		{ "text": "Tú sirve, %s, que a este lo conozco: come de tres estrellas o no come." % GameState.player_title(), "mood": "hablando" },
+	])
+
+	# El regalo: una receta de 3 estrellas que entra en la tabla en marcha.
+	if GameState.unlock_recipe(RECETA_PABLO):
+		GameState.gift_ingredients_for([RECETA_PABLO], GameState.PORT_GIFT)
+		GameState.save_game()
+	lv.prep_board.add_recipe(RECETA_PABLO)
+	await _focus_node(lv.prep_board.buttons[RECETA_PABLO], 12.0)
+	await _say_raised([
+		{ "text": "Y para eso te traigo esto: el **salmón tsuke don**. Tres estrellas, y guardado para una ocasión como esta.", "mood": "feliz" },
+		{ "text": "Moldeas el **arroz** en el cuenco, coges el **salmón** y lo cortas... **despacio**. Ese corte es la receta entera: si vas con prisa, destrozas el lomo.", "mood": "serio" },
+		{ "text": "El salmón cortado se deja **reposando en la soja** mientras montas el cuenco: **wakame** encima del arroz y el **pepino** en tres cortes.", "mood": "hablando" },
+		{ "text": "Y al final vuelcas el salmón de la soja sobre el cuenco. Ahí lo tienes.", "mood": "hablando" },
+		{ "text": "¡DESPACIO CON EL CUCHILLO! ¡RAAAK! ¡Que te estoy mirando!", "who": "gigi", "mood": "loro" },
+		{ "text": "Por esta vez, si te sale mal el corte no te cuesta oro: estás aprendiendo. Otro día sí.", "mood": "riendo" },
+	])
+	# Mientras aprende el corte, equivocarse sale gratis (pero Gigi regaña).
+	_ensenando_corte = true
+	lv.prep_board.free_mistakes = true
+	if not lv.prep_board.slice_failed.is_connected(_on_corte_fallado):
+		lv.prep_board.slice_failed.connect(_on_corte_fallado)
+	if not lv.prep_board.dish_served.is_connected(_on_plato_servido):
+		lv.prep_board.dish_served.connect(_on_plato_servido)
+	_play(AVISO_TSUKE)
+
+	# El perdón dura hasta que sirve el primer tsuke don (o hasta el final).
+	await _esperar(func() -> bool: return lv.ended or _tsuke_servido)
+	_ensenando_corte = false
+	lv.prep_board.free_mistakes = false
+	if lv.ended or not _tsuke_servido:
+		return
+	await _say([
+		{ "text": "¡Vaya, vaya! Esto no me lo esperaba en un barco de este tamaño.", "who": "pablo", "mood": "sorprendido" },
+		{ "text": "¿Lo ves? Te lo dije: el chico vale. Y ahora, si me disculpas, voy a cobrarte la broma del puñal.", "mood": "riendo" },
+	])
+	_play()
+
+
+## Gigi regaña la PRIMERA vez que el corte del salmón sale demasiado rápido.
+func _on_corte_fallado() -> void:
+	if not _ensenando_corte or _regano_corte or dialog.is_talking():
+		return
+	_regano_corte = true
+	await _say([
+		{ "text": "¡DEMASIADO RÁPIDO! ¡RAAAK! ¡ASÍ NO SE CORTA UN SALMÓN!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "El dedo va de **izquierda a derecha** y **sin correr**: hay que cruzar la tabla entera despacio hasta que la barra se llene. Si llegas antes de tiempo, no vale.", "who": "gigi", "mood": "loro" },
+		{ "text": "Hazle caso, que de cuchillos entiende. Hoy el destrozo lo pago yo; mañana lo pagas tú.", "mood": "loro_resignado" },
+	])
+	_play(AVISO_TSUKE)
+
+
+func _on_plato_servido(recipe_id: String, _precio: int, _extras: Array,
+		_nivel: int) -> void:
+	if recipe_id == RECETA_PABLO:
+		_tsuke_servido = true
+
+
+## El cliente especial del puerto (Pablo el Rubio), si ya está en la barra.
+func _pablo() -> Node3D:
+	for c in lv.seat_clients:
+		if c is Node3D and is_instance_valid(c) and c.who_override == "pablo":
+			return c
+	return null
+
+
+func _hay_pablo() -> bool:
+	return _pablo() != null
+
+
+## Saca de la cola al primer cliente de ese tipo y lo manda al principio.
+func _adelantar_tipo(tipo: String) -> void:
+	for i in lv.type_queue.size():
+		if lv.type_queue[i] == tipo:
+			lv.type_queue.remove_at(i)
+			lv.type_queue.push_front(tipo)
+			break
+	lv._try_spawn_client()

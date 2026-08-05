@@ -50,6 +50,12 @@ const SPEAKERS := {
 		"dir": "res://assets/characters/saverio", "file": "saverio",
 		"name": "Saverio", "side": "right", "plate": "left", "mood": "serio",
 	},
+	# Capitán del nivel 5. Sale a la DERECHA porque comparte pantalla con David,
+	# que ocupa siempre la izquierda.
+	"pablo": {
+		"dir": "res://assets/characters/pablo", "file": "pablo",
+		"name": "Pablo el Rubio", "side": "right", "plate": "left", "mood": "serio",
+	},
 }
 const DEFAULT_SPEAKER := "david"
 

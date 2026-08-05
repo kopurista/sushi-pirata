@@ -96,6 +96,10 @@ var guaranteed_next: bool = false
 ## Multiplicador extra del tiempo de comer. Solo lo toca el guion del tutorial,
 ## que necesita bocados largos para poder explicar cosas mientras el cliente come.
 var slow_eat: float = 1.0
+## Personaje CONCRETO en vez del que le tocaría por tipo (`CharacterData.MODELS`):
+## lo usa Pablo el Rubio en el nivel 5, que come como un capitán pero tiene su
+## propio modelo. "" = el del tipo de siempre.
+var who_override: String = ""
 ## Perdona el castigo de marcharse sin comer (ver force_leave).
 var _sin_castigo := false
 ## Puntos de la ruta de entrada (el nivel los define; el ultimo es el asiento).
@@ -182,8 +186,9 @@ func _make_blob() -> void:
 func _spawn_model() -> void:
 	_body = Node3D.new()
 	add_child(_body)
-	var path := CharacterData.model(
-		CharacterData.who_for_type(client_type), gender)
+	var quien: String = who_override if who_override != "" \
+			else CharacterData.who_for_type(client_type)
+	var path := CharacterData.model(quien, gender)
 	var inst: Node3D = (load(path) as PackedScene).instantiate()
 	_body.add_child(inst)
 	var aabb := _merged_aabb(inst)
@@ -459,7 +464,10 @@ func _scan_belt(snack_only: bool = false) -> void:
 		# número, que vale igual para todos (el edamame lo pica cualquiera), o
 		# un diccionario {E,A,G} con uno por tipo (el onigiri gusta a los tres,
 		# pero no por igual).
-		var chance: float = TAKE_CHANCES.get(client_type, {}).get(plate_satiety, 0.0)
+		# "take_chances": matriz PROPIA de la receta (el barco combinado). Se
+		# indexa igual, por tipo y nivel, solo que con otros números.
+		var table: Dictionary = data.get("take_chances", TAKE_CHANCES)
+		var chance: float = table.get(client_type, {}).get(plate_satiety, 0.0)
 		var forced: Variant = data.get("take_chance", null)
 		if forced is Dictionary:
 			chance = float(forced.get(client_type, chance))
