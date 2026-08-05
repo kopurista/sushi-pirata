@@ -15,7 +15,10 @@ extends StoryDirector
 const SEAT := 0
 ## Lo que se alarga el nigiri del tutorial: da tiempo a explicar el té mientras
 ## el grumete sigue masticando.
-const NIGIRI_LENTO := 4.5
+## El nigiri del tutorial se come LENTÍSIMO a propósito: tiene que durar lo
+## bastante como para explicar el té verde, prepararlo y que llegue a la mesa.
+## En cuanto el cliente pica el té, vuelve al ritmo normal.
+const NIGIRI_LENTO := 14.0
 
 var client: Node3D = null
 

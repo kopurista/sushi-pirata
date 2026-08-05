@@ -311,6 +311,10 @@ func _ready() -> void:
 			total_clients = type_queue.size()
 		# Puertos que aún no han presentado extras, combinados ni barco.
 		prep_board.hide_extras = bool(port.get("no_extras", false))
+		# El barco se estrena en el nivel 4 y desde ahí sale siempre; los
+		# combinados todavía no se presentan en ningún puerto.
+		prep_board.hide_boat = not bool(port.get("boat", false))
+		prep_board.hide_combo = not bool(port.get("combo", false))
 		# Los botones ya se construyeron en el _ready de la tabla: hay que
 		# repasarlos para que se escondan de verdad.
 		if prep_board.hide_extras:
@@ -337,6 +341,9 @@ func _ready() -> void:
 	# TUTORIAL: sin horario de llegadas ni fase de preparación — manda el guion
 	# de David (tutorial_director), que trae clientes y arranca o para el reloj.
 	if GameState.is_tutorial():
+		# Objetivo de muestra: se enseña en el marcador, pero el tutorial no
+		# termina por dinero (lo cierra su guion).
+		star_money = [12]
 		time_limit = 600.0
 		total_clients = 1
 		prep_phase = false
@@ -2177,13 +2184,22 @@ func _build_breakdown() -> void:
 	breakdown_box.add_child(header)
 
 	# De dónde sale el dinero del turno: platos, propinas y las primas de cierre.
-	_breakdown_note("Por platos servidos", money_earned)
+	# Primero lo que decide si el nivel se supera (platos + propinas) y luego,
+	# separadas, las primas de cierre, que se suman DESPUÉS.
+	_breakdown_note("Dinero base", money_earned)
 	if tips_total > 0:
-		_breakdown_note("Por propinas", tips_total)
-	if bonus_clients > 0:
-		_breakdown_note("Por clientes sobrantes", bonus_clients)
-	if bonus_time > 0:
-		_breakdown_note("Por tiempo sobrante", bonus_time)
+		_breakdown_note("Propinas", tips_total)
+	if bonus_clients > 0 or bonus_time > 0:
+		var extra := Label.new()
+		extra.text = "— Extra —"
+		extra.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		extra.add_theme_font_size_override("font_size", 19)
+		extra.add_theme_color_override("font_color", Color(0.55, 0.36, 0.12))
+		breakdown_box.add_child(extra)
+		if bonus_clients > 0:
+			_breakdown_note("Por clientes sobrantes", bonus_clients)
+		if bonus_time > 0:
+			_breakdown_note("Por tiempo sobrante", bonus_time)
 
 	for type in ["E", "A", "G"]:
 		var reports: Array = []
@@ -2546,15 +2562,17 @@ func _on_exit_pressed() -> void:
 	vb.add_child(btns)
 	var quit := Button.new()
 	quit.text = "Salir"
-	quit.custom_minimum_size = Vector2(170, 62)
-	prep_board.skin_button(quit)
+	quit.custom_minimum_size = Vector2(186, 66)
+	# Rojo con aspa: es la opción que echa atrás la partida.
+	prep_board.skin_action_button(quit, false)
 	quit.add_theme_font_size_override("font_size", 24)
 	quit.pressed.connect(_confirm_exit)
 	btns.add_child(quit)
 	var stay := Button.new()
 	stay.text = "Seguir"
-	stay.custom_minimum_size = Vector2(170, 62)
-	prep_board.skin_button(stay)
+	stay.custom_minimum_size = Vector2(186, 66)
+	# Verde con visto: seguir jugando es la opción que confirma.
+	prep_board.skin_action_button(stay, true)
 	stay.add_theme_font_size_override("font_size", 24)
 	stay.pressed.connect(func() -> void:
 		get_tree().paused = was_paused

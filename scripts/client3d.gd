@@ -60,6 +60,9 @@ const PATIENCE_FOOD: Dictionary = { 1: 0.09, 2: 0.22, 3: 0.38 }
 const REPEAT_DECAY := 0.4
 ## Cada plato comido acelera el drenaje de paciencia en este factor.
 const PATIENCE_DRAIN_PER_PLATE := 0.025
+## Mientras NO ha comido nada, la paciencia baja a esta fracción del ritmo
+## normal: da margen para que todo cliente llegue a catar su primer plato.
+const FIRST_PLATE_DRAIN := 0.45
 ## Cuando el nivel ya ha terminado, el bocado que quedaba a medias corre a esta
 ## velocidad: el jugador solo espera a cobrarlo, no tiene sentido hacerle mirar.
 const END_BITE_SPEED := 5.0
@@ -314,6 +317,11 @@ func _process(delta: float) -> void:
 			_patience_bar.modulate = Color.WHITE
 			# Cuanto mas ha comido, mas rapido se agota la paciencia.
 			var drain := 1.0 + PATIENCE_DRAIN_PER_PLATE * eaten_ids.size()
+			# Recién sentado la paciencia baja MUCHO más despacio: casi todo el
+			# mundo debe llegar a probar su primer plato. En cuanto come algo,
+			# el drenaje pasa a ser el normal.
+			if eaten_ids.is_empty():
+				drain *= FIRST_PLATE_DRAIN
 			patience -= delta * drain
 			patience_bar_update()
 			if patience <= 0.0:

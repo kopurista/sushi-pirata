@@ -716,6 +716,17 @@ func _on_sail_pressed() -> void:
 	GameState.mode = "adventure"
 	GameState.current_port = selected_id
 	GameState.selected_recipes = []
+	# Los puertos de CARTA CERRADA (las islas) no pasan por el selector: se
+	# juega con las recetas que manda el nivel y punto.
+	var fijas: Array = CampaignData.get_port(selected_id).get("fixed_recipes", [])
+	if not fijas.is_empty():
+		var recs: Array[String] = []
+		for r in fijas:
+			recs.append(str(r))
+		GameState.selected_recipes = recs
+		GameState.selected_perks = []
+		GameState.fade_to_scene("res://scenes/level3d.tscn", 0.35, 0.45)
+		return
 	GameState.fade_to_scene("res://scenes/prep_screen.tscn", 0.35, 0.45)
 
 

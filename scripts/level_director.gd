@@ -10,6 +10,11 @@ extends StoryDirector
 ## Fracción del dinero objetivo a partir de la cual se consideran "bien
 ## encaminados" y saltan las explicaciones que no dependen de un suceso.
 const AVISO_PROGRESO := 0.7
+## Cuánto sube la caja para hablar de los EXTRAS: viven en la esquina alta de
+## la tabla, más arriba que la fila de recetas.
+const EXTRAS_RAISE := 470.0
+## Usos que regala David de cada extra que le falte al jugador.
+const EXTRAS_REGALO := 2
 
 var guion := ""
 ## Clientes ya revisados en client_reports (para pillar al que se va de vacío).
@@ -176,18 +181,20 @@ func _nivel_3() -> void:
 	])
 	_play()
 
-	# Nada más ver el primer plato terminado, los EXTRAS.
-	await _esperar(func() -> bool: return lv.ended or lv.dishes_served > 0)
+	# Los EXTRAS se explican con el plato RECIÉN TERMINADO en la tabla, antes de
+	# que el jugador lo coloque: es el único momento en que se pueden usar.
+	await _esperar(func() -> bool: return lv.ended or _hay_plato_hecho())
 	if lv.ended:
 		return
+	_focus_extras()
 	await _say_raised([
-		{ "text": "¡Alto ahí! Antes de seguir, mira la esquina de tu tabla: los **extras**.", "mood": "hablando" },
-		{ "text": "Se le echan a un plato YA TERMINADO, antes de mandarlo a la cinta, y se gastan por plato servido.", "mood": "serio" },
+		{ "text": "¡Alto ahí, no lo sirvas todavía! Mira la esquina de tu tabla: los **extras**.", "mood": "hablando" },
+		{ "text": "Se le echan a un plato **ya terminado**, justo antes de mandarlo a la cinta, y se gastan por plato servido.", "mood": "serio" },
 		{ "text": "El **jengibre** limpia el paladar: ese plato no le cuenta al cliente como repetido, así que le sabe a nuevo.", "mood": "hablando" },
 		{ "text": "El **wasabi** hace más **probable** que te dejen propina, y la **soja** hace que, cuando cae, caiga más **gorda**.", "mood": "hablando" },
 		{ "text": "¡ECHA WASABI A TODO! ¡RAAAK! ¡A TODO!", "who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "A todo no, plumas, que se gastan. Úsalos en los platos caros, que es donde se nota.", "mood": "loro_resignado" },
-	])
+		{ "text": "A todo no, plumas, que se gastan. Úsalos donde más renten.", "mood": "loro_resignado" },
+	], -1.0, EXTRAS_RAISE)
 	_play()
 	await _tras_la_preparacion()
 
@@ -229,6 +236,22 @@ func _nivel_3() -> void:
 	await lv.prep_board.dish_served
 	_play()
 
+	# Y el truco de la casa: como solo hay UN plato de 2 estrellas para el
+	# pirata, el jengibre evita que se le haga repetitivo. Si al jugador le
+	# faltan extras, David se los pone.
+	var regalados := _reponer_extras()
+	_focus_extras()
+	var consejo: Array = [
+		{ "text": "Un consejo de capitán para este puerto: hoy solo llevas **un plato de 2 estrellas** para el pirata, así que se lo vas a repetir sí o sí.", "mood": "serio" },
+		{ "text": "Échale **jengibre** al **nigiri de atún** y el plato no le contará como repetido: le sabrá a nuevo cada vez.", "mood": "hablando" },
+		{ "text": "Y si encima le pones **wasabi** o **soja**, la propina será más probable y más gorda. Ahí es donde se hace el dinero de verdad.", "mood": "feliz" },
+	]
+	if regalados:
+		consejo.append({ "text": "¿Que andas corto de extras? Toma de mi despensa, invita la casa. ¡Pero no te acostumbres!", "mood": "riendo" })
+		consejo.append({ "text": "¡NO TE ACOSTUMBRES! ¡RAAAK!", "who": "gigi", "mood": "loro" })
+	await _say_raised(consejo, -1.0, EXTRAS_RAISE)
+	_play()
+
 
 func _pirata() -> Node3D:
 	for c in lv.seat_clients:
@@ -249,3 +272,81 @@ func _adelantar_pirata() -> void:
 			lv.type_queue.push_front("A")
 			break
 	lv._try_spawn_client()
+
+
+## ¿Hay un plato TERMINADO esperando en la tabla?
+func _hay_plato_hecho() -> bool:
+	return not lv.prep_board.dishes.is_empty()
+
+
+## Foco sobre la fila de extras de la tabla.
+func _focus_extras() -> void:
+	var botones: Dictionary = lv.prep_board.extra_buttons
+	var r := Rect2()
+	var primero := true
+	for id in botones:
+		var b: Control = botones[id]
+		if not is_instance_valid(b):
+			continue
+		r = b.get_global_rect() if primero else r.merge(b.get_global_rect())
+		primero = false
+	if not primero:
+		_focus_screen_rect(r.grow(14.0))
+
+
+## Repone los extras que le falten al jugador. Devuelve true si ha regalado algo.
+func _reponer_extras() -> bool:
+	var dado := false
+	for ing in RecipeData.EXTRAS:
+		if GameState.get_ingredient_uses(ing) <= 0:
+			GameState.add_ingredient_uses(ing, EXTRAS_REGALO)
+			dado = true
+	if dado:
+		GameState.save_game()
+		lv.prep_board.refresh_extra_ui()
+	return dado
+
+
+# ------------------------------------------------------------------- nivel 4
+
+## Arrecife del Ron: se estrena el BARCO combinado. David lo presenta en cuanto
+## el jugador tiene platos guardados suficientes como para que le interese.
+func _nivel_4() -> void:
+	await _say([
+		{ "text": "**Arrecife del Ron**. Dos piratas hoy, y vienen por el **atún**.", "mood": "hablando" },
+		{ "text": "Antes de empezar, mira si llevas de todo. Si te falta algún ingrediente, date una vuelta por la **tienda** de Saverio antes de zarpar: sin género no hay plato.", "mood": "serio" },
+	])
+	_play()
+	await _tras_la_preparacion()
+
+	# El barco pide cuatro platos guardados de al menos dos clases.
+	await _esperar(func() -> bool:
+		return lv.ended or _platos_guardados() >= 3)
+	if lv.ended:
+		return
+	_focus_boat()
+	await _say_raised([
+		{ "text": "¿Ves ese icono redondo de ahí abajo? Es el **barco combinado**, y hoy lo estrenas.", "mood": "feliz" },
+		{ "text": "Junta **cuatro platos** en las cajas, de al menos **dos clases distintas**, y el botón se enciende. Al pulsarlo los monta todos en una bandeja y la sirve de una vez.", "mood": "hablando" },
+		{ "text": "Y aquí está el truco: el barco se paga por la **variedad**. Cuantas más clases distintas lleve, más prima. Cuatro clases valen mucho más que cuatro platos iguales.", "mood": "serio" },
+		{ "text": "¡BARCO! ¡BARCO! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "Guarda variado durante la preparación y suéltalo cuando se te junte la clientela. Es la mejor manera de servir a varios a la vez.", "mood": "hablando" },
+	], -1.0, EXTRAS_RAISE)
+	_play()
+
+
+## Cuántos platos hay guardados en las cajas (`stacks` va por hueco: cada uno
+## con su receta y cuántas unidades apila).
+func _platos_guardados() -> int:
+	var n := 0
+	var cajas: Dictionary = lv.prep_board.stacks
+	for hueco in cajas:
+		n += int(cajas[hueco].count)
+	return n
+
+
+## Foco sobre el botón del barco combinado.
+func _focus_boat() -> void:
+	var b: Control = lv.prep_board.boat_button
+	if b != null and is_instance_valid(b):
+		_focus_screen_rect(b.get_global_rect().grow(14.0))

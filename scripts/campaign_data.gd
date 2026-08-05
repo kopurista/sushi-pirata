@@ -47,7 +47,7 @@ const PORTS: Array = [
 		"arrival_scale": 1.0,
 		"goal_stars": 3,
 		# 4 grumetes con platos de $1-3 y el maki rindiendo 3 piezas: ~$50 de techo.
-		"star_money": [14, 26, 40],
+		"star_money": [12, 20, 30],
 		"reward_recipes": ["edamame", "gunkan_wakame"],
 		# Primer nivel de verdad: carta CERRADA (las del tutorial) y sin extras,
 		# combinados ni barco, que se presentan más adelante.
@@ -65,7 +65,7 @@ const PORTS: Array = [
 		"arrival_scale": 0.65,
 		"goal_stars": 3,
 		# 10 clientes es MUCHA rotación aunque solo sean grumetes: techo ~$110.
-		"star_money": [24, 42, 60],
+		"star_money": [20, 34, 50],
 		"reward_recipes": ["onigiri"],
 		"no_extras": true,
 		"unlocks_shop": true,
@@ -81,10 +81,11 @@ const PORTS: Array = [
 		"arrival_scale": 0.8,
 		"goal_stars": 3,
 		# Pocos clientes pero uno come L2, y a mitad se suma el nigiri de atún.
-		"star_money": [20, 38, 55],
+		"star_money": [20, 34, 50],
 		"reward_recipes": ["dorayaki", "maki_atun"],
-		# Toda la carta disponible, pero solo TRES huecos que llevar.
-		"recipe_slots": 3,
+		# Isla: carta cerrada. La CUARTA la regala David en plena partida.
+		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "onigiri"],
+		"no_extras": false,
 		# El pirata llega el último; David lo aprovecha para regalar el nigiri
 		# de atún en plena partida (ver level_director.gd).
 		"late_type": "A",
@@ -93,15 +94,20 @@ const PORTS: Array = [
 	{
 		"id": "nivel_4",
 		"name": "Arrecife del Ron",
-		"desc": "Doble tripulación: 6 grumetes y 4 piratas sedientos.",
-		"client_mix": { "E": 6, "A": 4 },
+		"desc": "Cuatro grumetes y dos piratas con sed de atún.",
+		"client_mix": { "E": 4, "A": 2 },
 		"time_limit": 150.0,
-		"patience_mult": 0.85,
-		"arrival_scale": 0.7,
+		"patience_mult": 0.9,
+		"arrival_scale": 0.8,
 		"goal_stars": 3,
-		# 10 clientes con 4 piratas de L2: techo ~$90-100.
-		"star_money": [24, 45, 65],
-		"reward_recipes": ["sopa_miso", "sashimi_tamago", "udon", "tempura"],
+		"star_money": [24, 42, 60],
+		"reward_recipes": ["udon", "tempura"],
+		# Isla: carta cerrada con los dos escalones de la carta, salmón y atún.
+		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "maki_atun",
+			"nigiri_atun"],
+		# El BARCO combinado se estrena aquí y a partir de ahora sale siempre.
+		"boat": true,
+		"director": "nivel_4",
 	},
 	{
 		"id": "nivel_5",
@@ -114,8 +120,9 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		# Menos clientes pero de más nivel (el capitán come L2-L3): techo ~$95.
 		"star_money": [25, 48, 70],
-		"reward_recipes": ["nigiri_inari", "caldo_dashi", "gunkan_tartar",
-			"gunkan_ikura"],
+		"boat": true,
+		"reward_recipes": ["sopa_miso", "sashimi_tamago", "nigiri_inari",
+			"caldo_dashi", "gunkan_tartar", "gunkan_ikura"],
 	},
 	{
 		"id": "nivel_6",
@@ -128,6 +135,7 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		# 11 clientes y 2 capitanes: techo ~$110.
 		"star_money": [28, 55, 80],
+		"boat": true,
 		"reward_recipes": ["yaki_onigiri", "futomaki_salmon",
 			"uramaki_california", "nigiri_pulpo"],
 	},
@@ -142,6 +150,7 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		# Partida de 1:30 (~60% de producción) con futomaki L3 disponible: ~$65.
 		"star_money": [20, 40, 58],
+		"boat": true,
 		"reward_recipes": ["sashimi_atun_rojo", "nigiri_anguila", "temaki"],
 	},
 	{
@@ -155,6 +164,7 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		# Más clientes que asientos (8): rotación constante, techo ~$120-130.
 		"star_money": [32, 62, 90],
+		"boat": true,
 		"reward_recipes": ["nigiri_ebi", "aburi", "hana_maki", "taiyaki"],
 	},
 	{
@@ -168,6 +178,7 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		# Final: 17 clientes (más del doble que asientos), techo ~$140.
 		"star_money": [36, 70, 100],
+		"boat": true,
 		"reward_recipes": ["fugu", "chirashi", "dragon_roll",
 			"nigiri_wagyu", "sashimi_variado"],
 	},

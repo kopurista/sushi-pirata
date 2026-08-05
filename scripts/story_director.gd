@@ -150,10 +150,11 @@ func _say(lines: Array, espera := -1.0, congelar := true) -> void:
 
 ## Como _say pero con la caja ELEVADA: para hablar de los pergaminos de
 ## recetas, que quedan justo debajo de la caja y el retrato.
-func _say_raised(lines: Array, espera := -1.0) -> void:
-	dialog.set_raised(true)
+func _say_raised(lines: Array, espera := -1.0,
+		alto := DialogueBox.RAISE) -> void:
+	dialog.set_raised(true, alto)
 	await _say(lines, espera)
-	dialog.set_raised(false)
+	dialog.set_raised(false, alto)
 
 
 ## Suelta el reloj: fase interactiva. `aviso` es lo que recordará Gigi si el

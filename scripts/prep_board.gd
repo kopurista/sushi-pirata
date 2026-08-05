@@ -637,15 +637,17 @@ func _build_recipe_button(id: String) -> void:
 	# Insignia de maestría/reciclaje: "x2", "x3"...
 	var badge := Label.new()
 	badge.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	badge.offset_left = -66.0
-	badge.offset_top = 2.0
-	badge.offset_right = -8.0
-	badge.offset_bottom = 30.0
+	badge.offset_left = -84.0
+	badge.offset_top = 0.0
+	badge.offset_right = -6.0
+	badge.offset_bottom = 44.0
 	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	badge.add_theme_font_size_override("font_size", 20)
-	badge.add_theme_color_override("font_color", Color(0.55, 1.0, 0.55))
+	# Grande a propósito: en el móvil, con 20 px, el "x2" de los makis no se
+	# leía sobre el pergamino.
+	badge.add_theme_font_size_override("font_size", 34)
+	badge.add_theme_color_override("font_color", Color(0.6, 1.0, 0.55))
 	badge.add_theme_color_override("font_outline_color", Color.BLACK)
-	badge.add_theme_constant_override("outline_size", 5)
+	badge.add_theme_constant_override("outline_size", 9)
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(badge)
 
@@ -834,6 +836,13 @@ var tutorial_mode := false
 ## mecánicas (`no_extras` en CampaignData): los primeros puertos se juegan solo
 ## con la tabla y la cinta.
 var hide_extras := false
+## El BARCO combinado y el botón de COMBINAR tienen su propia compuerta: el
+## barco se presenta en el nivel 4 y los combinados aún más tarde, así que no
+## pueden ir atados a la misma bandera que los extras.
+## Por defecto NO ocultan nada: en Arcade y en las pruebas está todo. Es cada
+## puerto de campaña el que las levanta (level3d las fija al leer el nivel).
+var hide_boat := false
+var hide_combo := false
 ## Sin tipar a Array[String] a propósito: el director asigna literales de
 ## Array y el tipado estricto rechazaba la asignación.
 var allowed_recipes: Array = []
@@ -1250,7 +1259,7 @@ func _consume_stored(id: String) -> void:
 func _update_boat_button() -> void:
 	if boat_button == null:
 		return
-	if tutorial_mode or hide_extras:
+	if tutorial_mode or hide_boat:
 		boat_button.visible = false
 		return
 	var cooling := boat_cooldown > 0.0
@@ -1271,7 +1280,7 @@ func _update_boat_button() -> void:
 func _update_combo_button() -> void:
 	if combo_button == null:
 		return
-	if tutorial_mode or hide_extras:
+	if tutorial_mode or hide_combo:
 		combo_button.visible = false
 		return
 	var combo := _combo_ready()

@@ -77,6 +77,7 @@ var _visible_chars := 0.0
 var _total_chars := 0
 var _typing := false
 var _raised := false
+var _raise_amount := RAISE
 ## Con esto puesto, agotar la cola no oculta la caja (ver say()).
 var _keep_open := false
 
@@ -241,11 +242,14 @@ func clear_stage() -> void:
 
 
 ## Sube (o baja) la caja y los retratos para dejar ver la fila de recetas.
-func set_raised(on: bool) -> void:
-	if _raised == on:
+## `alto` permite subirla MÁS de lo normal: para hablar de los extras, que
+## viven en la esquina superior de la tabla y quedan más arriba que las recetas.
+func set_raised(on: bool, alto := RAISE) -> void:
+	if _raised == on and is_equal_approx(_raise_amount, alto):
 		return
 	_raised = on
-	var dy := -RAISE if on else 0.0
+	_raise_amount = alto
+	var dy := -alto if on else 0.0
 	if _raise_tween != null:
 		_raise_tween.kill()
 	_raise_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE)
@@ -305,7 +309,7 @@ func _set_speaker(who: String, mood: String) -> void:
 	# Gigi a la izquierda. Así se distingue de un vistazo quién está hablando.
 	_set_plate_side(str(info.get("plate", "right")))
 	# El que habla, a plena luz y arriba; el otro, apagado y algo hundido.
-	var dy := -RAISE if _raised else 0.0
+	var dy := -_raise_amount if _raised else 0.0
 	for s in _portraits.keys():
 		var q: TextureRect = _portraits[s]
 		var hablando: bool = (s == side)
