@@ -69,6 +69,43 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 - `level.gd` accede a `prep_board.instant_recipes / skip_next_cooldown /
   easy_next / double_next / stack_max / cooldown_mult` para aplicar potenciadores.
 
+## Guiones narrados (tutorial y primeros niveles)
+
+- `scripts/story_director.gd` (`StoryDirector`) es la BASE de todo guion sobre
+  `level3d`: pausa el árbol entero al hablar (`get_tree().paused`, con la caja
+  y el director en `PROCESS_MODE_ALWAYS`), retiene el reloj (`lv.clock_hold`),
+  pinta el FOCO circular y vigila la inactividad. Las hijas solo escriben
+  `_run()`. De ella cuelgan `tutorial_director.gd` y `level_director.gd`.
+- **FOCO**: el radio sale del LADO MAYOR del rectángulo, no de la diagonal
+  (con la diagonal un botón de receta pedía 135 px y el círculo se comía media
+  tabla), acotado a 48-150 px. Y `_focus_node()` **espera DOS fotogramas antes
+  de medir**: los contenedores de Godot recolocan a sus hijos de forma
+  diferida, así que justo después de tocar `allowed_recipes` el botón sigue en
+  su sitio VIEJO — de ahí que los focos del nigiri y del té cayeran al lado
+  del pergamino en vez de encima.
+- **Vigía de inactividad**: 10 s sin tocar nada en una fase interactiva y Gigi
+  grita "¡ESPABILA!" + el recordatorio que dejó puesto `_play(aviso)`. No salta
+  con alguien hablando ni con un gesto sostenido en curso
+  (`prep_board.is_gesture_locked()`), que se arruinaría.
+- **Cliente del tutorial**: asiento **3**. Con la cámara isométrica (yaw 45) el
+  eje +X cae hacia ABAJO-DERECHA, así que la cara +X son los asientos 2 y 3 y
+  el 3 es el más bajo; además esa cara entra por la borda inferior.
+- **Orden del tutorial**: maki → cinta/cajas → primer cliente → oro → **nigiri
+  de salmón** (con `client.slow_eat` ×4.5, para que dé tiempo a explicar cosas
+  mientras mastica) → Gigi explica la **barra de comer** → **té verde** →
+  David explica la **barra de paciencia** (foco en la barra del cliente, ya sin
+  comer) → mochi → por qué conviene echar clientes. El "aburrimiento" se llama
+  ahora **hastío** y la barra gris es la **paciencia**.
+- `scripts/level_director.gd` narra los puertos que llevan `director` en
+  `CampaignData`. Nivel 1: qué pasa si un plato da la vuelta entera (se cuenta
+  EN CALIENTE la primera vez que ocurre; si no ocurre, a media partida).
+  Nivel 2: bienvenida al puerto, consejos, el castigo por dejar marchar a
+  alguien de vacío (en caliente o, si no pasa, al llegar al 70% del objetivo)
+  y, al cerrar, las primas de sobrantes. Nivel 3: el pirata entra el último
+  (`late_type` en el puerto) o se adelanta al 70% del objetivo, y David regala
+  el **nigiri de atún** metiéndolo en la tabla EN MARCHA
+  (`prep_board.add_recipe`).
+
 ## Arquitectura (archivos y responsabilidad)
 
 - `scripts/recipe_data.gd` — datos const de las 39 recetas: nivel, saciedad,
@@ -204,6 +241,79 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   apartado y una tarjeta por logro con la medalla conseguida, la barra de lo que
   falta para la SIGUIENTE y tres chapas. Los logros de receta llevan el sprite
   del plato como icono; los demás, la moneda del juego teñida del metal.
+- **FUENTE del juego**: **Exo 2 Regular 400** (`fonts/static/Exo2-Regular.ttf`),
+  puesta en `project.godot` como `gui/theme/custom_font`. Ese ajuste cambia
+  `ThemeDB.fallback_font`, que es lo que usaba TODO el juego (no había ni un
+  `add_theme_font_override` fuera de la caja de diálogo), así que con una línea
+  cambia la tipografía entera. Las negritas del diálogo usan `Exo2-Bold.ttf`
+  de verdad, no `variation_embolden`.
+- **PERSONAJES 2D del guion** (`DialogueBox.SPEAKERS`): **David Jones**
+  (`assets/characters/david/david_<mood>.png`, 12 expresiones) y **Saverio**
+  el tendero (`assets/characters/saverio/saverio_<mood>.png`, 5). Todas
+  derivadas por `editImage` del mismo base para conservar la identidad.
+  David lleva SIEMPRE a su loro **Gigi** al hombro, y por eso sus moods van en
+  dos familias: con el loro CALLADO (serio, hablando, feliz, riendo,
+  sorprendido, gritando, triste, mira_loro) y con el loro CHILLANDO con las
+  alas abiertas (loro, loro_sorpresa, loro_grito, loro_resignado). **Gigi no
+  tiene retrato propio**: es un hablante (`who: "gigi"`) que reutiliza el
+  dibujo de David con el loro chillando y solo cambia el nombre del tablón.
+  Gigi tiene mal genio, se enfada con los clientes y es quien salta cuando el
+  jugador se equivoca; David hace de contrapunto (`loro_resignado`).
+  **Saverio sale a la DERECHA** y David a la izquierda: en la escena de la
+  tienda están los dos a la vez y el que no habla se queda apagado y hundido.
+  El tablón del nombre va en el lado CONTRARIO al retrato de quien habla —
+  encima del suyo le tapaba el pecho y se salía por el borde.
+  **Encuadre**: Saverio se generó primero demasiado cerca (su cabeza ocupaba
+  el 47% del alto frente al 30% de David) y hubo que rehacer la base pidiendo
+  explícitamente "cámara MUCHO más atrás, de la cintura para arriba, con aire
+  sobre la cabeza" y volver a derivar las expresiones desde ahí.
+- **Máquina de escribir de `DialogueBox`, la trampa**: NO comparar contra
+  `RichTextLabel.get_total_character_count()`. Devuelve 0 hasta que el nodo ha
+  maquetado, así que en el primer `_process` se cumplía `0 >= 0` y la línea
+  salía entera de golpe (el efecto no se veía NUNCA). La longitud se calcula a
+  mano quitando los marcadores `**` del texto de origen.
+- **TUTORIAL de David Jones** (capitán calvo con barba GRIS y larga, retrato
+  2D cel-shading):
+  `scripts/dialogue_box.gd` (`DialogueBox`): caja de pergamino inferior +
+  retrato a la izquierda + tablón con el nombre; máquina de escribir letra a
+  letra (un toque completa la línea, el siguiente avanza; flecha ▶ latiendo
+  cuando se puede pasar), texto con márgenes anchos (95 px: los rodillos del
+  pergamino tapaban 52), **palabras clave entre `**asteriscos**` en el guion**
+  → negrita teja vía `format_keywords` (NUNCA mayúsculas), `set_raised(true)`
+  sube caja y retrato ~330 px (para no tapar la fila de recetas al hablar de
+  ella); `say([{text, mood}...])` → señal `finished`; traga TODO el input y
+  funciona en pausa.
+  **TRAMPA de CanvasLayer**: un Control colgado de un CanvasLayer recién creado
+  NO debe usar `set_anchors_preset` — FULL_RECT se resuelve contra la VENTANA
+  FÍSICA (p. ej. 1450×2560 en pantalla escalada) o queda a 0×0, pisando el
+  tamaño. Anclas a cero + `position`/`size` de diseño (720×1280) explícitos:
+  así van la raíz de DialogueBox y el paño del foco.
+  `scripts/david_intro.gd` + `scenes/david_intro.tscn`: bienvenida (primera
+  vez) DESDE LA CUBIERTA del barco (cubierta propia construida por código:
+  tablones, barandilla al fondo, mástil con vela que respira, carga — NO el
+  barco visto desde fuera), pide nombre (teclado) y género (tocando los
+  retratos del chef) y salta al tutorial.
+  `scripts/tutorial_director.gd`: guion del tutorial SOBRE level3d —
+  **mientras David habla se PAUSA el árbol entero** (clientes y platos
+  quietos; caja y director en PROCESS_MODE_ALWAYS), **foco CIRCULAR degradado**
+  (`shaders/tutorial_focus.gdshader`, dim 0.78, radio acotado 70-230 px:
+  enfocar contenedores anchos del HUD daba un círculo tan grande que no se
+  percibía — enfocar las LABELS concretas, no sus filas), permisos por fase
+  (`prep_board.allowed_recipes`), cliente fijo en el asiento 4 con paciencia
+  clavada y `guaranteed_next` en cada servicio; enseña maki (guiado paso a
+  paso) → cinta/cajas (rama según dónde lo deje) → té verde → nigiri → mochi
+  (despide al cliente) → recetario, y al acabar `complete_tutorial()` y menú.
+  En modo tutorial level3d NO termina solo (`_end_level` ignora reloj y
+  clientes), sin botón Salir, sin fase de preparación, `tutorial_mode` oculta
+  barco/combinar/extras. `GameState`: `tutorial_done` persistente (los saves
+  viejos con recetas lo dan por hecho; **`_new_game` DEBE ponerlo a false** —
+  se olvidó y borrar la partida no relanzaba la intro), `is_tutorial()`,
+  `complete_tutorial()` (entrega `CampaignData.INITIAL_RECIPES`:
+  maki_aguacate, nigiri_salmon, te_verde y mochi — SOLO se desbloquean así),
+  `arcade_unlocked()` (= superar nivel_5); el menú manda a la intro si falta
+  el tutorial y el botón Arcade queda apagado con aviso hasta ganarlo.
+  **La partida nueva empieza con 50 doblones** (botín de bienvenida para la
+  tienda).
 - `scripts/prep_board.gd` — la tabla inferior: minijuego de elaboración por
   etapas, mano de gestos animada, cajas de guardado por pilas, cooldowns. Ocupa
   **588 px** de alto (llega bastante más arriba que antes) para que la tabla de
@@ -257,9 +367,12 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 - `scripts/plate3d.gd` — plato en cinta: PathFollow3D por el Path3D del
   circuito, modelo normalizado por huella (0.62 u), 2 vueltas → descarte.
 - `scripts/main_menu.gd` — menú inicial (ESCENA PRINCIPAL, raíz **Node3D**):
-  cuatro botones con icono propio: **Aventura** (campaña), **Arcade** (partida
-  libre con todas las recetas, sin tocar el progreso), **Tienda** e
-  **Inventario**, más dos **botones REDONDOS de esquina** sin tablón de madera
+  cinco botones con icono propio: **Aventura** (campaña), **Arcade** (partida
+  libre con todas las recetas, sin tocar el progreso), **Tienda**,
+  **Inventario** y **Tutorial** (más bajito, con la cara de David de
+  `ic_tutorial.png`: repite el nivel guiado DIRECTO, sin la bienvenida de
+  nombre/género, y no toca el progreso), más dos **botones REDONDOS de esquina**
+  sin tablón de madera
   (el dibujo es el botón, con su mancha de sombra y el rótulo dentro del alto):
   la **medalla de Logros** arriba a la izquierda y la **rueda de Opciones**
   arriba a la derecha. El rótulo va DENTRO del alto del botón: colgándolo por
@@ -405,6 +518,34 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 
 ## Convenciones y decisiones ya tomadas (NO reintroducir bugs resueltos)
 
+- **EN EL MÓVIL, LA INTERFAZ DE GODOT NO RESPONDE AL DEDO COMO EN EL RATÓN.**
+  Dos cosas medidas, no supuestas (inyectando `InputEventScreenTouch` +
+  `ScreenDrag` con `Input.parse_input_event`):
+  1) El `ScrollContainer` **no se arrastra con el dedo**: el selector de recetas
+  se quedaba en `scroll_vertical = 0` con 1.842 px de contenido. Para eso está
+  `scripts/touch_scroll.gd` (`TouchScroll.attach(scroll)`), que además le da
+  INERCIA. Ya lo usan el selector de recetas, los logros y el inventario; el
+  panel de resultados del nivel tiene su propio apaño anterior (mueve el scroll
+  desde el `gui_input` del pergamino ENTERO, que ahí interesa más).
+  2) El `LineEdit` **no saca el teclado** porque no llega a coger el foco al
+  tocarlo: `PrepBoard.enable_mobile_keyboard(edit)` le da el foco a mano y pide
+  el teclado con `DisplayServer.virtual_keyboard_show`. Lo usan el nombre de
+  Opciones y el buscador del recetario.
+  Los dos ayudantes escuchan en **`_input`** (antes que la interfaz) y se
+  tragan el toque de SOLTAR cuando ha habido gesto: si no, al deslizar sobre
+  una tarjeta de receta se acababa seleccionando. Con un toque limpio (menos de
+  `DEADZONE` px) el botón de debajo sigue funcionando: comprobado.
+- **Gestos táctiles del juego**: `scripts/swipe_pages.gd` pasa página en los
+  libros del inventario deslizando (derecha→izquierda, siguiente) y el mapa de
+  aventura tiene inercia propia en `level_select3d` (`scroll_speed`). En los
+  dos sitios y en `TouchScroll`, la velocidad **NO se borra mientras el dedo
+  está apoyado**: hacerlo dejaba la inercia siempre a cero, porque `_process`
+  la limpiaba antes de que llegara el evento de soltar.
+- **Margen de toque en la mesa de elaboración** (`prep_board.TOUCH_PAD`, 22 px):
+  ingredientes, platos y el sprite de etapa se tocan con un colchón alrededor,
+  porque el dedo tapa justo lo que señala. En los pasos de ELECCIÓN, donde los
+  márgenes de dos ingredientes se solapan, gana el de centro más cercano
+  (`_nearest_ingredient`), no el primero de la lista.
 - **Assets 2D**: se generan con **Ludo MCP** (ya en estilo **Low Poly**, no
   Voxel Art), se descargan de inmediato (las URLs caducan a 7 días), y se
   recortan con un script Godot midiendo el bounding box con **umbral de
@@ -696,6 +837,42 @@ que no hay problema.
   y nubes ni se crean, y se paran el balanceo del logotipo, el cabeceo del
   barco, el mecerse de los fondos y la respiración del tendero—, nunca las
   animaciones de juego.
+
+## Progresión y economía (cambios recientes)
+
+- **Un plato da UNA vuelta a la cinta** (`plate3d.MAX_LAPS` = 1, antes 2). Los
+  platos NACEN en la esquina inferior del circuito (`SPAWN_PROGRESS` cae justo
+  en el vértice +X/+Z), así que una vuelta los devuelve exactamente a ese
+  punto: ahí está el **cubo de basura 3D** (`level3d._add_trash_bin`) y el
+  plato se vuelca dentro con una caída corta en vez de desaparecer de golpe.
+  El castigo por tirarlo es el **20%** de su precio (`WASTE_PENALTY`).
+- **El nivel TERMINA en cuanto se alcanza el dinero objetivo** (el umbral de
+  3 estrellas): `_check_goal_reached()` tras cada plato cobrado.
+- **Las ESTRELLAS salen solo del dinero de PLATOS**; lo que se COBRA al acabar
+  es `platos + propinas + primas`. Primas: **3** doblones por cada grumete que
+  se quedó sin venir, **8** por pirata, **15** por capitán
+  (`LEFTOVER_BONUS`), y **3** por cada bloque completo de **10 s** de reloj
+  sobrante. El desglose del panel de resultados los enseña por separado.
+- **Regalo de ingredientes**: al desbloquear recetas el juego da usos de todo
+  lo que piden (`GameState.gift_ingredients_for`): **5** con el tutorial
+  (`TUTORIAL_GIFT`) y **3** por cada nivel superado (`PORT_GIFT`). Los
+  ingredientes gratis (arroz, sésamo, `cost` 0) se saltan.
+- **El MENÚ anuncia las recetas nuevas** (`GameState.pending_reveal`, que
+  llenan `complete_tutorial`/`complete_port` y consume `main_menu`): pergamino
+  con los platos entrando de uno en uno con su bote.
+- **La TIENDA se gana** superando el puerto que la trae (`unlocks_shop`, el
+  nivel 2); el botón del menú queda apagado hasta entonces. La PRIMERA visita
+  es una escena: David presenta a **Saverio**, que explica la tienda y los tres
+  extras y regala 5 usos de cada uno (`shop_intro_done`, persistente, que es
+  además lo que abre los **extras**: antes de esa escena no existen).
+- **El surtido de la tienda solo trae ingredientes de recetas DESBLOQUEADAS**
+  (`roll_shop_stock` filtra por `unlocked_recipes`), y `unlock_recipe` pone
+  `shop_day = ""` para que el surtido se rehaga al aprender algo nuevo.
+- **Campos nuevos de puerto en `CampaignData`**: `fixed_recipes` (carta
+  cerrada), `recipe_slots` (huecos que se pueden llevar, 4 por defecto),
+  `no_extras` (oculta extras, combinar y barco → `prep_board.hide_extras`),
+  `late_type` (ese tipo de cliente entra el último), `unlocks_shop` y
+  `director` (guion narrado).
 
 ## Balance actual (para no re-litigar)
 

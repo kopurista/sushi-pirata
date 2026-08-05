@@ -27,49 +27,68 @@ class_name CampaignData
 ##    fritura) no se desbloquean, salen de sus mecánicas.
 
 ## Con lo que arranca una partida nueva.
-const INITIAL_RECIPES: Array = ["maki_aguacate", "nigiri_salmon"]
-## Usos de ingredientes iniciales (suficientes para varias partidas del nivel 1).
-const INITIAL_INGREDIENTS: Dictionary = { "aguacate": 5, "salmon": 5 }
+## Las 4 recetas del tutorial de David Jones: se DESBLOQUEAN al completarlo
+## (GameState.complete_tutorial), no al crear la partida.
+const INITIAL_RECIPES: Array = ["maki_aguacate", "nigiri_salmon", "te_verde", "mochi"]
+## Usos de ingredientes iniciales (suficientes para varias partidas del nivel 1,
+## incluidos los de las recetas del tutorial).
+const INITIAL_INGREDIENTS: Dictionary = {
+	"aguacate": 5, "salmon": 5, "te": 3, "masa_mochi": 3, "matcha": 3,
+}
 
 const PORTS: Array = [
 	{
 		"id": "nivel_1",
 		"name": "Cala Tortuga",
-		"desc": "8 grumetes hambrientos. Maki de aguacate y nigiri de salmón.",
-		"client_mix": { "E": 8 },
+		"desc": "Cuatro grumetes y las cuatro recetas que te enseñó David.",
+		"client_mix": { "E": 4 },
 		"time_limit": 150.0,
 		"patience_mult": 1.0,
 		"arrival_scale": 1.0,
 		"goal_stars": 3,
-		# Partida de 2:30 solo con L1 ($2-3): techo de producción ~$50-70.
-		"star_money": [16, 30, 45],
-		"reward_recipes": ["gunkan_wakame", "sopa_miso", "edamame", "te_verde"],
+		# 4 grumetes con platos de $1-3 y el maki rindiendo 3 piezas: ~$50 de techo.
+		"star_money": [14, 26, 40],
+		"reward_recipes": ["edamame", "gunkan_wakame"],
+		# Primer nivel de verdad: carta CERRADA (las del tutorial) y sin extras,
+		# combinados ni barco, que se presentan más adelante.
+		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "te_verde", "mochi"],
+		"no_extras": true,
+		"director": "nivel_1",
 	},
 	{
 		"id": "nivel_2",
-		"name": "Puerto Calavera",
-		"desc": "Otros 9 grumetes... pero llegan más rápido y con menos paciencia.",
-		"client_mix": { "E": 9 },
+		"name": "Puerto Corona",
+		"desc": "Un puerto de verdad: diez grumetes sin parar de entrar.",
+		"client_mix": { "E": 10 },
 		"time_limit": 150.0,
-		"patience_mult": 0.8,
+		"patience_mult": 0.85,
 		"arrival_scale": 0.65,
 		"goal_stars": 3,
-		"star_money": [16, 30, 45],
-		# Introducen el atún: el siguiente escalón de la carta (L2, precios 5-6).
-		"reward_recipes": ["maki_atun", "nigiri_atun", "onigiri", "yaki_onigiri"],
+		# 10 clientes es MUCHA rotación aunque solo sean grumetes: techo ~$110.
+		"star_money": [30, 55, 80],
+		"reward_recipes": ["onigiri"],
+		"no_extras": true,
+		"unlocks_shop": true,
+		"director": "nivel_2",
 	},
 	{
 		"id": "nivel_3",
 		"name": "Isla del Mono",
-		"desc": "Llegan los primeros piratas: prefieren platos de 2 estrellas.",
-		"client_mix": { "E": 5, "A": 3 },
+		"desc": "Llega el primer pirata: prefiere platos de 2 estrellas.",
+		"client_mix": { "E": 3, "A": 1 },
 		"time_limit": 150.0,
 		"patience_mult": 0.9,
 		"arrival_scale": 0.8,
 		"goal_stars": 3,
-		# 3 piratas comiendo L2 ($5-6) suben el techo: ~$75-85.
+		# Pocos clientes pero uno come L2, y a mitad se suma el nigiri de atún.
 		"star_money": [20, 38, 55],
-		"reward_recipes": ["nigiri_inari", "caldo_dashi", "mochi"],
+		"reward_recipes": ["dorayaki", "maki_atun"],
+		# Toda la carta disponible, pero solo TRES huecos que llevar.
+		"recipe_slots": 3,
+		# El pirata llega el último; David lo aprovecha para regalar el nigiri
+		# de atún en plena partida (ver level_director.gd).
+		"late_type": "A",
+		"director": "nivel_3",
 	},
 	{
 		"id": "nivel_4",
@@ -82,7 +101,7 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		# 10 clientes con 4 piratas de L2: techo ~$90-100.
 		"star_money": [24, 45, 65],
-		"reward_recipes": ["sashimi_tamago", "udon", "tempura"],
+		"reward_recipes": ["sopa_miso", "sashimi_tamago", "udon", "tempura"],
 	},
 	{
 		"id": "nivel_5",
@@ -95,7 +114,8 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		# Menos clientes pero de más nivel (el capitán come L2-L3): techo ~$95.
 		"star_money": [25, 48, 70],
-		"reward_recipes": ["gunkan_tartar", "gunkan_ikura", "dorayaki"],
+		"reward_recipes": ["nigiri_inari", "caldo_dashi", "gunkan_tartar",
+			"gunkan_ikura"],
 	},
 	{
 		"id": "nivel_6",
@@ -108,7 +128,8 @@ const PORTS: Array = [
 		"goal_stars": 3,
 		# 11 clientes y 2 capitanes: techo ~$110.
 		"star_money": [28, 55, 80],
-		"reward_recipes": ["futomaki_salmon", "uramaki_california", "nigiri_pulpo"],
+		"reward_recipes": ["yaki_onigiri", "futomaki_salmon",
+			"uramaki_california", "nigiri_pulpo"],
 	},
 	{
 		"id": "nivel_7",
@@ -197,7 +218,7 @@ const LANE_CENTER := 360.0
 const LANE_RIGHT := 545.0
 
 const MAP_POS: Dictionary = {
-	"nivel_1": Vector2(LANE_CENTER, 1560.0),
+	"nivel_1": Vector2(LANE_CENTER, 1476.0),
 	"nivel_2": Vector2(LANE_LEFT, 1390.0),
 	"nivel_3": Vector2(LANE_RIGHT, 1220.0),
 	"nivel_4": Vector2(LANE_CENTER, 1050.0),

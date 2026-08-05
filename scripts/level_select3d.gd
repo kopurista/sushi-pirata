@@ -33,7 +33,7 @@ const CAM_SIZE := 15.0
 const BAND_CENTER_OFF := 140.0
 ## Límites del scroll (centro de la franja, en px de mapa).
 const SCROLL_MIN := 424.0
-const SCROLL_MAX := CampaignData.MAP_HEIGHT - 424.0
+const SCROLL_MAX := CampaignData.MAP_HEIGHT - 300.0
 
 ## Modelo 3D de cada tipo de nodo y huella horizontal objetivo (u).
 const KIND_MODELS := {
@@ -57,6 +57,12 @@ var selected_id: String = ""
 ## Centro de la franja visible, en px de mapa (el equivalente del scroll 2D).
 var cam_center := SCROLL_MAX
 var scroll_tween: Tween = null
+## Inercia del arrastre del mapa (px de mapa por segundo) y cómo se apaga.
+var scroll_speed := 0.0
+var scroll_dragging := false
+const SCROLL_FRICTION := 0.05
+const SCROLL_STOP := 14.0
+const DRAG_SMOOTH := 0.7
 ## Posición del barco en px de mapa; un tween la anima al viajar.
 var ship_px := Vector2(360, 1560)
 var ship_pivot: Node3D
@@ -75,12 +81,14 @@ var map_visible := true
 var info_title: Label
 var info_kind: Label
 var info_desc: Label
-var info_clients: Label
 var info_time: Label
 var info_goal: Label
 var info_record: Label
+## Filas de iconos: clientes (cabeza + xN), recetas utilizables y recompensas.
+var info_clients_row: HBoxContainer
+var info_recipes_row: HBoxContainer
+var info_reward_row: HBoxContainer
 var info_stars_box: Control
-var info_reward: Label
 var sail_button: Button
 
 
@@ -441,15 +449,17 @@ func _make_money_label() -> Control:
 
 func _build_info_panel() -> Control:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(0, 356)
+	panel.custom_minimum_size = Vector2(0, 470)
 	panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	panel.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 38))
 
 	var margin := MarginContainer.new()
+	# Los rodillos y las esquinas del pergamino tapaban el texto por los cuatro
+	# lados: hace falta más aire del que parece por el dibujo.
 	for side in ["left", "right"]:
-		margin.add_theme_constant_override("margin_%s" % side, 62)
-	margin.add_theme_constant_override("margin_top", 40)
-	margin.add_theme_constant_override("margin_bottom", 34)
+		margin.add_theme_constant_override("margin_%s" % side, 84)
+	margin.add_theme_constant_override("margin_top", 58)
+	margin.add_theme_constant_override("margin_bottom", 52)
 	panel.add_child(margin)
 
 	var vb := VBoxContainer.new()
@@ -479,11 +489,12 @@ func _build_info_panel() -> Control:
 	info_desc.add_theme_color_override("font_color", FADED)
 	vb.add_child(info_desc)
 
-	info_clients = _stat_label(vb)
+	info_clients_row = _icon_row(vb, "Clientes")
+	info_recipes_row = _icon_row(vb, "Recetas")
 	info_time = _stat_label(vb)
 	info_goal = _stat_label(vb)
 	info_record = _stat_label(vb)
-	info_reward = _stat_label(vb)
+	info_reward_row = _icon_row(vb, "Recompensa")
 
 	sail_button = Button.new()
 	sail_button.custom_minimum_size = Vector2(350, 86)
@@ -505,6 +516,97 @@ func _stat_label(parent: VBoxContainer) -> Label:
 	return l
 
 
+## Fila "rótulo + iconos" del panel de nivel. El rótulo va a la izquierda y los
+## iconos se van añadiendo a la derecha.
+func _icon_row(parent: VBoxContainer, titulo: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 8)
+	row.set_meta("titulo", titulo)
+	parent.add_child(row)
+	return row
+
+
+func _row_reset(row: HBoxContainer) -> void:
+	for c in row.get_children():
+		c.queue_free()
+	var l := Label.new()
+	l.text = "%s:" % str(row.get_meta("titulo", ""))
+	l.add_theme_font_size_override("font_size", 19)
+	l.add_theme_color_override("font_color", DARK)
+	row.add_child(l)
+
+
+## Icono cuadrado con un texto pequeño debajo-derecha ("x4", por ejemplo).
+func _row_icon(row: HBoxContainer, tex: Texture2D, pie := "", lado := 44) -> void:
+	if tex == null:
+		return
+	var caja := Control.new()
+	caja.custom_minimum_size = Vector2(lado + (18 if pie != "" else 0), lado)
+	var ic := TextureRect.new()
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.texture = tex
+	ic.size = Vector2(lado, lado)
+	caja.add_child(ic)
+	if pie != "":
+		var l := Label.new()
+		l.text = pie
+		l.position = Vector2(lado - 2, lado * 0.42)
+		l.add_theme_font_size_override("font_size", 18)
+		l.add_theme_color_override("font_color", DARK)
+		caja.add_child(l)
+	row.add_child(caja)
+
+
+## Clientes del nivel: una cabeza por tipo con su "xN".
+func _fill_clients_row(mix: Dictionary) -> void:
+	_row_reset(info_clients_row)
+	for t in ["E", "A", "G"]:
+		var n := int(mix.get(t, 0))
+		if n <= 0:
+			continue
+		var ruta := "res://assets/ui/head_%s.png" % t
+		if ResourceLoader.exists(ruta):
+			_row_icon(info_clients_row, load(ruta), "x%d" % n)
+
+
+## Recetas que se pueden llevar. Los puertos y los abordajes son de LIBRE
+## ELECCIÓN; las islas pueden traer una carta cerrada (`fixed_recipes`).
+func _fill_recipes_row(port: Dictionary, id: String) -> void:
+	_row_reset(info_recipes_row)
+	var fijas: Array = port.get("fixed_recipes", [])
+	if fijas.is_empty():
+		var l := Label.new()
+		l.text = "Libre elección"
+		l.add_theme_font_size_override("font_size", 19)
+		l.add_theme_color_override("font_color", Color(0.55, 0.34, 0.08))
+		info_recipes_row.add_child(l)
+		var huecos := int(port.get("recipe_slots", 4))
+		if huecos != 4:
+			var h := Label.new()
+			h.text = "(solo %d)" % huecos
+			h.add_theme_font_size_override("font_size", 18)
+			h.add_theme_color_override("font_color", DARK)
+			info_recipes_row.add_child(h)
+		return
+	for r in fijas:
+		_row_icon(info_recipes_row, RecipeData.get_dish_texture(r), "", 40)
+
+
+## Lo que se gana al superarlo: el plato de cada receta nueva.
+func _fill_reward_row(rewards: Array, abre_tienda: bool) -> void:
+	_row_reset(info_reward_row)
+	for r in rewards:
+		_row_icon(info_reward_row, RecipeData.get_dish_texture(r), "", 40)
+	if abre_tienda:
+		var l := Label.new()
+		l.text = "+ Tienda"
+		l.add_theme_font_size_override("font_size", 19)
+		l.add_theme_color_override("font_color", Color(0.55, 0.34, 0.08))
+		info_reward_row.add_child(l)
+
+
 ## Vuelca en el panel el nombre del nivel y TODAS sus características.
 func _update_info(id: String) -> void:
 	var port := CampaignData.get_port(id)
@@ -524,7 +626,8 @@ func _update_info(id: String) -> void:
 	info_stars_box.add_child(PrepBoard.make_star_row(best, 3, 30, true))
 
 	var mix: Dictionary = port.get("client_mix", {})
-	info_clients.text = "Clientes: %d   (%s)" % [_mix_total(mix), _mix_text(mix)]
+	_fill_clients_row(mix)
+	_fill_recipes_row(port, id)
 	var t := int(port.get("time_limit", 150.0))
 	info_time.text = "Tiempo: %d:%02d" % [t / 60, t % 60]
 	var thresholds: Array = port.get("star_money", [])
@@ -534,16 +637,8 @@ func _update_info(id: String) -> void:
 	var rec := GameState.get_level_score(id)
 	info_record.text = "Récord: $%d" % rec if rec > 0 else "Récord: sin jugar"
 
-	var rewards: Array = port.get("reward_recipes", [])
-	if rewards.is_empty():
-		info_reward.text = ""
-		info_reward.visible = false
-	else:
-		var names: Array[String] = []
-		for r in rewards:
-			names.append(RecipeData.get_recipe(r).get("name", r))
-		info_reward.text = "Recompensa: %s" % ", ".join(names)
-		info_reward.visible = true
+	_fill_reward_row(port.get("reward_recipes", []),
+			bool(port.get("unlocks_shop", false)))
 
 	sail_button.disabled = not unlocked
 	sail_button.text = "¡Zarpar!" if unlocked else "Bloqueado"
@@ -618,6 +713,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			scroll_tween.kill()
 			scroll_tween = null
 		cam_center = clampf(cam_center - event.relative.y, SCROLL_MIN, SCROLL_MAX)
+		# Velocidad del dedo, suavizada, para que al soltar el mapa siga
+		# corriendo: un tirón fuerte recorre más ruta que un arrastre suave.
+		scroll_dragging = true
+		var dt := maxf(get_process_delta_time(), 0.0001)
+		scroll_speed = lerpf(scroll_speed, -event.relative.y / dt, DRAG_SMOOTH)
+	elif event is InputEventScreenTouch:
+		# Al posar el dedo se para la inercia; al levantarlo, corre sola.
+		if event.pressed:
+			scroll_speed = 0.0
+		scroll_dragging = event.pressed
 
 
 func _on_sail_pressed() -> void:
@@ -633,6 +738,22 @@ func _on_sail_pressed() -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	# Inercia del arrastre del mapa: la velocidad que llevaba el dedo al soltar
+	# se va apagando sola. Con el dedo apoyado no se aplica (manda el dedo)
+	# pero TAMPOCO se borra: es la que da el impulso al levantarlo. Cualquier
+	# viaje del barco (`scroll_tween`) manda sobre las dos cosas.
+	if scroll_dragging:
+		pass
+	elif absf(scroll_speed) > SCROLL_STOP and scroll_tween == null:
+		var target := clampf(cam_center + scroll_speed * delta,
+			SCROLL_MIN, SCROLL_MAX)
+		if is_equal_approx(target, cam_center):
+			scroll_speed = 0.0  # tope del mapa: se para en seco
+		else:
+			cam_center = target
+			scroll_speed *= pow(SCROLL_FRICTION, delta)
+	else:
+		scroll_speed = 0.0
 	_update_camera()
 
 	# Balanceo del barco sobre las olas (sustituye a las velas animadas del

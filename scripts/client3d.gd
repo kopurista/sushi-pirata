@@ -89,6 +89,9 @@ var gender: String = CharacterData.MALE
 var patience_scale: float = 1.0
 var pay_mult: float = 1.0
 var guaranteed_next: bool = false
+## Multiplicador extra del tiempo de comer. Solo lo toca el guion del tutorial,
+## que necesita bocados largos para poder explicar cosas mientras el cliente come.
+var slow_eat: float = 1.0
 ## Puntos de la ruta de entrada (el nivel los define; el ultimo es el asiento).
 var route: Array = []
 ## Punto por el que desaparece al marcharse (la borda).
@@ -267,6 +270,20 @@ func is_waiting() -> bool:
 func boost_patience(fraction: float) -> void:
 	patience += fraction * patience_max
 	patience_bar_update()
+
+
+## ¿Está con un plato entre manos? Lo consulta el guion del tutorial.
+func is_eating() -> bool:
+	return state == State.EATING
+
+
+## Las dos barras flotantes, para que el guion del tutorial pueda enfocarlas.
+func patience_bar() -> ProgressBar:
+	return _patience_bar
+
+
+func eat_bar() -> ProgressBar:
+	return _eat_bar
 
 
 func patience_bar_update() -> void:
@@ -498,7 +515,10 @@ func _start_eating(plate_global: Vector3) -> void:
 	var recipe := RecipeData.get_recipe(current_id)
 	var range_s: Array = EAT_TIMES[client_type].get(current_satiety, EAT_TIMES[client_type][1])
 	# "eat_mult": algunos platos (p. ej. la sopa de miso) se comen mas despacio.
-	eat_duration = randf_range(range_s[0], range_s[1]) * float(recipe.get("eat_mult", 1.0))
+	# `slow_eat` lo usa el guion del TUTORIAL para que un plato concreto dure
+	# lo suficiente como para explicar otra receta mientras el cliente come.
+	eat_duration = randf_range(range_s[0], range_s[1]) \
+			* float(recipe.get("eat_mult", 1.0)) * slow_eat
 	eat_timer = eat_duration
 	_eat_bar.max_value = eat_duration
 	_eat_bar.value = eat_duration

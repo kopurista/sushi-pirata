@@ -76,6 +76,13 @@ var cam_side := 0.0
 
 
 func _ready() -> void:
+	# PRIMERA VEZ: antes que el menú, la bienvenida de David Jones (pregunta
+	# nombre y género y lleva al tutorial). La escena se queda vacía un par de
+	# frames: el telón negro del autoload lo tapa.
+	if not GameState.tutorial_done:
+		GameState.fade_out(0.0)
+		GameState.fade_to_scene("res://scenes/david_intro.tscn", 0.0, 0.5)
+		return
 	# El padre monta el mundo del mapa entero y su interfaz.
 	super._ready()
 	_setup_birds()
@@ -93,6 +100,13 @@ func _ready() -> void:
 			_play_menu_intro()
 		_:
 			_show_menu(false)
+	# Recetas recién ganadas (tutorial o nivel): el menú las anuncia. Se espera
+	# a que termine de entrar la interfaz para no montar dos animaciones juntas.
+	if not GameState.pending_reveal.is_empty():
+		var nuevas: Array = GameState.pending_reveal.duplicate()
+		GameState.pending_reveal.clear()
+		await get_tree().create_timer(0.9).timeout
+		_show_reveal(nuevas)
 
 
 # ------------------------------------------------- estados de la escena
@@ -346,24 +360,37 @@ func _setup_menu_ui() -> void:
 	logo.pivot_offset = Vector2(334, 170)
 	_start_logo_idle()
 
-	# Botones de modo, anclados abajo.
+	# Botones de modo, anclados abajo (el alto acoge también el de Tutorial,
+	# más bajito, para repetir la clase de David cuando se quiera).
 	var box := VBoxContainer.new()
 	box.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	box.offset_left = 110.0
 	box.offset_right = -110.0
-	box.offset_top = -486.0
+	box.offset_top = -580.0
 	box.offset_bottom = -54.0
 	box.add_theme_constant_override("separation", 16)
 	ui_layer.add_child(box)
 	button_box = box
 	box.add_child(_make_mode_button("Aventura", "ic_aventura", 118, 44,
 		func() -> void: _go_adventure()))
-	box.add_child(_make_mode_button("Arcade", "ic_arcade", 96, 36,
-		func() -> void: _go_arcade()))
-	box.add_child(_make_mode_button("Tienda", "ic_tienda", 96, 36,
-		func() -> void: _go_shop()))
+	var arcade_btn := _make_mode_button("Arcade", "ic_arcade", 96, 36,
+		func() -> void: _go_arcade())
+	box.add_child(arcade_btn)
+	# El Arcade se gana superando el nivel 5 de la aventura: hasta entonces el
+	# botón queda apagado (pulsarlo explica cómo abrirlo).
+	if not GameState.arcade_unlocked():
+		arcade_btn.modulate = Color(0.52, 0.52, 0.52)
+	var shop_btn := _make_mode_button("Tienda", "ic_tienda", 96, 36,
+		func() -> void: _go_shop())
+	box.add_child(shop_btn)
+	# La tienda no existe hasta que David presenta a Saverio, al superar el
+	# puerto que la trae (nivel 2).
+	if not GameState.shop_unlocked():
+		shop_btn.modulate = Color(0.52, 0.52, 0.52)
 	box.add_child(_make_mode_button("Inventario", "ic_inventario", 96, 36,
 		func() -> void: _go_inventory()))
+	box.add_child(_make_mode_button("Tutorial", "ic_tutorial", 78, 28,
+		func() -> void: _go_tutorial()))
 	# Botones redondos de las esquinas. Van SUELTOS (no en el VBox) para poder
 	# anclarlos a su esquina y animarlos por separado.
 	medal_button = _make_round_button("ic_logros", "Logros",
@@ -533,6 +560,29 @@ func _sky_out(time := 0.8) -> void:
 		tw.tween_property(b["node"], "position:y", 18.0, time).as_relative()
 
 
+## TUTORIAL: repite la clase de David cuando se quiera. Va DIRECTO al nivel
+## guiado (la bienvenida con nombre y género es solo de la primera vez); al
+## terminar vuelve aquí. No toca el progreso: solo re-entrega las 4 recetas
+## del tutorial, que ya se tienen.
+func _go_tutorial() -> void:
+	if leaving:
+		return
+	leaving = true
+	GameState.mode = "tutorial"
+	GameState.current_port = ""
+	var recs: Array[String] = []
+	for r in CampaignData.INITIAL_RECIPES:
+		recs.append(r)
+	GameState.selected_recipes = recs
+	GameState.selected_perks = []
+	_ui_out()
+	_sky_out(0.75)
+	var tw := create_tween()
+	tw.tween_interval(OUT_TIME + 0.08)
+	tw.tween_callback(func() -> void:
+		GameState.fade_to_scene("res://scenes/level3d.tscn", 0.3, 0.45))
+
+
 ## AVENTURA: sin cambiar de escena. El barco leva anclas y navega hasta el
 ## último nivel abierto mientras la interfaz del menú se retira.
 func _go_adventure() -> void:
@@ -587,6 +637,9 @@ func _back_to_menu() -> void:
 func _go_arcade() -> void:
 	if leaving:
 		return
+	if not GameState.arcade_unlocked():
+		_show_locked_notice("El modo Arcade se abre al superar\nel nivel 5 de la Aventura.")
+		return
 	leaving = true
 	GameState.mode = "test"
 	GameState.current_port = ""
@@ -605,10 +658,139 @@ func _go_arcade() -> void:
 		GameState.fade_to_scene("res://scenes/prep_screen.tscn", 0.3, 0.45))
 
 
+## Aviso de modo bloqueado: pergamino centrado que aparece con un bote, se
+## queda un par de segundos y se desvanece solo.
+func _show_locked_notice(text: String) -> void:
+	var panel := Control.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.offset_left = -280.0
+	panel.offset_top = -110.0
+	panel.offset_right = 280.0
+	panel.offset_bottom = 110.0
+	panel.pivot_offset = Vector2(280.0, 110.0)
+	ui_layer.add_child(panel)
+	panel.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 44))
+	var l := Label.new()
+	l.text = text
+	l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	l.offset_left = 40.0
+	l.offset_right = -40.0
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.add_theme_font_size_override("font_size", 26)
+	l.add_theme_color_override("font_color", Color(0.26, 0.16, 0.08))
+	panel.add_child(l)
+	panel.scale = Vector2(0.6, 0.6)
+	panel.modulate.a = 0.0
+	var tw := panel.create_tween()
+	tw.tween_property(panel, "scale", Vector2.ONE, 0.28) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(panel, "modulate:a", 1.0, 0.18)
+	tw.tween_interval(2.2)
+	tw.tween_property(panel, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(panel.queue_free)
+
+
+## RECETAS NUEVAS: al volver de un nivel (o del tutorial) el menú las anuncia
+## con un pergamino en el que cada plato entra dando un bote, uno detrás de
+## otro. Se cierra tocando la pantalla.
+func _show_reveal(ids: Array) -> void:
+	if ids.is_empty():
+		return
+	var panel := Control.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.offset_left = -318.0
+	panel.offset_top = -250.0
+	panel.offset_right = 318.0
+	panel.offset_bottom = 250.0
+	panel.pivot_offset = Vector2(318.0, 250.0)
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	ui_layer.add_child(panel)
+	panel.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 44))
+
+	var titulo := Label.new()
+	titulo.text = "¡Recetas nuevas!" if ids.size() > 1 else "¡Receta nueva!"
+	titulo.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	titulo.offset_top = 56.0
+	titulo.offset_bottom = 106.0
+	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	titulo.add_theme_font_size_override("font_size", 32)
+	titulo.add_theme_color_override("font_color", Color(0.26, 0.16, 0.08))
+	panel.add_child(titulo)
+
+	var fila := HBoxContainer.new()
+	fila.alignment = BoxContainer.ALIGNMENT_CENTER
+	fila.add_theme_constant_override("separation", 14)
+	fila.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fila.offset_left = 56.0
+	fila.offset_right = -56.0
+	fila.offset_top = 116.0
+	fila.offset_bottom = -128.0
+	panel.add_child(fila)
+
+	var fichas: Array[Control] = []
+	for id in ids:
+		var caja := VBoxContainer.new()
+		caja.custom_minimum_size = Vector2(126, 0)
+		var ic := TextureRect.new()
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.texture = RecipeData.get_dish_texture(str(id))
+		ic.custom_minimum_size = Vector2(120, 120)
+		caja.add_child(ic)
+		var l := Label.new()
+		l.text = str(RecipeData.get_recipe(str(id)).get("name", id))
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.add_theme_font_size_override("font_size", 18)
+		l.add_theme_color_override("font_color", Color(0.26, 0.16, 0.08))
+		caja.add_child(l)
+		caja.modulate.a = 0.0
+		fila.add_child(caja)
+		fichas.append(caja)
+
+	var pie := Label.new()
+	pie.text = "Ya tienes ingredientes en la despensa\npara estrenarlas."
+	pie.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	pie.offset_left = 44.0
+	pie.offset_right = -44.0
+	pie.offset_top = -118.0
+	pie.offset_bottom = -40.0
+	pie.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pie.add_theme_font_size_override("font_size", 20)
+	pie.add_theme_color_override("font_color", Color(0.42, 0.28, 0.14))
+	panel.add_child(pie)
+
+	panel.scale = Vector2(0.6, 0.6)
+	panel.modulate.a = 0.0
+	var tw := panel.create_tween()
+	tw.tween_property(panel, "scale", Vector2.ONE, 0.3) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(panel, "modulate:a", 1.0, 0.2)
+	# Los platos van entrando de uno en uno, con su bote.
+	for f in fichas:
+		f.pivot_offset = Vector2(63, 70)
+		f.scale = Vector2(0.4, 0.4)
+		tw.tween_property(f, "modulate:a", 1.0, 0.14)
+		tw.parallel().tween_property(f, "scale", Vector2.ONE, 0.28) \
+				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	panel.gui_input.connect(func(e: InputEvent) -> void:
+		var tocado: bool = (e is InputEventScreenTouch and e.pressed) \
+				or (e is InputEventMouseButton and e.pressed)
+		if not tocado:
+			return
+		panel.queue_free())
+
+
 ## TIENDA: entra un puerto por la derecha, el barco navega hasta él con la
 ## CÁMARA DETRÁS, atraca, zoom sobre el atraque y a negro.
 func _go_shop() -> void:
 	if leaving:
+		return
+	if not GameState.shop_unlocked():
+		_show_locked_notice("La tienda abre cuando superes
+el nivel 2 de la Aventura.")
 		return
 	leaving = true
 	_ui_out()

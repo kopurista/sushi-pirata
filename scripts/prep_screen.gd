@@ -9,6 +9,8 @@ extends Node3D
 ## y el inferior aparece, dando la sensación de recorrer un pergamino entero.
 
 const MAX_RECIPES := 4
+## Huecos de receta de ESTE nivel: algunos puertos dan menos (el 3 solo da 3).
+var slots := MAX_RECIPES
 const DARK := Color(0.26, 0.16, 0.08)
 const CARDS_PER_ROW := 4
 ## Grosor del marco de cuerda del pergamino: hueco que se deja alrededor del
@@ -43,7 +45,15 @@ func _ready() -> void:
 	# encadenado. En aventura, el escenario del nivel elegido.
 	var kind := CampaignData.get_kind(GameState.current_port) \
 			if GameState.is_adventure() else "mar"
-	backdrop = SceneBackdrop.build(self, kind)
+	# El escenario va CENTRADO en la pantalla (band_off 0): arriba lo tapaba el
+	# pergamino con la parrilla de recetas.
+	backdrop = SceneBackdrop.build(self, kind, 19.0, 0.0)
+	if GameState.is_adventure():
+		slots = int(CampaignData.get_port(GameState.current_port).get(
+				"recipe_slots", MAX_RECIPES))
+	# La lista de recetas se recorre con el DEDO (con inercia): el
+	# ScrollContainer de Godot no se arrastra con eventos táctiles.
+	TouchScroll.attach($UI/Root/Margin/VBox/Scroll)
 	_add_shared_parchment()
 	# En aventura solo se listan las recetas desbloqueadas; en prueba, todas.
 	var available: Array = []
@@ -458,7 +468,7 @@ func _build_card(id: String, board_script: GDScript) -> Button:
 
 func _on_recipe_toggled(pressed: bool, id: String, button: Button) -> void:
 	if pressed:
-		if selected.size() >= MAX_RECIPES:
+		if selected.size() >= slots:
 			button.set_pressed_no_signal(false)
 			return
 		selected.append(id)
@@ -471,7 +481,7 @@ func _on_recipe_toggled(pressed: bool, id: String, button: Button) -> void:
 
 
 func _update_ui() -> void:
-	count_label.text = "%d/%d elegidas" % [selected.size(), MAX_RECIPES]
+	count_label.text = "%d/%d elegidas" % [selected.size(), slots]
 	# Basta con 1 receta: en los primeros niveles no hay 4 disponibles.
 	start_button.disabled = selected.is_empty()
 

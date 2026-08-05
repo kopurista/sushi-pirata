@@ -114,6 +114,9 @@ var results_shown := false
 var end_grace := 0.0
 ## Margen que queda tras el ultimo cobro para leer el "+$N" (ver END_PAY_LINGER).
 var pay_linger := 0.0
+## TUTORIAL: con el reloj retenido `elapsed` no avanza (el guion de David lo
+## suelta solo cuando el jugador tiene que jugar de verdad).
+var clock_hold := false
 
 var total_clients := TOTAL_CLIENTS
 var time_limit := TIME_LIMIT
@@ -129,6 +132,21 @@ var freeze_timer := 0.0
 
 # --- Estado de propinas y potenciadores ---
 var tips_total := 0
+## El turno se cerró por haber alcanzado el objetivo, no por reloj ni clientes.
+var goal_reached := false
+## Primas del cierre, calculadas en _finalize_results y mostradas en el desglose.
+var bonus_clients := 0
+var bonus_time := 0
+
+## Lo que cuesta que un plato dé la vuelta entera sin que nadie lo coja: una
+## parte de su precio (el marcador nunca baja de 0).
+const WASTE_PENALTY := 0.20
+## Prima por cada cliente que se queda SIN VENIR al cerrar antes el turno: los
+## clientes gordos valen más porque son los que más se dejan.
+const LEFTOVER_BONUS := { "E": 3, "A": 8, "G": 15 }
+## Prima por cada bloque completo de 10 s que sobra en el reloj.
+const TIME_BONUS := 3
+const TIME_BONUS_BLOCK := 10.0
 var powerups_claimed := 0
 var pending_powerups := 0
 var aroma_active := false
@@ -277,7 +295,27 @@ func _ready() -> void:
 				for i in int(mix[t]):
 					type_queue.append(t)
 			type_queue.shuffle()
+			# `late_type`: ese tipo entra SIEMPRE el último (el pirata del
+			# nivel 3, que David presenta al final de la partida).
+			var tarde := str(port.get("late_type", ""))
+			if tarde != "":
+				var resto: Array[String] = []
+				var tardios: Array[String] = []
+				for t in type_queue:
+					if t == tarde:
+						tardios.append(t)
+					else:
+						resto.append(t)
+				type_queue = resto
+				type_queue.append_array(tardios)
 			total_clients = type_queue.size()
+		# Puertos que aún no han presentado extras, combinados ni barco.
+		prep_board.hide_extras = bool(port.get("no_extras", false))
+		# Puertos NARRADOS: David se asoma en momentos concretos del nivel.
+		if str(port.get("director", "")) != "":
+			var guia := preload("res://scripts/level_director.gd").new()
+			guia.name = "LevelDirector"
+			add_child.call_deferred(guia)
 		# Jugar un nivel consume 1 uso de cada ingrediente de las recetas
 		# elegidas; si no alcanzan, vuelta a la seleccion.
 		if not GameState.consume_ingredients_for_level(GameState.selected_recipes):
@@ -289,6 +327,19 @@ func _ready() -> void:
 	else:
 		GameState.selected_perks = []
 	_apply_perks()
+	# TUTORIAL: sin horario de llegadas ni fase de preparación — manda el guion
+	# de David (tutorial_director), que trae clientes y arranca o para el reloj.
+	if GameState.is_tutorial():
+		time_limit = 600.0
+		total_clients = 1
+		prep_phase = false
+		phase_label.visible = false
+		clock_hold = true
+		var director := preload("res://scripts/tutorial_director.gd").new()
+		director.name = "TutorialDirector"
+		add_child(director)
+		_update_hud()
+		return
 	# Llegadas escalonadas con azar (ver level.gd 2D para la explicacion).
 	var last := (time_limit - ARRIVAL_TAIL) * arrival_scale
 	var step := (last - 5.0) / float(total_clients - 1)
@@ -1013,6 +1064,29 @@ func _setup_belt_path() -> void:
 	belt_path = Path3D.new()
 	belt_path.curve = curve
 	add_child(belt_path)
+	_add_trash_bin(h)
+
+
+## Cubo de basura en la esquina INFERIOR del circuito (+X/+Z, la más baja en
+## pantalla). Es justo donde nacen los platos y, con una sola vuelta de cinta,
+## también donde vuelven a pasar si nadie los ha cogido: ahí caen.
+func _add_trash_bin(h: float) -> void:
+	var c := Vector3(h + 0.62, 0.0, h + 0.62)
+	var duela := Color(0.46, 0.33, 0.19)
+	var aro := Color(0.32, 0.34, 0.38)
+	# Cuerpo troncocónico, más ancho arriba.
+	_cyl(0.46, 0.35, 0.80, c + Vector3(0.0, 0.40, 0.0), duela)
+	# Dos aros metálicos.
+	_cyl(0.475, 0.475, 0.07, c + Vector3(0.0, 0.72, 0.0), aro)
+	_cyl(0.385, 0.385, 0.07, c + Vector3(0.0, 0.16, 0.0), aro)
+	# Boca oscura: el hueco por el que se ve caer la comida.
+	_cyl(0.41, 0.41, 0.04, c + Vector3(0.0, 0.795, 0.0), Color(0.07, 0.06, 0.05))
+	# Tapa apoyada de lado contra el cubo.
+	var tapa := _cyl(0.42, 0.42, 0.06, c + Vector3(0.52, 0.34, 0.20), duela)
+	tapa.rotation_degrees = Vector3(0.0, 0.0, 74.0)
+	var sombra := SceneBackdrop.blob_shadow(1.15, 1.15)
+	sombra.position = c + Vector3(0.0, 0.02, 0.0)
+	add_child(sombra)
 
 
 func _setup_seats() -> void:
@@ -1359,7 +1433,9 @@ func _process(delta: float) -> void:
 		_update_hud()
 		return
 
-	elapsed += delta
+	# Con el reloj retenido (tutorial, mientras David habla) el tiempo no corre.
+	if not clock_hold:
+		elapsed += delta
 	if elapsed >= time_limit:
 		_end_level()
 		return
@@ -1532,6 +1608,28 @@ func _on_client_served(food: int, tip: int) -> void:
 	money_earned += food
 	if tip > 0:
 		_add_tip(tip)
+	_check_goal_reached()
+
+
+## En cuanto se junta el dinero OBJETIVO (el umbral de las 3 estrellas) el turno
+## se da por bueno y se cierra antes de tiempo: lo que sobra de clientes y de
+## reloj se cobra como prima en los resultados.
+func _check_goal_reached() -> void:
+	if ended or goal_reached or star_money.is_empty():
+		return
+	if money_earned >= int(star_money.back()):
+		goal_reached = true
+		_end_level()
+
+
+## Clientes que se quedaron sin venir, contados por tipo.
+func _leftover_clients() -> Dictionary:
+	var out := { "E": 0, "A": 0, "G": 0 }
+	for t in type_queue:
+		out[t] = int(out.get(t, 0)) + 1
+	for t in forced_types:
+		out[t] = int(out.get(t, 0)) + 1
+	return out
 	_update_hud()
 
 
@@ -1740,7 +1838,7 @@ func _on_plate_discarded(recipe_id: String) -> void:
 		return
 	var price: int = RecipeData.get_recipe(recipe_id).get("price", 0)
 	# Como el resto de castigos, el marcador nunca baja de 0.
-	money_earned = maxi(money_earned - int(round(price * 0.3)), 0)
+	money_earned = maxi(money_earned - int(round(price * WASTE_PENALTY)), 0)
 	_update_hud()
 
 
@@ -1766,6 +1864,10 @@ func _anyone_finishing_bite() -> bool:
 func _end_level() -> void:
 	if ended:
 		return
+	# El tutorial no termina ni por reloj ni por clientes: termina su guion
+	# (tutorial_director cierra con complete_tutorial y vuelve al menú).
+	if GameState.is_tutorial():
+		return
 	ended = true
 	# Se acabo: ya no hay nada que abandonar, manda el panel de resultados.
 	if exit_button != null:
@@ -1782,11 +1884,21 @@ func _end_level() -> void:
 ## Puntuacion POR DINERO: cada umbral de "star_money" alcanzado da una estrella.
 func _finalize_results() -> void:
 	results_shown = true
-	var total_money := money_earned
+	# Las ESTRELLAS salen solo del dinero de los PLATOS: es lo que mide la
+	# producción del turno, y es el umbral que dispara el cierre anticipado.
 	var stars := 0
 	for threshold in star_money:
-		if total_money >= int(threshold):
+		if money_earned >= int(threshold):
 			stars += 1
+
+	# Lo que se cobra SÍ incluye propinas y las primas por lo que ha sobrado.
+	bonus_clients = 0
+	var leftover := _leftover_clients()
+	for t in leftover:
+		bonus_clients += int(LEFTOVER_BONUS.get(t, 0)) * int(leftover[t])
+	bonus_time = int(floor(maxf(time_limit - elapsed, 0.0) / TIME_BONUS_BLOCK)) \
+			* TIME_BONUS
+	var total_money := money_earned + tips_total + bonus_clients + bonus_time
 
 	var new_recipes: Array = []
 	if GameState.is_adventure():
@@ -1998,6 +2110,15 @@ func _build_breakdown() -> void:
 	header.text = "Clientes: %d · atendidos: %d" % [client_reports.size(), served]
 	breakdown_box.add_child(header)
 
+	# De dónde sale el dinero del turno: platos, propinas y las primas de cierre.
+	_breakdown_note("Platos: $%d" % money_earned)
+	if tips_total > 0:
+		_breakdown_note("Propinas: $%d" % tips_total)
+	if bonus_clients > 0:
+		_breakdown_note("Clientes que no hizo falta atender: $%d" % bonus_clients)
+	if bonus_time > 0:
+		_breakdown_note("Tiempo de sobra: $%d" % bonus_time)
+
 	for type in ["E", "A", "G"]:
 		var reports: Array = []
 		for r in client_reports:
@@ -2021,6 +2142,16 @@ func _build_breakdown() -> void:
 		head.pressed.connect(func() -> void:
 			rows.visible = not rows.visible
 			caret.text = "▼" if rows.visible else "▶")
+
+
+## Línea suelta del desglose (de dónde viene el dinero del turno).
+func _breakdown_note(t: String) -> void:
+	var l := Label.new()
+	l.text = t
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.add_theme_font_size_override("font_size", 20)
+	l.add_theme_color_override("font_color", Color(0.34, 0.23, 0.12))
+	breakdown_box.add_child(l)
 
 
 ## Cabecera plegable de un tipo de cliente. Antes era un pergamino de 9-slice
@@ -2185,6 +2316,9 @@ func _icon_amount(icon_path: String, text: String) -> Control:
 ## para algo que no se toca casi nunca, y una flecha suelta no decia si vuelve
 ## al mapa, retrocede un paso o abandona la partida.
 func _setup_exit_button() -> void:
+	# En el tutorial no se puede abandonar: interfaz mínima, sin "Salir".
+	if GameState.is_tutorial():
+		return
 	var b := Button.new()
 	b.text = "Salir"
 	b.custom_minimum_size = Vector2(96, 44)

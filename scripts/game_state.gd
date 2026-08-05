@@ -15,6 +15,9 @@ var selected_perks: Array[String] = []
 ## salida de una con la de entrada de la otra ("arcade", "inventario",
 ## "menu"...). Lo consume la pantalla que se abre y se limpia sola.
 var transition: String = ""
+## Recetas recién desbloqueadas que el MENÚ principal tiene que anunciar con su
+## animación. Lo llena complete_tutorial/complete_port y lo consume el menú.
+var pending_reveal: Array = []
 
 
 ## Devuelve el tipo de transición pendiente y lo consume.
@@ -37,6 +40,17 @@ var player_name: String = ""
 ## Ids de recetas y potenciadores desbloqueados.
 var unlocked_recipes: Array[String] = []
 var unlocked_powerups: Array[String] = []
+## true cuando se ha completado el tutorial de David Jones. Hasta entonces el
+## menú manda a la introducción y no hay recetas desbloqueadas (las 4 primeras
+## las entrega el propio tutorial).
+var tutorial_done := false
+## true cuando David ya ha presentado la TIENDA y a Saverio (tras el nivel 2).
+## Es lo que además abre los EXTRAS: antes de esa escena no existen.
+var shop_intro_done := false
+## Usos de ingredientes que regala el juego al desbloquear recetas: la tanda
+## del tutorial viene más surtida que las de cada nivel.
+const TUTORIAL_GIFT := 5
+const PORT_GIFT := 3
 ## Mejor resultado en estrellas (0-3) por nivel jugado. port_id -> int.
 var level_stars: Dictionary = {}
 ## Mejor puntuación (dinero ganado) por nivel jugado. port_id -> int.
@@ -175,6 +189,47 @@ func is_adventure() -> bool:
 	return mode == "adventure" and current_port != ""
 
 
+func is_tutorial() -> bool:
+	return mode == "tutorial"
+
+
+## Cierra el tutorial: entrega las 4 recetas con las que se aprendió y deja
+## paso al modo aventura. Idempotente (repetir el tutorial no duplica nada).
+func complete_tutorial() -> void:
+	tutorial_done = true
+	for r in CampaignData.INITIAL_RECIPES:
+		unlock_recipe(r)
+	# Se estrenan con la despensa llena: 5 usos de todo lo que piden.
+	gift_ingredients_for(CampaignData.INITIAL_RECIPES, TUTORIAL_GIFT)
+	pending_reveal = CampaignData.INITIAL_RECIPES.duplicate()
+	save_game()
+
+
+## ¿Está abierta la TIENDA? Se gana superando el nivel que la trae
+## (`unlocks_shop` en CampaignData). En Arcade y en prueba está siempre.
+func shop_unlocked() -> bool:
+	for p in CampaignData.PORTS:
+		if not p.get("unlocks_shop", false):
+			continue
+		return int(level_stars.get(p["id"], 0)) >= int(p.get("goal_stars", 1))
+	return true
+
+
+## Los EXTRAS (jengibre, wasabi, soja) los presenta Saverio la primera vez que
+## David lleva al jugador a la tienda: hasta entonces ni existen.
+func extras_unlocked() -> bool:
+	return shop_intro_done
+
+
+## El modo Arcade se gana jugando: hace falta haber SUPERADO el nivel 5 de la
+## aventura (su objetivo de estrellas, no solo haberlo tocado).
+func arcade_unlocked() -> bool:
+	var port := CampaignData.get_port("nivel_5")
+	if port.is_empty():
+		return true
+	return int(level_stars.get("nivel_5", 0)) >= int(port.get("goal_stars", 1))
+
+
 # --- Desbloqueos -----------------------------------------------------------
 
 ## ¿Está desbloqueada esta receta?
@@ -187,6 +242,9 @@ func unlock_recipe(id: String) -> bool:
 	if id in unlocked_recipes:
 		return false
 	unlocked_recipes.append(id)
+	# El surtido de la tienda se sortea entre lo que sirve para las recetas
+	# conocidas: al aprender una nueva hay que rehacerlo.
+	shop_day = ""
 	return true
 
 
@@ -198,6 +256,18 @@ func get_ingredient_uses(id: String) -> int:
 
 func add_ingredient_uses(id: String, amount: int) -> void:
 	ingredients[id] = get_ingredient_uses(id) + amount
+
+
+## Regala `uses` usos de todo lo que hace falta para estas recetas, para que una
+## receta recién desbloqueada se pueda estrenar sin pasar por la tienda.
+## Los ingredientes GRATIS (arroz, sésamo: cost 0) se saltan, que no se gastan.
+func gift_ingredients_for(recipe_ids: Array, uses: int) -> void:
+	for rid in recipe_ids:
+		for ing in RecipeData.get_ingredients(rid):
+			var data: Dictionary = RecipeData.INGREDIENTS.get(ing, {})
+			if int(data.get("cost", 0)) <= 0:
+				continue
+			add_ingredient_uses(ing, uses)
 
 
 ## ¿Hay al menos 1 uso de cada ingrediente de la receta?
@@ -270,9 +340,15 @@ func _stock_has_extras() -> bool:
 ## infinito y no entra). Los EXTRAS quedan fuera: tienen su propia balda y el
 ## tendero los tiene SIEMPRE, así que sortearlos ocuparía un hueco del día.
 func roll_shop_stock() -> void:
+	# Saverio solo saca a la balda lo que sirve para las recetas que YA sabes
+	# cocinar: ofrecer atún antes de tener una receta con atún no dice nada.
+	var utiles := {}
+	for rid in unlocked_recipes:
+		for ing in RecipeData.get_ingredients(rid):
+			utiles[ing] = true
 	var pool: Array[String] = []
 	for ing in RecipeData.INGREDIENTS:
-		if ing in RecipeData.EXTRAS:
+		if ing in RecipeData.EXTRAS or not utiles.has(ing):
 			continue
 		if int(RecipeData.INGREDIENTS[ing].get("cost", 0)) > 0:
 			pool.append(ing)
@@ -376,6 +452,10 @@ func complete_port(port_id: String, stars: int) -> Array:
 		for r in port.get("reward_recipes", []):
 			if unlock_recipe(r):
 				newly.append(r)
+		# Toda receta nueva llega con despensa para estrenarla.
+		gift_ingredients_for(newly, PORT_GIFT)
+		if not newly.is_empty():
+			pending_reveal = newly.duplicate()
 	save_game()
 	return newly
 
@@ -571,6 +651,8 @@ func save_game() -> void:
 		"shop_day": shop_day,
 		"player_gender": player_gender,
 		"player_name": player_name,
+		"tutorial_done": tutorial_done,
+		"shop_intro_done": shop_intro_done,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
@@ -637,9 +719,16 @@ func load_game() -> void:
 	# Los guardados viejos traen los enteros como float al pasar por JSON.
 	for k in ["quality", "fps"]:
 		settings[k] = int(settings[k])
-	# Garantiza las recetas iniciales aunque el save sea antiguo/parcial.
-	for r in CampaignData.INITIAL_RECIPES:
-		unlock_recipe(r)
+	tutorial_done = bool(parsed.get("tutorial_done", false))
+	shop_intro_done = bool(parsed.get("shop_intro_done", false))
+	# Guardado de ANTES del tutorial: si ya tenía recetas es que ya jugó, así
+	# que no se le vuelve a plantar la introducción.
+	if not parsed.has("tutorial_done") and not unlocked_recipes.is_empty():
+		tutorial_done = true
+	# Con el tutorial hecho se garantizan sus recetas aunque el save sea parcial.
+	if tutorial_done:
+		for r in CampaignData.INITIAL_RECIPES:
+			unlock_recipe(r)
 
 
 ## Borra el progreso y empieza de cero. Los AJUSTES (gráficos) y el PERFIL
@@ -662,7 +751,8 @@ func _new_game() -> void:
 	play_seconds = 0.0
 	player_gender = CharacterData.MALE
 	player_name = ""
-	money = 0
+	# Un pequeño botín de bienvenida para las primeras compras en la tienda.
+	money = 50
 	unlocked_recipes = []
 	unlocked_powerups = []
 	level_stars = {}
@@ -672,8 +762,12 @@ func _new_game() -> void:
 	perk_uses = {}
 	shop_stock = []
 	shop_day = ""
-	for r in CampaignData.INITIAL_RECIPES:
-		unlock_recipe(r)
+	# SIN recetas de inicio y con el tutorial pendiente: las 4 primeras las
+	# entrega David al terminar su clase (complete_tutorial). Olvidar poner
+	# tutorial_done a false aquí hacía que borrar la partida NO relanzara la
+	# introducción: el true viejo se colaba en el guardado nuevo.
+	tutorial_done = false
+	shop_intro_done = false
 	# Los usos iniciales SOLO en partida nueva (si se diera también al cargar,
 	# se rellenarían gratis en cada arranque).
 	for ing in CampaignData.INITIAL_INGREDIENTS:

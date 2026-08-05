@@ -221,6 +221,7 @@ func _build_profile(box: VBoxContainer) -> void:
 	edit.text_changed.connect(func(t: String) -> void:
 		draft_name = t
 		_refresh_apply())
+	PrepBoard.enable_mobile_keyboard(edit)
 	row.add_child(edit)
 	box.add_child(row)
 
@@ -656,12 +657,9 @@ func _choice_row(box: Control, label: String, names: Array, index: int,
 	value.add_theme_color_override("font_color", DARK)
 	value.text = str(names[state["i"]])
 	for dir in [-1, 1]:
-		var b := Button.new()
-		b.text = "◄" if dir < 0 else "►"
-		b.custom_minimum_size = Vector2(70, 58)
-		PrepBoard.skin_button(b)
-		PrepBoard.add_press_feedback(b)
-		b.add_theme_font_size_override("font_size", 24)
+		# La flecha de madera del recetario, no un carácter en un tablón: los
+		# ◄ ► de la fuente salían descolocados y diminutos en el móvil.
+		var b := PrepBoard.make_arrow("<" if dir < 0 else ">", 62.0)
 		b.pressed.connect(func() -> void:
 			state["i"] = wrapi(int(state["i"]) + dir, 0, names.size())
 			value.text = str(names[state["i"]])

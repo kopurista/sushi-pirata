@@ -19,6 +19,8 @@ var reroll_button: Button = null
 var grid: GridContainer = null
 var extras_row: HBoxContainer = null
 var ui: CanvasLayer = null
+## Raíz de la interfaz 2D, para colgar de ella los carteles modales.
+var ui_root: Control = null
 var shopkeeper: Node3D = null
 ## Sprites del género expuesto en el mostrador (se rehacen al recargar).
 var goods_root: Node3D = null
@@ -41,6 +43,39 @@ func _ready() -> void:
 	# Se llega desde el negro del menú: el velo es del autoload y lo abre él
 	# solo, aquí solo se consume la marca de transición.
 	GameState.take_transition()
+	# La PRIMERA visita es una escena: David presenta a Saverio, que explica la
+	# tienda y regala los extras.
+	if GameState.shop_unlocked() and not GameState.shop_intro_done:
+		_presentacion.call_deferred()
+
+
+## David lleva al jugador a conocer a Saverio. David habla desde la IZQUIERDA y
+## Saverio desde la DERECHA (los dos en pantalla a la vez, ver DialogueBox).
+## Al terminar quedan desbloqueados los EXTRAS, con 5 usos de regalo de cada uno.
+func _presentacion() -> void:
+	var caja := DialogueBox.new()
+	ui.add_child(caja)
+	caja.say([
+		{ "text": "¡Y aquí lo tienes! El mejor puesto de estos mares... y el único, todo hay que decirlo.", "mood": "riendo" },
+		{ "text": "¡David Jones! Y con la tripulación nueva, por lo que veo.", "who": "saverio", "mood": "feliz" },
+		{ "text": "Este es **Saverio**. Lleva media vida entre ingredientes: si algo no lo sabe él, no lo sabe nadie.", "mood": "hablando" },
+		{ "text": "Encantado, cocinero. Aquí se vende una cosa muy simple: **usos** de ingredientes.", "who": "saverio", "mood": "explicando" },
+		{ "text": "Y aquí interrumpo yo, que esto es importante: **un uso = una partida**. Si llevas salmón a un nivel, gastas un uso de salmón. Da igual que hagas un nigiri o veinte.", "mood": "serio" },
+		{ "text": "Exacto. Por eso conviene venir con la despensa surtida antes de zarpar. Yo saco **género nuevo cada día**; si no te gusta lo que ves, puedes pedirme que lo recargue.", "who": "saverio", "mood": "hablando" },
+		{ "text": "Y luego están mis tres joyas, que no faltan nunca en la balda: los **extras**.", "who": "saverio", "mood": "explicando" },
+		{ "text": "El **jengibre** limpia el paladar: el plato no le cuenta al cliente como repetido, así que le sabe a nuevo.", "who": "saverio", "mood": "hablando" },
+		{ "text": "El **wasabi** despierta: hace más **probable** que te dejen propina. Y la **soja** redondea: cuando la propina cae, cae más **gorda**.", "who": "saverio", "mood": "explicando" },
+		{ "text": "Van sobre un plato ya terminado, y se gastan por plato servido, no por partida. Toma: **5 usos de cada uno**, cortesía de la casa.", "who": "saverio", "mood": "feliz" },
+		{ "text": "¡Eso es hacer amigos, Saverio! Anda, %s, mira el género con calma y compra lo que te haga falta." % GameState.player_title(), "mood": "riendo" },
+		{ "text": "Yo te espero en el mar. ¡Que no se te enfríe la cinta!", "mood": "hablando" },
+	])
+	await caja.finished
+	for ing in RecipeData.EXTRAS:
+		GameState.add_ingredient_uses(ing, GameState.TUTORIAL_GIFT)
+	GameState.shop_intro_done = true
+	GameState.save_game()
+	caja.queue_free()
+	_refresh()
 
 
 ## El tendero, en su puesto, MONTADO SOBRE UN MUELLE: antes el mostrador
@@ -129,6 +164,7 @@ func _setup_ui() -> void:
 	ui = CanvasLayer.new()
 	add_child(ui)
 	var root := Control.new()
+	ui_root = root
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(root)
@@ -182,17 +218,17 @@ func _setup_ui() -> void:
 	shelf.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	shelf.offset_left = 14.0
 	shelf.offset_right = -14.0
-	shelf.offset_top = -900.0
+	shelf.offset_top = -600.0
 	shelf.offset_bottom = -128.0
 	root.add_child(shelf)
 	shelf.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 40))
 	grid = GridContainer.new()
 	grid.columns = COLS
 	grid.set_anchors_preset(Control.PRESET_FULL_RECT)
-	grid.offset_left = 44.0
-	grid.offset_top = 44.0
-	grid.offset_right = -44.0
-	grid.offset_bottom = -237.0
+	grid.offset_left = 58.0
+	grid.offset_top = 36.0
+	grid.offset_right = -58.0
+	grid.offset_bottom = -158.0
 	grid.add_theme_constant_override("h_separation", 6)
 	grid.add_theme_constant_override("v_separation", 10)
 	shelf.add_child(grid)
@@ -204,22 +240,23 @@ func _setup_ui() -> void:
 	extras_row.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	extras_row.offset_left = 44.0
 	extras_row.offset_right = -44.0
-	extras_row.offset_top = -227.0
-	extras_row.offset_bottom = -87.0
+	extras_row.offset_top = -150.0
+	extras_row.offset_bottom = -62.0
 	shelf.add_child(extras_row)
 
-	# Recargar el surtido pagando.
+	# Recargar el surtido: un icono PEQUEÑO sobrepuesto en la parte baja de la
+	# balda, no un botón a lo ancho que se comía media pantalla.
 	reroll_button = Button.new()
-	reroll_button.custom_minimum_size = Vector2(420, 88)
+	reroll_button.custom_minimum_size = Vector2(186, 48)
 	PrepBoard.skin_button(reroll_button)
-	reroll_button.add_theme_font_size_override("font_size", 26)
-	reroll_button.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	reroll_button.offset_left = 150.0
-	reroll_button.offset_right = -150.0
-	reroll_button.offset_top = -110.0
-	reroll_button.offset_bottom = -22.0
+	reroll_button.add_theme_font_size_override("font_size", 21)
+	reroll_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	reroll_button.offset_left = -238.0
+	reroll_button.offset_right = -52.0
+	reroll_button.offset_top = -62.0
+	reroll_button.offset_bottom = -14.0
 	reroll_button.pressed.connect(_on_reroll)
-	root.add_child(reroll_button)
+	shelf.add_child(reroll_button)
 
 
 func _make_money_box() -> Control:
@@ -244,7 +281,7 @@ func _make_money_box() -> Control:
 ## Repinta el surtido y los contadores.
 func _refresh() -> void:
 	money_label.text = "%d" % GameState.money
-	reroll_button.text = "Recargar artículos  $%d" % GameState.SHOP_REROLL_COST
+	reroll_button.text = "↻  $%d" % GameState.SHOP_REROLL_COST
 	reroll_button.disabled = GameState.money < GameState.SHOP_REROLL_COST
 	for c in grid.get_children():
 		c.queue_free()
@@ -254,8 +291,9 @@ func _refresh() -> void:
 	# tendero los tiene SIEMPRE, pequeños y centrados en su propia balda.
 	for c in extras_row.get_children():
 		c.queue_free()
-	for ing in RecipeData.EXTRAS:
-		extras_row.add_child(_build_item(ing, true))
+	if GameState.extras_unlocked():
+		for ing in RecipeData.EXTRAS:
+			extras_row.add_child(_build_item(ing, true))
 
 
 ## Un artículo del mostrador: icono, nombre, precio unitario y usos que ya
@@ -307,7 +345,7 @@ func _build_item(ing: String, small: bool = false) -> Button:
 	var data: Dictionary = RecipeData.INGREDIENTS.get(ing, {})
 	var cost := int(data.get("cost", 0))
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(124, 140) if small else Vector2(150, 226)
+	b.custom_minimum_size = Vector2(96, 104) if small else Vector2(104, 134)
 	if small:
 		return _fill_small_item(b, ing, data, cost)
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
@@ -318,10 +356,10 @@ func _build_item(ing: String, small: bool = false) -> Button:
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.texture = RecipeData.get_ingredient_texture(ing)
 	icon.set_anchors_preset(Control.PRESET_FULL_RECT)
-	icon.offset_left = 12.0
-	icon.offset_top = 6.0
-	icon.offset_right = -12.0
-	icon.offset_bottom = -98.0
+	icon.offset_left = 8.0
+	icon.offset_top = 4.0
+	icon.offset_right = -8.0
+	icon.offset_bottom = -70.0
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(icon)
 
@@ -330,8 +368,8 @@ func _build_item(ing: String, small: bool = false) -> Button:
 	name_l.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	# Alto para DOS líneas: "Huevas de salmón" partía en dos y la segunda se
 	# comía la fila del precio.
-	name_l.offset_top = -96.0
-	name_l.offset_bottom = -50.0
+	name_l.offset_top = -68.0
+	name_l.offset_bottom = -32.0
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -342,8 +380,8 @@ func _build_item(ing: String, small: bool = false) -> Button:
 
 	var price := HBoxContainer.new()
 	price.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	price.offset_top = -48.0
-	price.offset_bottom = -22.0
+	price.offset_top = -30.0
+	price.offset_bottom = -4.0
 	price.alignment = BoxContainer.ALIGNMENT_CENTER
 	price.add_theme_constant_override("separation", 3)
 	price.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -351,35 +389,68 @@ func _build_item(ing: String, small: bool = false) -> Button:
 	coin.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	coin.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	coin.texture = load("res://assets/ui/moneda.png")
-	coin.custom_minimum_size = Vector2(26, 26)
+	coin.custom_minimum_size = Vector2(22, 22)
 	price.add_child(coin)
 	var pl := Label.new()
-	pl.text = "%d" % cost
+	pl.text = "%d · x%d" % [cost, GameState.get_ingredient_uses(ing)]
 	pl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	pl.add_theme_font_size_override("font_size", 22)
+	pl.add_theme_font_size_override("font_size", 18)
 	pl.add_theme_color_override("font_color", Color(0.4, 0.26, 0.02))
 	price.add_child(pl)
 	b.add_child(price)
 
-	var uses := Label.new()
-	uses.text = "Tienes %d" % GameState.get_ingredient_uses(ing)
-	uses.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	uses.offset_top = -22.0
-	uses.offset_bottom = -2.0
-	uses.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	uses.add_theme_font_size_override("font_size", 15)
-	uses.add_theme_color_override("font_color", Color(0.45, 0.33, 0.2))
-	uses.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.add_child(uses)
 
 	b.pressed.connect(_open_buy_dialog.bind(ing))
 	return b
 
 
+## Recargar cuesta dinero, así que se pregunta antes: el icono es pequeño y se
+## pulsa sin querer con facilidad.
 func _on_reroll() -> void:
-	if GameState.reroll_shop():
-		_refresh()
-		_place_goods()
+	var panel := Control.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.offset_left = -280.0
+	panel.offset_top = -170.0
+	panel.offset_right = 280.0
+	panel.offset_bottom = 130.0
+	panel.z_index = 120
+	panel.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 44))
+	ui_root.add_child(panel)
+
+	var texto := Label.new()
+	texto.text = "¿Recargar los artículos\npor $%d?" % GameState.SHOP_REROLL_COST
+	texto.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	texto.offset_left = 56.0
+	texto.offset_right = -56.0
+	texto.offset_top = 62.0
+	texto.offset_bottom = 180.0
+	texto.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	texto.add_theme_font_size_override("font_size", 26)
+	texto.add_theme_color_override("font_color", Color(0.26, 0.16, 0.08))
+	panel.add_child(texto)
+
+	var fila := HBoxContainer.new()
+	fila.alignment = BoxContainer.ALIGNMENT_CENTER
+	fila.add_theme_constant_override("separation", 22)
+	fila.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	fila.offset_left = 44.0
+	fila.offset_right = -44.0
+	fila.offset_top = -108.0
+	fila.offset_bottom = -40.0
+	panel.add_child(fila)
+	for opcion in [["Sí", true], ["No", false]]:
+		var b := Button.new()
+		b.text = str(opcion[0])
+		b.custom_minimum_size = Vector2(180, 68)
+		PrepBoard.skin_button(b)
+		b.add_theme_font_size_override("font_size", 26)
+		var si: bool = bool(opcion[1])
+		b.pressed.connect(func() -> void:
+			panel.queue_free()
+			if si and GameState.reroll_shop():
+				_refresh()
+				_place_goods())
+		fila.add_child(b)
 
 
 # ------------------------------------------------- cartel de "¿cuántos?"

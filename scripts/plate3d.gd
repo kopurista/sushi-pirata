@@ -7,7 +7,12 @@ extends PathFollow3D
 
 signal discarded(recipe_id: String)
 
-const MAX_LAPS := 2
+## UNA vuelta: el plato nace en la esquina inferior del circuito (donde está la
+## basura) y si vuelve a pasar por ahí sin que nadie lo haya cogido, se tira.
+const MAX_LAPS := 1
+## Cuánto se desplaza el plato hacia la basura al caer (diagonal hacia fuera y
+## abajo). Con ROTATION_NONE el sistema local del PathFollow es el del mundo.
+const CAIDA := Vector3(0.62, -0.34, 0.62)
 ## Huella horizontal del modelo del plato (la tabla de madera), igual que en
 ## el resto de la cinta.
 const DISH_FOOT := 0.62
@@ -96,5 +101,26 @@ func _process(delta: float) -> void:
 	progress += step
 	traveled += step
 	if belt_length > 0.0 and traveled >= MAX_LAPS * belt_length:
-		discarded.emit(recipe_id)
+		_tirar_a_la_basura()
+
+
+## El plato cae al cubo de la esquina en vez de desaparecer de golpe: se para,
+## se vuelca hacia fuera y hacia abajo, y se apaga dentro.
+func _tirar_a_la_basura() -> void:
+	taken = true
+	discarded.emit(recipe_id)
+	var dish: Node3D = null
+	for c in get_children():
+		if c is Node3D:
+			dish = c
+			break
+	if dish == null:
 		queue_free()
+		return
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(dish, "position", dish.position + CAIDA, 0.42) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(dish, "rotation_degrees:x", 62.0, 0.42)
+	tw.tween_property(dish, "scale", dish.scale * 0.55, 0.42) \
+			.set_delay(0.18)
+	tw.chain().tween_callback(queue_free)

@@ -139,6 +139,7 @@ func _setup_ui() -> void:
 	content.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 40))
 
 	var scroll := ScrollContainer.new()
+	TouchScroll.attach(scroll)
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	scroll.offset_left = 26.0
 	scroll.offset_top = 26.0

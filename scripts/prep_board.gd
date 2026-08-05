@@ -270,6 +270,69 @@ static func add_press_feedback(b: BaseButton, amount := 0.88) -> void:
 	b.button_up.connect(func() -> void: b.scale = Vector2.ONE)
 
 
+## Hace que un `LineEdit` saque el TECLADO DEL MÓVIL al tocarlo.
+##
+## No sale solo: en el móvil el campo no llegaba a coger el foco al tocarlo (el
+## mismo motivo por el que el ScrollContainer no se arrastra con el dedo, ver
+## touch_scroll.gd), así que aquí se le da el foco a mano y se pide el teclado
+## explícitamente. En escritorio las llamadas al teclado no hacen nada.
+static func enable_mobile_keyboard(edit: LineEdit) -> void:
+	edit.virtual_keyboard_enabled = true
+	edit.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventScreenTouch and event.pressed:
+			edit.grab_focus())
+	edit.focus_entered.connect(func() -> void:
+		if DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
+			DisplayServer.virtual_keyboard_show(edit.text))
+	edit.focus_exited.connect(func() -> void:
+		if DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
+			DisplayServer.virtual_keyboard_hide())
+	edit.text_submitted.connect(func(_t: String) -> void:
+		edit.release_focus())
+
+
+## Margen de tolerancia al TOCAR ingredientes, platos y la etapa en curso. El
+## dedo tapa lo que señala y en el móvil se fallaban toques justos; con este
+## colchón alrededor del icono se acierta sin tener que apuntar.
+const TOUCH_PAD := 22.0
+
+
+## ¿El dedo ha caído sobre este nodo (con el colchón de TOUCH_PAD)?
+func _touched(node: Control, pos: Vector2) -> bool:
+	return node != null and node.visible \
+		and node.get_global_rect().grow(TOUCH_PAD).has_point(pos)
+
+
+## De varios ingredientes a la vez (los de un paso de ELECCIÓN), el que tenga
+## el centro más cerca del dedo de entre los que caen dentro del margen.
+func _nearest_ingredient(options: Array, pos: Vector2) -> String:
+	var best := ""
+	var best_d := INF
+	for ing_id in options:
+		var node: Control = ingredient_nodes.get(ing_id)
+		if not _touched(node, pos):
+			continue
+		var d: float = node.get_global_rect().get_center().distance_to(pos)
+		if d < best_d:
+			best_d = d
+			best = str(ing_id)
+	return best
+
+
+## FLECHA de madera (las del recetario y las de cantidad de la tienda): es el
+## único sitio donde se define, para que todas las flechas del juego sean la
+## misma. `dir` es "<" o ">".
+static func make_arrow(dir: String, size := 76.0) -> TextureButton:
+	var b := TextureButton.new()
+	b.texture_normal = load("res://assets/ui/boton_flecha_der.png" if dir == ">"
+		else "res://assets/ui/boton_flecha_izq.png")
+	b.ignore_texture_size = true
+	b.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	b.custom_minimum_size = Vector2(size, size)
+	add_press_feedback(b)
+	return b
+
+
 ## Fila de estrellas con las imágenes propias del juego (llenas y vacías).
 ## Con shadow=true cada estrella lleva una sombra leve desplazada, para
 ## diferenciarla del fondo.
@@ -310,6 +373,7 @@ static func make_star_row(count: int, total: int, star_size: float, shadow := fa
 
 #
 func _ready() -> void:
+	tutorial_mode = GameState.is_tutorial()
 	if GameState.selected_recipes.is_empty():
 		# Fallback para poder probar level.tscn directamente sin pasar por la selección.
 		var fallback: Array[String] = ["maki_aguacate", "nigiri_salmon", "maki_atun", "futomaki_salmon"]
@@ -493,6 +557,11 @@ func _process(delta: float) -> void:
 			cd.visible = false
 			b.disabled = state != State.IDLE and state != State.READY
 			b.modulate = Color.WHITE if not b.disabled else Color(0.75, 0.75, 0.75)
+		# En el tutorial solo se puede tocar la receta que el guion permite;
+		# las demás quedan apagadas hasta que David las presente.
+		if not allowed_recipes.is_empty() and not id in allowed_recipes:
+			b.disabled = true
+			b.modulate = Color(0.4, 0.4, 0.4)
 		badge.text = "x%d" % free_uses[id] if free_uses.get(id, 0) > 0 else ""
 
 	if state == State.CRAFTING and holding:
@@ -610,6 +679,17 @@ func add_storage_slot() -> void:
 
 
 ## Potenciador "Reciclaje de platos": vuelve como uso instantáneo (xN).
+## Añade una receta a la tabla EN PLENA PARTIDA: la usa el guion del nivel 3,
+## donde David regala el nigiri de atún al aparecer el primer pirata.
+func add_recipe(id: String) -> void:
+	if buttons.has(id) or not RecipeData.RECIPES.has(id):
+		return
+	_build_recipe_button(id)
+	if not allowed_recipes.is_empty() and not id in allowed_recipes:
+		allowed_recipes.append(id)
+	_update_ui()
+
+
 func recycle_recipe(recipe_id: String) -> void:
 	if recipe_id in cooldowns:
 		free_uses[recipe_id] = free_uses.get(recipe_id, 0) + 1
@@ -722,6 +802,18 @@ var boat_button: Button = null
 var boat_cooldown: float = 0.0
 ## Botón de COMBINAR (udon + tempura): al lado del barco.
 var combo_button: Button = null
+## TUTORIAL: con `tutorial_mode` los botones del barco, combinar y extras no
+## existen para el jugador, y `allowed_recipes` (si no está vacío) apaga todas
+## las recetas menos las que el guion de David permite en cada fase.
+var tutorial_mode := false
+## Lo mismo, pero para NIVELES de campaña que todavía no han presentado esas
+## mecánicas (`no_extras` en CampaignData): los primeros puertos se juegan solo
+## con la tabla y la cinta.
+var hide_extras := false
+## Sin tipar a Array[String] a propósito: el director asigna literales de
+## Array y el tipado estricto rechazaba la asignación.
+var allowed_recipes: Array = []
+
 ## AYUDANTE (potenciador permanente): botón con su cara que termina de golpe la
 ## receta recién empezada. Solo existe si el jugador lo lleva a la partida; se
 ## enciende en el PRIMER paso de una elaboración y luego enfría medio minuto.
@@ -923,16 +1015,16 @@ func _handle_choice_drag(event: InputEvent, step: Dictionary) -> void:
 	var options: Array = step.get("options", [])
 	if event is InputEventScreenTouch:
 		if event.pressed:
-			for ing_id in options:
-				var node: Control = ingredient_nodes.get(ing_id)
-				if node != null and node.get_global_rect().has_point(event.position) and ghost == null:
-					ghost = _make_ghost(ing_id)
-					ghost.set_meta("ing", ing_id)
-					add_child(ghost)
-					ghost.global_position = event.position - ghost.size / 2.0
-					choice_press_at = event.position
-					choice_moved = false
-					break
+			# Con margen de toque las opciones vecinas se solapan, así que se
+			# queda con la MÁS CERCANA al dedo, no con la primera de la lista.
+			var picked := _nearest_ingredient(options, event.position)
+			if picked != "" and ghost == null:
+				ghost = _make_ghost(picked)
+				ghost.set_meta("ing", picked)
+				add_child(ghost)
+				ghost.global_position = event.position - ghost.size / 2.0
+				choice_press_at = event.position
+				choice_moved = false
 		elif ghost != null:
 			var dropped := tap_zone.get_global_rect().intersects(
 					Rect2(ghost.global_position, ghost.size))
@@ -1134,6 +1226,9 @@ func _consume_stored(id: String) -> void:
 func _update_boat_button() -> void:
 	if boat_button == null:
 		return
+	if tutorial_mode or hide_extras:
+		boat_button.visible = false
+		return
 	var cooling := boat_cooldown > 0.0
 	var can_build: bool = state == State.IDLE and not cooling \
 			and not _boat_pick().is_empty()
@@ -1151,6 +1246,9 @@ func _update_boat_button() -> void:
 ## pareja es exacta. También está siempre puesto y apagado cuando no toca.
 func _update_combo_button() -> void:
 	if combo_button == null:
+		return
+	if tutorial_mode or hide_extras:
+		combo_button.visible = false
 		return
 	var combo := _combo_ready()
 	var can_build: bool = state == State.IDLE and combo != ""
@@ -1485,6 +1583,11 @@ func _bump_extra(b: Button) -> void:
 ## sobre la tabla o no quede existencia en la despensa.
 func _update_extra_buttons() -> void:
 	# "no_extras": a los postres (mochi, dorayaki, taiyaki) no se les echa nada.
+	# En el tutorial los extras no existen todavía: interfaz mínima.
+	if tutorial_mode or hide_extras:
+		for id in extra_buttons:
+			extra_buttons[id].visible = false
+		return
 	var usable: bool = state == State.READY 			and not RecipeData.get_recipe(ready_recipe).get("no_extras", false)
 	for id in extra_buttons:
 		var b: Button = extra_buttons[id]
@@ -1778,7 +1881,7 @@ func _try_start_dish_drag(event: InputEventScreenTouch) -> bool:
 		return false
 	for i in range(dishes.size() - 1, -1, -1):
 		var d: Control = dishes[i]
-		if d.get_global_rect().has_point(event.position):
+		if _touched(d, event.position):
 			dragging_dish = d
 			drag_offset = event.position - d.global_position
 			return true
@@ -1970,7 +2073,7 @@ func _handle_craft_input(event: InputEvent) -> void:
 		"tap_ingredient":
 			if event is InputEventScreenTouch and event.pressed:
 				var node: Control = ingredient_nodes.get(step.get("ingredient", ""))
-				if node != null and node.get_global_rect().has_point(event.position):
+				if _touched(node, event.position):
 					craft_event.emit("tap", _current_stage_id())
 					_advance_step()
 		"tap_board":
@@ -2092,7 +2195,7 @@ func _handle_ingredient_drag(event: InputEvent, step: Dictionary) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			var node: Control = ingredient_nodes.get(ing_id)
-			if node != null and node.get_global_rect().has_point(event.position) and ghost == null:
+			if ghost == null and _touched(node, event.position):
 				ghost = _make_ghost(ing_id)
 				add_child(ghost)
 				ghost.global_position = event.position - ghost.size / 2.0

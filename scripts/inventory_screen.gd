@@ -266,6 +266,7 @@ func _build_recipe_book() -> Control:
 		search_text = t
 		recipe_page = 0
 		_refresh_recipe_pages())
+	PrepBoard.enable_mobile_keyboard(search)
 	top.add_child(search)
 
 	var filters := HBoxContainer.new()
@@ -297,6 +298,15 @@ func _build_recipe_book() -> Control:
 	recipe_pager_host.set_anchors_preset(Control.PRESET_FULL_RECT)
 	recipe_pager_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(recipe_pager_host)
+	# Se pasa página deslizando el dedo sobre el libro, como en uno de verdad.
+	# Cuelga de `root`, no del libro: sus hijos se borran en cada repintado.
+	SwipePages.attach(recipe_book_host, func(delta: int) -> void:
+		var pages := maxi(1, ceili(float(_filtered_recipes().size())
+			/ float(RECIPES_PER_PAGE)))
+		var want := clampi(recipe_page + delta, 0, pages - 1)
+		if want != recipe_page:
+			recipe_page = want
+			_refresh_recipe_pages(), root)
 	_refresh_recipe_pages()
 	return root
 
@@ -478,6 +488,12 @@ func _build_pantry_book() -> Control:
 		func(delta: int) -> void:
 			pantry_page = clampi(pantry_page + delta, 0, total_pages - 1)
 			_show_tab("despensa")))
+	# La despensa es el mismo libro: también se pasa página deslizando.
+	SwipePages.attach(book_host, func(delta: int) -> void:
+		var want := clampi(pantry_page + delta, 0, total_pages - 1)
+		if want != pantry_page:
+			pantry_page = want
+			_show_tab("despensa"))
 	return root
 
 
@@ -527,6 +543,7 @@ func _build_perks_panel() -> Control:
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	var scroll := ScrollContainer.new()
+	TouchScroll.attach(scroll)
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	root.add_child(scroll)
@@ -666,6 +683,7 @@ func _open_recipe_sheet(id: String) -> void:
 	vb.add_child(PrepBoard.make_star_row(lvl, lvl, 28))
 
 	var scroll := ScrollContainer.new()
+	TouchScroll.attach(scroll)
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	vb.add_child(scroll)
@@ -855,15 +873,7 @@ func _make_pager(total_pages: int, page: int, turn: Callable) -> Control:
 
 
 func _make_arrow(dir: String) -> TextureButton:
-	var b := TextureButton.new()
-	var path := "res://assets/ui/boton_flecha_der.png" if dir == ">" \
-			else "res://assets/ui/boton_flecha_izq.png"
-	b.texture_normal = load(path)
-	b.ignore_texture_size = true
-	b.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	b.custom_minimum_size = Vector2(76, 76)
-	PrepBoard.add_press_feedback(b)
-	return b
+	return PrepBoard.make_arrow(dir)
 
 
 ## Chip de filtro: se enciende en verde cuando está activo. Se repinta solo
