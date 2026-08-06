@@ -2,15 +2,15 @@
 
 [ext_resource type="Script" uid="uid://b00tvx24adyaq" path="res://scripts/level.gd" id="1"]
 [ext_resource type="Script" uid="uid://bqn8ayv2l7wcv" path="res://scripts/prep_board.gd" id="2"]
-[ext_resource type="Texture2D" uid="uid://ctqt7keyxci7o" path="res://assets/scenery/cubierta.webp" id="3"]
-[ext_resource type="Texture2D" uid="uid://wqeky3l1c7uv" path="res://assets/characters/chef.webp" id="4"]
-[ext_resource type="Texture2D" uid="uid://dwlvitgy04kvr" path="res://assets/props/mesa_chef.png" id="5"]
+[ext_resource type="Texture2D" uid="uid://dfke0qqka28ql" path="res://assets/scenery/cubierta.webp" id="3"]
+[ext_resource type="Texture2D" uid="uid://cllofgr7t0xip" path="res://assets/characters/chef.webp" id="4"]
+[ext_resource type="Texture2D" uid="uid://102xte7040m6" path="res://assets/props/mesa_chef.png" id="5"]
 [ext_resource type="Texture2D" uid="uid://cpsh4ka6wv2uh" path="res://assets/ui/moneda.png" id="6"]
 [ext_resource type="Texture2D" uid="uid://c3opeed4th4ta" path="res://assets/ui/reloj.png" id="7"]
 [ext_resource type="Texture2D" uid="uid://cqhjryy77isvq" path="res://assets/ui/bolsa.png" id="8"]
-[ext_resource type="Texture2D" uid="uid://chapgnvwjeux8" path="res://assets/props/tabla_cortar.png" id="9"]
-[ext_resource type="Texture2D" uid="uid://x5eoc1mnn322" path="res://assets/props/cinta_trad_banda.png" id="10"]
-[ext_resource type="Texture2D" uid="uid://3wgsmpyj0j6y" path="res://assets/characters/grumete.webp" id="12"]
+[ext_resource type="Texture2D" uid="uid://b1bfb5kj4amgt" path="res://assets/props/tabla_cortar.png" id="9"]
+[ext_resource type="Texture2D" uid="uid://c6l2rr5tgd5kp" path="res://assets/props/cinta_trad_banda.png" id="10"]
+[ext_resource type="Texture2D" uid="uid://8doyh02mpxis" path="res://assets/characters/grumete.webp" id="12"]
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_tabla"]
 texture = ExtResource("9")
