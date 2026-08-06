@@ -1014,12 +1014,27 @@ que no hay problema.
   (`GameState.rice`, `RICE_START` 20) es la energía del juego: 1 uso por nivel,
   y se repondrá con dinero real más adelante; su barra es **la propia caja
   rellenándose** de canto a canto, no una barrita metida dentro.
-- **`enable_mobile_keyboard` ESCUCHA LOS DOS TIPOS DE EVENTO.**
-  `emulate_mouse_from_touch` viene ACTIVADO por defecto, así que un dedo sobre
-  la interfaz llega como `InputEventMouseButton`, NO como `ScreenTouch`:
-  mirando solo el táctil, el teclado no salía nunca. Y el teclado se pide
-  también en el propio toque, no solo en `focus_entered`: si el campo ya tenía
-  el foco, volver a tocarlo no dispara `focus_entered`.
+- **EL TECLADO EN LA BUILD WEB LO DECIDE UNA OPCIÓN DE EXPORTACIÓN, NO EL
+  CÓDIGO**: `html/experimental_virtual_keyboard` en `export_presets.cfg`. Con
+  ella en `false` (como venía), el runtime web evalúa
+  `available: GodotConfig.virtual_keyboard && "ontouchstart" in window` → falso,
+  así que `DisplayServer.has_feature(FEATURE_VIRTUAL_KEYBOARD)` es falso y NADIE
+  pide teclado: ni el `LineEdit` de Godot ni código propio. Se gastaron TRES
+  intentos arreglando el lado GDScript antes de mirar aquí; el juego se prueba
+  en el iPhone como **build web**, así que las respuestas están en el runtime
+  de JavaScript, no en el `DisplayServer` nativo.
+  **Y se comprueba en `index.html`, no en `index.js`**: el
+  `virtual_keyboard:false` de `index.js` es el valor por defecto del motor y
+  despista; el que manda es `"experimentalVK"` dentro de `GODOT_CONFIG` en
+  `index.html`.
+- **TECLADO DEL MÓVIL = `scripts/mobile_keyboard.gd`** (`MobileKeyboard.attach`,
+  que es lo que usa `prep_board.enable_mobile_keyboard`). Escucha en **`_input`**
+  (antes que la interfaz) y mira si el toque cae dentro del rectángulo del
+  campo, en vez de esperar a que el evento llegue al `gui_input` del `LineEdit`
+  — el mismo patrón que `touch_scroll.gd`. Atiende los DOS tipos de evento
+  (`emulate_mouse_from_touch` está activo, así que un dedo llega como ratón) y
+  no esconde el teclado en `focus_exited`, que lo cerraba en cuanto el foco daba
+  un salto. Nada de esto sirve sin la opción de exportación de arriba.
 - **Un icono en el TEXTO de un botón se escapa al restyle**: el de Comprar de
   la tienda seguía con `"✔  Comprar"` escrito a mano, resto de cuando
   `skin_action_button` prefijaba el rótulo. Ahora Comprar tiene su propio
