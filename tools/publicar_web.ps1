@@ -27,7 +27,11 @@ $LimiteBloqueo = 100MB
 $LimiteAviso   = 50MB
 
 # Lo que no se borra del repositorio de publicación al renovar el build.
-$Conservar = @(".git", ".nojekyll", "README.md")
+# OJO con `.github`: ahí vive el flujo de trabajo que publica en Pages. La
+# primera versión de este script no lo incluía, se lo llevó por delante al
+# vaciar la carpeta, y el build se subió sin que nada lo desplegara: el sitio
+# se quedó sirviendo la versión anterior sin dar ningún error.
+$Conservar = @(".git", ".github", ".nojekyll", "README.md")
 
 
 function Paso($texto) {

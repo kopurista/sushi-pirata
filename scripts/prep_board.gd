@@ -681,29 +681,11 @@ static func add_press_feedback(b: BaseButton, amount := 0.88) -> void:
 ## touch_scroll.gd), así que aquí se le da el foco a mano y se pide el teclado
 ## explícitamente. En escritorio las llamadas al teclado no hacen nada.
 static func enable_mobile_keyboard(edit: LineEdit) -> void:
-	edit.virtual_keyboard_enabled = true
-	# HAY QUE ESCUCHAR LOS DOS TIPOS DE EVENTO. `emulate_mouse_from_touch` viene
-	# ACTIVADO por defecto en Godot, así que un dedo sobre la interfaz llega
-	# como InputEventMouseButton, no como ScreenTouch: mirando solo el táctil,
-	# el manejador no saltaba nunca y el teclado no salía (pasaba en el nombre
-	# de la bienvenida de David y en el buscador del recetario).
-	edit.gui_input.connect(func(event: InputEvent) -> void:
-		var toque: bool = (event is InputEventScreenTouch and event.pressed) \
-			or (event is InputEventMouseButton and event.pressed)
-		if not toque:
-			return
-		edit.grab_focus()
-		# Y se pide el teclado AQUÍ además de en `focus_entered`: si el campo ya
-		# tenía el foco, volver a tocarlo no dispara `focus_entered` y el
-		# teclado no volvía a aparecer.
-		if DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
-			DisplayServer.virtual_keyboard_show(edit.text))
-	edit.focus_entered.connect(func() -> void:
-		if DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
-			DisplayServer.virtual_keyboard_show(edit.text))
-	edit.focus_exited.connect(func() -> void:
-		if DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
-			DisplayServer.virtual_keyboard_hide())
+	# Toda la maña vive en `mobile_keyboard.gd`: escucha en `_input` (antes que
+	# la interfaz) y mira si el toque cae dentro del campo, en vez de esperar a
+	# que el evento llegue al `gui_input` del propio LineEdit — que es lo que
+	# fallaba en el iPhone.
+	MobileKeyboard.attach(edit)
 	edit.text_submitted.connect(func(_t: String) -> void:
 		edit.release_focus())
 

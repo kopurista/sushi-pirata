@@ -101,7 +101,7 @@ var _panel: Control
 var _name_plate: Control
 var _name_label: Label
 var _text: RichTextLabel
-var _next_hint: Label
+var _next_hint: TextureRect
 var _hint_tween: Tween = null
 var _raise_tween: Tween = null
 
@@ -244,15 +244,17 @@ func _ready() -> void:
 	# Flecha de "toca para seguir" (▶), latiendo hacia la derecha. Va DENTRO de
 	# los márgenes del pergamino: pegada al borde se metía bajo el rodillo
 	# dibujado y no se veía.
-	_next_hint = Label.new()
-	_next_hint.text = "▶"
+	# ICONO DIBUJADO, no el carácter "▶": como glifo dependía de la fuente del
+	# sistema y en el móvil salía como un cuadro o no se veía.
+	_next_hint = TextureRect.new()
+	_next_hint.texture = load("res://assets/ui/ic_siguiente.png")
+	_next_hint.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_next_hint.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_next_hint.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_next_hint.offset_left = -142.0
-	_next_hint.offset_top = -104.0
-	_next_hint.offset_right = -102.0
-	_next_hint.offset_bottom = -64.0
-	_next_hint.add_theme_font_size_override("font_size", 30)
-	_next_hint.add_theme_color_override("font_color", Color(0.63, 0.4, 0.1))
+	_next_hint.offset_left = -150.0
+	_next_hint.offset_top = -110.0
+	_next_hint.offset_right = -96.0
+	_next_hint.offset_bottom = -62.0
 	_next_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_panel.add_child(_next_hint)
 

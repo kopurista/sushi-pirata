@@ -293,7 +293,8 @@ def build_hud() -> None:
     for src, dst, w in [("propina_3", "ic_propina", 128),
                         ("arroz_3", "ic_arroz", 128),
                         ("mas_1", "boton_mas", 96),
-                        ("cuerda_3", "cuerda_esquina", 128)]:
+                        ("cuerda_3", "cuerda_esquina", 128),
+                        ("next_3", "ic_siguiente", 96)]:
         save(fit_width(crop_alpha(keep_largest(drop_white(load(src))), 2), w), dst)
     # La caja de recurso se estira SOLO a lo ancho, asi que va al alto exacto al
     # que se dibuja (PrepBoard.RESOURCE_H).

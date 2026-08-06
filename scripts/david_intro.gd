@@ -527,9 +527,13 @@ func _ask_identity() -> String:
 	var panel := Control.new()
 	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.offset_left = -336.0
+	# ALTO MEDIDO, no a ojo: título + campo + título + fila de géneros (224) +
+	# título + fila de manos (196) + botón (86), con sus separaciones y los
+	# márgenes del pergamino, salen ~900 px. Con los 688 de antes, la mano
+	# dominante y el botón se salían por abajo.
 	panel.offset_top = -560.0
 	panel.offset_right = 336.0
-	panel.offset_bottom = 128.0
+	panel.offset_bottom = 340.0
 	ui.add_child(panel)
 	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 
