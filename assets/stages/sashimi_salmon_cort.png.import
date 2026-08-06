@@ -2,7 +2,7 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://43k0g07n4ghx"
+uid="uid://dbdekwqyvg6th"
 path="res://.godot/imported/sashimi_salmon_cort.png-1f2199220f24f489f90282e746fb19f0.ctex"
 metadata={
 "vram_texture": false
@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/sashimi_salmon_cort.png-1f2199220f24f489f9028
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.9
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

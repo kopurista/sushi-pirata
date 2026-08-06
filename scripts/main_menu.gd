@@ -12,7 +12,10 @@ extends "res://scripts/level_select3d.gd"
 
 ## Fondeadero del menú, en píxeles de mapa: lo bastante por debajo del nivel 1
 ## como para que ningún nodo de campaña asome por arriba.
-const MENU_ANCHOR := Vector2(360.0, 2680.0)
+## Fondeadero del barco en modo MENÚ: muy por debajo del nivel 1 para que
+## ningún nodo del mapa asome. Va atado a `CampaignData.MAP_POS["nivel_1"]`:
+## al separar los puertos, el nivel 1 bajó 454 px y este ancla bajó lo mismo.
+const MENU_ANCHOR := Vector2(360.0, 3134.0)
 ## Cuánto se sube la vista respecto al barco cuando manda el menú: deja hueco
 ## al logotipo arriba y a los botones abajo.
 const MENU_BAND_OFF := -70.0
@@ -34,8 +37,8 @@ const SHOP_ZOOM_SIZE := 9.4
 ## y la rueda de Opciones arriba a la derecha, en el hueco que dejó el monedero
 ## (el dinero solo se enseña donde se puede ganar o gastar). El rótulo va
 ## DENTRO del alto del botón: colgándolo por debajo se salía de la pantalla.
-const ROUND_SIZE := 112.0
-const ROUND_LABEL := 32.0
+const ROUND_SIZE := 74.0
+const ROUND_LABEL := 24.0
 const ROUND_MARGIN := 16.0
 
 var logo: TextureRect
@@ -50,6 +53,12 @@ var button_box: VBoxContainer = null
 ## la medalla de los logros arriba a la izquierda.
 var gear_button: Control = null
 var medal_button: Control = null
+## Contadores de arriba (dinero y arroz). Son los MISMOS en el menú y en el
+## mapa: solo cambian de sitio (ver `_place_resources`).
+var money_box: Control = null
+var rice_box: Control = null
+var res_y := 0.0
+var res_tween: Tween = null
 ## true mientras se ve el menú (con el mapa fuera de pantalla).
 var in_menu := true
 ## Mientras hay una transición en marcha no se aceptan más pulsaciones.
@@ -94,6 +103,10 @@ func _ready() -> void:
 	# Un frame para que el layout resuelva y `home_*` valga algo: las
 	# animaciones de entrada lo necesitan.
 	await get_tree().process_frame
+	# Posición REAL de reposo de los botones de esquina, ya con el layout hecho
+	# (ver el aviso de `_setup_menu_ui`).
+	home_medal_y = medal_button.position.y
+	home_gear_y = gear_button.position.y
 	match GameState.take_transition():
 		"mapa":
 			# Se vuelve del selector de recetas de aventura: directo al mapa.
@@ -122,6 +135,7 @@ func _ir_a_la_intro() -> void:
 ## Modo MENÚ: barco en el fondeadero, mapa fuera de vista.
 func _show_menu(animate: bool) -> void:
 	in_menu = true
+	_place_resources(false, animate)
 	map_visible = false
 	sky_leaving = false
 	_set_map_ui_visible(false)
@@ -144,6 +158,8 @@ func _show_menu(animate: bool) -> void:
 ## interfaz de la campaña.
 func _enter_map(animate: bool) -> void:
 	in_menu = false
+	# Los contadores se van a los extremos y dejan hueco al rótulo del mapa.
+	_place_resources(true, animate)
 	map_visible = true
 	if not animate:
 		_set_menu_ui_visible(false)
@@ -398,23 +414,122 @@ func _setup_menu_ui() -> void:
 	box.add_child(_make_mode_button("Inventario", "ic_inventario", 96, 36,
 		func() -> void: _go_inventory()))
 
-	# Botones redondos de las esquinas. Van SUELTOS (no en el VBox) para poder
-	# anclarlos a su esquina y animarlos por separado.
+	# Botones redondos, ABAJO en las esquinas. Van SUELTOS (no en el VBox) para
+	# poder anclarlos a su esquina y animarlos por separado. Arriba ya no cabían:
+	# ese hueco lo ocupan ahora los contadores de dinero y arroz.
+	var st := GameState.safe_top()
+	var round_y := -(ROUND_SIZE + ROUND_LABEL) - ROUND_MARGIN - GameState.safe_bottom()
 	medal_button = _make_round_button("ic_logros", "Logros",
-		Control.PRESET_TOP_LEFT, Vector2(ROUND_MARGIN, ROUND_MARGIN),
+		Control.PRESET_BOTTOM_LEFT, Vector2(ROUND_MARGIN, round_y),
 		func() -> void: _go_achievements())
 	gear_button = _make_round_button("ic_opciones", "Opciones",
-		Control.PRESET_TOP_RIGHT,
-		Vector2(-ROUND_MARGIN - ROUND_SIZE, ROUND_MARGIN),
+		Control.PRESET_BOTTOM_RIGHT,
+		Vector2(-ROUND_MARGIN - ROUND_SIZE, round_y),
 		func() -> void: _go_options())
+
+	_setup_resource_bar(st)
 
 	# Las posiciones de reposo salen del propio layout (el que las anima no
 	# puede leerlas más tarde: para entonces ya estarían desplazadas).
 	var vp := get_viewport().get_visible_rect().size
 	home_logo_y = 96.0
 	home_box_y = vp.y - 486.0
-	home_medal_y = ROUND_MARGIN
-	home_gear_y = ROUND_MARGIN
+	# OJO: `round_y` es lo que se le PASA al botón, pero `Control.position` es
+	# relativo a la esquina SUPERIOR IZQUIERDA del padre, no al ancla. Con las
+	# anclas abajo, la posición real de reposo es ~1068, no -114. Guardar aquí
+	# el -114 hacía que la salida ("home + 260" = 146) tirara de los botones
+	# HACIA ARRIBA. Las de verdad se leen en `_ready`, ya con el layout hecho.
+	home_medal_y = round_y
+	home_gear_y = round_y
+
+
+## Contadores de DINERO y ARROZ en la banda de arriba del menú.
+##
+## El arroz es la "energía" del juego: cada nivel gasta 1 uso, y el botón de "+"
+## abrirá la compra (con dinero real) cuando esa parte exista.
+## Ancho de cada contador y hueco entre los dos cuando van juntos (menú).
+## La caja del arroz es ESTRECHA a propósito: en el mapa tiene que dejar sitio
+## para que el rótulo de "Aventura" quepa CENTRADO EN LA PANTALLA, y el límite
+## lo pone ella (el saco asoma además por su izquierda).
+const RES_MONEY_W := 168.0
+const RES_RICE_W := 158.0
+const RES_GAP := 18.0
+## Lo que sobresale el botón "+" por la derecha de la caja del arroz. Hay que
+## contarlo o la caja se sale de la pantalla: el "+" mide 52 y va anclado a
+## -30 del borde derecho, así que asoma 22.
+const RES_PLUS_BLEED := 22.0
+
+
+func _setup_resource_bar(st: float) -> void:
+	res_y = ROUND_MARGIN + st
+	# Los dos contadores van SUELTOS (no dentro de un HBox) para poder moverlos
+	# uno a cada extremo al entrar en Aventura: son LOS MISMOS de siempre, no se
+	# cambian por otros, así que la transición se ve como un viaje y no como un
+	# corte. Antes el mapa dibujaba su propio monedero y el del menú se quedaba
+	# a medias.
+	money_box = PrepBoard.make_resource_box(
+		"res://assets/ui/moneda.png", str(GameState.money), RES_MONEY_W)
+	ui_layer.add_child(money_box)
+
+	# El arroz SÍ tiene techo (RICE_START), así que además de la cifra lleva una
+	# barra blanca que se va gastando.
+	rice_box = PrepBoard.make_resource_box(
+		"res://assets/ui/ic_arroz.png", str(GameState.rice), RES_RICE_W,
+		clampf(float(GameState.rice) / float(GameState.RICE_START), 0.0, 1.0))
+	ui_layer.add_child(rice_box)
+	# El "+" cabalga sobre el borde derecho de la caja del arroz.
+	var mas := TextureButton.new()
+	mas.texture_normal = load("res://assets/ui/boton_mas.png")
+	mas.ignore_texture_size = true
+	mas.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	mas.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	mas.custom_minimum_size = Vector2(52, 52)
+	mas.size = Vector2(52, 52)
+	mas.position = Vector2(-30.0, -26.0)
+	PrepBoard.add_press_feedback(mas)
+	mas.pressed.connect(_on_buy_rice)
+	rice_box.add_child(mas)
+	_place_resources(false, false)
+
+
+## Dónde va cada contador. En el MENÚ los dos juntos y centrados; en el MAPA,
+## el dinero pegado a la izquierda y el arroz a la derecha, dejando el hueco
+## del medio para el rótulo de "Aventura".
+func _resource_spots(en_mapa: bool) -> Array:
+	var w := GameState.canvas_size().x
+	if en_mapa:
+		return [Vector2(ROUND_MARGIN, res_y),
+			Vector2(w - RES_RICE_W - ROUND_MARGIN - RES_PLUS_BLEED, res_y)]
+	# Centrado contando el "+", que asoma por la derecha: sin él, el conjunto se
+	# veía desplazado hacia la izquierda.
+	var total := RES_MONEY_W + RES_GAP + RES_RICE_W + RES_PLUS_BLEED
+	var x0 := (w - total) * 0.5
+	return [Vector2(x0, res_y), Vector2(x0 + RES_MONEY_W + RES_GAP, res_y)]
+
+
+func _place_resources(en_mapa: bool, animate: bool) -> void:
+	if money_box == null:
+		return
+	var spots := _resource_spots(en_mapa)
+	if not animate:
+		money_box.position = spots[0]
+		rice_box.position = spots[1]
+		return
+	if res_tween != null and res_tween.is_valid():
+		res_tween.kill()
+	res_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_QUAD) 			.set_ease(Tween.EASE_IN_OUT)
+	res_tween.tween_property(money_box, "position", spots[0], 0.75)
+	res_tween.tween_property(rice_box, "position", spots[1], 0.75)
+
+
+## Comprar arroz: la tienda de verdad (dinero real) es cosa de más adelante.
+func _on_buy_rice() -> void:
+	var caja := DialogueBox.new()
+	ui_layer.add_child(caja)
+	caja.say([{ "text": "Ya casi no queda **arroz** en la bodega... "
+		+ "pronto podrás encargar más en el puerto.", "mood": "hablando" }])
+	await caja.finished
+	caja.queue_free()
 
 
 ## Botón REDONDO de esquina: el propio dibujo (rueda de timón, medalla) es el
@@ -505,18 +620,29 @@ func _make_mode_button(text: String, icon: String, height: int, font_size: int,
 	icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon_rect.texture = load("res://assets/ui/%s.png" % icon)
+	# El icono va MÁS A LA DERECHA, MÁS GRANDE y SOBRESALIENDO del tablón por
+	# arriba y por abajo (márgenes verticales NEGATIVOS), superpuesto en vez de
+	# encajado dentro: metido y recortado parecía un adorno del botón, y suelto
+	# se lee como el emblema del modo. Un Control no recorta a sus hijos
+	# (`clip_contents` va a false), así que el desborde se ve tal cual; y como
+	# el icono se añade DESPUÉS que el tablón, queda por delante.
+	# El desborde va en PÍXELES FIJOS, no en proporción de la altura: los
+	# botones se separan 16 px SIEMPRE, así que un porcentaje hacía que el de
+	# Aventura (más alto) asomara mucho más que los demás y se montara encima
+	# del de abajo. Con 6 px por lado el icono respira y nunca invade al vecino.
+	const ICON_BLEED := 0.0
 	icon_rect.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	icon_rect.offset_left = 22.0
-	icon_rect.offset_right = 22.0 + height * 0.78
-	icon_rect.offset_top = height * 0.12
-	icon_rect.offset_bottom = -height * 0.12
+	icon_rect.offset_left = 40.0
+	icon_rect.offset_right = 40.0 + height * 1.05
+	icon_rect.offset_top = -ICON_BLEED
+	icon_rect.offset_bottom = ICON_BLEED
 	icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(icon_rect)
 
 	var label := Label.new()
 	label.text = text
 	label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	label.offset_left = height * 0.9
+	label.offset_left = 20.0 + height * 1.16
 	label.offset_right = -20.0
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -537,7 +663,11 @@ func _make_mode_button(text: String, icon: String, height: int, font_size: int,
 ## su balanceo) y siempre contra posiciones ABSOLUTAS de reposo: con valores
 ## relativos, cada salida acumulaba desplazamiento y la entrada devolvía los
 ## botones a un sitio equivocado.
-func _ui_out() -> void:
+## `con_recursos` a false deja QUIETOS los contadores de dinero y arroz: al ir
+## a Aventura no se van de la pantalla, viajan a los extremos del mapa
+## (`_place_resources`). Si se los llevaba esta salida, los dos tweens peleaban
+## por la misma propiedad y las cajas se quedaban a medio camino.
+func _ui_out(con_recursos := true) -> void:
 	_stop_logo_idle()
 	if ui_tween != null and ui_tween.is_valid():
 		ui_tween.kill()
@@ -548,8 +678,12 @@ func _ui_out() -> void:
 	ui_tween.tween_property(logo_holder, "position:y", -640.0, OUT_TIME)
 	ui_tween.tween_property(button_box, "position:y", home_box_y + 660.0, OUT_TIME)
 	# Los dos botones de esquina viven arriba: se van por el borde superior.
-	ui_tween.tween_property(medal_button, "position:y", home_medal_y - 260.0, OUT_TIME)
-	ui_tween.tween_property(gear_button, "position:y", home_gear_y - 260.0, OUT_TIME)
+	ui_tween.tween_property(medal_button, "position:y", home_medal_y + 260.0, OUT_TIME)
+	ui_tween.tween_property(gear_button, "position:y", home_gear_y + 260.0, OUT_TIME)
+	if con_recursos:
+		for caja in [money_box, rice_box]:
+			if caja != null:
+				ui_tween.tween_property(caja, "position:y", res_y - 220.0, OUT_TIME)
 
 
 ## Nubes y gaviotas se van hacia arriba, fuera del encuadre.
@@ -596,7 +730,8 @@ func _go_adventure() -> void:
 	if leaving:
 		return
 	leaving = true
-	_ui_out()
+	# Los contadores NO salen: se quedan y viajan a los extremos del mapa.
+	_ui_out(false)
 	_sky_out(0.9)
 	var tw := create_tween()
 	# El barco no leva anclas hasta que el logotipo y los botones han SALIDO
@@ -676,7 +811,7 @@ func _show_locked_notice(text: String) -> void:
 	panel.offset_bottom = 110.0
 	panel.pivot_offset = Vector2(280.0, 110.0)
 	ui_layer.add_child(panel)
-	panel.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 44))
+	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 	var l := Label.new()
 	l.text = text
 	l.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -714,7 +849,7 @@ func _show_reveal(ids: Array) -> void:
 	panel.pivot_offset = Vector2(318.0, 250.0)
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	ui_layer.add_child(panel)
-	panel.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 44))
+	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 
 	var titulo := Label.new()
 	titulo.text = "¡Recetas nuevas!" if ids.size() > 1 else "¡Receta nueva!"
@@ -805,7 +940,8 @@ func _go_shop() -> void:
 el nivel 2 de la Aventura.")
 		return
 	leaving = true
-	_ui_out()
+	# Los contadores NO salen: se quedan y viajan a los extremos del mapa.
+	_ui_out(false)
 	_sky_out(0.9)
 
 	var here := _world(ship_px)
@@ -878,8 +1014,11 @@ func _ui_in() -> void:
 		ui_tween.kill()
 	logo_holder.position.y = -640.0
 	button_box.position.y = home_box_y + 660.0
-	medal_button.position.y = home_medal_y - 260.0
-	gear_button.position.y = home_gear_y - 260.0
+	medal_button.position.y = home_medal_y + 260.0
+	gear_button.position.y = home_gear_y + 260.0
+	for caja in [money_box, rice_box]:
+		if caja != null:
+			caja.position.y = res_y - 220.0
 	ui_tween = create_tween().set_parallel(true)
 	ui_tween.tween_property(medal_button, "position:y", home_medal_y, 0.55) \
 			.set_delay(0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -887,6 +1026,9 @@ func _ui_in() -> void:
 			.set_delay(0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	ui_tween.tween_property(logo_holder, "position:y", home_logo_y, 0.6) 			.set_delay(0.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	ui_tween.tween_property(button_box, "position:y", home_box_y, 0.6) 			.set_delay(0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	for caja in [money_box, rice_box]:
+		if caja != null:
+			ui_tween.tween_property(caja, "position:y", res_y, 0.55) 					.set_delay(0.15).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	get_tree().create_timer(1.0).timeout.connect(_start_logo_idle)
 
 

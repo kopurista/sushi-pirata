@@ -14,6 +14,8 @@ extends Node3D
 ##   la velocidad natural de su ciclo de marcha (~1.2 u/s, mas lenta que los
 ##   2.2 del 2D: decision tomada para que los pies no patinen).
 
+const PrepBoard := preload("res://scripts/prep_board.gd")
+
 const CLIENT3D := preload("res://scripts/client3d.gd")
 const PLATE3D := preload("res://scripts/plate3d.gd")
 
@@ -232,6 +234,20 @@ var _t := 0.0
 @onready var results_panel: Panel = $HUD/ResultsPanel
 @onready var stars_label: Label = $HUD/ResultsPanel/VBox/StarsLabel
 var stars_row: HBoxContainer = null
+## Mientras se enseña el cartel de "¿Comenzamos?", la cuenta atrás no corre.
+var awaiting_start := false
+## Tablilla de madera con la cuenta atrás: ENTRA por la izquierda y SALE por la
+## derecha (no se queda meciéndose en su sitio).
+var phase_sign: Control = null
+var phase_home_x := 0.0
+var phase_shown := false
+var phase_tween: Tween = null
+## Hoja aparte con el desglose largo del turno, y el botón que la abre.
+var detail_panel: Control = null
+var detail_button: Button = null
+## Las dos barras del marcador: el oro que llevas y el bote de propinas.
+var money_bar: ProgressBar = null
+var tip_bar: ProgressBar = null
 @onready var score_label: Label = $HUD/ResultsPanel/VBox/ScoreLabel
 @onready var earn_label: Label = $HUD/ResultsPanel/VBox/EarnLabel
 @onready var breakdown_box: VBoxContainer = $HUD/ResultsPanel/VBox/Scroll/Breakdown
@@ -253,6 +269,13 @@ func _ready() -> void:
 	world_ui = CanvasLayer.new()
 	world_ui.layer = 0
 	add_child(world_ui)
+	# En el export nativo la ventana llega hasta el borde físico: el HUD de
+	# arriba se mete debajo del notch si no se aparta (en Safari no pasa).
+	var st := GameState.safe_top()
+	if st > 0.0:
+		for n in [$HUD/TopRow, $HUD/PhaseLabel]:
+			n.offset_top += st
+			n.offset_bottom += st
 	if GameState.is_adventure():
 		scenery_kind = CampaignData.get_kind(GameState.current_port)
 	_setup_environment()
@@ -362,7 +385,7 @@ func _ready() -> void:
 		time_limit = 600.0
 		total_clients = 1
 		prep_phase = false
-		phase_label.visible = false
+		_show_phase(false)
 		clock_hold = true
 		var director := preload("res://scripts/tutorial_director.gd").new()
 		director.name = "TutorialDirector"
@@ -377,6 +400,8 @@ func _ready() -> void:
 		arrival_queue.append(clampf(center + randf_range(-6.0, 6.0) * arrival_scale, 2.0, last))
 	arrival_queue.sort()
 	_update_hud()
+	# El nivel NO arranca solo: primero el cartel de "¿Comenzamos?".
+	_ask_start.call_deferred()
 
 
 # ------------------------------------------ potenciadores permanentes (perks)
@@ -1279,15 +1304,350 @@ func _merged_aabb(node: Node) -> AABB:
 	return out
 
 
+# ---------------------------------------------------- cartel de fin de turno
+
+## Tamaño del cartel de resultados: un cartel PEQUEÑO con lo justo (estrellas,
+## nivel, oro y los dos botones), en vez del panel casi a pantalla completa de
+## antes. El desglose se va a su propia hoja, detrás del botón del lateral.
+const RESULT_SIZE := Vector2(548, 530)
+
+
+## Convierte el panel de resultados en un cartel compacto con cuerdas en las
+## esquinas, y se lleva el desglose largo a una hoja aparte.
+func _restyle_results_panel() -> void:
+	var lienzo := GameState.canvas_size()
+	results_panel.offset_left = (lienzo.x - RESULT_SIZE.x) * 0.5
+	results_panel.offset_right = results_panel.offset_left + RESULT_SIZE.x
+	results_panel.offset_top = (lienzo.y - RESULT_SIZE.y) * 0.5
+	results_panel.offset_bottom = results_panel.offset_top + RESULT_SIZE.y
+	var vb: VBoxContainer = $HUD/ResultsPanel/VBox
+	vb.offset_left = 54.0
+	vb.offset_top = 76.0
+	vb.offset_right = -54.0
+	vb.offset_bottom = -48.0
+	# Centrado: el contenido es corto y pegado arriba dejaba medio cartel vacío.
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_theme_constant_override("separation", 14)
+	# Titular del cartel, arriba del todo.
+	# En DOS LÍNEAS: en una sola, para que cupiera a lo ancho del cartel, el
+	# cuerpo tenía que bajar tanto que dejaba de leerse como un titular.
+	var titular := PrepBoard.make_big_title("Jornada
+Acabada", 52)
+	titular.custom_minimum_size = Vector2(0, 116)
+	vb.add_child(titular)
+	vb.move_child(titular, 0)
+	# La cifra del total va GRANDE y con su moneda al lado. `earn_label` sale
+	# del VBox y se mete en esa fila.
+	var fila := HBoxContainer.new()
+	fila.alignment = BoxContainer.ALIGNMENT_CENTER
+	fila.add_theme_constant_override("separation", 10)
+	var mon := TextureRect.new()
+	mon.texture = load("res://assets/ui/moneda.png")
+	mon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	mon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	mon.custom_minimum_size = Vector2(62, 62)
+	mon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fila.add_child(mon)
+	var idx := earn_label.get_index()
+	vb.remove_child(earn_label)
+	# Naranja fuerte, no el dorado del titular: sobre el crema del pergamino el
+	# oro se confundía con el papel y la cifra no destacaba.
+	earn_label.add_theme_font_size_override("font_size", 58)
+	earn_label.add_theme_color_override("font_color", Color(1, 0.58, 0.11))
+	earn_label.add_theme_color_override("font_outline_color", Color(0.3, 0.09, 0.0))
+	earn_label.add_theme_constant_override("outline_size", 13)
+	earn_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.4))
+	earn_label.add_theme_constant_override("shadow_offset_x", 2)
+	earn_label.add_theme_constant_override("shadow_offset_y", 4)
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		earn_label.add_theme_font_override("font", negrita)
+	earn_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	fila.add_child(earn_label)
+	vb.add_child(fila)
+	vb.move_child(fila, idx)
+
+	# El DESGLOSE largo (clientes, qué comió cada uno, de dónde sale el dinero)
+	# sale del cartel y se va a su propia hoja, oculta. En el cartel solo queda
+	# el resumen.
+	var scroll: Control = $HUD/ResultsPanel/VBox/Scroll
+	vb.remove_child(scroll)
+	detail_panel = Control.new()
+	detail_panel.name = "DetailPanel"
+	detail_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	detail_panel.offset_left = 26.0
+	detail_panel.offset_top = 150.0
+	detail_panel.offset_right = -26.0
+	detail_panel.offset_bottom = -150.0
+	detail_panel.visible = false
+	detail_panel.z_index = 130
+	# `_show_results` PAUSA el árbol, así que sin esto la hoja del desglose no
+	# recibía ni un toque: ni scroll, ni el botón de cerrar.
+	detail_panel.process_mode = Node.PROCESS_MODE_ALWAYS
+	$HUD.add_child(detail_panel)
+	detail_panel.add_child(prep_board.make_nine_patch(
+		PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
+	PrepBoard.add_panel_banner(detail_panel, "El turno, al detalle", 28, 0.0)
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.offset_left = 46.0
+	scroll.offset_top = 78.0
+	scroll.offset_right = -46.0
+	scroll.offset_bottom = -96.0
+	detail_panel.add_child(scroll)
+	TouchScroll.attach(scroll)
+	var cerrar := Button.new()
+	cerrar.text = "Cerrar"
+	cerrar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	cerrar.offset_left = 200.0
+	cerrar.offset_right = -200.0
+	cerrar.offset_top = -78.0
+	cerrar.offset_bottom = -78.0 + PrepBoard.SMALL_H
+	PrepBoard.skin_small_button(cerrar)
+	cerrar.add_theme_font_size_override("font_size", 24)
+	cerrar.pressed.connect(func() -> void: detail_panel.visible = false)
+	detail_panel.add_child(cerrar)
+
+	# Botón pequeño en el LATERAL del cartel que abre ese desglose.
+	detail_button = Button.new()
+	detail_button.text = "?"
+	detail_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	detail_button.offset_left = -74.0
+	detail_button.offset_top = 74.0
+	detail_button.offset_right = -8.0
+	detail_button.offset_bottom = 74.0 + PrepBoard.SMALL_H
+	PrepBoard.skin_small_button(detail_button)
+	detail_button.add_theme_font_size_override("font_size", 30)
+	detail_button.process_mode = Node.PROCESS_MODE_ALWAYS
+	detail_button.pressed.connect(func() -> void: detail_panel.visible = true)
+	results_panel.add_child(detail_button)
+
+	_add_rope_corners(results_panel)
+
+
+## Las cuatro cuerdas de las esquinas del cartel. El dibujo es UNA sola espiral
+## que mira abajo-derecha; las otras tres son la misma girada, así que las
+## cuatro son idénticas y no hay que dibujar cuatro veces.
+func _add_rope_corners(box: Control) -> void:
+	const R := 82.0
+	var esquinas := [
+		[Control.PRESET_TOP_LEFT, Vector2(-18, -18), Vector2(1, 1)],
+		[Control.PRESET_TOP_RIGHT, Vector2(-R + 18, -18), Vector2(-1, 1)],
+		[Control.PRESET_BOTTOM_LEFT, Vector2(-18, -R + 18), Vector2(1, -1)],
+		[Control.PRESET_BOTTOM_RIGHT, Vector2(-R + 18, -R + 18), Vector2(-1, -1)],
+	]
+	for e in esquinas:
+		var t := TextureRect.new()
+		t.texture = load("res://assets/ui/cuerda_esquina.png")
+		t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		t.set_anchors_preset(e[0])
+		t.size = Vector2(R, R)
+		t.position = e[1]
+		# El pivote al centro: si no, el volteo se lleva la cuerda de la esquina.
+		t.pivot_offset = Vector2(R, R) * 0.5
+		t.scale = e[2]
+		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(t)
+
+
+# ------------------------------------------------- arranque y cuenta atrás
+
+## CARTEL DE ARRANQUE: el nivel ya no empieza solo. Entre elegir la carta y la
+## cuenta atrás de preparación se pregunta "¿Comenzamos?", para que el jugador
+## entre en la partida cuando quiera y no le pille el reloj andando.
+func _ask_start() -> void:
+	awaiting_start = true
+	var overlay := ColorRect.new()
+	overlay.name = "StartGate"
+	overlay.color = Color(0, 0, 0, 0.5)
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 150
+	$HUD.add_child(overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(center)
+	var box := Control.new()
+	box.custom_minimum_size = Vector2(470, 290)
+	center.add_child(box)
+	box.add_child(prep_board.make_nine_patch(
+		PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
+	PrepBoard.add_panel_banner(box, "¿Comenzamos?", 30)
+
+	var vb := VBoxContainer.new()
+	vb.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vb.offset_left = 52.0
+	vb.offset_top = 74.0
+	vb.offset_right = -52.0
+	vb.offset_bottom = -44.0
+	vb.add_theme_constant_override("separation", 18)
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(vb)
+
+	var msg := Label.new()
+	msg.text = "Tendrás %d s para adelantar platos antes de que llegue el primer cliente." \
+			% int(prep_time_left)
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg.add_theme_font_size_override("font_size", 22)
+	msg.add_theme_color_override("font_color", Color(0.42, 0.3, 0.18))
+	vb.add_child(msg)
+
+	var go := Button.new()
+	go.text = "¡Empezar!"
+	go.custom_minimum_size = Vector2(300, 80)
+	go.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	PrepBoard.skin_start_button(go)
+	go.add_theme_font_size_override("font_size", 40)
+	go.pressed.connect(func() -> void:
+		awaiting_start = false
+		overlay.queue_free())
+	vb.add_child(go)
+
+
+## Enciende o apaga el cartel de la cuenta atrás. Se toca el CARTEL y no la
+## etiqueta, que ahora vive dentro de él (ocultar la etiqueta dejaría la
+## tablilla vacía a la vista).
+## De cuánto es el viaje del cartel al entrar y al salir (px de lienzo).
+const PHASE_TRAVEL := 620.0
+
+
+## El cartel ENTRA por la izquierda y SALE por la derecha. Antes se quedaba
+## meciéndose en su sitio, que no es lo mismo que una transición.
+func _show_phase(on: bool) -> void:
+	if phase_sign == null or on == phase_shown:
+		return
+	phase_shown = on
+	if phase_tween != null and phase_tween.is_valid():
+		phase_tween.kill()
+	phase_tween = create_tween()
+	if on:
+		phase_sign.position.x = phase_home_x - PHASE_TRAVEL
+		phase_sign.visible = true
+		phase_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		phase_tween.tween_property(phase_sign, "position:x", phase_home_x, 0.55)
+	else:
+		phase_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		phase_tween.tween_property(phase_sign, "position:x",
+			phase_home_x + PHASE_TRAVEL, 0.45)
+		phase_tween.tween_callback(func() -> void: phase_sign.visible = false)
+
+
+## CARTEL de la cuenta atrás: la misma tablilla de madera que lleva el nombre
+## de quien habla en los diálogos, meciéndose de un lado a otro. Antes era un
+## texto suelto sobre el 3D.
+func _setup_phase_sign() -> void:
+	var padre := phase_label.get_parent()
+	var sign := Control.new()
+	sign.name = "PhaseSign"
+	sign.custom_minimum_size = Vector2(330, PrepBoard.PLATE_H)
+	sign.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	sign.size = sign.custom_minimum_size
+	sign.position = Vector2((GameState.canvas_size().x - 330.0) * 0.5,
+		phase_label.position.y)
+	sign.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sign.visible = false
+	padre.add_child(sign)
+	sign.add_child(PrepBoard.make_hstretch_patch(
+		PrepBoard.PLATE_TEX, PrepBoard.PLATE_CAP))
+	phase_label.get_parent().remove_child(phase_label)
+	# ...Y OFFSETS. `set_anchors_preset` a secas NO los toca, y esta etiqueta
+	# viene de la escena con los suyos (60/120/660/175): el texto se dibujaba
+	# fuera de la tablilla y el cartel salía en blanco.
+	phase_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	phase_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	phase_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	phase_label.add_theme_font_size_override("font_size", 26)
+	phase_label.add_theme_color_override("font_color", Color(1, 0.96, 0.84))
+	phase_label.add_theme_constant_override("outline_size", 8)
+	sign.add_child(phase_label)
+	phase_sign = sign
+	phase_home_x = sign.position.x
+	sign.position.x = phase_home_x - PHASE_TRAVEL
+
+
+# ---------------------------------------------------------- marcador de oro
+
+## El dinero y el bote de propinas dejan de ser "moneda + 0/30" y pasan a ser
+## DOS BARRAS que se van llenando: una verde y ancha con el oro del turno, y
+## otra azul y más fina con las propinas.
+##
+## Las etiquetas NO se rehacen: se REPARENTAN encima de su barra. Así todo el
+## código que ya les escribía el texto (`_update_hud`) sigue valiendo igual, y
+## la cifra queda superpuesta a la barra, que es como se pidió.
+func _setup_money_bars() -> void:
+	var box: VBoxContainer = $HUD/TopRow/MoneyBox
+	var money_row: Control = money_label.get_parent()
+	var jar_row: Control = jar_label.get_parent()
+
+	money_bar = _make_hud_bar("barra_oro", 16, Vector2(214, 32),
+		Color(0.36, 0.86, 0.36), money_label, 26)
+	# La de propinas era de 20 px con letra de 17 y no se leía: sube a la misma
+	# textura que la del oro (32) con cuerpo 22.
+	tip_bar = _make_hud_bar("barra_oro", 16, Vector2(178, 32),
+		Color(0.42, 0.68, 1.0), jar_label, 22)
+	box.add_child(_with_icon(money_bar, "moneda", 44))
+	box.add_child(_with_icon(tip_bar, "ic_propina", 40))
+	# Las filas viejas (icono + etiqueta) se quedan vacías: fuera.
+	money_row.queue_free()
+	jar_row.queue_free()
+
+
+## Mete la barra en una fila con SU icono a la izquierda (la moneda para el oro,
+## el saquito para el bote). Al pasar a barras se habían perdido los dos.
+func _with_icon(bar: Control, icono: String, lado: float) -> HBoxContainer:
+	var fila := HBoxContainer.new()
+	fila.add_theme_constant_override("separation", 6)
+	fila.alignment = BoxContainer.ALIGNMENT_CENTER
+	var ic := TextureRect.new()
+	ic.texture = load("res://assets/ui/%s.png" % icono)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.custom_minimum_size = Vector2(lado, lado)
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fila.add_child(ic)
+	fila.add_child(bar)
+	return fila
+
+
+func _make_hud_bar(tex: String, cap: int, tamano: Vector2, tinte: Color,
+		etiqueta: Label, cuerpo: int) -> ProgressBar:
+	var bar := ProgressBar.new()
+	bar.show_percentage = false
+	bar.custom_minimum_size = tamano
+	bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	bar.add_theme_stylebox_override("background", PrepBoard.make_bar_box(
+		"res://assets/ui/%s_fondo.png" % tex, Color.WHITE, cap))
+	bar.add_theme_stylebox_override("fill", PrepBoard.make_bar_box(
+		"res://assets/ui/%s_relleno.png" % tex, tinte, cap))
+	etiqueta.get_parent().remove_child(etiqueta)
+	# Anclas Y OFFSETS: las etiquetas vienen de la escena y conservan los suyos.
+	etiqueta.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	etiqueta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	etiqueta.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	etiqueta.add_theme_font_size_override("font_size", cuerpo)
+	etiqueta.add_theme_color_override("font_color", Color(1, 0.98, 0.9))
+	etiqueta.add_theme_constant_override("outline_size", 6)
+	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.add_child(etiqueta)
+	return bar
+
+
 # ---------------------------------------------------------- paneles y chef
 
 ## Viste los paneles emergentes con el pergamino enmarcado en cuerda.
 func _skin_panels() -> void:
-	var path := "res://assets/ui/panel.png"
-	if ResourceLoader.exists(path):
+	_setup_money_bars()
+	_setup_phase_sign()
+	_restyle_results_panel()
+	if ResourceLoader.exists(PrepBoard.PANEL_TEX):
 		for p in [powerup_panel, results_panel]:
 			p.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-			p.add_child(prep_board.make_nine_patch(path, 38))
+			p.add_child(prep_board.make_nine_patch(
+				PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
+	# El rótulo es un TITULAR grande DENTRO del cartel, no una cinta: el panel
+	# ya lleva cuerdas en las cuatro esquinas y una tela encima lo cargaba.
+	$HUD/ResultsPanel/VBox/TitleLabel.visible = false
 	var dark := Color(0.26, 0.16, 0.08)
 	for l in [$HUD/ResultsPanel/VBox/TitleLabel, score_label, earn_label,
 			$HUD/PowerupPanel/VBox/Title]:
@@ -1300,17 +1660,17 @@ func _skin_panels() -> void:
 	var vbox := $HUD/ResultsPanel/VBox
 	vbox.add_child(stars_row)
 	vbox.move_child(stars_row, stars_label.get_index() + 1)
-	for b in [retry_button, menu_button]:
-		prep_board.skin_button(b)
-		# El tablón de madera tiene el relieve arriba: sin este empujón el
-		# texto se ve montado en el borde superior en vez de centrado.
-		b.add_theme_constant_override("icon_max_width", 0)
-		b.alignment = HORIZONTAL_ALIGNMENT_CENTER
-		b.add_theme_constant_override("line_spacing", 0)
-		b.add_theme_stylebox_override("normal", _button_pad(b, "normal"))
-		b.add_theme_stylebox_override("hover", _button_pad(b, "hover"))
-		b.add_theme_stylebox_override("pressed", _button_pad(b, "pressed"))
-	menu_button.text = "Siguiente"
+	# Cada uno con SU botón: la flecha circular (repetir) en madera azul y el
+	# doble galón (continuar) en madera ámbar, con el icono dibujado dentro.
+	retry_button.custom_minimum_size = Vector2(212, PrepBoard.ICON_BTN_H)
+	PrepBoard.skin_icon_button(retry_button,
+		"res://assets/ui/boton_repetir.png", PrepBoard.ICON_BTN_ZONE - 8.0)
+	retry_button.add_theme_font_size_override("font_size", 25)
+	menu_button.custom_minimum_size = Vector2(232, PrepBoard.ICON_BTN_H)
+	PrepBoard.skin_icon_button(menu_button,
+		"res://assets/ui/boton_continuar.png", PrepBoard.ICON_BTN_ZONE - 8.0)
+	menu_button.add_theme_font_size_override("font_size", 25)
+	menu_button.text = "Continuar"
 
 
 ## Reacciones del chef a cada gesto del jugador: dispara la animacion de
@@ -1455,23 +1815,26 @@ func _process(delta: float) -> void:
 
 	# Fase de preparacion: el reloj no corre y no vienen clientes.
 	if prep_phase:
+		# La cuenta atrás no arranca hasta que el jugador pulsa "¡Empezar!".
+		if awaiting_start:
+			return
 		prep_time_left -= delta
-		phase_label.visible = true
+		_show_phase(true)
 		phase_label.text = "Preparación: %d s" % ceili(maxf(prep_time_left, 0.0))
 		if prep_time_left <= 0.0:
 			prep_phase = false
-			phase_label.visible = false
+			_show_phase(false)
 		_update_hud()
 		return
 
 	# "Tiempo de preparacion extra": todo congelado salvo la tabla.
 	if frozen:
 		freeze_timer -= delta
-		phase_label.visible = true
+		_show_phase(true)
 		phase_label.text = "Cortesía: %d s" % ceili(maxf(freeze_timer, 0.0))
 		if freeze_timer <= 0.0:
 			frozen = false
-			phase_label.visible = false
+			_show_phase(false)
 		_update_hud()
 		return
 
@@ -1862,13 +2225,14 @@ func _use_manual_powerup(id: String, button: Button) -> void:
 # ------------------------------------------------------------------ platos
 
 func _on_dish_served(recipe_id: String, price_override: int = 0, extras: Array = [],
-		level_override: int = 0) -> void:
+		level_override: int = 0, eat_mult_override: float = 0.0) -> void:
 	var p: PathFollow3D = PLATE3D.new()
 	p.recipe_id = recipe_id
 	# El barco combinado vale lo que valen los platos que lleva dentro.
 	p.price_override = price_override
 	p.extras = extras
 	p.level_override = level_override
+	p.eat_mult_override = eat_mult_override
 	p.speed = PLATE_SPEED
 	belt_path.add_child(p)
 	p.progress = SPAWN_PROGRESS
@@ -1878,12 +2242,13 @@ func _on_dish_served(recipe_id: String, price_override: int = 0, extras: Array =
 ## Plato que sale de la TABLA del jugador: cuenta para desbloquear perks y
 ## para los logros.
 func _on_player_dish_served(recipe_id: String, price_override: int = 0,
-		extras: Array = [], level_override: int = 0) -> void:
+		extras: Array = [], level_override: int = 0,
+		eat_mult_override: float = 0.0) -> void:
 	dishes_served += 1
 	# Logros: platos elaborados por el jugador (los del ayudante no cuentan).
 	GameState.bump_stat("dishes_made")
 	GameState.bump_stat("dish_%s" % recipe_id)
-	_on_dish_served(recipe_id, price_override, extras, level_override)
+	_on_dish_served(recipe_id, price_override, extras, level_override, eat_mult_override)
 
 
 ## Un plato desechado (2 vueltas sin cogerse) cuesta el 30% de su precio.
@@ -2026,17 +2391,14 @@ const TYPE_NAMES := { "E": "Grumete", "A": "Pirata", "G": "Capitán" }
 func _show_results(stars: int, total_money: int, new_recipes: Array) -> void:
 	# El juego se dirige al jugador por su nombre (Opciones); sin nombre usa el
 	# tratamiento que toque por el género elegido.
-	$HUD/ResultsPanel/VBox/TitleLabel.text = "Fin del turno, %s" \
-			% GameState.player_title()
 	for c in stars_row.get_children():
 		c.queue_free()
 	stars_row.add_child(prep_board.make_star_row(stars, 3, 58))
-	earn_label.text = "Dinero ganado: %d" % total_money
-	if stars < 3:
-		score_label.text = "Siguiente estrella: %d" % int(star_money[stars])
-		score_label.visible = true
-	else:
-		score_label.visible = false
+	# La cifra del cartel es el TOTAL de la jornada (platos + propinas +
+	# primas), en grande y con su moneda al lado. Ya no se enseña el
+	# porcentaje ni el nombre del puerto: el desglose está a un botón.
+	earn_label.text = str(total_money)
+	score_label.visible = false
 	_build_breakdown()
 	_setup_results_scroll()
 	powerup_panel.visible = false
@@ -2091,7 +2453,7 @@ func _show_next_recipe(overlay: ColorRect, queue: Array) -> void:
 	box.custom_minimum_size = Vector2(470, 580)
 	box.pivot_offset = Vector2(235, 290)
 	center.add_child(box)
-	box.add_child(prep_board.make_nine_patch("res://assets/ui/panel.png", 60))
+	box.add_child(prep_board.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 
 	var vb := VBoxContainer.new()
 	vb.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -2437,24 +2799,17 @@ func _setup_exit_button() -> void:
 		return
 	var b := Button.new()
 	b.text = "Salir"
-	b.custom_minimum_size = Vector2(96, 44)
-	b.size = Vector2(96, 44)
-	b.position = Vector2(16, 112)
-	for st in ["normal", "hover", "pressed", "focus"]:
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.16, 0.11, 0.06, 0.88) if st != "pressed" \
-				else Color(0.24, 0.17, 0.09, 0.95)
-		sb.set_corner_radius_all(12)
-		sb.set_border_width_all(3)
-		sb.border_color = Color(0.85, 0.68, 0.28)
-		sb.content_margin_top = 2.0
-		b.add_theme_stylebox_override(st, sb)
-	b.add_theme_color_override("font_color", Color(1, 0.93, 0.76))
-	b.add_theme_color_override("font_hover_color", Color(1, 1, 0.9))
-	b.add_theme_color_override("font_outline_color", Color.BLACK)
-	b.add_theme_constant_override("outline_size", 5)
-	b.add_theme_font_size_override("font_size", 21)
-	prep_board.add_press_feedback(b, 0.93)
+	# El tablón de madera de TODO el juego, no un recuadro propio: se había
+	# quedado con un StyleBoxFlat suelto y era el único botón del juego que no
+	# seguía el estilo. Algo más grande que antes (96×44) porque el 9-slice
+	# encoge su marco en los botones pequeños y la madera no se leía.
+	b.custom_minimum_size = Vector2(112, PrepBoard.SMALL_H)
+	b.size = Vector2(112, PrepBoard.SMALL_H)
+	b.position = Vector2(16, 112 + GameState.safe_top())
+	# Botón PEQUEÑO con su textura propia: con `skin_button` el margen 9-slice
+	# se encogía a 20 téxeles y partía por la mitad el tope redondo del tablón.
+	PrepBoard.skin_small_button(b)
+	b.add_theme_font_size_override("font_size", 22)
 	b.pressed.connect(_on_exit_pressed)
 	$HUD.add_child(b)
 	exit_button = b
@@ -2552,25 +2907,23 @@ func _on_exit_pressed() -> void:
 	var box := Control.new()
 	box.custom_minimum_size = Vector2(500, 360)
 	center.add_child(box)
-	box.add_child(prep_board.make_nine_patch("res://assets/ui/panel.png", 50))
+	box.add_child(prep_board.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 
 	var vb := VBoxContainer.new()
 	vb.set_anchors_preset(Control.PRESET_FULL_RECT)
 	vb.offset_left = 56.0
-	vb.offset_top = 52.0
+	vb.offset_top = 44.0
 	vb.offset_right = -56.0
 	vb.offset_bottom = -46.0
 	vb.add_theme_constant_override("separation", 16)
 	vb.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.add_child(vb)
 
-	var dark := Color(0.26, 0.16, 0.08)
-	var title := Label.new()
-	title.text = "¿Salir del nivel?"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 32)
-	title.add_theme_color_override("font_color", dark)
-	vb.add_child(title)
+	# Rótulo GRANDE dentro del propio panel (sin cinta): el cartel es corto y
+	# una tela con una frase larga pesaba más que la pregunta.
+	var titulo := PrepBoard.make_big_title("¿Salir?", 66)
+	titulo.custom_minimum_size = Vector2(0, 86)
+	vb.add_child(titulo)
 
 	var msg := Label.new()
 	msg.text = "Aún estás preparando: no perderás nada." if prep_phase \
@@ -2649,8 +3002,14 @@ func _button_pad(b: Button, estado: String) -> StyleBox:
 func _update_hud() -> void:
 	var remaining := maxf(time_limit - elapsed, 0.0)
 	time_label.text = "%d:%02d" % [int(remaining) / 60, int(remaining) % 60]
-	money_label.text = "%d / %d" % [_score_money(), int(star_money.back())]
+	var meta := int(star_money.back())
+	money_label.text = "%d / %d" % [_score_money(), meta]
 	jar_label.text = "%d / %d" % [tips_total, _tip_threshold(powerups_claimed)]
+	if money_bar != null:
+		money_bar.max_value = maxf(meta, 1)
+		money_bar.value = clampf(_score_money(), 0, meta)
+		tip_bar.max_value = maxf(_tip_threshold(powerups_claimed), 1)
+		tip_bar.value = clampf(tips_total, 0, tip_bar.max_value)
 	# Cuenta los que YA HAN VENIDO, no los que se han ido: con los idos el
 	# marcador se quedaba en 0 con la barra llena, que es justo cuando el
 	# jugador quiere saber cuánta clientela le queda por llegar.

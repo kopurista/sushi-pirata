@@ -72,6 +72,16 @@ const IDLE_TINT := Color(0.52, 0.5, 0.55)
 ## Cuánto se hunde y se encoge el retrato de quien no habla.
 const IDLE_SINK := 26.0
 const IDLE_SCALE := 0.9
+## Cuánto se oscurece lo que hay detrás mientras se habla. Es el mismo gesto
+## que hace el foco de los guiones (story_director), para que hablar se vea
+## igual en todo el juego: el fondo baja y la caja se lee sola.
+const VEIL_ALPHA := 0.42
+## Entrada y salida de la caja. La salida es más corta: al despedirse encadena
+## con el fundido a negro de la pantalla y alargarla se hacía pesado.
+const FADE_IN := 0.22
+const FADE_OUT := 0.16
+## Lo que sube la caja entera al entrar (y baja al salir), en píxeles.
+const FADE_RISE := 34.0
 
 var _queue: Array = []
 var _index := -1
@@ -100,19 +110,46 @@ var _portraits := {}
 var _stage := { "left": "", "right": "" }
 var _portrait_home_y := 0.0
 var _panel_home_y := 0.0
+## Velo que oscurece el fondo mientras se habla, y el tween de entrada/salida.
+var _veil: ColorRect = null
+var _fade_tween: Tween = null
+## Mientras se va, la caja YA NO se queda con el puntero: si no, los ~0.16 s de
+## la salida se comían el primer toque del jugador justo cuando el guion le
+## acaba de dar el turno (`story_director._play`).
+var _closing := false
+## Los guiones ponen su PROPIO velo (o el foco circular), así que ahí este se
+## apaga para no oscurecer dos veces.
+var veil_on := true:
+	set(value):
+		veil_on = value
+		if _veil != null:
+			_veil.visible = value
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	# SIN anclas a propósito (anclas a cero + tamaño de diseño explícito): bajo
-	# un CanvasLayer, FULL_RECT se resuelve contra la VENTANA física y en una
+	# SIN anclas a propósito (anclas a cero + tamaño explícito): bajo un
+	# CanvasLayer, FULL_RECT se resuelve contra la VENTANA física y en una
 	# pantalla escalada pisa el tamaño (o lo deja a 0×0 y el texto sale en
-	# columna). El viewport de diseño del juego es fijo: 720×1280.
+	# columna). El tamaño es el LIENZO VISIBLE, no el 720×1280 de diseño: en un
+	# iPhone (pantalla más alta, aspect expand) el lienzo mide ~720×1560 y con
+	# el alto fijo la caja quedaba flotando a media cuarta del borde.
 	position = Vector2.ZERO
-	size = Vector2(720.0, 1280.0)
-	# Se traga los toques de TODA la pantalla mientras esté visible.
+	size = GameState.canvas_size()
+	# Se traga los toques de TODA la pantalla mientras esté visible (ver _input).
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	visible = false
+	modulate.a = 0.0
+
+	# VELO: oscurece lo que hay detrás mientras se habla. Va el primero de
+	# todos, así que queda por debajo de los retratos y de la caja.
+	_veil = ColorRect.new()
+	_veil.color = Color(0, 0, 0, VEIL_ALPHA)
+	_veil.position = Vector2.ZERO
+	_veil.size = GameState.canvas_size()
+	_veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_veil.visible = veil_on
+	add_child(_veil)
 
 	# Los dos retratos, apoyados sobre el borde superior de la caja.
 	for side in ["left", "right"]:
@@ -144,18 +181,22 @@ func _ready() -> void:
 	_panel.offset_bottom = -12.0
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_panel)
-	_panel.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 44))
+	_panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 	_panel_home_y = _panel.offset_top
 
 	# Tablón con el nombre, montado sobre el borde superior de la caja. Cambia
 	# de lado según hable el de la izquierda o el de la derecha.
 	_name_plate = Control.new()
 	_name_plate.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	_name_plate.offset_top = -30.0
-	_name_plate.offset_bottom = 34.0
+	_name_plate.offset_top = -26.0
+	_name_plate.offset_bottom = PrepBoard.PLATE_H - 26.0
 	_name_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_panel.add_child(_name_plate)
-	_name_plate.add_child(PrepBoard.make_nine_patch("res://assets/ui/boton_madera.png", 26))
+	# Tablilla con clavos, no el tablón de un botón: se estira SOLO a lo ancho,
+	# así que los clavos de los extremos se quedan en su sitio y la madera crece
+	# o encoge con la cantidad de letras del nombre (ver `_fit_plate`).
+	_name_plate.add_child(PrepBoard.make_hstretch_patch(
+		PrepBoard.PLATE_TEX, PrepBoard.PLATE_CAP))
 	_name_label = Label.new()
 	_name_label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -226,14 +267,39 @@ func say(lines: Array, keep_open := false) -> void:
 	_queue = lines.duplicate()
 	_index = -1
 	_keep_open = keep_open
-	visible = true
+	_fade(true)
 	_advance()
 
 
 ## Cierra la caja y saca a los personajes de escena.
 func close() -> void:
-	visible = false
+	_fade(false)
 	clear_stage()
+
+
+## Entrada/salida suave: la caja aparece subiendo un poco y se va bajando, y el
+## velo del fondo la acompaña. Antes se encendía y se apagaba de golpe, y con
+## Saverio saludando en cada visita a la tienda el corte cantaba mucho.
+##
+## OJO: `visible` se apaga AL FINAL de la salida, no al empezar, porque
+## `is_talking()` mira ese flag y quien espera a `finished` seguiría creyendo
+## que ya no hay nadie hablando mientras la caja aún se ve.
+func _fade(entra: bool) -> void:
+	if _fade_tween != null:
+		_fade_tween.kill()
+	_closing = not entra
+	if entra:
+		visible = true
+		position.y = FADE_RISE
+	_fade_tween = create_tween()
+	_fade_tween.set_parallel(true)
+	_fade_tween.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+	_fade_tween.tween_property(self, "modulate:a", 1.0 if entra else 0.0,
+		FADE_IN if entra else FADE_OUT)
+	_fade_tween.tween_property(self, "position:y", 0.0 if entra else FADE_RISE,
+		FADE_IN if entra else FADE_OUT)
+	if not entra:
+		_fade_tween.chain().tween_callback(func() -> void: visible = false)
 
 
 func is_talking() -> bool:
@@ -285,17 +351,38 @@ func _is_speaking_side(side: String) -> bool:
 	return p.visible and p.modulate.is_equal_approx(Color.WHITE)
 
 
+## Ancho de la tablilla MEDIDO sobre el nombre que lleva puesto.
+##
+## Antes era fijo (288 px), así que "Gigi" nadaba en madera y un nombre largo
+## se acercaba al borde. Se mide la cadena con la fuente y el cuerpo reales y se
+## le suman los dos clavos, con un mínimo para que los nombres muy cortos no
+## dejen una tablilla ridícula.
+const PLATE_PAD := 34.0
+const PLATE_MIN := 150.0
+
+
+func _plate_width() -> float:
+	var font := _name_label.get_theme_font("font")
+	var fs := _name_label.get_theme_font_size("font_size")
+	if font == null:
+		return PLATE_MIN
+	var w := font.get_string_size(_name_label.text,
+		HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs).x
+	return maxf(w + PLATE_PAD * 2.0, PLATE_MIN)
+
+
 func _set_plate_side(side: String) -> void:
+	var w := _plate_width()
 	if side == "left":
 		_name_plate.set_anchors_preset(Control.PRESET_TOP_LEFT)
 		_name_plate.offset_left = 30.0
-		_name_plate.offset_right = 318.0
+		_name_plate.offset_right = 30.0 + w
 	else:
 		_name_plate.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		_name_plate.offset_left = -318.0
+		_name_plate.offset_left = -30.0 - w
 		_name_plate.offset_right = -30.0
-	_name_plate.offset_top = -30.0
-	_name_plate.offset_bottom = 34.0
+	_name_plate.offset_top = -26.0
+	_name_plate.offset_bottom = PrepBoard.PLATE_H - 26.0
 
 
 ## Coloca al hablante en su lado, le pone la expresión y apaga al otro.
@@ -332,11 +419,12 @@ func _advance() -> void:
 	_index += 1
 	if _index >= _queue.size():
 		if not _keep_open:
-			visible = false
+			_fade(false)
 		finished.emit()
 		return
 	var line: Variant = _queue[_index]
 	var text: String = line if line is String else str(line.get("text", ""))
+	# (el cierre de la cola se resuelve arriba, con el fundido de salida)
 	var who: String = DEFAULT_SPEAKER if line is String \
 			else str(line.get("who", DEFAULT_SPEAKER))
 	if not SPEAKERS.has(who):
@@ -378,14 +466,31 @@ func _finish_typing() -> void:
 			.as_relative().set_trans(Tween.TRANS_SINE)
 
 
-func _gui_input(event: InputEvent) -> void:
-	# SOLO eventos táctiles. Con `pointing/emulate_touch_from_mouse` un clic
-	# genera DOS eventos (el de ratón y el táctil sintetizado) y llegaban los
-	# dos seguidos: el primero avanzaba de línea y el segundo la completaba de
-	# golpe, así que solo la PRIMERA línea de cada tanda se veía escribirse.
+## Mientras se habla, la caja se queda con TODO el puntero: toques, clics y
+## arrastres, pase por donde pase.
+##
+## Va en `_input` y no en `_gui_input` a propósito. Con `_gui_input` solo se
+## consumían los eventos TÁCTILES, y un clic de ratón genera DOS (el suyo y el
+## táctil que sintetiza `emulate_touch_from_mouse`): el táctil pasaba la línea
+## y el de ratón seguía su camino hasta el botón de debajo, así que tocar un
+## ingrediente de la tienda para pasar el texto abría de paso su panel de
+## compra. Desde `_input` se marcan como manejados los dos, antes de que la
+## interfaz los vea.
+func _input(event: InputEvent) -> void:
+	if not visible or _closing:
+		return
+	var puntero := event is InputEventScreenTouch or event is InputEventScreenDrag \
+		or event is InputEventMouseButton or event is InputEventMouseMotion
+	if not puntero:
+		return
+	get_viewport().set_input_as_handled()
+	# Solo el TOQUE (pulsar) avanza; el resto únicamente se traga.
 	if not (event is InputEventScreenTouch and event.pressed):
 		return
-	accept_event()
+	# Mientras entra o sale, los toques no cuentan: si no, un doble clic al
+	# despedirse se comía la frase antes de que llegara a leerse.
+	if _fade_tween != null and _fade_tween.is_running():
+		return
 	if _typing:
 		# Primer toque: la línea se muestra entera de golpe.
 		_visible_chars = float(_total_chars)

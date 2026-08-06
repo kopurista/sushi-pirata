@@ -69,8 +69,14 @@ static func bake(root: Node3D, prefix := "Batch") -> int:
 		# distinto sombreado, transparencia o sombra no deben acabar juntos.
 		# Los translúcidos SÍ se fusionan, pero solo entre idénticos (los
 		# guiones de la ruta del mapa), donde el orden de mezcla no cambia.
-		var key := "%s|%d|%.2f|%d|%d" % [sm.albedo_color.to_html(true),
-			sm.shading_mode, sm.roughness, sm.transparency, mi.cast_shadow]
+		# Y la TEXTURA entra en la clave: sin ella, dos piezas del mismo tinte
+		# pero distinta madera acababan en el mismo lote y las dos salían con
+		# la textura de la primera (o con la del muelle, que sí llevaba).
+		var tex_key := "-"
+		if sm.albedo_texture != null:
+			tex_key = "%s@%.2f" % [sm.albedo_texture.resource_path, sm.uv1_scale.x]
+		var key := "%s|%d|%.2f|%d|%d|%s" % [sm.albedo_color.to_html(true),
+			sm.shading_mode, sm.roughness, sm.transparency, mi.cast_shadow, tex_key]
 		if not groups.has(key):
 			var st := SurfaceTool.new()
 			st.begin(Mesh.PRIMITIVE_TRIANGLES)

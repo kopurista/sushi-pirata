@@ -48,8 +48,11 @@ func _ready() -> void:
 	# la VENTANA física (p. ej. 1450×2560 en una pantalla 2x) y pisa el tamaño
 	# al entrar al árbol. Con anclas a cero, posición y tamaño de DISEÑO se
 	# quedan como están y el estiramiento del proyecto los lleva a pantalla.
+	# Tamaño del LIENZO VISIBLE, no 720×1280: en un iPhone el lienzo es más
+	# alto y el paño dejaba una franja SIN oscurecer abajo (con la caja de
+	# diálogo levantada se veía clarísimo).
 	focus_rect.position = Vector2.ZERO
-	focus_rect.size = Vector2(720.0, 1280.0)
+	focus_rect.size = GameState.canvas_size()
 	focus_rect.color = Color.WHITE
 	focus_mat = ShaderMaterial.new()
 	focus_mat.shader = load("res://shaders/tutorial_focus.gdshader")
@@ -67,6 +70,10 @@ func _ready() -> void:
 	dialog_layer.layer = 95
 	add_child(dialog_layer)
 	dialog = DialogueBox.new()
+	# Aquí el oscurecido lo lleva el guion (el foco circular, o `_soft_dim`
+	# cuando no hay foco), así que la caja no pone el suyo: se sumaban los dos
+	# y hablar dejaba el nivel casi negro.
+	dialog.veil_on = false
 	dialog_layer.add_child(dialog)
 	_run.call_deferred()
 

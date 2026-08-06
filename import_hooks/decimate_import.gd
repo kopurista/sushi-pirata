@@ -50,11 +50,16 @@ const BUDGETS := {
 	"nigiri_wagyu": 2500,
 	"udon_tempura": 2500,
 	"salmon_tsuke_don": 2500,
-	# Nodos del mapa: hay NUEVE en pantalla a la vez.
-	"map_isla": 4000,
-	"map_puerto": 4000,
-	"map_enemigo": 4000,
-	"map_barco": 4000,
+	# Nodos del mapa: hay NUEVE en pantalla a la vez. OJO, NO BAJAR DE AQUÍ:
+	# con 4.000 el simplificador no solo suavizaba, DESTROZABA los modelos —
+	# fundía vértices de islas UV distintas y el puerto salía con rayas rojas
+	# del faro esparcidas por la roca gris, además de perder enteros un
+	# pantalán y sus cajas. A 8.000 (la cadena de LOD cae en ~7.700) se ven
+	# igual que sin decimar.
+	"map_isla": 8000,
+	"map_puerto": 8000,
+	"map_enemigo": 8000,
+	"map_barco": 8000,
 	# Personajes: el chef y los clientes rondan los 6.000, estos venían a 19.500.
 	"ayudante_rig": 6000,
 	"tendero": 6000,

@@ -17,6 +17,13 @@ const PrepBoard := preload("res://scripts/prep_board.gd")
 const DARK := Color(0.26, 0.16, 0.08)
 const FADED := Color(0.42, 0.3, 0.18)
 
+## Rótulo del mapa: tiene que caber en el hueco que dejan los dos contadores de
+## arriba (el dinero pegado a la izquierda y el arroz a la derecha). El ALTO es
+## fijo a propósito: estirándolo, la cinta se pegaba al canto superior y el
+## texto quedaba descolgado respecto al dibujo de la tela.
+const TITLE_W := 322.0
+const TITLE_H := 88.0
+
 ## Píxeles por unidad de mundo con la cámara orto (size 15, viewport 1280 alto)
 ## en horizontal de pantalla, y su proyección sobre el suelo en vertical.
 const PPU_X := 1280.0 / 15.0
@@ -242,7 +249,13 @@ func _setup_ship() -> void:
 	ship_pivot.position.y = -0.06
 	ship_pivot.rotation_degrees.y = SHIP_YAW
 	# El barco lleva su mancha, que viaja con él (ver _update_ship_visual).
-	ship_blob = SceneBackdrop.blob_shadow(SHIP_FOOT * 0.9, SHIP_FOOT * 0.55)
+	# MÁS PEQUEÑA QUE LA HUELLA DEL BARCO, a propósito. Es una sombra plana a
+	# ras de agua y, con la cámara isométrica, lo que está BAJO y CERCA queda
+	# por delante en profundidad de lo que está ALTO y AL FONDO: con la mancha
+	# a la medida del casco, su esquina cercana ganaba el test de profundidad
+	# a las velas y se veía un borrón oscuro sobre la vela de arriba (en el
+	# menú, donde el barco va a escala 2.3, saltaba a la vista).
+	ship_blob = SceneBackdrop.blob_shadow(SHIP_FOOT * 0.62, SHIP_FOOT * 0.36)
 	add_child(ship_blob)
 
 
@@ -303,6 +316,8 @@ func _setup_ui() -> void:
 
 	var vbox := VBoxContainer.new()
 	vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# Bajo el notch del móvil: la barra superior del mapa baja el área segura.
+	vbox.offset_top = GameState.safe_top()
 	vbox.add_theme_constant_override("separation", 0)
 	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(vbox)
@@ -383,35 +398,37 @@ func _build_node_overlay(port: Dictionary) -> Dictionary:
 	return { "root": root, "sign": sign, "unlocked": unlocked }
 
 
+## Barra de arriba del MAPA. No es un HBox: el dinero y el arroz son los
+## contadores del menú, que viajan hasta los extremos (main_menu), así que aquí
+## solo van el rótulo —centrado en el hueco que dejan— y el botón de volver,
+## DEBAJO del contador de la izquierda.
 func _build_top_bar() -> Control:
-	var bar := HBoxContainer.new()
-	bar.custom_minimum_size = Vector2(0, 76)
-	bar.add_theme_constant_override("separation", 10)
-	var pad_l := Control.new()
-	pad_l.custom_minimum_size = Vector2(16, 0)
-	bar.add_child(pad_l)
-	var back := Button.new()
-	back.text = "Atrás"
-	back.custom_minimum_size = Vector2(150, 60)
-	back.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	PrepBoard.skin_button(back)
-	back.add_theme_font_size_override("font_size", 25)
+	var bar := Control.new()
+	bar.custom_minimum_size = Vector2(0, 190)
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var st := GameState.safe_top()
+
+	# El rótulo va con ALTO FIJO y bajado unos píxeles. Antes se estiraba a todo
+	# el alto de la barra: el gráfico de la cinta se pegaba al canto de arriba y
+	# el texto, centrado en un rectángulo mucho más alto que el dibujo, quedaba
+	# descolgado respecto a la tela.
+	var title := PrepBoard.make_title("Aventura", 38)
+	title.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	title.size = Vector2(TITLE_W, TITLE_H)
+	# CENTRADO EN LA PANTALLA. Cabe porque la caja del arroz se estrechó para
+	# dejarle sitio (main_menu.RES_RICE_W). Y 34 px de aire por arriba: se baja
+	# el GRÁFICO entero, no el texto de dentro (ese va centrado en la tela).
+	var ancho := GameState.canvas_size().x
+	title.position = Vector2((ancho - TITLE_W) * 0.5, 34.0 + st)
+	bar.add_child(title)
+
+	# Flecha DIBUJADA en la madera: el único botón del juego con icono propio.
+	var back := PrepBoard.make_back_button()
+	back.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	back.size = Vector2(150, PrepBoard.ICON_BTN_H)
+	back.position = Vector2(16.0, 16.0 + st + PrepBoard.RESOURCE_H + 12.0)
 	back.pressed.connect(_on_map_back)
 	bar.add_child(back)
-	var title := Label.new()
-	title.text = "La travesía"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 34)
-	title.add_theme_color_override("font_color", Color(1, 0.95, 0.82))
-	title.add_theme_color_override("font_outline_color", Color(0.1, 0.06, 0.03))
-	title.add_theme_constant_override("outline_size", 7)
-	bar.add_child(title)
-	bar.add_child(_make_money_label())
-	var pad_r := Control.new()
-	pad_r.custom_minimum_size = Vector2(16, 0)
-	bar.add_child(pad_r)
 	return bar
 
 
@@ -424,32 +441,13 @@ func _on_map_back() -> void:
 		get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 
 
-func _make_money_label() -> Control:
-	var box := HBoxContainer.new()
-	box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	box.add_theme_constant_override("separation", 6)
-	var coin := TextureRect.new()
-	coin.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	coin.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	coin.texture = load("res://assets/ui/moneda.png")
-	coin.custom_minimum_size = Vector2(34, 34)
-	box.add_child(coin)
-	var l := Label.new()
-	l.text = "%d" % GameState.money
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", 26)
-	l.add_theme_color_override("font_color", Color(1, 0.86, 0.4))
-	l.add_theme_color_override("font_outline_color", Color.BLACK)
-	l.add_theme_constant_override("outline_size", 5)
-	box.add_child(l)
-	return box
 
 
 func _build_info_panel() -> Control:
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(0, 470)
 	panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-	panel.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 38))
+	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 
 	var margin := MarginContainer.new()
 	# Los rodillos y las esquinas del pergamino tapaban el texto por los cuatro
@@ -497,8 +495,9 @@ func _build_info_panel() -> Control:
 	sail_button = Button.new()
 	sail_button.custom_minimum_size = Vector2(350, 86)
 	sail_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	PrepBoard.skin_button(sail_button)
-	sail_button.add_theme_font_size_override("font_size", 32)
+	# Placa de oro, igual que el de Arcade: es el botón que arranca la partida.
+	PrepBoard.skin_start_button(sail_button)
+	sail_button.add_theme_font_size_override("font_size", 42)
 	sail_button.text = "¡Zarpar!"
 	sail_button.pressed.connect(_on_sail_pressed)
 	vb.add_child(sail_button)
@@ -646,6 +645,7 @@ func _update_info(id: String) -> void:
 
 	sail_button.disabled = not unlocked
 	sail_button.text = "¡Zarpar!" if unlocked else "Bloqueado"
+	PrepBoard.set_dimmed(sail_button, sail_button.disabled)
 
 
 # --- Selección, viaje y scroll ----------------------------------------------
@@ -768,8 +768,10 @@ func _process(delta: float) -> void:
 			(sin(_t * 1.7) * 2.5 if bob else 0.0) + ship_roll)
 		# La mancha sigue al barco pero NO cabecea con él: es una sombra en el
 		# agua, no una copia del casco.
+		# Y APARTADA DE LA CÁMARA (-x, -z), por lo mismo: acercarla la ponía
+		# por delante del propio barco en el test de profundidad.
 		if ship_blob != null:
-			ship_blob.position = _world(ship_px) + Vector3(0.12, 0.04, 0.08)
+			ship_blob.position = _world(ship_px) + Vector3(-0.30, 0.04, -0.26)
 
 	# Overlays 2D anclados a sus nodos 3D.
 	if not map_visible:

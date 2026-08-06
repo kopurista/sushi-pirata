@@ -2,7 +2,7 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bhu3s3kxkj73i"
+uid="uid://d4au45g1jel51"
 path="res://.godot/imported/rollo_dragon.png-6763bad29733b76c98da4c6dea44a0e1.ctex"
 metadata={
 "vram_texture": false
@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/rollo_dragon.png-6763bad29733b76c98da4c6dea44
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.9
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

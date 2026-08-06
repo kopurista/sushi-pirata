@@ -998,6 +998,10 @@ const RECIPES: Dictionary = {
 		"hidden": true,
 		# Se cogen mucho más que un plato suelto del mismo nivel (ver arriba).
 		"take_chances": BOAT_TAKE_CHANCES,
+		# Lo que tarda en comerse NO sale de aquí: lo calcula prep_board al
+		# montarlo, según cuántos platos lleve dentro (BOAT_EAT_BASE y
+		# BOAT_EAT_PER_DISH), y viaja con el plato. Como la paciencia no se
+		# drena mientras se come, un barco aparca al cliente un buen rato.
 		"steps": [],
 		"stages": [],
 	},

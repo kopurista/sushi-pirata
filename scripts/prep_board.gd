@@ -9,7 +9,7 @@ extends Control
 ## combinado se cotiza por los platos con los que se montó).
 ## extras: ids de los añadidos (jengibre/wasabi/soja) que lleva ESE plato.
 signal dish_served(recipe_id: String, price_override: int, extras: Array,
-		level_override: int)
+	level_override: int, eat_mult_override: float)
 signal craft_event(kind: String, stage_id: String)
 ## Un gesto mal hecho cuesta dinero (cortes de fugu y atún rojo). El nivel lo
 ## descuenta del monedero sin bajar de 0.
@@ -98,6 +98,9 @@ var drag_moved := false
 ## Receta ELEGIDA por el jugador, para el cooldown (el plato puede acabar
 ## siendo otra: tempura poco hecha, aburi de atún...).
 var ready_base: String = ""
+## Tiempo de comida propio del plato listo (0 = el de su receta). Solo lo usa
+## el barco combinado, que tarda según los platos que lleve.
+var ready_eat_mult: float = 0.0
 ## Mensaje momentáneo sobre la tabla ("¡Más lento!").
 var message_label: Label = null
 var message_tween: Tween = null
@@ -223,7 +226,238 @@ static func make_nine_patch(tex_path: String, margin: int) -> NinePatchRect:
 ## Textura y margen 9-slice del botón de madera con marco dorado que usa TODO
 ## el juego (menú, tienda, resultados, "Zarpar"...).
 const BUTTON_TEX := "res://assets/ui/boton_madera.png"
-const BUTTON_MARGIN := 52
+const BUTTON_MARGIN := 44
+
+## PERGAMINO: el fondo de todos los carteles, paneles y cajas del juego.
+##
+## El margen NO es libre: Godot dibuja la esquina del 9-slice a `patch_margin`
+## PÍXELES DE TEXTURA, sin escalar el arte. Si el margen se queda por debajo
+## del grosor del marco de madera (50 px en esta textura), la madera sobrante
+## cae en la banda que se estira y se derrama hacia dentro del panel. De ahí
+## que haya UNA constante y no el número suelto que había en cada pantalla
+## (iban de 34 a 60, y con el marco nuevo los de 34 se veían derramados).
+const PANEL_TEX := "res://assets/ui/panel.png"
+const PANEL_MARGIN := 54
+
+## Pergamino LISO, sin marco de madera, para las tarjetas PEQUEÑAS (botones de
+## receta, artículos de la tienda): con el marco de 54 px un botón de 172×144
+## se quedaba sin interior donde enseñar el plato.
+const CARD_TEX := "res://assets/ui/panel_liso.png"
+const CARD_MARGIN := 22
+
+## CINTA de tela para el rótulo de cada pantalla (Opciones, Tienda, Logros...).
+const RIBBON_TEX := "res://assets/ui/cinta_titulo.png"
+const RIBBON_MARGIN := 76
+
+## Cinta de título CABALGANDO sobre el borde superior de un panel, como los
+## carteles de "Victoria" o "Salir" de un juego de tablero: la tela sobresale
+## por los dos lados del pergamino y lo remata.
+##
+## `box` tiene que ser el Control del panel (el que lleva el pergamino). La
+## cinta se añade como hija suya, así que se mueve y se oculta con él.
+## `vuelo` es cuánto sobresale la tela por cada lado del pergamino. En un panel
+## casi tan ancho como la pantalla hay que dejarlo en 0, o las colas del lazo se
+## salen del móvil y se ven cortadas a cuchillo.
+static func add_panel_banner(box: Control, text: String, font_size := 34,
+		vuelo := 26.0) -> Control:
+	var banner := make_title(text, font_size)
+	banner.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	# Sobresale por los lados y se sube media cinta por encima del canto.
+	banner.offset_left = -vuelo
+	banner.offset_right = vuelo
+	banner.offset_top = -40.0
+	banner.offset_bottom = 36.0
+	box.add_child(banner)
+	return banner
+
+
+## RÓTULO GRANDE dentro de un panel, sin cinta ni tablón: letras doradas con
+## contorno grueso y sombra, del tamaño de un titular. Es lo que remata los
+## carteles cortos ("¿Salir?", "Jornada acabada"), donde una cinta con una
+## frase larga pesaba más que el propio mensaje.
+static func make_big_title(text: String, font_size := 64) -> Label:
+	var l := Label.new()
+	l.name = "BigTitle"
+	l.text = text
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.add_theme_font_size_override("font_size", font_size)
+	l.add_theme_color_override("font_color", Color(1, 0.82, 0.28))
+	l.add_theme_color_override("font_outline_color", Color(0.28, 0.11, 0.03))
+	l.add_theme_constant_override("outline_size", 16)
+	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.45))
+	l.add_theme_constant_override("shadow_offset_x", 3)
+	l.add_theme_constant_override("shadow_offset_y", 5)
+	# INTERLINEADO MUY NEGATIVO: la Exo 2 reserva ~1.9x el cuerpo por línea, así
+	# que un titular de dos líneas salía con medio cartel de hueco en medio (el
+	# mismo problema que el cartel del gesto de la tabla).
+	l.add_theme_constant_override("line_spacing", -int(font_size * 0.62))
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		l.add_theme_font_override("font", negrita)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return l
+
+
+## TABLILLA con el nombre de quien habla, en la caja de diálogo. Antes era el
+## mismo tablón que un botón cualquiera y se leía como un botón de más.
+const PLATE_TEX := "res://assets/ui/placa_nombre.png"
+## Zona de los clavos de los extremos: no se estira nunca.
+const PLATE_CAP := 44
+## Alto EXACTO al que se dibuja (= alto de la textura, para no deformarla).
+const PLATE_H := 56
+
+
+## 9-slice que se estira SOLO A LO ANCHO: la textura se exporta ya al alto al
+## que se dibuja, así que en vertical va 1:1 y no se deforma nada.
+static func make_hstretch_patch(tex_path: String, cap: int) -> NinePatchRect:
+	var np := NinePatchRect.new()
+	np.name = "Skin"
+	np.texture = load(tex_path)
+	np.patch_margin_left = cap
+	np.patch_margin_right = cap
+	np.patch_margin_top = 0
+	np.patch_margin_bottom = 0
+	np.set_anchors_preset(Control.PRESET_FULL_RECT)
+	np.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	np.show_behind_parent = true
+	return np
+
+
+## CAJA DE RECURSO del marcador (dinero, arroz): icono a la izquierda montado
+## sobre el canto y la cifra dentro. Se estira solo a lo ancho, así que va al
+## alto exacto al que se dibuja.
+const RESOURCE_TEX := "res://assets/ui/caja_recurso.png"
+const RESOURCE_H := 60
+const RESOURCE_CAP := 30
+
+
+## Contador de recurso: caja + icono + cifra. Devuelve el Control; la etiqueta
+## se llama "Valor" para poder reescribirla.
+##
+## Con `barra` (0..1) la caja lleva además una BARRA que se va gastando por
+## detrás de la cifra: es lo que hace el arroz, que tiene tope (20) y se
+## consume, a diferencia del dinero, que no tiene techo.
+static func make_resource_box(icon_path: String, text: String,
+		ancho := 168.0, barra := -1.0) -> Control:
+	var holder := Control.new()
+	holder.custom_minimum_size = Vector2(ancho, RESOURCE_H)
+	holder.add_child(make_hstretch_patch(RESOURCE_TEX, RESOURCE_CAP))
+	if barra >= 0.0:
+		# La barra es LA PROPIA CAJA rellenándose, no una barrita metida dentro:
+		# ocupa todo el hueco interior de la madera, de canto a canto, y el
+		# número queda encima. Una barra pequeña dentro de la caja se leía como
+		# dos cosas distintas apiladas.
+		var pb := ProgressBar.new()
+		pb.name = "Barra"
+		pb.show_percentage = false
+		pb.max_value = 1.0
+		pb.value = barra
+		pb.set_anchors_preset(Control.PRESET_FULL_RECT)
+		pb.offset_left = 10.0
+		pb.offset_right = -10.0
+		pb.offset_top = 9.0
+		pb.offset_bottom = -9.0
+		pb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		pb.add_theme_stylebox_override("background", StyleBoxEmpty.new())
+		pb.add_theme_stylebox_override("fill", make_bar_box(
+			"res://assets/ui/barra_oro_relleno.png",
+			Color(0.98, 0.97, 0.94), 16))
+		holder.add_child(pb)
+	# El icono CABALGA sobre el borde izquierdo, medio dentro y medio fuera:
+	# así se lee como una chapa clavada en la caja y no como un dibujo metido
+	# dentro, que es como se ven estos contadores en los juegos del género.
+	var ic := TextureRect.new()
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.texture = load(icon_path)
+	ic.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	ic.offset_left = -14.0
+	ic.offset_right = 56.0
+	ic.offset_top = -8.0
+	ic.offset_bottom = 8.0
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.add_child(ic)
+	var l := Label.new()
+	l.name = "Valor"
+	l.text = text
+	l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	l.offset_left = 58.0
+	l.offset_right = -14.0
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.add_theme_font_size_override("font_size", 28)
+	l.add_theme_color_override("font_color", Color(1, 0.96, 0.86))
+	l.add_theme_color_override("font_outline_color", Color(0.16, 0.08, 0.02))
+	l.add_theme_constant_override("outline_size", 7)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.add_child(l)
+	return holder
+
+
+## BARRA de progreso: canal de madera y relleno, del mismo set.
+const BAR_BG_TEX := "res://assets/ui/barra_fondo.png"
+const BAR_FILL_TEX := "res://assets/ui/barra_relleno.png"
+## Ancho del tope redondeado de la cápsula, en TEXELES.
+const BAR_CAP := 12
+
+
+## Estilo de una barra de progreso con el canal de madera del set.
+##
+## El 9-slice es SOLO HORIZONTAL (márgenes vertical a cero) a propósito: en una
+## cápsula los topes redondos miden media altura, así que un margen vertical
+## igual al tope dejaría la banda central en 0 px de alto. Dejando que la
+## textura se escale a lo alto, el canal encaja a cualquier altura de barra.
+## `cap` es el tope redondo EN TÉXELES, que siempre vale la mitad del alto de
+## la textura: cada barra del juego tiene su propia textura a su propia altura
+## (la del tablero 24, la del oro 32, la de propinas 20) justo por esto.
+static func make_bar_box(tex_path: String, tint := Color.WHITE,
+		cap := BAR_CAP) -> StyleBoxTexture:
+	var sb := StyleBoxTexture.new()
+	sb.texture = load(tex_path)
+	sb.texture_margin_left = cap
+	sb.texture_margin_right = cap
+	sb.texture_margin_top = 0
+	sb.texture_margin_bottom = 0
+	sb.modulate_color = tint
+	return sb
+
+
+## Rótulo de pantalla sobre su cinta de tela roja.
+##
+## La cinta se estira SOLO A LO ANCHO (márgenes verticales a cero) porque las
+## dos colas del lazo cuelgan por debajo de la banda: con un 9-slice vertical
+## se estiraban a lo alto y el lazo se leía como un trapo.
+static func make_title(text: String, font_size := 34) -> Control:
+	var holder := Control.new()
+	holder.name = "Title"
+	holder.custom_minimum_size = Vector2(0, 76)
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ribbon := NinePatchRect.new()
+	ribbon.texture = load(RIBBON_TEX)
+	ribbon.patch_margin_left = RIBBON_MARGIN
+	ribbon.patch_margin_right = RIBBON_MARGIN
+	ribbon.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ribbon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.add_child(ribbon)
+	var l := Label.new()
+	# Con nombre a proposito: hay rotulos que se reescriben en marcha (el de
+	# resultados lleva el tratamiento del jugador).
+	l.name = "TitleText"
+	l.text = text
+	l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	# La cola del lazo baja unos píxeles más que la banda: sin subir el texto,
+	# el rótulo se ve descentrado hacia abajo dentro de la tela.
+	l.offset_bottom = -10.0
+	l.add_theme_font_size_override("font_size", font_size)
+	l.add_theme_color_override("font_color", Color(1, 0.95, 0.82))
+	l.add_theme_color_override("font_outline_color", Color(0.18, 0.04, 0.04))
+	l.add_theme_constant_override("outline_size", 9)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.add_child(l)
+	return holder
 
 
 ## Aspecto pirata para un botón: tabla de madera con marco dorado y remaches,
@@ -231,16 +465,164 @@ const BUTTON_MARGIN := 52
 ## Botón de ACEPTAR o de CANCELAR. Mismo tablón de madera, pero teñido de verde
 ## o de rojo y con su marca delante, para que se distingan de un vistazo cuál
 ## confirma y cuál echa atrás.
+## BOTONES CON EL ICONO YA DIBUJADO EN LA MADERA (atrás, aceptar, cancelar).
+##
+## El icono es parte de la textura, no un carácter: antes el botón de aceptar
+## era el tablón de siempre teñido de verde con un "✔" delante, y se leía como
+## un botón normal con un emoticono.
+##
+## ALTURA CLAVADA A PROPÓSITO. Los márgenes 9-slice son TÉXELES que Godot
+## dibuja 1:1, así que la única forma de que la flecha (o el aspa) no salga
+## aplastada es que la textura mida de alto justo lo que el botón. Por eso el
+## margen vertical es CERO y las tres texturas se exportan ya a 64 px.
+const ICON_BTN_H := 64
+## Ancho reservado al icono en la textura (no se estira nunca).
+const ICON_BTN_ZONE := 68
+## Tope redondeado del otro extremo.
+const ICON_BTN_CAP := 34
+const BACK_TEX := "res://assets/ui/boton_atras.png"
+const OK_TEX := "res://assets/ui/boton_si.png"
+const NO_TEX := "res://assets/ui/boton_no.png"
+## Placa de oro con ribete rojo del botón que ARRANCA la partida ("¡Zarpar!").
+## Ese sí es un 9-slice normal: no lleva icono que deformar.
+const START_TEX := "res://assets/ui/boton_zarpar.png"
+const START_MARGIN := 54
+
+
+static func _icon_patch(tex_path: String) -> NinePatchRect:
+	var np := NinePatchRect.new()
+	np.name = "Skin"
+	np.texture = load(tex_path)
+	np.patch_margin_left = ICON_BTN_ZONE
+	np.patch_margin_right = ICON_BTN_CAP
+	np.patch_margin_top = 0
+	np.patch_margin_bottom = 0
+	np.set_anchors_preset(Control.PRESET_FULL_RECT)
+	np.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	np.show_behind_parent = true
+	return np
+
+
+static func skin_icon_button(b: Button, tex_path: String,
+		left_pad := ICON_BTN_ZONE + 8.0) -> void:
+	# El rótulo arranca DESPUÉS del icono, o se le montaría encima.
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		var pad := StyleBoxEmpty.new()
+		pad.content_margin_left = left_pad
+		pad.content_margin_right = 18
+		b.add_theme_stylebox_override(st, pad)
+	b.custom_minimum_size.y = ICON_BTN_H
+	b.add_theme_color_override("font_color", Color(1, 0.96, 0.86))
+	b.add_theme_color_override("font_hover_color", Color(1, 1, 0.94))
+	b.add_theme_color_override("font_outline_color", Color(0.13, 0.07, 0.02))
+	b.add_theme_constant_override("outline_size", 8)
+	if b.has_node("Skin"):
+		return
+	var shadow := _icon_patch(tex_path)
+	shadow.name = "SkinShadow"
+	shadow.modulate = Color(0, 0, 0, 0.35)
+	shadow.offset_left = 3.0
+	shadow.offset_top = 5.0
+	shadow.offset_right = 3.0
+	shadow.offset_bottom = 5.0
+	b.add_child(shadow)
+	b.add_child(_icon_patch(tex_path))
+	add_press_feedback(b, 0.95)
+
+
+## Botón de ACEPTAR o CANCELAR (comprar/cancelar, salir/seguir).
 static func skin_action_button(b: Button, ok: bool) -> void:
-	skin_button(b)
-	var tinte := Color(0.55, 1.0, 0.58) if ok else Color(1.0, 0.55, 0.48)
-	for c in b.get_children():
-		if c is NinePatchRect and c.name != "SkinShadow":
-			(c as NinePatchRect).self_modulate = tinte
-	if not b.text.begins_with("✔") and not b.text.begins_with("✘"):
-		b.text = ("✔  " if ok else "✘  ") + b.text
-	b.add_theme_color_override("font_color",
-		Color(0.93, 1.0, 0.9) if ok else Color(1.0, 0.94, 0.92))
+	skin_icon_button(b, OK_TEX if ok else NO_TEX)
+
+
+## Botón de VOLVER: el único con la flecha dibujada en la propia madera.
+static func make_back_button(text := "Atrás") -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(150, ICON_BTN_H)
+	# El rótulo va PEGADO a la flecha y alineado a la izquierda: centrado en el
+	# hueco que queda a la derecha del icono se iba al borde del botón y dejaba
+	# la mitad izquierda vacía.
+	skin_icon_button(b, BACK_TEX, ICON_BTN_ZONE - 12.0)
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.add_theme_font_size_override("font_size", 26)
+	return b
+
+
+## BOTÓN PEQUEÑO de madera (el "Salir" del nivel). Necesita su propia textura,
+## más baja: `skin_button` encoge el margen 9-slice en los botones bajos
+## (`min(lado)*0.44`), y con 46 px de alto el margen caía a 20 téxeles sobre una
+## textura cuyo tope redondo mide 44 — o sea, cortaba el tope por la mitad y el
+## botón salía como un recuadro raro. Esta va al alto exacto y con margen
+## vertical CERO, así que el tope se dibuja entero.
+const SMALL_TEX := "res://assets/ui/boton_madera_bajo.png"
+const SMALL_H := 46
+const SMALL_CAP := 18
+
+
+static func skin_small_button(b: Button) -> void:
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		var pad := StyleBoxEmpty.new()
+		pad.content_margin_left = SMALL_CAP
+		pad.content_margin_right = SMALL_CAP
+		b.add_theme_stylebox_override(st, pad)
+	b.custom_minimum_size.y = SMALL_H
+	b.add_theme_color_override("font_color", Color(1, 0.96, 0.86))
+	b.add_theme_color_override("font_outline_color", Color(0.13, 0.07, 0.02))
+	b.add_theme_constant_override("outline_size", 7)
+	if b.has_node("Skin"):
+		return
+	var shadow := make_hstretch_patch(SMALL_TEX, SMALL_CAP)
+	shadow.name = "SkinShadow"
+	shadow.modulate = Color(0, 0, 0, 0.35)
+	shadow.offset_left = 2.0
+	shadow.offset_top = 4.0
+	shadow.offset_right = 2.0
+	shadow.offset_bottom = 4.0
+	b.add_child(shadow)
+	b.add_child(make_hstretch_patch(SMALL_TEX, SMALL_CAP))
+	add_press_feedback(b, 0.94)
+
+
+## Botón GRANDE que arranca la partida ("¡Zarpar!"): placa de oro, aparte del
+## resto para que se vea de un vistazo que es EL botón de la pantalla.
+## Cuánto BAJA el rótulo dentro de la placa de oro. La cara dorada no está
+## centrada en la textura (el ribete rojo asoma más por abajo), así que el texto
+## centrado a lo geométrico se leía descolocado hacia arriba.
+const START_TEXT_DROP := 9.0
+
+
+static func skin_start_button(b: Button) -> void:
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		var sb := StyleBoxEmpty.new()
+		sb.content_margin_top = START_TEXT_DROP
+		b.add_theme_stylebox_override(st, sb)
+	b.add_theme_color_override("font_color", Color(0.32, 0.16, 0.05))
+	b.add_theme_color_override("font_hover_color", Color(0.2, 0.09, 0.02))
+	# APAGADO = el MISMO texto, con la placa entera atenuada (ver `set_dimmed`).
+	# Aclarar la letra sobre el oro la dejaba ilegible.
+	b.add_theme_color_override("font_disabled_color", Color(0.32, 0.16, 0.05))
+	b.add_theme_color_override("font_outline_color", Color(1, 0.93, 0.68))
+	b.add_theme_constant_override("outline_size", 7)
+	if b.has_node("Skin"):
+		return
+	var shadow := make_nine_patch(START_TEX, START_MARGIN)
+	shadow.name = "SkinShadow"
+	shadow.modulate = Color(0, 0, 0, 0.38)
+	shadow.offset_left = 4.0
+	shadow.offset_top = 7.0
+	shadow.offset_right = 4.0
+	shadow.offset_bottom = 7.0
+	b.add_child(shadow)
+	b.add_child(make_nine_patch(START_TEX, START_MARGIN))
+	add_press_feedback(b, 0.96)
+
+
+## Apaga (o enciende) un botón bajando su OPACIDAD, sin tocar el color de la
+## letra. Es lo que quiere la placa de oro: aclarar el texto lo hacía
+## ilegible sobre el dorado.
+static func set_dimmed(b: Button, dim: bool) -> void:
+	b.modulate = Color(1, 1, 1, 0.45) if dim else Color.WHITE
 
 
 static func skin_button(b: Button) -> void:
@@ -300,9 +682,22 @@ static func add_press_feedback(b: BaseButton, amount := 0.88) -> void:
 ## explícitamente. En escritorio las llamadas al teclado no hacen nada.
 static func enable_mobile_keyboard(edit: LineEdit) -> void:
 	edit.virtual_keyboard_enabled = true
+	# HAY QUE ESCUCHAR LOS DOS TIPOS DE EVENTO. `emulate_mouse_from_touch` viene
+	# ACTIVADO por defecto en Godot, así que un dedo sobre la interfaz llega
+	# como InputEventMouseButton, no como ScreenTouch: mirando solo el táctil,
+	# el manejador no saltaba nunca y el teclado no salía (pasaba en el nombre
+	# de la bienvenida de David y en el buscador del recetario).
 	edit.gui_input.connect(func(event: InputEvent) -> void:
-		if event is InputEventScreenTouch and event.pressed:
-			edit.grab_focus())
+		var toque: bool = (event is InputEventScreenTouch and event.pressed) \
+			or (event is InputEventMouseButton and event.pressed)
+		if not toque:
+			return
+		edit.grab_focus()
+		# Y se pide el teclado AQUÍ además de en `focus_entered`: si el campo ya
+		# tenía el foco, volver a tocarlo no dispara `focus_entered` y el
+		# teclado no volvía a aparecer.
+		if DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
+			DisplayServer.virtual_keyboard_show(edit.text))
 	edit.focus_entered.connect(func() -> void:
 		if DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
 			DisplayServer.virtual_keyboard_show(edit.text))
@@ -311,6 +706,30 @@ static func enable_mobile_keyboard(edit: LineEdit) -> void:
 			DisplayServer.virtual_keyboard_hide())
 	edit.text_submitted.connect(func(_t: String) -> void:
 		edit.release_focus())
+
+
+## MODO DIESTRO: espejo horizontal del panel inferior. Cada bloque de primer
+## nivel (tabla, cajas y la columna de discos) se recoloca en su posición
+## reflejada; lo que cuelga de ellos (ingredientes, extras, TapZone, etapa) va
+## dentro y no hay que tocarlo. Los guiones enfocan por NODO, así que el foco
+## del tutorial cae bien sin cambiar una línea.
+func _mirror_layout() -> void:
+	var w := size.x
+	for n in [board_panel, storage_box, cancel_button, boat_button,
+			combo_button, helper_button]:
+		if n != null:
+			n.position.x = w - n.position.x - n.size.x
+	# El ARTE de la tabla también se voltea: su marco de madera solo está
+	# dibujado en el lado derecho (el izquierdo nace sangrado fuera de
+	# pantalla), así que en espejo el lado visible quedaba a corte vivo.
+	var sb := board_panel.get_theme_stylebox("panel")
+	if sb is StyleBoxTexture and sb.texture != null:
+		var img: Image = sb.texture.get_image()
+		if img != null:
+			img.flip_x()
+			var flipped: StyleBoxTexture = sb.duplicate()
+			flipped.texture = ImageTexture.create_from_image(img)
+			board_panel.add_theme_stylebox_override("panel", flipped)
 
 
 ## Margen de tolerancia al TOCAR ingredientes, platos y la etapa en curso. El
@@ -420,6 +839,12 @@ func _ready() -> void:
 		_build_helper_button()
 	_build_extra_buttons()
 	_update_extra_buttons()
+	# Con la mano DERECHA dominante el panel entero se voltea en espejo: la
+	# tabla pegada a la derecha (cerca del pulgar) y cajas/botones a la
+	# izquierda (donde el pulgar no los tapa). Va DESPUÉS de construirlo todo,
+	# así cada pieza se voltea ya colocada.
+	if GameState.right_handed():
+		_mirror_layout()
 	# Al desaparecer un ingrediente ya usado, la fila se reordena y los que
 	# quedan se desplazan; hay que recolocar la mano de gestos sobre el nuevo
 	# objetivo o quedaría desajustada (recetas con 3+ ingredientes).
@@ -515,17 +940,10 @@ func _ready() -> void:
 	ghost_hint.visible = false
 	ghost_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hint_root.add_child(ghost_hint)
-	# Barra de progreso vistosa: borde dorado y relleno verde.
-	var bar_bg := StyleBoxFlat.new()
-	bar_bg.bg_color = Color(0.08, 0.06, 0.04, 0.92)
-	bar_bg.set_corner_radius_all(10)
-	bar_bg.set_border_width_all(3)
-	bar_bg.border_color = Color(0.95, 0.8, 0.3)
-	tap_bar.add_theme_stylebox_override("background", bar_bg)
-	var bar_fill := StyleBoxFlat.new()
-	bar_fill.bg_color = Color(0.3, 0.88, 0.35)
-	bar_fill.set_corner_radius_all(8)
-	tap_bar.add_theme_stylebox_override("fill", bar_fill)
+	# Barra de progreso: canal de madera con el relleno verde dentro.
+	tap_bar.add_theme_stylebox_override("background", make_bar_box(BAR_BG_TEX))
+	tap_bar.add_theme_stylebox_override("fill",
+		make_bar_box(BAR_FILL_TEX, Color(0.36, 0.88, 0.38)))
 	# La cinta del panel se mueve continuamente, igual que la de la cubierta.
 	var belt_mat := ShaderMaterial.new()
 	belt_mat.shader = load("res://shaders/belt_scroll.gdshader")
@@ -615,7 +1033,7 @@ func _build_recipe_button(id: String) -> void:
 	# las estrellas destaquen.
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
-	b.add_child(make_nine_patch("res://assets/ui/panel.png", 34))
+	b.add_child(make_nine_patch(CARD_TEX, CARD_MARGIN))
 
 	# El plato ocupa casi todo el botón (grande y uniforme), dejando abajo una
 	# franja para las estrellas.
@@ -752,6 +1170,7 @@ func _start_prep(id: String) -> void:
 	fry_dish = ""
 	choice_dish = ""
 	choice_selected = ""
+	ready_eat_mult = 0.0
 	extras_chosen.clear()
 	current_recipe = id
 	if instant_recipes > 0:
@@ -828,6 +1247,16 @@ const BOAT_VARIETY_BONUS := { 2: 10, 3: 24, 4: 52, 5: 88, 6: 132 }
 const BOAT_RECIPE := "moriawase"
 ## Un barco por minuto: es la jugada gorda de la partida, no algo continuo.
 const BOAT_COOLDOWN := 60.0
+## Cuánto ocupa al cliente un barco, según CUÁNTOS platos lleve dentro: son
+## varios platos de una sentada, así que cuantos más, más rato masticando.
+## eat_mult = BASE + POR_PLATO x platos, o sea 2.0 con los 4 mínimos, 2.2 con
+## 6 (el barco típico) y 2.8 con los 12 del tope. No es proporcional de verdad
+## —cuatro platos sueltos de nivel 3 serían casi un minuto— sino MUY comprimido:
+## triplicar el contenido solo añade un 40% de tiempo, porque con la pendiente
+## anterior (0.15) un barco lleno aparcaba a un grumete casi un minuto entero,
+## más de un tercio de la partida.
+const BOAT_EAT_BASE := 1.6
+const BOAT_EAT_PER_DISH := 0.10
 ## Doblones que cuesta echar a perder una fritura (cruda o carbonizada).
 const FRY_WASTE_PENALTY := 5
 ## Icono bajo las cajas; solo aparece cuando el barco se puede montar.
@@ -1260,6 +1689,7 @@ func _finish_boat() -> void:
 	ready_recipe = BOAT_RECIPE
 	ready_price = _boat_price(boat_parts)
 	ready_level = _boat_level(boat_parts)
+	ready_eat_mult = BOAT_EAT_BASE + BOAT_EAT_PER_DISH * boat_parts.size()
 	state = State.READY
 	current_recipe = ""
 	prop_rect.visible = false
@@ -2026,7 +2456,7 @@ func _serve_dish(d: Control) -> void:
 	for id in extras_chosen:
 		if GameState.consume_extra(id):
 			extras.append(id)
-	dish_served.emit(ready_recipe, ready_price, extras, ready_level)
+	dish_served.emit(ready_recipe, ready_price, extras, ready_level, ready_eat_mult)
 	# Cada plato elige sus propios extras: el siguiente empieza limpio.
 	extras_chosen.clear()
 	_update_extra_buttons()
@@ -2147,7 +2577,7 @@ func _continue_stack_drag(event: InputEvent) -> void:
 		stack_ghost.queue_free()
 		stack_ghost = null
 		if served:
-			dish_served.emit(stacks[i].id, 0, [], 0)
+			dish_served.emit(stacks[i].id, 0, [], 0, 0.0)
 			stacks[i].count -= 1
 			if stacks[i].count <= 0:
 				stacks[i].node.queue_free()
@@ -2766,13 +3196,19 @@ func _update_instruction() -> void:
 		instruction_label.text = txt
 		instruction_label.reset_size()
 		_pop_instruction()
-	instruction_label.rotation_degrees = INSTRUCTION_ANGLE
+	# En modo diestro el cartel va clavado en el borde IZQUIERDO de la tabla
+	# (el pulgar derecho tapaba justo el lado derecho, que era su sitio), con
+	# la inclinación espejada para que siga "cayendo" hacia el centro.
+	var righty := GameState.right_handed()
+	instruction_label.rotation_degrees = -INSTRUCTION_ANGLE if righty \
+			else INSTRUCTION_ANGLE
 	instruction_label.pivot_offset = instruction_label.size / 2.0
 	var rad := deg_to_rad(INSTRUCTION_ANGLE)
 	var half_w := (instruction_label.size.x * absf(cos(rad))
 		+ instruction_label.size.y * absf(sin(rad))) * 0.5
-	var anchor := board_panel.position + Vector2(
-		board_panel.size.x - INSTRUCTION_MARGIN - half_w, board_panel.size.y * 0.5)
+	var edge_x := INSTRUCTION_MARGIN + half_w if righty \
+			else board_panel.size.x - INSTRUCTION_MARGIN - half_w
+	var anchor := board_panel.position + Vector2(edge_x, board_panel.size.y * 0.5)
 	instruction_label.position = anchor - instruction_label.size / 2.0
 	instruction_label.visible = true
 

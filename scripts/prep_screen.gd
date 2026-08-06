@@ -8,6 +8,8 @@ extends Node3D
 ## la altura de todo el contenido, así al desplazarse el borde superior se pierde
 ## y el inferior aparece, dando la sensación de recorrer un pergamino entero.
 
+const PrepBoard := preload("res://scripts/prep_board.gd")
+
 const MAX_RECIPES := 4
 ## Huecos de receta de ESTE nivel: algunos puertos dan menos (el 3 solo da 3).
 var slots := MAX_RECIPES
@@ -60,6 +62,10 @@ func _ready() -> void:
 	# La lista de recetas se recorre con el DEDO (con inercia): el
 	# ScrollContainer de Godot no se arrastra con eventos táctiles.
 	TouchScroll.attach($UI/Root/Margin/VBox/Scroll)
+	# Bajo el notch del movil: el contenido baja el area segura y el velo se
+	# estira hacia arriba para cubrir tambien esa franja.
+	$UI/Root/Margin.offset_top += GameState.safe_top()
+	$UI/Root/Shade.offset_top = -GameState.safe_top()
 	_add_shared_parchment()
 	# En aventura solo se listan las recetas desbloqueadas; en prueba, todas.
 	var available: Array = []
@@ -189,11 +195,10 @@ func _leave_to_menu() -> void:
 func _add_top_bar(board_script: GDScript) -> void:
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 10)
-	var back := Button.new()
-	back.text = "Atrás"
-	back.custom_minimum_size = Vector2(150, 62)
-	board_script.skin_button(back)
-	back.add_theme_font_size_override("font_size", 26)
+	# Flecha DIBUJADA en la madera (PrepBoard.make_back_button): es el
+	# único botón del juego con icono propio, para no confundirlo con
+	# un botón normal más.
+	var back := PrepBoard.make_back_button()
 	# La pantalla anterior es el mapa en aventura y el menú en Arcade; al menú
 	# se vuelve con la transición animada, deshaciendo la de entrada.
 	back.pressed.connect(func() -> void:
@@ -333,11 +338,11 @@ func _build_perk_card(id: String, board_script: GDScript) -> Button:
 func _add_shared_parchment() -> void:
 	var parch := NinePatchRect.new()
 	parch.name = "Parchment"
-	parch.texture = load("res://assets/ui/panel.png")
-	parch.patch_margin_left = 40
-	parch.patch_margin_top = 40
-	parch.patch_margin_right = 40
-	parch.patch_margin_bottom = 40
+	parch.texture = load(PrepBoard.PANEL_TEX)
+	parch.patch_margin_left = PrepBoard.PANEL_MARGIN
+	parch.patch_margin_top = PrepBoard.PANEL_MARGIN
+	parch.patch_margin_right = PrepBoard.PANEL_MARGIN
+	parch.patch_margin_bottom = PrepBoard.PANEL_MARGIN
 	parch.set_anchors_preset(Control.PRESET_FULL_RECT)
 	# Tinte cálido leve para un aire de pergamino viejo y desgastado.
 	parch.modulate = Color(0.97, 0.93, 0.85)
@@ -366,8 +371,10 @@ func _build_section_header(board_script: GDScript, level: int) -> Control:
 ## Botón de zarpar con el mismo tablón de madera y marco dorado del resto del
 ## juego, en grande.
 func _skin_start_button(board_script: GDScript) -> void:
-	board_script.skin_button(start_button)
-	start_button.add_theme_font_size_override("font_size", 36)
+	# Placa de ORO, no el tablón de siempre: es el botón que arranca la partida
+	# y tiene que destacar por encima de todo lo demás de la pantalla.
+	board_script.skin_start_button(start_button)
+	start_button.add_theme_font_size_override("font_size", 44)
 
 
 func _build_card(id: String, board_script: GDScript) -> Button:
@@ -530,6 +537,8 @@ func _update_ui() -> void:
 	count_label.text = "%d/%d elegidas" % [selected.size(), slots]
 	# Basta con 1 receta: en los primeros niveles no hay 4 disponibles.
 	start_button.disabled = selected.is_empty()
+	# Apagado por OPACIDAD, no aclarando la letra: sobre el oro no se leía.
+	PrepBoard.set_dimmed(start_button, start_button.disabled)
 
 
 func _on_start_pressed() -> void:

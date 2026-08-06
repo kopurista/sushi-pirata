@@ -2,7 +2,7 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://777y3eyhvp8u"
+uid="uid://bgwt3n2u0yea8"
 path="res://.godot/imported/soja_salmon.png-390cd216235735e39004aeb94e61ba40.ctex"
 metadata={
 "vram_texture": false
@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/soja_salmon.png-390cd216235735e39004aeb94e61b
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.9
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

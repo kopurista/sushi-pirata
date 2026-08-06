@@ -453,7 +453,7 @@ func _on_corte_fallado() -> void:
 
 
 func _on_plato_servido(recipe_id: String, _precio: int, _extras: Array,
-		_nivel: int) -> void:
+		_nivel: int, _comer: float = 0.0) -> void:
 	if recipe_id == RECETA_PABLO:
 		_tsuke_servido = true
 

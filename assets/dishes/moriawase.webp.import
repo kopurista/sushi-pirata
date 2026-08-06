@@ -2,7 +2,7 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cft176rnm6xix"
+uid="uid://dli0sevjbklr1"
 path="res://.godot/imported/moriawase.webp-7c08ee3520fb7109f46a3289f6d8ae08.ctex"
 metadata={
 "vram_texture": false
@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/moriawase.webp-7c08ee3520fb7109f46a3289f6d8ae
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.9
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

@@ -237,22 +237,31 @@ const KIND_TEXTURES: Dictionary = {
 ## alto, así que el barco avanza hacia el norte a medida que progresas. Los
 ## nodos alternan entre TRES carriles (izquierda, centro y derecha) para que la
 ## ruta serpentee y no caiga siempre en el mismo lado.
-const MAP_HEIGHT := 1720
+const MAP_HEIGHT := 2180
 
 const LANE_LEFT := 175.0
 const LANE_CENTER := 360.0
 const LANE_RIGHT := 545.0
 
+## Separación vertical entre puertos, IGUAL para todos. La medida no es a ojo:
+## `level_select3d._setup_route` dibuja un guión cada 0.44 unidades de mundo, y
+## el tramo más corto (un salto de carril, 185 px en horizontal) tiene que dar
+## al menos 8. Con 215 px salen 10 en el corto y 13 en el largo. Antes el salto
+## del nivel 1 al 2 eran 86 px y solo se veían 5 guiones.
+## Si se cambia este paso hay que bajar `main_menu.MENU_ANCHOR` otro tanto, o el
+## nivel 1 asoma por arriba estando en el menú.
+const MAP_STEP := 215.0
+
 const MAP_POS: Dictionary = {
-	"nivel_1": Vector2(LANE_CENTER, 1476.0),
-	"nivel_2": Vector2(LANE_LEFT, 1390.0),
-	"nivel_3": Vector2(LANE_RIGHT, 1220.0),
-	"nivel_4": Vector2(LANE_CENTER, 1050.0),
-	"nivel_5": Vector2(LANE_LEFT, 880.0),
-	"nivel_6": Vector2(LANE_RIGHT, 710.0),
-	"nivel_7": Vector2(LANE_CENTER, 540.0),
-	"nivel_8": Vector2(LANE_LEFT, 370.0),
-	"nivel_9": Vector2(LANE_RIGHT, 200.0),
+	"nivel_1": Vector2(LANE_CENTER, 1930.0),
+	"nivel_2": Vector2(LANE_LEFT, 1715.0),
+	"nivel_3": Vector2(LANE_RIGHT, 1500.0),
+	"nivel_4": Vector2(LANE_CENTER, 1285.0),
+	"nivel_5": Vector2(LANE_LEFT, 1070.0),
+	"nivel_6": Vector2(LANE_RIGHT, 855.0),
+	"nivel_7": Vector2(LANE_CENTER, 640.0),
+	"nivel_8": Vector2(LANE_LEFT, 425.0),
+	"nivel_9": Vector2(LANE_RIGHT, 210.0),
 }
 
 

@@ -131,6 +131,9 @@ var current_satiety: int = 0
 var current_id: String = ""
 ## Extras (jengibre / wasabi / soja) del plato que se está comiendo.
 var current_extras: Array = []
+## Tiempo de comida propio del plato en curso (0 = el de su receta). Lo trae el
+## barco combinado, que tarda según cuántos platos lleve dentro.
+var current_eat_mult: float = 0.0
 var eaten_ids: Array[String] = []
 var declined: Array[int] = []
 ## Se ha acabado el nivel mientras comia: se marchara al acabar el bocado.
@@ -493,6 +496,7 @@ func _scan_belt(snack_only: bool = false) -> void:
 			current_satiety = plate_satiety
 			current_id = rid
 			current_extras = plate.extras.duplicate()
+			current_eat_mult = plate.eat_mult_override
 			_start_eating(plate_pos)
 			return
 		declined.append(pid)
@@ -544,7 +548,7 @@ func _start_eating(plate_global: Vector3) -> void:
 	# `slow_eat` lo usa el guion del TUTORIAL para que un plato concreto dure
 	# lo suficiente como para explicar otra receta mientras el cliente come.
 	eat_duration = randf_range(range_s[0], range_s[1]) \
-			* float(recipe.get("eat_mult", 1.0)) * slow_eat
+			* _eat_mult_of(recipe) * slow_eat
 	eat_timer = eat_duration
 	_eat_bar.max_value = eat_duration
 	_eat_bar.value = eat_duration
@@ -585,6 +589,14 @@ func _start_eating(plate_global: Vector3) -> void:
 			aabb.position.z + aabb.size.z * 0.5) * s
 	var grab := create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	grab.tween_property(_held_dish, "global_position", _dish_spot, 0.35)
+
+
+## El plato puede traer su propio tiempo de comida (el barco, según los platos
+## que lleve); si no, manda el "eat_mult" de la receta.
+func _eat_mult_of(recipe: Dictionary) -> float:
+	if current_eat_mult > 0.0:
+		return current_eat_mult
+	return float(recipe.get("eat_mult", 1.0))
 
 
 func _stop_eating_anim() -> void:

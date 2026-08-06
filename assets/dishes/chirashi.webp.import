@@ -2,7 +2,7 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://di608nq3r7xys"
+uid="uid://copgwf53pr5oa"
 path="res://.godot/imported/chirashi.webp-ca42efa790ab5b862285ad5cc17fc4b9.ctex"
 metadata={
 "vram_texture": false
@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/chirashi.webp-ca42efa790ab5b862285ad5cc17fc4b
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.9
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

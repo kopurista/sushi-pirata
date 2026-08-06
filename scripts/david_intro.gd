@@ -531,7 +531,7 @@ func _ask_identity() -> String:
 	panel.offset_right = 336.0
 	panel.offset_bottom = 128.0
 	ui.add_child(panel)
-	panel.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 48))
+	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 
 	var vb := VBoxContainer.new()
 	vb.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -588,13 +588,20 @@ func _ask_identity() -> String:
 	PrepBoard.skin_button(ok)
 	ok.add_theme_font_size_override("font_size", 26)
 
-	var elegido := { "g": "" }
+	# Los botones capturan `refrescar` POR VALOR (lambdas de GDScript), así que
+	# tiene que nacer completo: también repinta la fila de la mano dominante.
+	var elegido := { "g": "", "h": "" }
 	var botones: Array[Button] = []
+	var botones_mano: Array[Button] = []
 	var refrescar := func() -> void:
 		for b in botones:
 			b.modulate = Color.WHITE if b.get_meta("g") == elegido["g"] \
 					else Color(0.5, 0.5, 0.52)
-		var listo: bool = elegido["g"] != "" and edit.text.strip_edges() != ""
+		for bm in botones_mano:
+			bm.modulate = Color.WHITE if bm.get_meta("h") == elegido["h"] \
+					else Color(0.5, 0.5, 0.52)
+		var listo: bool = elegido["g"] != "" and elegido["h"] != "" \
+				and edit.text.strip_edges() != ""
 		ok.disabled = not listo
 		ok.modulate = Color.WHITE if listo else Color(0.62, 0.62, 0.62)
 
@@ -623,6 +630,48 @@ func _ask_identity() -> String:
 		botones.append(b)
 		row.add_child(b)
 
+	# Mano dominante: decide de qué lado queda la tabla de cocinar (con la
+	# derecha el panel entero se voltea para que el pulgar no tape nada).
+	vb.add_child(_titulo("¿Con qué mano dominas el cuchillo?"))
+	var manos := HBoxContainer.new()
+	manos.alignment = BoxContainer.ALIGNMENT_CENTER
+	manos.add_theme_constant_override("separation", 26)
+	vb.add_child(manos)
+	# Se elige TOCANDO LA MANO (la misma imagen espejada): más claro que un
+	# botón con la palabra, que obligaba a pensar cuál era cuál.
+	for def in [["L", "Izquierda", "ic_mano_izq"], ["R", "Derecha", "ic_mano_der"]]:
+		var bm := Button.new()
+		bm.custom_minimum_size = Vector2(180, 196)
+		bm.set_meta("h", def[0])
+		for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+			bm.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+		var pic := TextureRect.new()
+		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		pic.texture = load("res://assets/ui/%s.png" % def[2])
+		pic.set_anchors_preset(Control.PRESET_FULL_RECT)
+		pic.offset_bottom = -34.0
+		pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bm.add_child(pic)
+		var lm := Label.new()
+		lm.text = def[1]
+		lm.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		lm.offset_top = -32.0
+		lm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lm.add_theme_font_size_override("font_size", 22)
+		lm.add_theme_color_override("font_color", DARK)
+		lm.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bm.add_child(lm)
+		bm.pressed.connect(func() -> void:
+			elegido["h"] = def[0]
+			refrescar.call()
+			bm.pivot_offset = bm.size / 2.0
+			var tw := bm.create_tween()
+			tw.tween_property(bm, "scale", Vector2(1.12, 1.12), 0.1)
+			tw.tween_property(bm, "scale", Vector2.ONE, 0.1))
+		botones_mano.append(bm)
+		manos.add_child(bm)
+
 	vb.add_child(ok)
 	edit.text_changed.connect(func(_t: String) -> void: refrescar.call())
 	refrescar.call()
@@ -633,6 +682,7 @@ func _ask_identity() -> String:
 		pname = "Grumete"
 	GameState.player_name = pname
 	GameState.player_gender = elegido["g"]
+	GameState.player_hand = elegido["h"]
 	panel.queue_free()
 	return pname
 

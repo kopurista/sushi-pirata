@@ -2,7 +2,7 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c752xwr6hwsyh"
+uid="uid://y8hfslgrrv2d"
 path="res://.godot/imported/huevas.png-555388cac7f7fdc34eb1a88b731f373b.ctex"
 metadata={
 "vram_texture": false
@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/huevas.png-555388cac7f7fdc34eb1a88b731f373b.c
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.9
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

@@ -2,7 +2,7 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://xmmk46jv3nhi"
+uid="uid://ciapbdvxmmcdj"
 path="res://.godot/imported/nigiri_anguila.png-551b88d85d1501338ceb0f2ff936d9c8.ctex"
 metadata={
 "vram_texture": false
@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/nigiri_anguila.png-551b88d85d1501338ceb0f2ff9
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.9
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

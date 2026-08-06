@@ -2,7 +2,7 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://7lgn8d0eukag"
+uid="uid://85t35gyxkbno"
 path="res://.godot/imported/wagyu_tabla.png-2f1f99c3ddd03f80bdfb97fae3a9b259.ctex"
 metadata={
 "vram_texture": false
@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/wagyu_tabla.png-2f1f99c3ddd03f80bdfb97fae3a9b
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.9
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

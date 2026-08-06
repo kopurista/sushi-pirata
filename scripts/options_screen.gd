@@ -33,6 +33,7 @@ var _t := 0.0
 # --- Cambios pendientes de aplicar (no tocan GameState hasta el botón) ---
 var draft_name := ""
 var draft_gender := ""
+var draft_hand := "L"
 var draft_graphics: Dictionary = {}
 var apply_profile: Button = null
 var apply_graphics_btn: Button = null
@@ -55,6 +56,7 @@ func _ready() -> void:
 func _reset_drafts() -> void:
 	draft_name = GameState.player_name
 	draft_gender = GameState.player_gender
+	draft_hand = GameState.player_hand
 	draft_graphics = {
 		"preset": GameState.current_preset(),
 		"quality": int(GameState.get_setting("quality")),
@@ -86,10 +88,14 @@ func _setup_ui() -> void:
 	add_child(ui)
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# Bajo el notch del movil: todo el contenido baja el area segura y el velo
+	# se estira hacia arriba para que no quede una franja clara.
+	root.offset_top = GameState.safe_top()
 	ui.add_child(root)
 	var shade := ColorRect.new()
 	shade.color = Color(0.04, 0.06, 0.09, 0.5)
 	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.offset_top = -GameState.safe_top()
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(shade)
 
@@ -101,23 +107,17 @@ func _setup_ui() -> void:
 	bar.offset_bottom = 86.0
 	bar.add_theme_constant_override("separation", 10)
 	root.add_child(bar)
-	var back := Button.new()
-	back.text = "Atrás"
-	back.custom_minimum_size = Vector2(150, 62)
-	PrepBoard.skin_button(back)
-	back.add_theme_font_size_override("font_size", 26)
+	# Flecha DIBUJADA en la madera (PrepBoard.make_back_button): es el
+	# único botón del juego con icono propio, para no confundirlo con
+	# un botón normal más.
+	var back := PrepBoard.make_back_button()
 	back.pressed.connect(func() -> void:
 		GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45))
 	bar.add_child(back)
-	var title := Label.new()
-	title.text = "Opciones"
+	# El rótulo va sobre su CINTA de tela (PrepBoard.make_title):
+	# el mismo aire de cartel que el resto del set.
+	var title := PrepBoard.make_title("Opciones")
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 38)
-	title.add_theme_color_override("font_color", Color(1, 0.95, 0.82))
-	title.add_theme_color_override("font_outline_color", Color.BLACK)
-	title.add_theme_constant_override("outline_size", 10)
 	bar.add_child(title)
 	var pad := Control.new()
 	pad.custom_minimum_size = Vector2(150, 0)
@@ -150,7 +150,7 @@ func _setup_ui() -> void:
 	sheet.offset_right = -14.0
 	sheet.offset_bottom = -20.0
 	root.add_child(sheet)
-	sheet.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 40))
+	sheet.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 
 	# El marco del pergamino se come ~40 px por lado: el contenido entra por
 	# dentro de él o los rótulos quedan medio tapados por la madera.
@@ -244,9 +244,57 @@ func _build_profile(box: VBoxContainer) -> void:
 		cards[g] = card
 		_paint_gender_card(card, g == draft_gender)
 
+	# Mano dominante: con la derecha, la mesa de cocinar entera se voltea en
+	# espejo (tabla a la derecha, cerca del pulgar; cajas y botones a la
+	# izquierda, donde el pulgar no los tapa).
+	_header(box, "Mano dominante")
+	var hand_row := HBoxContainer.new()
+	hand_row.add_theme_constant_override("separation", 10)
+	box.add_child(hand_row)
+	hand_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	hand_row.add_theme_constant_override("separation", 30)
+	var hand_buttons: Dictionary = {}
+	# La misma pareja de manos con cuchillo que en la bienvenida de David: se
+	# toca la mano, no un botón con la palabra.
+	for def in [["L", "Izquierda", "ic_mano_izq"], ["R", "Derecha", "ic_mano_der"]]:
+		var hb := Button.new()
+		hb.custom_minimum_size = Vector2(150, 170)
+		for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+			hb.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+		var pic := TextureRect.new()
+		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		pic.texture = load("res://assets/ui/%s.png" % def[2])
+		pic.set_anchors_preset(Control.PRESET_FULL_RECT)
+		pic.offset_bottom = -30.0
+		pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hb.add_child(pic)
+		var hl := Label.new()
+		hl.text = def[1]
+		hl.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		hl.offset_top = -28.0
+		hl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		hl.add_theme_font_size_override("font_size", 20)
+		hl.add_theme_color_override("font_color", DARK)
+		hl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hb.add_child(hl)
+		PrepBoard.add_press_feedback(hb, 0.92)
+		hb.pressed.connect(func() -> void:
+			draft_hand = def[0]
+			for id in hand_buttons:
+				hand_buttons[id].modulate = Color.WHITE if id == draft_hand \
+						else Color(1, 1, 1, 0.42)
+			_refresh_apply())
+		hand_row.add_child(hb)
+		hand_buttons[def[0]] = hb
+		hb.modulate = Color.WHITE if def[0] == draft_hand else Color(1, 1, 1, 0.42)
+	_note(box, "Con la derecha, la mesa de cocinar se voltea: la tabla queda "
+		+ "a la derecha y las cajas a la izquierda.")
+
 	apply_profile = _apply_button(box, func() -> void:
 		GameState.player_name = draft_name.strip_edges()
 		GameState.player_gender = draft_gender
+		GameState.player_hand = draft_hand
 		GameState.save_game()
 		_refresh_apply()
 		_flash("Perfil guardado"))
@@ -471,7 +519,7 @@ func _ask_wipe() -> void:
 	panel.offset_top = -210.0
 	panel.offset_bottom = 210.0
 	overlay.add_child(panel)
-	panel.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 40))
+	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 
 	var vb := VBoxContainer.new()
 	vb.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -531,7 +579,7 @@ func _hold_to_wipe() -> void:
 	panel.offset_top = -220.0
 	panel.offset_bottom = 220.0
 	overlay.add_child(panel)
-	panel.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 40))
+	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 
 	var vb := VBoxContainer.new()
 	vb.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -728,7 +776,8 @@ func _apply_button(box: Control, action: Callable) -> Button:
 func _refresh_apply() -> void:
 	if apply_profile != null and is_instance_valid(apply_profile):
 		var dirty := draft_name.strip_edges() != GameState.player_name \
-				or draft_gender != GameState.player_gender
+				or draft_gender != GameState.player_gender \
+				or draft_hand != GameState.player_hand
 		apply_profile.disabled = not dirty
 		apply_profile.modulate = Color.WHITE if dirty else Color(0.68, 0.64, 0.58)
 	if apply_graphics_btn != null and is_instance_valid(apply_graphics_btn):

@@ -2,7 +2,7 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://648s8gx3x8dx"
+uid="uid://cjh62ch5adkg"
 path="res://.godot/imported/salmon_pepino.png-e34bab19646dde6eea7fd2d8e0426b62.ctex"
 metadata={
 "vram_texture": false
@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/salmon_pepino.png-e34bab19646dde6eea7fd2d8e04
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.9
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

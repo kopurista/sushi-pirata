@@ -46,10 +46,14 @@ func _setup_ui() -> void:
 	add_child(ui)
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# Bajo el notch del movil: todo el contenido baja el area segura y el velo
+	# se estira hacia arriba para que no quede una franja clara.
+	root.offset_top = GameState.safe_top()
 	ui.add_child(root)
 	var shade := ColorRect.new()
 	shade.color = Color(0.04, 0.06, 0.09, 0.5)
 	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.offset_top = -GameState.safe_top()
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(shade)
 
@@ -61,23 +65,17 @@ func _setup_ui() -> void:
 	bar.offset_bottom = 86.0
 	bar.add_theme_constant_override("separation", 10)
 	root.add_child(bar)
-	var back := Button.new()
-	back.text = "Atrás"
-	back.custom_minimum_size = Vector2(150, 62)
-	PrepBoard.skin_button(back)
-	back.add_theme_font_size_override("font_size", 26)
+	# Flecha DIBUJADA en la madera (PrepBoard.make_back_button): es el
+	# único botón del juego con icono propio, para no confundirlo con
+	# un botón normal más.
+	var back := PrepBoard.make_back_button()
 	back.pressed.connect(func() -> void:
 		GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45))
 	bar.add_child(back)
-	var title := Label.new()
-	title.text = "Logros"
+	# El rótulo va sobre su CINTA de tela (PrepBoard.make_title):
+	# el mismo aire de cartel que el resto del set.
+	var title := PrepBoard.make_title("Logros")
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 38)
-	title.add_theme_color_override("font_color", Color(1, 0.95, 0.82))
-	title.add_theme_color_override("font_outline_color", Color.BLACK)
-	title.add_theme_constant_override("outline_size", 10)
 	bar.add_child(title)
 	var pad := Control.new()
 	pad.custom_minimum_size = Vector2(150, 0)
@@ -136,7 +134,7 @@ func _setup_ui() -> void:
 	content.offset_right = -12.0
 	content.offset_bottom = -16.0
 	root.add_child(content)
-	content.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 40))
+	content.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 
 	var scroll := ScrollContainer.new()
 	TouchScroll.attach(scroll)
@@ -174,7 +172,7 @@ func _build_card(a: Dictionary) -> Control:
 
 	var card := Control.new()
 	card.custom_minimum_size = Vector2(0, 116)
-	var skin := PrepBoard.make_nine_patch("res://assets/ui/boton_madera.png", 40)
+	var skin := PrepBoard.make_nine_patch(PrepBoard.BUTTON_TEX, PrepBoard.BUTTON_MARGIN)
 	skin.modulate = Color(1, 1, 1, 0.5) if medal == 0 else Color.WHITE
 	card.add_child(skin)
 

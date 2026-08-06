@@ -31,12 +31,62 @@ var current_port: String = ""
 ## --- Progreso persistente ---
 ## Dinero total acumulado por el jugador.
 var money: int = 0
+## ARROZ: cada nivel jugado gasta 1. Es la "energía" del juego (se repondrá
+## con dinero real más adelante); la partida nueva empieza con RICE_START.
+var rice: int = RICE_START
 ## Género elegido por el jugador ("m"/"f"/"x"). Decide qué chef sale y, por
 ## contraste, qué ayudante: el ayudante es del género contrario (con el jugador
 ## neutro le toca uno al azar). Se elige en Opciones, pestaña Perfil.
 var player_gender: String = CharacterData.MALE
 ## Nombre del jugador (de esa misma pestaña).
 var player_name: String = ""
+## Mano dominante ("L"/"R"). Con la IZQUIERDA la mesa queda como siempre
+## (tabla a la izquierda, cajas y botones a la derecha); con la DERECHA el
+## panel inferior se voltea en espejo para que el pulgar derecho no tape las
+## instrucciones ni tenga que estirarse hasta la tabla.
+var player_hand: String = "L"
+
+
+func right_handed() -> bool:
+	return player_hand == "R"
+
+
+# --- Área segura de la pantalla (notch del iPhone, isla, etc.) --------------
+## En el EXPORT NATIVO la ventana ocupa la pantalla ENTERA, notch incluido: el
+## HUD de arriba quedaba debajo de la muesca (en Safari no pasa porque el
+## navegador ya vive dentro del área segura). Devuelven píxeles DE LIENZO
+## (diseño 720 de ancho), listos para sumar a un offset.
+
+func canvas_size() -> Vector2:
+	var root := get_tree().root
+	return root.get_visible_rect().size if root != null else Vector2(720, 1280)
+
+
+func safe_top() -> float:
+	# SOLO en el export nativo móvil. En escritorio el "área segura" es el
+	# escritorio menos la barra de tareas y según dónde esté la ventana al
+	# arrancar daba una franja falsa: los botones del menú salían más abajo en
+	# unas pantallas que en otras. En Safari tampoco toca: el navegador ya
+	# vive dentro del área segura.
+	if not OS.has_feature("mobile"):
+		return 0.0
+	var win := get_window()
+	if win == null or win.size.x <= 0:
+		return 0.0
+	var safe := DisplayServer.get_display_safe_area()
+	var px := maxf(float(safe.position.y - win.position.y), 0.0)
+	return px * canvas_size().x / float(win.size.x)
+
+
+func safe_bottom() -> float:
+	if not OS.has_feature("mobile"):
+		return 0.0
+	var win := get_window()
+	if win == null or win.size.x <= 0:
+		return 0.0
+	var safe := DisplayServer.get_display_safe_area()
+	var px := maxf(float(win.position.y + win.size.y - safe.end.y), 0.0)
+	return px * canvas_size().x / float(win.size.x)
 ## Ids de recetas y potenciadores desbloqueados.
 var unlocked_recipes: Array[String] = []
 var unlocked_powerups: Array[String] = []
@@ -640,13 +690,18 @@ func apply_graphics() -> void:
 
 # --- Guardado / carga ------------------------------------------------------
 
+## Arroz de una partida nueva.
+const RICE_START := 20
+
+
 func save_game() -> void:
 	var data := {
-		"version": 5,
+		"version": 6,
 		"stats": stats,
 		"settings": settings,
 		"play_seconds": play_seconds,
 		"money": money,
+		"rice": rice,
 		"unlocked_recipes": unlocked_recipes,
 		"unlocked_powerups": unlocked_powerups,
 		"level_stars": level_stars,
@@ -657,6 +712,7 @@ func save_game() -> void:
 		"shop_stock": shop_stock,
 		"shop_day": shop_day,
 		"player_gender": player_gender,
+		"player_hand": player_hand,
 		"player_name": player_name,
 		"tutorial_done": tutorial_done,
 		"shop_intro_done": shop_intro_done,
@@ -682,6 +738,8 @@ func load_game() -> void:
 		_new_game()
 		return
 	money = int(parsed.get("money", 0))
+	# Los guardados anteriores al arroz arrancan con el saco lleno.
+	rice = int(parsed.get("rice", RICE_START))
 	unlocked_recipes = _to_string_array(parsed.get("unlocked_recipes", []))
 	unlocked_powerups = _to_string_array(parsed.get("unlocked_powerups", []))
 	level_stars = {}
@@ -705,6 +763,7 @@ func load_game() -> void:
 	shop_day = str(parsed.get("shop_day", ""))
 	player_gender = str(parsed.get("player_gender", CharacterData.MALE))
 	player_name = str(parsed.get("player_name", ""))
+	player_hand = str(parsed.get("player_hand", "L"))
 	# Las estadísticas viajan como números sueltos; "last_day" es texto.
 	stats = {}
 	var stat_dict: Dictionary = parsed.get("stats", {})
@@ -745,10 +804,12 @@ func reset_progress() -> void:
 	var keep := settings.duplicate()
 	var keep_name := player_name
 	var keep_gender := player_gender
+	var keep_hand := player_hand
 	_new_game()
 	settings = keep
 	player_name = keep_name
 	player_gender = keep_gender
+	player_hand = keep_hand
 	save_game()
 
 
@@ -758,8 +819,10 @@ func _new_game() -> void:
 	play_seconds = 0.0
 	player_gender = CharacterData.MALE
 	player_name = ""
+	player_hand = "L"
 	# Un pequeño botín de bienvenida para las primeras compras en la tienda.
 	money = 50
+	rice = RICE_START
 	unlocked_recipes = []
 	unlocked_powerups = []
 	level_stars = {}

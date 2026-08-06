@@ -344,7 +344,7 @@ func _build_info_panel() -> Control:
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(0, 356)
 	panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-	panel.add_child(PrepBoard.make_nine_patch("res://assets/ui/panel.png", 38))
+	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 
 	var margin := MarginContainer.new()
 	for side in ["left", "right"]:

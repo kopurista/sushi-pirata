@@ -26,6 +26,9 @@ var extras: Array = []
 ## Nivel de ESTE plato cuando no vale el de la receta (el barco combinado se
 ## cataloga por lo que lleva dentro). 0 = usar el de la receta.
 var level_override: int = 0
+## Tiempo de comida propio (0 = el de la receta). El barco tarda según cuántos
+## platos lleve dentro, así que no vale el de su ficha.
+var eat_mult_override: float = 0.0
 var speed: float = 0.9
 var taken: bool = false
 var traveled: float = 0.0

@@ -52,7 +52,10 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 
 ## Contratos entre archivos (señales) — leer antes de editar
 
-- `prep_board.gd` → `dish_served(recipe_id: String)`: un plato sale a la cinta.
+- `prep_board.gd` → `dish_served(recipe_id, price_override, extras,
+  level_override, eat_mult_override)`: un plato sale a la cinta. Los cuatro
+  últimos los usa el BARCO, que no vale, ni llena, ni se tarda en comer lo que
+  dice su ficha: todo eso depende de los platos que lleve dentro.
 - `prep_board.gd` → `craft_event(kind: String, stage_id: String)`: cada gesto
   del jugador; `level.gd` lo usa para animar al chef y mostrar la etapa en su mesa.
   `kind` ∈ tap/cut/swipe/hold/stir/slice/drag/stage/done/select/cancel/serve.
@@ -337,6 +340,22 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   el 47% del alto frente al 30% de David) y hubo que rehacer la base pidiendo
   explícitamente "cámara MUCHO más atrás, de la cintura para arriba, con aire
   sobre la cabeza" y volver a derivar las expresiones desde ahí.
+- **`DialogueBox` OSCURECE EL FONDO y entra y sale con fundido**: velo negro a
+  0.42 por detrás del retrato, y la caja aparece subiendo 34 px y se va bajando
+  (0.22 s / 0.16 s). Dos cosas aprendidas ahí: 1) los guiones (`story_director`)
+  ponen su PROPIO velo o el foco circular, así que ahí se apaga el de la caja
+  (`dialog.veil_on = false`) o el nivel se queda casi negro; 2) el fundido de
+  entrada hay que lanzarlo DOS FOTOGRAMAS después de montar la escena — el
+  primer `_process` trae un delta enorme (todo lo que tardó en cargar) y el
+  tween se lo salta de golpe, así que no se veía nunca.
+- **`DialogueBox` se queda con TODO el puntero desde `_input`, no desde
+  `_gui_input`**: con `_gui_input` solo se consumían los eventos TÁCTILES, y un
+  clic de ratón genera DOS (el suyo y el táctil que sintetiza
+  `emulate_touch_from_mouse`): el táctil pasaba la línea y el de ratón seguía
+  hasta el botón de debajo, así que tocar un ingrediente de la tienda para
+  pasar el texto abría de paso su panel de compra. Mientras SE VA no consume
+  nada (`_closing`), o los 0.16 s de la salida se comían el primer toque del
+  jugador justo cuando el guion le acaba de dar el turno.
 - **Máquina de escribir de `DialogueBox`, la trampa**: NO comparar contra
   `RichTextLabel.get_total_character_count()`. Devuelve 0 hasta que el nodo ha
   maquetado, así que en el primer `_process` se cumplía `0 >= 0` y la línea
@@ -530,8 +549,25 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   continuidad de bordes y el mar tileado saldría con costuras. Por eso el
   movimiento del agua va por shader (deriva + dos senos cruzados).
 - `scripts/shop_screen.gd` — tienda (raíz **Node3D**): el **tendero 3D**
-  (`tendero.glb`, sin rig: respira y se balancea desde su pivote) atiende tras
-  su mostrador en un muelle sobre el mar. Vende USOS de ingredientes (`cost` en
+  (`tendero.glb`, sin rig: respira y se balancea desde su pivote) atiende en un
+  **PUESTO DE MERCADO** montado sobre un muelle en el mar. El puesto se
+  construye por código (`_build_stall`) con las maderas de `assets/props` —
+  antes era una caja marrón lisa con dos cubos al lado y se leía como una mesa,
+  no como una tienda: mostrador de tablas con tablero y zócalo, cuatro postes
+  con sus vigas, **toldo a rayas** de listones alternos con faldón, estantería
+  a la espalda con tarros, cartel colgante con un pez, y los MODELOS
+  `caja.glb` y `barril.glb` de género (no cubos de color).
+  Saverio **saluda al entrar y se despide al salir**, con una frase al azar de
+  `SALUDOS`/`DESPEDIDAS` (una docena de cada) que lleva su expresión y el
+  nombre del jugador; el sorteo no repite la última. La salida ESPERA a la
+  frase antes de fundir, o se leería media línea. La primera visita no saluda:
+  ahí va la presentación con David.
+  **Dos trampas de la cámara isométrica, ya pagadas:** 1) el toldo sube hacia
+  DELANTE, al revés que un toldo de verdad — con el picado de 35° uno que caiga
+  hacia el espectador se dibuja justo encima del tendero y solo se le ven las
+  piernas; y termina antes del mostrador o taparía el género. 2) El cartel va
+  **girado 45°**: una tabla alineada con los ejes del mundo se ve DE CANTO,
+  como una raya (`SIGN_RIGHT`/`SIGN_FRONT` son los ejes ya girados). Vende USOS de ingredientes (`cost` en
   `RecipeData.INGREDIENTS`) de un surtido de **8 artículos que cambia cada día
   real** (`GameState.shop_stock/shop_day`, se renueva solo al cambiar la fecha);
   el botón **"Recargar artículos"** vuelve a sortearlo pagando
@@ -573,7 +609,12 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   (`map/`: `mar.png` textura de agua tileable, `barco.png` del jugador estático
   y `barco_anim.webp` su spritesheet 4x4 con las velas al viento, más los nodos
   `isla.png` / `puerto.png` / `barco_enemigo.png`, todos isométricos).
-  En `ui/`: `boton_madera.png` (el botón de todo el juego), `libro.png` (el
+  En `ui/`, el SET DE INTERFAZ (ver las constantes de `prep_board.gd`):
+  `boton_madera.png` (el botón de todo el juego), `panel.png` (pergamino
+  enmarcado) y `panel_liso.png` (sin marco, para tarjetas pequeñas),
+  `cinta_titulo.png` (rótulos de pantalla), `barra_fondo/barra_relleno.png`
+  (barras de progreso), `estrella_llena/vacia.png`, `moneda.png`,
+  `boton_flecha_izq/der.png` y `slot.png`. Además `libro.png` (el
   recetario y la despensa), `logo_sushi_pirata.webp` y los iconos del menú
   `ic_aventura/ic_arcade/ic_tienda/ic_inventario/ic_opciones/ic_logros.png`
   (los dos últimos son la rueda de timón y la medalla de los botones redondos).
@@ -588,6 +629,40 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 
 ## Convenciones y decisiones ya tomadas (NO reintroducir bugs resueltos)
 
+- **ÁREA SEGURA (notch del iPhone), solo en el export NATIVO**: la ventana
+  nativa ocupa la pantalla entera, muesca incluida (en Safari no pasa: el
+  navegador ya vive dentro del área segura). `GameState.safe_top()/safe_bottom()`
+  devuelven la franja en píxeles DE LIENZO y cada pantalla baja su barra
+  superior con eso (level3d baja TopRow/PhaseLabel/Salir; los menús bajan su
+  root entero y estiran el velo hacia arriba). `safe_top()` devuelve 0 fuera
+  del export nativo móvil (`OS.has_feature("mobile")`): en escritorio el "área
+  segura" es el escritorio menos la barra de tareas y, según dónde estuviera
+  la ventana al arrancar, daba una franja falsa (los botones del menú salían
+  más abajo solo en el primer arranque). Y **todo lo que cubra la
+  pantalla entera bajo un CanvasLayer va a `GameState.canvas_size()`, no a
+  720×1280**: en un iPhone el lienzo mide ~720×1560 (aspect expand) y con el
+  alto fijo la caja de diálogo flotaba a media cuarta del borde y el paño del
+  foco dejaba una franja sin oscurecer abajo (DialogueBox y story_director ya
+  están corregidos).
+- **MANO DOMINANTE** (`GameState.player_hand`, "L"/"R"; se pregunta en la
+  bienvenida de David y se cambia en Opciones → Perfil): con la derecha,
+  `prep_board._mirror_layout()` voltea el panel inferior EN ESPEJO al final de
+  `_ready` — tabla pegada a la derecha (cerca del pulgar), cajas y columna de
+  discos (cancelar/barco/combinar/ayudante) a la izquierda, y el cartel del
+  gesto clavado en el borde IZQUIERDO de la tabla con la inclinación espejada
+  (`_update_instruction` es side-aware). Solo se recolocan los bloques de
+  primer nivel: lo que cuelga de ellos (ingredientes, extras, TapZone, etapa)
+  va dentro, y los guiones enfocan POR NODO, así que el foco del tutorial cae
+  bien sin tocar nada. Los guardados viejos quedan en "L" (la mesa de siempre).
+  **El ARTE de la tabla también se voltea** (textura `flip_x` en
+  `_mirror_layout`): su marco de madera solo está dibujado en el lado derecho
+  —el izquierdo nace sangrado fuera de pantalla— y en espejo el lado visible
+  quedaba a corte vivo. La elección se hace TOCANDO UNA MANO CON CUCHILLO
+  (`assets/ui/ic_mano_izq.png` y su espejo exacto `ic_mano_der.png`, una es
+  el `flip` de la otra para que sean idénticas), tanto en la bienvenida de
+  David como en Opciones → Perfil. **La generada por Ludo es la mano
+  IZQUIERDA**, no la derecha: se asignaron al revés y hubo que
+  intercambiarlas. Si se regeneran, comprobar el dibujo antes de nombrarlas.
 - **EN EL MÓVIL, LA INTERFAZ DE GODOT NO RESPONDE AL DEDO COMO EN EL RATÓN.**
   Dos cosas medidas, no supuestas (inyectando `InputEventScreenTouch` +
   `ScreenDrag` con `Input.parse_input_event`):
@@ -756,6 +831,25 @@ que no hay problema.
   cuando una pasada no logra recortar ~25%, así que algunos modelos no llegan a
   su tope (`map_enemigo` se queda en 16.410 con tope 4.000) y los ángulos de
   fusión de normales NO cambian nada (probados 25/60 hasta 180/180).
+- **Los sprites 2D van en WebP con pérdida (`compress/mode=1`, calidad 0.9),
+  NO en `Lossless`.** Godot importa por defecto en modo 0 (sin pérdida), que es
+  el más caro que existe: 249 texturas del juego estaban así y solo `stages`
+  ocupaba 18,6 MB. Pasarlas a modo 1 dejó ese grupo en 3,3 MB (−82%) y el
+  paquete web entero de 107,4 a 70,0 MB. **Medido, no supuesto**: comparando
+  píxel a píxel el original contra el importado sobre los píxeles VISIBLES
+  (alfa > 0.1; promediar el lienzo entero maquilla el resultado porque casi
+  todo es transparente), la diferencia media es del **0,84-1,25% según el
+  grupo**, imperceptible incluso en los retratos 2D a pantalla completa.
+  **`assets/ui` se queda en Lossless a propósito**: son los 9-slice de madera y
+  pergamino, cuyo borde tiene que ser OPACO (ver `solidify` en `ui2_prep.py`),
+  y comprimir con pérdida el alfa de una banda que se estira es justo el bug de
+  la franja translúcida que ya costó encontrar. Son 3,6 MB: no compensa.
+- **Al cambiar `compress/mode` de una textura, su UID CAMBIA** y las escenas que
+  la referencian se quedan con el viejo: salen avisos `invalid UID … using text
+  path instead`. Funciona (Godot cae al path de texto) pero es el estado que
+  precedió al crash de los `.glb`. Se arregla copiando el `uid` del `.import` al
+  `ext_resource` de la escena. Pasó con `tabla_cortar.png` y
+  `cinta_trad_banda.png` en `level3d.tscn`.
 - **`create_shadow_meshes=false` en los 29 modelos**: generaba una copia extra
   de cada malla para un pase de sombras que no existe (no hay sombras
   proyectadas en el juego). Verificado: 0 de 29 mallas llevan ya malla de sombra.
@@ -764,6 +858,43 @@ que no hay problema.
   quitarlas poniendo `arrays[Mesh.ARRAY_TANGENT] = null` antes de
   `add_surface_from_arrays` y **Godot las vuelve a poner** (el formato sale
   idéntico). No insistir: la única vía sería regenerar los `.glb` de origen.
+- **EL PRESUPUESTO DE DECIMADO NO SE BAJA A OJO: hay que MIRAR el modelo.** Los
+  nodos del mapa estaban a 4.000 y el simplificador no los suavizaba, los
+  DESTROZABA: fundía vértices de islas UV distintas, así que `map_puerto` salía
+  con rayas rojas del faro esparcidas por la roca gris, y encima había perdido
+  enteros un pantalán y sus cajas. A 8.000 (la cadena de LOD cae en ~7.700) se
+  ve igual que sin decimar. Cuesta ~20.000 triángulos más en el mapa (86k →
+  105k), y aun así el grueso sigue siendo `map_enemigo`, que se planta en
+  16.410 porque el simplificador tiene suelo propio. **Al tocar un presupuesto,
+  renderizar el modelo antes y después**: el recuento de triángulos no dice
+  nada de si la textura ha reventado.
+- **MANCHAS PINTADAS EN EL ATLAS de un modelo** (`tools/atlas_fix.py`): los
+  modelos de imagen→3D traen la textura PROYECTADA del concepto, así que las
+  sombras del dibujo quedan pintadas sobre la pieza. Las velas del barco del
+  mapa salían con un borrón. Dos cosas distintas se juntaban ahí:
+  1) **Sangrado de MIPMAP**: en el atlas las velas son islas claras pegadas a
+  madera oscura, y al reducirse la textura el blanco promedia con el marrón de
+  al lado y ennegrece el borde de la vela. Se arregla con
+  `mipmaps/generate=false` en esa textura (el barco se ve siempre a un tamaño
+  parecido, así que no se pierde nada). **No era la compresión ni el decimado**:
+  comprobado a 1024 sin comprimir y sin decimar, la mancha seguía igual.
+  2) **Motas pintadas de verdad** dentro de las velas, que quita `atlas_fix.py`
+  mirando la GEOMETRÍA: recorre los triángulos del `.glb`, se queda con los que
+  caen sobre texels claros y repinta lo oscuro solo dentro de ellos, así que no
+  puede desbordarse a la madera vecina. Se probaron antes un cierre morfológico
+  (con radio suficiente SALTA a la isla de al lado y pinta la madera de blanco)
+  y un relleno de huecos por topología (seguro, pero se deja las manchas que
+  tocan el borde de su isla); la herramienta acabó haciendo las dos cosas.
+- **LA MANCHA NEGRA DE LA VELA DEL MENÚ NO ERA DEL BARCO: era su SOMBRA.**
+  `ship_blob` es un plano horizontal a ras de agua, y con la cámara isométrica
+  lo que está BAJO y CERCA gana en profundidad a lo que está ALTO y AL FONDO:
+  con la mancha a la medida del casco, su esquina cercana pasaba por delante de
+  las velas y se veía un borrón oscuro sobre la vela de arriba (en el menú,
+  con el barco a escala 2.3, cantaba). Por eso la mancha es MÁS PEQUEÑA que la
+  huella del barco y va desplazada en -x/-z. **Se perdió un buen rato
+  repintando el atlas antes de dar con esto**: el modelo aislado siempre salía
+  limpio, que era la pista. Cuando algo solo falla dentro de una escena,
+  sospechar de lo que la escena añade, no del modelo.
 - **Geometría estática fusionada** (`scripts/geometry_batch.gd`): el escenario
   se construye con ~130 cajas sueltas y cada una era un draw call (dos con el
   pase de sombra). `GeometryBatch.bake(self)` las funde **agrupando por color**
@@ -795,13 +926,145 @@ que no hay problema.
   disco y sigue funcionando) y engordaban el export.
 - **UI de madera/pergamino**: 9-slice con `NinePatchRect` (no `StyleBoxTexture`,
   que ignoraba los márgenes). `prep_board.make_nine_patch()` y `skin_button()`.
+- **EL SET DE INTERFAZ ENTERO SE DEFINE EN `prep_board.gd`**, en constantes, y
+  nadie debe escribir la ruta ni el margen a mano: `BUTTON_TEX/BUTTON_MARGIN`
+  (44), `PANEL_TEX/PANEL_MARGIN` (54), `CARD_TEX/CARD_MARGIN` (22),
+  `RIBBON_TEX/RIBBON_MARGIN` (76) y `BAR_BG_TEX/BAR_FILL_TEX/BAR_CAP` (52).
+  Estilo: cartoon vectorial, madera cálida redondeada con contorno marrón
+  grueso, pergamino crema y oro SOLO como acento (nada de calaveras ni cañones
+  de adorno). Se generan con Ludo y se procesan con `tools/ui2_prep.py`.
+- **EL MARGEN 9-SLICE NO ES LIBRE: TIENE QUE SER ≥ EL GROSOR DEL MARCO.** Godot
+  dibuja la esquina a `patch_margin` **PÍXELES DE TEXTURA, sin escalar el
+  arte**; si el margen se queda corto, la madera sobrante cae en la banda que
+  se estira y se derrama hacia dentro del panel. Corolario que cuesta ver: **el
+  ancho al que se exporta la textura es lo que decide el margen**, no al revés
+  (el pergamino se exporta a 300 px justamente para que su marco mida 50).
+  Antes había un número suelto por pantalla (de 34 a 60) y con el marco nuevo
+  los de 34 salían derramados; por eso ahora hay UNA constante.
+- **Y EL BORDE DE LA TEXTURA TIENE QUE SER OPACO** (`solidify` en
+  `ui2_prep.py`): el 9-slice estira la banda del borde a lo largo de todo el
+  canto, así que el antialias del dibujo original (que bajaba a alfa 145) se
+  convertía en una **franja translúcida a lo ancho del panel** — era la
+  "transparencia en la parte de arriba" del tablón de diálogo.
+- **Pergamino LISO (`panel_liso.png`) para las tarjetas pequeñas**: en un botón
+  de receta de 172×144 el marco de 54 px no deja interior donde enseñar el
+  plato. Sale del interior del propio pergamino, así que es el mismo papel.
+- **Rótulo de pantalla = `prep_board.make_title()`**: el texto sobre una CINTA
+  de tela roja. La cinta se estira **solo a lo ancho** (márgenes verticales a
+  cero): las dos colas del lazo cuelgan por debajo de la banda y con un
+  9-slice vertical se leían como un trapo. Su Label se llama `TitleText`, para
+  los rótulos que se reescriben en marcha.
+- **Cartel con CINTA CABALGANDO sobre el canto = `add_panel_banner()`**: es lo
+  que convierte un pergamino en un cartel de "Fin del turno" o "¿Salir del
+  nivel?". El parámetro `vuelo` (cuánto sobresale por cada lado) va a **0 en
+  paneles casi tan anchos como la pantalla**, o las colas se salen del móvil.
+- **BOTONES CON EL ICONO DIBUJADO EN LA MADERA**: `make_back_button()` (flecha),
+  `skin_action_button(ok)` (visto verde / aspa roja) y `skin_start_button()`
+  (placa de oro de "¡Zarpar!"). El icono es parte de la TEXTURA, no un carácter
+  `✔`/`✘` delante del texto como antes.
+  **REGLA QUE LOS GOBIERNA: la textura se exporta a la ALTURA EXACTA a la que
+  se dibuja** (`ICON_BTN_H` 64) y va con **margen vertical CERO**. Los márgenes
+  9-slice son téxeles dibujados 1:1, así que una textura de 230 px de alto en
+  un botón de 64 aplasta el icono. Por eso `tools/ui2_prep.py` los saca con
+  `fit_height`, no con `fit_width`.
+- **Barras de progreso = `prep_board.make_bar_box()`** (canal de madera +
+  relleno), 9-slice **solo horizontal**: en una cápsula los topes redondos
+  miden media altura, así que un margen vertical igual al tope dejaría la banda
+  central en 0 px de alto. **La barra se DIBUJA por código** (`build_bar` en
+  `ui2_prep.py`, supermuestreada a 8x), no se genera con Ludo: la generada era
+  de 512×103 estirada a 464×24 y los topes se aplastaban a elipses — se veía
+  sucia justo al elaborar una receta. Si cambia el alto de `TapBar`, hay que
+  cambiar `BAR_H` con él.
+- **Tablilla del nombre en el diálogo** (`PLATE_TEX`): se estira solo a lo
+  ancho y **su ancho se MIDE sobre el nombre** (`DialogueBox._plate_width`, con
+  la fuente y el cuerpo reales). Con ancho fijo, "Gigi" nadaba en madera.
+  La MISMA tablilla es el cartel de la cuenta atrás del nivel
+  (`level3d._setup_phase_sign`), meciéndose de lado a lado.
+- **`set_anchors_preset` NO toca los offsets.** Al REPARENTAR un nodo que viene
+  de la escena (la etiqueta de la cuenta atrás, las del dinero y el bote) hay
+  que usar **`set_anchors_and_offsets_preset`**: si no, conserva los suyos
+  (60/120/660/175) y el texto se dibuja fuera de su nuevo padre — el cartel
+  salía en blanco.
+- **Botón PEQUEÑO = `skin_small_button()`** con su propia textura
+  (`boton_madera_bajo.png`, 46 px de alto, 9-slice solo horizontal). `skin_button`
+  encoge el margen en los botones bajos (`min(lado)*0.44`) y a 46 px caía a 20
+  téxeles, partiendo por la mitad un tope redondo que mide 44: el "Salir" del
+  nivel salía como un recuadro raro.
+- **Apagar un botón = `set_dimmed()`** (opacidad), no aclarar la letra: sobre la
+  placa de oro de "¡Zarpar!" el texto claro era ilegible.
+- **Marcador de la partida: DOS BARRAS**, oro (verde) y propinas (azul), con la
+  cifra SUPERPUESTA. Cada barra tiene SU textura a SU altura (32 y 20) porque
+  el tope redondo mide media altura; ver `_setup_money_bars`.
+- **Contadores de recurso** (`make_resource_box`): dinero y ARROZ, con el icono
+  cabalgando sobre el borde izquierdo. **La MISMA caja en todas las pantallas
+  donde hay dinero** (menú, mapa de aventura y tienda).
+  **Y en el menú/mapa son LITERALMENTE los mismos dos nodos**: no se ocultan al
+  entrar en Aventura, VIAJAN (`main_menu._place_resources`) del centro a los
+  extremos —dinero a la izquierda, arroz a la derecha— dejando el hueco del
+  medio para el rótulo. Por eso el mapa ya no dibuja monedero propio y por eso
+  `_go_adventure` llama a **`_ui_out(false)`**: si la salida del menú se los
+  llevaba hacia arriba, ese tween y el del viaje peleaban por la misma
+  propiedad y las cajas se quedaban a medio camino.
+- **El rótulo del mapa va con ALTO FIJO y colocado a mano**, no estirado dentro
+  de un contenedor: estirándolo, la cinta se pegaba al canto superior y el
+  texto —centrado en un rectángulo mucho más alto que el dibujo— quedaba
+  descolgado respecto a la tela. Y se centra **en el hueco entre las dos
+  cajas**, no en la pantalla: el saco del arroz asoma por la izquierda de su
+  caja y la cola de la cinta lo rozaba. El arroz
+  (`GameState.rice`, `RICE_START` 20) es la energía del juego: 1 uso por nivel,
+  y se repondrá con dinero real más adelante; su barra es **la propia caja
+  rellenándose** de canto a canto, no una barrita metida dentro.
+- **`enable_mobile_keyboard` ESCUCHA LOS DOS TIPOS DE EVENTO.**
+  `emulate_mouse_from_touch` viene ACTIVADO por defecto, así que un dedo sobre
+  la interfaz llega como `InputEventMouseButton`, NO como `ScreenTouch`:
+  mirando solo el táctil, el teclado no salía nunca. Y el teclado se pide
+  también en el propio toque, no solo en `focus_entered`: si el campo ya tenía
+  el foco, volver a tocarlo no dispara `focus_entered`.
+- **Un icono en el TEXTO de un botón se escapa al restyle**: el de Comprar de
+  la tienda seguía con `"✔  Comprar"` escrito a mano, resto de cuando
+  `skin_action_button` prefijaba el rótulo. Ahora Comprar tiene su propio
+  gráfico con una MONEDA (`boton_comprar.png`), que además dice mejor lo que
+  hace que un visto genérico.
+- **`make_big_title` lleva `line_spacing` MUY negativo** (−0.62 del cuerpo): la
+  Exo 2 reserva ~1.9× el cuerpo por línea y un titular de dos líneas
+  ("Jornada / Acabada") salía con medio cartel de hueco en medio. Es la misma
+  trampa que el cartel del gesto de la tabla.
+- **El nivel NO arranca solo**: `level3d._ask_start()` enseña "¿Comenzamos?" y
+  hasta pulsar "¡Empezar!" la cuenta atrás no corre (`awaiting_start`).
+- **Cartel de fin de turno**: cartel PEQUEÑO (`RESULT_SIZE`) con cuerdas en las
+  cuatro esquinas (una sola textura volteada, con `pivot_offset` al centro o el
+  volteo se lleva la cuerda fuera de la esquina). Lleva el titular
+  "Jornada acabada", las estrellas, el TOTAL de la jornada en grande con su
+  moneda al lado, y **Repetir / Continuar con textura propia** (flecha circular
+  en madera azul y doble galón en ámbar). El desglose largo vive en su propia
+  hoja (`detail_panel`), detrás del botón del lateral.
+- **`_show_results` PAUSA el árbol**, así que todo lo que se monte encima del
+  cartel necesita `PROCESS_MODE_ALWAYS` o no recibe ni un toque: la hoja del
+  desglose no dejaba ni desplazar ni cerrar por esto.
+- **Rótulo grande = `make_big_title()`** (letras doradas con contorno grueso),
+  para carteles cortos: "¿Salir?" y "Jornada acabada". Una cinta con una frase
+  larga pesaba más que el propio mensaje.
+- **`START_TEXT_DROP`**: el rótulo de la placa de oro baja 9 px. La cara dorada
+  no está centrada en la textura (el ribete rojo asoma más por abajo), así que
+  centrado a lo geométrico se leía descolocado.
+- **`Control.position` ES RELATIVO A LA ESQUINA SUPERIOR IZQUIERDA DEL PADRE,
+  NO AL ANCLA.** Con los botones redondos anclados ABAJO, guardar como posición
+  de reposo el número que se les pasa (-114) en vez de su `position.y` real
+  (~1166) hacía que la animación de salida tirara de ellos HACIA ARRIBA. Las
+  posiciones de reposo se leen en `_ready`, **después** de un `process_frame`.
+- **El cartel de la cuenta atrás ENTRA y SALE con movimiento** (`_show_phase`,
+  `PHASE_TRAVEL`): entra por la izquierda con rebote y sale por la derecha. Se
+  probó dejándolo meciéndose en su sitio y no es una transición.
 - **Botones (TODOS los del juego)**: `prep_board.skin_button()` es el único
   sitio donde se define su aspecto — tablón de madera con marco dorado y
-  remaches (`assets/ui/boton_madera.png`, `BUTTON_MARGIN` 52), sombra
+  remaches (`assets/ui/boton_madera.png`, `BUTTON_MARGIN` 44), sombra
   proyectada y hundido al pulsar. En botones pequeños el margen del 9-slice se
   **encoge por código** al redimensionar (`min(lado)*0.44`): con el margen fijo
   las cuatro esquinas doradas no cabían y el marco salía aplastado. Si un texto
   se solapa con el marco, la solución es ensanchar el botón, no bajar el margen.
+  **Si un botón se ve distinto al resto, es que no pasa por aquí**: el "Salir"
+  del nivel se había quedado con un `StyleBoxFlat` propio y era el único del
+  juego fuera del estilo.
 - **Estrellas**: imágenes propias (`estrella_llena/vacia.png`) vía
   `make_star_row()`, nunca el carácter ★.
 - **Cinta 3D (level3d)**: cuatro tramos rectos + un **codo cuadrado en cada
@@ -986,7 +1249,15 @@ que no hay problema.
   contador sobre el icono (se refresca solo desde `_process`, sin repintar el
   botón entero 60 veces por segundo). Al pulsarlo
   consume esos platos y sirve un barco cuyo **precio se calcula al vuelo**:
-  suma de los platos + prima por variedad (2 clases +10, 3 +24, 4 +52). Ese
+  suma de los platos + prima por variedad (2 clases +10, 3 +24, 4 +52). Se come **muy despacio, y más cuantos más
+  platos lleve**: `BOAT_EAT_BASE` + `BOAT_EAT_PER_DISH` × platos (x2.0 con los 4
+  mínimos, x2.2 con 6, x2.8 con los 12 del tope). La pendiente está muy
+  comprimida a propósito: con 0.15 por plato, un barco lleno aparcaba a un
+  grumete casi un minuto, más de un tercio de la partida. Ese tiempo NO sale de la ficha
+  de la receta: lo calcula `_finish_boat` y viaja con el plato
+  (`dish_served` → `plate3d.eat_mult_override` → `client3d`), igual que el
+  precio y el nivel. Un barco aparca al cliente entre 18 y 48 s según tamaño y
+  tipo, y como la paciencia NO se drena mientras come, ese rato sale gratis. Ese
   precio viaja por `dish_served(recipe_id, price_override)` → `plate3d.
   price_override` → `client3d`, porque no vale el de la receta.
 - **El dinero del nivel NUNCA baja de 0**: los tres castigos (plato desechado

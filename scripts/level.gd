@@ -2,6 +2,8 @@ extends Node2D
 ## Orquestador del nivel: cinta, spawner de clientes, HUD, propinas,
 ## potenciadores y puntuación.
 
+const PrepBoard := preload("res://scripts/prep_board.gd")
+
 const PLATE_SCENE := preload("res://scenes/plate.tscn")
 const CLIENT_SCENE := preload("res://scenes/client.tscn")
 
@@ -191,12 +193,12 @@ func _ready() -> void:
 ## Viste los paneles emergentes con el pergamino enmarcado en cuerda.
 ## El pergamino es claro: todos sus textos van en marrón oscuro.
 func _skin_panels() -> void:
-	var path := "res://assets/ui/panel.png"
+	var path := PrepBoard.PANEL_TEX
 	if ResourceLoader.exists(path):
 		for p in [powerup_panel, results_panel]:
 			p.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 			# Panel plano sin rodillos: solo la cuerda fina del borde.
-			p.add_child(prep_board.make_nine_patch(path, 38))
+			p.add_child(prep_board.make_nine_patch(path, PrepBoard.PANEL_MARGIN))
 	var dark := Color(0.26, 0.16, 0.08)
 	for l in [$HUD/ResultsPanel/VBox/TitleLabel, score_label, earn_label,
 			$HUD/PowerupPanel/VBox/Title]:
@@ -756,7 +758,7 @@ func _show_next_recipe(overlay: ColorRect, queue: Array) -> void:
 	box.custom_minimum_size = Vector2(470, 580)
 	box.pivot_offset = Vector2(235, 290)
 	center.add_child(box)
-	box.add_child(prep_board.make_nine_patch("res://assets/ui/panel.png", 60))
+	box.add_child(prep_board.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 
 	var vb := VBoxContainer.new()
 	vb.set_anchors_preset(Control.PRESET_FULL_RECT)

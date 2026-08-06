@@ -2,7 +2,7 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cjn88whaeqn8q"
+uid="uid://bj054pc5qu0qi"
 path="res://.godot/imported/nori_arroz.png-9e0874f0e2c0a060d0709329bb781914.ctex"
 metadata={
 "vram_texture": false
@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/nori_arroz.png-9e0874f0e2c0a060d0709329bb7819
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.9
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

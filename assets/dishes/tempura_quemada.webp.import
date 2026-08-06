@@ -2,7 +2,7 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dn58cpo1y6th6"
+uid="uid://dh0eex6dt104a"
 path="res://.godot/imported/tempura_quemada.webp-be51f2238c2db4a89c44d991684c5631.ctex"
 metadata={
 "vram_texture": false
@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/tempura_quemada.webp-be51f2238c2db4a89c44d991
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.9
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
