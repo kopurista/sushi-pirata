@@ -16,6 +16,10 @@ class_name CampaignData
 ##  - goal_stars: estrellas mínimas para superar el nivel y avanzar.
 ##  - star_money: [dinero para 1★, 2★, 3★] — SOLO precio de platos (sin propinas),
 ##    calibrado al techo de producción de cada nivel.
+##  - fixed_recipes: carta CERRADA (las islas). El jugador no elige: se juega
+##    con esas recetas y punto, también al repetir el puerto.
+##    `fixed_recipes_replay` es la lista para cuando ya está superado (en el
+##    nivel 3 entra el nigiri de atún que regaló David la primera vez).
 ##  - reward_recipes: recetas que se desbloquean al SUPERARLO (goal_stars, que
 ##    son 2 estrellas: con 2★ el puerto queda pasado y se abre el siguiente).
 ##  - reward_recipes_3 / reward_ingots_3 / reward_rice_3: el premio GORDO, solo
@@ -94,8 +98,11 @@ const PORTS: Array = [
 		"star_money": [30, 50, 75],
 		"reward_recipes": ["maki_atun"],
 		"reward_recipes_3": ["dorayaki"],
-		# Isla: carta cerrada. La CUARTA la regala David en plena partida.
-		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "onigiri"],
+		# Isla: carta cerrada. La CUARTA la regala David en plena partida, y al
+		# repetir el puerto se vuelve ya con ella puesta.
+		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "mochi"],
+		"fixed_recipes_replay": ["maki_aguacate", "nigiri_salmon", "mochi",
+			"nigiri_atun"],
 		"no_extras": false,
 		# El pirata llega SIEMPRE el último; si el jugador va sobrado, el guion
 		# lo adelanta para que dé tiempo a estrenar con él el nigiri de atún
@@ -347,28 +354,38 @@ static func first_port_id() -> String:
 ## ANTERIORES: aunque el jugador tenga media carta desbloqueada por haber
 ## avanzado, un puerto temprano no debe ofrecer recetas de más adelante.
 ##
-## `superado` (el puerto ya está pasado y se está REPITIENDO) suelta las dos
-## ataduras, igual que los huecos de receta: la carta cerrada deja de serlo y
-## entran también las recompensas del propio puerto. Volver a por las 3
-## estrellas se hace con lo que uno ya se ha ganado ahí — en el nivel 3, con
-## los platos de 2 estrellas que pide el pirata.
-static func recipes_for_port(port_id: String, superado := false) -> Array[String]:
-	var out: Array[String] = []
+## `superado` (el puerto ya está pasado y se está REPITIENDO) solo cambia la
+## carta de las ISLAS, que pueden traer una lista distinta para la repetición
+## (`fixed_recipes_replay`): en el nivel 3 se vuelve con el nigiri de atún que
+## regaló David la primera vez.
+## Carta CERRADA de un puerto ([] si es de libre elección). Las ISLAS se juegan
+## siempre con las recetas que manda el nivel, también al repetirlo; lo único
+## que cambia es que pueden traer una lista propia para la repetición
+## (`fixed_recipes_replay`), con lo que David regaló la primera vez.
+static func fixed_recipes_for(port_id: String, superado := false) -> Array[String]:
 	var port := get_port(port_id)
 	var fijas: Array = port.get("fixed_recipes", [])
-	if not fijas.is_empty() and not superado:
-		for r in fijas:
-			out.append(str(r))
-		return out
+	if superado and not port.get("fixed_recipes_replay", []).is_empty():
+		fijas = port.get("fixed_recipes_replay", [])
+	var out: Array[String] = []
+	for r in fijas:
+		out.append(str(r))
+	return out
+
+
+static func recipes_for_port(port_id: String, superado := false) -> Array[String]:
+	var out: Array[String] = []
+	var fijas := fixed_recipes_for(port_id, superado)
+	if not fijas.is_empty():
+		return fijas
 	for r in INITIAL_RECIPES:
 		out.append(str(r))
 	var idx := port_index(port_id)
 	for i in PORTS.size():
 		if idx >= 0 and i > idx:
 			break
-		# Las recompensas cuentan de los puertos ANTERIORES, y también de este
-		# mismo cuando se repite (lo que se gana aquí se puede traer aquí).
-		if idx < 0 or i < idx or superado:
+		# Las recompensas solo cuentan de los puertos ANTERIORES.
+		if idx < 0 or i < idx:
 			for r in PORTS[i].get("reward_recipes", []):
 				if not str(r) in out:
 					out.append(str(r))

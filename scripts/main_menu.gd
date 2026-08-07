@@ -472,13 +472,20 @@ func _setup_menu_ui() -> void:
 ## La caja del arroz es ESTRECHA a propósito: en el mapa tiene que dejar sitio
 ## para que el rótulo de "Aventura" quepa CENTRADO EN LA PANTALLA, y el límite
 ## lo pone ella (el saco asoma además por su izquierda).
-const RES_INGOT_W := 118.0
-const RES_MONEY_W := 140.0
-const RES_RICE_W := 140.0
+## Las tres cajas son IGUALES y entre ellas cubren el ancho de la pantalla.
+## El hueco tiene que tragarse dos voladizos: el "+" que asoma por la derecha
+## de una caja y el icono que asoma por la izquierda de la siguiente.
+const RES_INGOT_W := 182.0
+const RES_MONEY_W := 182.0
+const RES_RICE_W := 182.0
 ## Hueco entre cajas. Tiene que dar para DOS voladizos: el "+" que asoma por la
 ## derecha de una caja y el icono que asoma por la izquierda de la siguiente.
 ## Con 12 px, el "+" de los lingotes se montaba sobre la moneda.
-const RES_GAP := 40.0
+const RES_GAP := 58.0
+## Margen IZQUIERDO de la banda. No es el de siempre (16): el icono de la
+## primera caja asoma 26 px por su izquierda, y pegada al canto se salía de la
+## pantalla.
+const RES_LEFT := 32.0
 ## Lo que sobresale el botón "+" por la derecha de la caja del arroz. Hay que
 ## contarlo o la caja se sale de la pantalla: el "+" mide 52 y va anclado a
 ## -30 del borde derecho, así que asoma 22.
@@ -511,8 +518,8 @@ func _setup_resource_bar(st: float) -> void:
 	# Cuenta atrás del próximo saco, colgando de la caja del arroz.
 	rice_timer_label = Label.new()
 	rice_timer_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	rice_timer_label.offset_top = 34.0
-	rice_timer_label.offset_bottom = 64.0
+	rice_timer_label.offset_top = 4.0
+	rice_timer_label.offset_bottom = 34.0
 	rice_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rice_timer_label.add_theme_font_size_override("font_size", 19)
 	rice_timer_label.add_theme_color_override("font_color", Color(1, 0.94, 0.78))
@@ -530,11 +537,11 @@ func _add_plus(caja: Control, accion: Callable) -> void:
 	mas.texture_normal = load("res://assets/ui/boton_mas.png")
 	mas.ignore_texture_size = true
 	mas.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	# ABAJO Y AL CENTRO, cabalgando sobre el canto de la caja.
-	mas.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	mas.custom_minimum_size = Vector2(46, 46)
-	mas.size = Vector2(46, 46)
-	mas.position = Vector2(-23.0, -14.0)
+	# A la DERECHA, cabalgando sobre el canto de la caja.
+	mas.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	mas.custom_minimum_size = Vector2(48, 48)
+	mas.size = Vector2(48, 48)
+	mas.position = Vector2(-26.0, -24.0)
 	PrepBoard.add_press_feedback(mas)
 	mas.pressed.connect(accion)
 	caja.add_child(mas)
@@ -560,15 +567,12 @@ func _refresh_resources() -> void:
 ## como en el mapa: ya no viajan a los extremos (el rótulo de "Aventura" es el
 ## que baja para no colarse). `en_mapa` se conserva por si hiciera falta
 ## diferenciarlas más adelante.
-## Dónde va cada caja. En el MENÚ, las tres centradas; en el MAPA se corren a
-## la DERECHA en bloque, que es lo que deja hueco al botón "Atrás" a su misma
-## altura por la izquierda.
-func _resource_spots(en_mapa: bool) -> Array:
-	var w := GameState.canvas_size().x
-	var total := RES_INGOT_W + RES_MONEY_W + RES_RICE_W + RES_GAP * 2.0 			+ RES_PLUS_BLEED
-	var x0 := (w - total) * 0.5
-	if en_mapa:
-		x0 = w - total - ROUND_MARGIN
+## Dónde va cada caja. SIEMPRE LO MISMO: las tres cubren la banda de arriba y
+## no se mueven al entrar en Aventura (el botón "Atrás" del mapa aparece
+## DEBAJO de ellas, no a su lado). `en_mapa` se conserva por si alguna vez
+## hiciera falta diferenciarlas.
+func _resource_spots(_en_mapa: bool) -> Array:
+	var x0 := RES_LEFT
 	return [Vector2(x0, res_y),
 		Vector2(x0 + RES_INGOT_W + RES_GAP, res_y),
 		Vector2(x0 + RES_INGOT_W + RES_MONEY_W + RES_GAP * 2.0, res_y)]

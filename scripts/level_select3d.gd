@@ -423,16 +423,16 @@ func _build_top_bar() -> Control:
 	# dejarle sitio (main_menu.RES_RICE_W). Y 34 px de aire por arriba: se baja
 	# el GRÁFICO entero, no el texto de dentro (ese va centrado en la tela).
 	var ancho := GameState.canvas_size().x
-	title.position = Vector2((ancho - TITLE_W) * 0.5, 104.0 + st)
+	title.position = Vector2((ancho - TITLE_W) * 0.5, 112.0 + st)
 	bar.add_child(title)
 
 	# Flecha DIBUJADA en la madera: el único botón del juego con icono propio.
 	var back := PrepBoard.make_back_button()
 	back.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	back.size = Vector2(150, PrepBoard.ICON_BTN_H)
-	# A la MISMA ALTURA que los contadores: en el mapa se corren a la derecha
-	# (main_menu._resource_spots) justo para dejarle este hueco.
-	back.position = Vector2(16.0, 16.0 + st)
+	# DEBAJO de los contadores, que ocupan toda la banda de arriba y ya no se
+	# apartan al entrar en Aventura.
+	back.position = Vector2(16.0, 16.0 + st + PrepBoard.RESOURCE_H + 34.0)
 	back.pressed.connect(_on_map_back)
 	bar.add_child(back)
 	return bar
@@ -597,11 +597,11 @@ func _fill_clients_row(mix: Dictionary) -> void:
 ## ELECCIÓN; las islas pueden traer una carta cerrada (`fixed_recipes`).
 func _fill_recipes_row(port: Dictionary, id: String) -> void:
 	_row_reset(info_recipes_row)
-	# La carta cerrada, como el recorte de huecos, solo ata la PRIMERA vez: al
-	# repetir un puerto superado se elige carta (ver prep_screen).
+	# Las ISLAS traen carta cerrada también al repetirlas; lo que puede cambiar
+	# es la lista (ver CampaignData.fixed_recipes_for).
 	var superado: bool = GameState.port_beaten(id)
-	var fijas: Array = port.get("fixed_recipes", [])
-	if fijas.is_empty() or superado:
+	var fijas := CampaignData.fixed_recipes_for(id, superado)
+	if fijas.is_empty():
 		var l := Label.new()
 		l.text = "Libre elección"
 		l.add_theme_font_size_override("font_size", 19)
@@ -860,19 +860,155 @@ func _on_sail_pressed() -> void:
 	GameState.mode = "adventure"
 	GameState.current_port = selected_id
 	GameState.selected_recipes = []
-	# Los puertos de CARTA CERRADA (las islas) no pasan por el selector: se
-	# juega con las recetas que manda el nivel y punto. Eso vale la PRIMERA
-	# vez; al repetir un puerto ya superado se elige carta como en el resto.
-	var fijas: Array = CampaignData.get_port(selected_id).get("fixed_recipes", [])
-	if not fijas.is_empty() and not GameState.port_beaten(selected_id):
-		var recs: Array[String] = []
-		for r in fijas:
-			recs.append(str(r))
-		GameState.selected_recipes = recs
-		GameState.selected_perks = []
-		GameState.fade_to_scene("res://scenes/level3d.tscn", 0.35, 0.45)
+	# Los puertos de CARTA CERRADA (las islas) NO pasan por el selector, ni la
+	# primera vez ni al repetirlos: se juega con las recetas que manda el nivel.
+	# Como el jugador no elige, tampoco puede esquivar un ingrediente que le
+	# falte, así que aquí es donde se le avisa antes de zarpar.
+	var fijas := CampaignData.fixed_recipes_for(
+			selected_id, GameState.port_beaten(selected_id))
+	if fijas.is_empty():
+		GameState.fade_to_scene("res://scenes/prep_screen.tscn", 0.35, 0.45)
 		return
-	GameState.fade_to_scene("res://scenes/prep_screen.tscn", 0.35, 0.45)
+	var faltan := GameState.missing_ingredients(fijas)
+	if faltan.is_empty():
+		_zarpar_con(fijas)
+	else:
+		_avisar_falta_genero(fijas, faltan)
+
+
+## Manda al nivel con una carta cerrada ya decidida.
+func _zarpar_con(recetas: Array[String]) -> void:
+	GameState.selected_recipes = recetas
+	GameState.selected_perks = []
+	GameState.fade_to_scene("res://scenes/level3d.tscn", 0.35, 0.45)
+
+
+## Gigi canta los ingredientes que faltan para la carta de esta isla y ofrece
+## las tres salidas: jugar igualmente, pasarse por la tienda o volver al mapa.
+func _avisar_falta_genero(recetas: Array[String], faltan: Array) -> void:
+	var caja := DialogueBox.new()
+	ui.add_child(caja)
+	caja.say([
+		{ "text": "¡RAAAK! ¡ALTO AHÍ! ¡Te falta género en la despensa!",
+			"who": "gigi", "mood": "loro_grito" },
+		{ "text": "No te queda %s, así que hoy no puedes preparar %s." % [
+				_lista(_nombres_ingredientes(faltan)),
+				_lista(_nombres_recetas(_recetas_afectadas(recetas, faltan)))],
+			"who": "gigi", "mood": "loro" },
+	])
+	await caja.finished
+	caja.queue_free()
+	_panel_falta_genero(recetas)
+
+
+func _panel_falta_genero(recetas: Array[String]) -> void:
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.55)
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 150
+	ui.add_child(overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(center)
+	var box := Control.new()
+	box.custom_minimum_size = Vector2(540, 380)
+	center.add_child(box)
+	box.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
+
+	var vb := VBoxContainer.new()
+	vb.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vb.offset_left = 58.0
+	vb.offset_top = 46.0
+	vb.offset_right = -58.0
+	vb.offset_bottom = -48.0
+	vb.add_theme_constant_override("separation", 14)
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(vb)
+
+	var titulo := PrepBoard.make_big_title("¿Jugar igualmente?", 44)
+	titulo.custom_minimum_size = Vector2(0, 76)
+	vb.add_child(titulo)
+
+	var msg := Label.new()
+	msg.text = "Sin esos ingredientes esas recetas no se podrán cocinar en el nivel."
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg.add_theme_font_size_override("font_size", 21)
+	msg.add_theme_color_override("font_color", Color(0.42, 0.3, 0.18))
+	vb.add_child(msg)
+
+	var btns := VBoxContainer.new()
+	btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	btns.add_theme_constant_override("separation", 12)
+	vb.add_child(btns)
+	var jugar := Button.new()
+	jugar.text = "Jugar"
+	jugar.custom_minimum_size = Vector2(250, 62)
+	PrepBoard.skin_action_button(jugar, true)
+	jugar.add_theme_font_size_override("font_size", 24)
+	jugar.pressed.connect(func() -> void: _zarpar_con(recetas))
+	btns.add_child(jugar)
+	# La tienda puede no estar abierta todavía (el nivel 1 es una isla y Saverio
+	# aparece en el 2): entonces no se ofrece.
+	if GameState.shop_unlocked():
+		var tienda := Button.new()
+		tienda.text = "Visitar tienda"
+		tienda.custom_minimum_size = Vector2(250, 62)
+		PrepBoard.skin_button(tienda)
+		tienda.add_theme_font_size_override("font_size", 24)
+		tienda.pressed.connect(func() -> void:
+			GameState.fade_to_scene("res://scenes/shop_screen.tscn", 0.35, 0.45))
+		btns.add_child(tienda)
+
+	# La X cierra y devuelve el mando al mapa, sin zarpar.
+	var cerrar := Button.new()
+	cerrar.custom_minimum_size = Vector2(60, 60)
+	cerrar.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	cerrar.offset_left = -74.0
+	cerrar.offset_top = 14.0
+	cerrar.offset_right = -14.0
+	cerrar.offset_bottom = 74.0
+	PrepBoard.skin_action_button(cerrar, false)
+	cerrar.pressed.connect(overlay.queue_free)
+	box.add_child(cerrar)
+
+
+## Recetas de la carta que se quedan sin poder cocinarse.
+func _recetas_afectadas(recetas: Array[String], faltan: Array) -> Array[String]:
+	var out: Array[String] = []
+	for rid in recetas:
+		for ing in RecipeData.get_ingredients(rid):
+			if ing in faltan and not rid in out:
+				out.append(rid)
+	return out
+
+
+func _nombres_ingredientes(ids: Array) -> Array[String]:
+	var out: Array[String] = []
+	for id in ids:
+		out.append(str(RecipeData.get_ingredient(id).get("name", id)).to_lower())
+	return out
+
+
+func _nombres_recetas(ids: Array) -> Array[String]:
+	var out: Array[String] = []
+	for id in ids:
+		out.append(str(RecipeData.get_recipe(id).get("name", id)).to_lower())
+	return out
+
+
+## "a", "a y b", "a, b y c".
+func _lista(nombres: Array[String]) -> String:
+	if nombres.is_empty():
+		return ""
+	if nombres.size() == 1:
+		return "**%s**" % nombres[0]
+	var marcados: Array[String] = []
+	for n in nombres:
+		marcados.append("**%s**" % n)
+	return ", ".join(marcados.slice(0, marcados.size() - 1)) \
+			+ " y " + marcados[-1]
 
 
 # ------------------------------------------------------------------- bucle

@@ -340,10 +340,15 @@ func has_ingredients_for(recipe_id: String) -> bool:
 
 
 ## Ingredientes DISTINTOS que consumiría jugar un nivel con estas recetas.
+## Los GRATUITOS (coste 0: el sésamo, como el arroz) quedan fuera: ni se
+## compran en la tienda ni gastan usos, así que exigirlos aquí dejaba una
+## receta sin poder jugarse por un ingrediente que no se puede conseguir.
 func ingredients_for_selection(recipe_ids: Array) -> Array[String]:
 	var out: Array[String] = []
 	for rid in recipe_ids:
 		for ing in RecipeData.get_ingredients(rid):
+			if int(RecipeData.get_ingredient(ing).get("cost", 0)) <= 0:
+				continue
 			if not ing in out:
 				out.append(ing)
 	return out
@@ -430,6 +435,17 @@ func buy_rice(sacos: int, coste: int) -> bool:
 func can_play() -> bool:
 	tick_rice()
 	return rice > 0
+
+
+## Ingredientes de esa carta de los que NO queda ni un uso. Es lo que mira el
+## mapa antes de zarpar a una ISLA: como ahí la carta viene impuesta, el jugador
+## no puede esquivar lo que le falte y hay que avisarle.
+func missing_ingredients(recipe_ids: Array) -> Array[String]:
+	var out: Array[String] = []
+	for ing in ingredients_for_selection(recipe_ids):
+		if get_ingredient_uses(ing) <= 0:
+			out.append(ing)
+	return out
 
 
 func consume_ingredients_for_level(recipe_ids: Array) -> bool:
