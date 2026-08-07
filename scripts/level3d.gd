@@ -400,7 +400,10 @@ func _ready() -> void:
 		arrival_queue.append(clampf(center + randf_range(-6.0, 6.0) * arrival_scale, 2.0, last))
 	arrival_queue.sort()
 	_update_hud()
-	# El nivel NO arranca solo: primero el cartel de "¿Comenzamos?".
+	# El nivel NO arranca solo: primero el cartel de "¿Comenzamos?". La bandera
+	# se pone AQUÍ y no dentro: entre el _ready y la llamada diferida corrían
+	# unos fotogramas de cuenta atrás.
+	awaiting_start = true
 	_ask_start.call_deferred()
 
 
@@ -1353,8 +1356,8 @@ Acabada", 52)
 	# Naranja fuerte, no el dorado del titular: sobre el crema del pergamino el
 	# oro se confundía con el papel y la cifra no destacaba.
 	earn_label.add_theme_font_size_override("font_size", 58)
-	earn_label.add_theme_color_override("font_color", Color(1, 0.58, 0.11))
-	earn_label.add_theme_color_override("font_outline_color", Color(0.3, 0.09, 0.0))
+	earn_label.add_theme_color_override("font_color", Color(1, 0.93, 0.62))
+	earn_label.add_theme_color_override("font_outline_color", Color(0.34, 0.13, 0.02))
 	earn_label.add_theme_constant_override("outline_size", 13)
 	earn_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.4))
 	earn_label.add_theme_constant_override("shadow_offset_x", 2)
@@ -1457,6 +1460,13 @@ func _add_rope_corners(box: Control) -> void:
 ## entre en la partida cuando quiera y no le pille el reloj andando.
 func _ask_start() -> void:
 	awaiting_start = true
+	# Si un guion está presentando el puerto (David en los primeros niveles), el
+	# cartel ESPERA a que termine de hablar: salir a la vez le tapaba la
+	# conversación y había que quitárselo de encima para poder leerla.
+	for hijo in get_children():
+		if hijo is StoryDirector:
+			while is_instance_valid(hijo) and hijo.dialog != null 					and hijo.dialog.is_talking():
+				await get_tree().process_frame
 	var overlay := ColorRect.new()
 	overlay.name = "StartGate"
 	overlay.color = Color(0, 0, 0, 0.5)

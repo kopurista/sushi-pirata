@@ -40,6 +40,10 @@ const SHOP_ZOOM_SIZE := 9.4
 const ROUND_SIZE := 74.0
 const ROUND_LABEL := 24.0
 const ROUND_MARGIN := 16.0
+## Aire EXTRA por debajo de los botones redondos. `safe_bottom()` vale 0 en la
+## build web (que es como se juega en el iPhone), así que en un móvil de
+## esquinas redondeadas el rótulo se comía la curva. Se sube a mano.
+const ROUND_BOTTOM_LIFT := 46.0
 
 var logo: TextureRect
 ## El logotipo vive dentro de este contenedor: el balanceo mueve el logo y las
@@ -418,7 +422,8 @@ func _setup_menu_ui() -> void:
 	# poder anclarlos a su esquina y animarlos por separado. Arriba ya no cabían:
 	# ese hueco lo ocupan ahora los contadores de dinero y arroz.
 	var st := GameState.safe_top()
-	var round_y := -(ROUND_SIZE + ROUND_LABEL) - ROUND_MARGIN - GameState.safe_bottom()
+	var round_y := -(ROUND_SIZE + ROUND_LABEL) - ROUND_MARGIN \
+			- ROUND_BOTTOM_LIFT - GameState.safe_bottom()
 	medal_button = _make_round_button("ic_logros", "Logros",
 		Control.PRESET_BOTTOM_LEFT, Vector2(ROUND_MARGIN, round_y),
 		func() -> void: _go_achievements())
@@ -771,7 +776,10 @@ func _back_to_menu() -> void:
 		sky_leaving = false
 		_set_map_ui_visible(false)
 		_set_menu_ui_visible(true)
-		_ui_in())
+		# Los contadores DESANDAN el viaje: de los extremos del mapa al centro.
+		# Sin esto se quedaban donde los dejó Aventura.
+		_ui_in(false)
+		_place_resources(false, true))
 
 
 ## ARCADE: el barco se va por la derecha y deja SOLO EL MAR de fondo; el
@@ -1005,7 +1013,9 @@ func _go_inventory() -> void:
 
 
 ## Devuelve el logotipo, los botones y el monedero a su sitio.
-func _ui_in() -> void:
+## `con_recursos` a false deja quietos los contadores: al volver del mapa los
+## mueve `_place_resources`, y si los tocan los dos pelean por `position`.
+func _ui_in(con_recursos := true) -> void:
 	# El balanceo del logotipo arranca AL FINAL y con un temporizador aparte:
 	# encadenarlo al mismo tween que la entrada (que va en paralelo) hacía que
 	# los dos pelearan por position:y y el logotipo se quedaba a medio camino.
@@ -1016,9 +1026,10 @@ func _ui_in() -> void:
 	button_box.position.y = home_box_y + 660.0
 	medal_button.position.y = home_medal_y + 260.0
 	gear_button.position.y = home_gear_y + 260.0
-	for caja in [money_box, rice_box]:
-		if caja != null:
-			caja.position.y = res_y - 220.0
+	if con_recursos:
+		for caja in [money_box, rice_box]:
+			if caja != null:
+				caja.position.y = res_y - 220.0
 	ui_tween = create_tween().set_parallel(true)
 	ui_tween.tween_property(medal_button, "position:y", home_medal_y, 0.55) \
 			.set_delay(0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -1026,9 +1037,10 @@ func _ui_in() -> void:
 			.set_delay(0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	ui_tween.tween_property(logo_holder, "position:y", home_logo_y, 0.6) 			.set_delay(0.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	ui_tween.tween_property(button_box, "position:y", home_box_y, 0.6) 			.set_delay(0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	for caja in [money_box, rice_box]:
-		if caja != null:
-			ui_tween.tween_property(caja, "position:y", res_y, 0.55) 					.set_delay(0.15).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	if con_recursos:
+		for caja in [money_box, rice_box]:
+			if caja != null:
+				ui_tween.tween_property(caja, "position:y", res_y, 0.55) 						.set_delay(0.15).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	get_tree().create_timer(1.0).timeout.connect(_start_logo_idle)
 
 

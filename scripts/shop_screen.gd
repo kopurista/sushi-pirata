@@ -579,8 +579,8 @@ func _setup_ui() -> void:
 	shelf.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	shelf.offset_left = 14.0
 	shelf.offset_right = -14.0
-	# Más abajo: arriba se comía el mostrador del tendero.
-	shelf.offset_top = -560.0
+	# Más abajo Y más alta: el género entra más grande y se lee mejor.
+	shelf.offset_top = -672.0
 	shelf.offset_bottom = -88.0
 	root.add_child(shelf)
 	shelf.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
@@ -752,7 +752,7 @@ func _build_item(ing: String, small: bool = false) -> Button:
 	var data: Dictionary = RecipeData.INGREDIENTS.get(ing, {})
 	var cost := int(data.get("cost", 0))
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(96, 104) if small else Vector2(104, 134)
+	b.custom_minimum_size = Vector2(96, 104) if small else Vector2(126, 168)
 	if small:
 		return _fill_small_item(b, ing, data, cost)
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
@@ -763,10 +763,10 @@ func _build_item(ing: String, small: bool = false) -> Button:
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.texture = RecipeData.get_ingredient_texture(ing)
 	icon.set_anchors_preset(Control.PRESET_FULL_RECT)
-	icon.offset_left = 8.0
+	icon.offset_left = 6.0
 	icon.offset_top = 4.0
-	icon.offset_right = -8.0
-	icon.offset_bottom = -70.0
+	icon.offset_right = -6.0
+	icon.offset_bottom = -74.0
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(icon)
 

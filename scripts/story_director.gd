@@ -22,7 +22,7 @@ const INACTIVIDAD := 10.0
 const PAUSA_ANTES := 0.3
 ## Cuánto se oscurece la pantalla: FUERTE alrededor del foco, SUAVE cuando solo
 ## se está hablando (ahí no se señala nada, solo se baja el ruido de fondo).
-const DIM_FOCO := 0.78
+const DIM_FOCO := 0.62
 const DIM_SUAVE := 0.34
 
 var lv: Node3D
@@ -34,6 +34,8 @@ var focus_mat: ShaderMaterial
 var _recordatorio := ""
 var _quieto := 0.0
 var _regañando := false
+## Fundido del oscurecido (ver `_fade_dim`).
+var _dim_tween: Tween = null
 
 
 func _ready() -> void:
@@ -122,6 +124,10 @@ func _espabila() -> void:
 		{ "text": "¡ESPABILA, grumete! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
 		{ "text": aviso, "who": "gigi", "mood": "loro" },
 	])
+	# `_say` deja la caja ABIERTA (keep_open) porque los guiones encadenan
+	# tandas; aquí no viene ninguna detrás, así que hay que cerrarla a mano o se
+	# queda puesta tapando el juego.
+	dialog.close()
 	_regañando = false
 
 
@@ -183,7 +189,7 @@ func _focus_screen_rect(r: Rect2) -> void:
 	focus_mat.set_shader_parameter("center", c)
 	focus_mat.set_shader_parameter("radius", radius)
 	focus_mat.set_shader_parameter("feather", clampf(radius * 0.55, 34.0, 100.0))
-	focus_mat.set_shader_parameter("dim", DIM_FOCO)
+	_fade_dim(DIM_FOCO)
 
 
 ## Velo LEVE de pantalla completa, sin agujero: solo para hablar.
@@ -191,7 +197,7 @@ func _soft_dim() -> void:
 	focus_mat.set_shader_parameter("center", Vector2(-999.0, -999.0))
 	focus_mat.set_shader_parameter("radius", 0.0)
 	focus_mat.set_shader_parameter("feather", 0.001)
-	focus_mat.set_shader_parameter("dim", DIM_SUAVE)
+	_fade_dim(DIM_SUAVE)
 
 
 ## Foco sobre un Control. ESPERA DOS FOTOGRAMAS antes de medirlo: los
@@ -234,6 +240,20 @@ func _apagar_velo() -> void:
 	focus_mat.set_shader_parameter("radius", 0.0)
 	focus_mat.set_shader_parameter("feather", 0.001)
 	focus_mat.set_shader_parameter("dim", 0.0)
+	if _dim_tween != null and _dim_tween.is_valid():
+		_dim_tween.kill()
+
+
+## El oscurecido entra y sale CON FUNDIDO. Saltando de 0 a 0.78 de golpe se veía
+## como un fogonazo negro cada vez que cambiaba el foco.
+func _fade_dim(target: float) -> void:
+	if _dim_tween != null and _dim_tween.is_valid():
+		_dim_tween.kill()
+	var actual := float(focus_mat.get_shader_parameter("dim"))
+	_dim_tween = create_tween().set_trans(Tween.TRANS_SINE)
+	_dim_tween.tween_method(
+		func(v: float) -> void: focus_mat.set_shader_parameter("dim", v),
+		actual, target, 0.22)
 
 
 ## Espera N gestos de un tipo concreto de la tabla (craft_event).

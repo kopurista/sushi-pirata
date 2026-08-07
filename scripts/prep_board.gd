@@ -291,7 +291,7 @@ static func make_big_title(text: String, font_size := 64) -> Label:
 	# INTERLINEADO MUY NEGATIVO: la Exo 2 reserva ~1.9x el cuerpo por línea, así
 	# que un titular de dos líneas salía con medio cartel de hueco en medio (el
 	# mismo problema que el cartel del gesto de la tabla).
-	l.add_theme_constant_override("line_spacing", -int(font_size * 0.62))
+	l.add_theme_constant_override("line_spacing", -int(font_size * 0.42))
 	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
 	if negrita != null:
 		l.add_theme_font_override("font", negrita)

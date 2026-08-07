@@ -511,8 +511,10 @@ func complete_port(port_id: String, stars: int) -> Array:
 				newly.append(r)
 		# Toda receta nueva llega con despensa para estrenarla.
 		gift_ingredients_for(newly, PORT_GIFT)
-		if not newly.is_empty():
-			pending_reveal = newly.duplicate()
+		# NO se pone `pending_reveal`: el cartel de fin de nivel ya las anuncia
+		# (`level3d._reveal_recipes`), y volver a enseñarlas al llegar al mapa
+		# era repetir lo mismo dos veces seguidas. `pending_reveal` se queda solo
+		# para el TUTORIAL, que no tiene cartel de resultados.
 	save_game()
 	return newly
 

@@ -190,7 +190,7 @@ func _nivel_3() -> void:
 	await _esperar(func() -> bool: return lv.ended or _hay_plato_hecho())
 	if lv.ended:
 		return
-	_focus_extras()
+	await _focus_extras()
 	await _say_raised([
 		{ "text": "¡Alto ahí, no lo sirvas todavía! Mira la esquina de tu tabla: los **extras**.", "mood": "hablando" },
 		{ "text": "Se le echan a un plato **ya terminado**, justo antes de mandarlo a la cinta, y se gastan por plato servido.", "mood": "serio" },
@@ -244,7 +244,7 @@ func _nivel_3() -> void:
 	# pirata, el jengibre evita que se le haga repetitivo. Si al jugador le
 	# faltan extras, David se los pone.
 	var regalados := _reponer_extras()
-	_focus_extras()
+	await _focus_extras()
 	var consejo: Array = [
 		{ "text": "Un consejo de capitán para este puerto: hoy solo llevas **un plato de 2 estrellas** para el pirata, así que se lo vas a repetir sí o sí.", "mood": "serio" },
 		{ "text": "Échale **jengibre** al **nigiri de atún** y el plato no le contará como repetido: le sabrá a nuevo cada vez.", "mood": "hablando" },
@@ -279,7 +279,12 @@ func _hay_plato_hecho() -> bool:
 
 
 ## Foco sobre la fila de extras de la tabla.
+## OJO: espera DOS FOTOGRAMAS antes de medir, igual que `_focus_node`. Los
+## contenedores de Godot recolocan a sus hijos de forma DIFERIDA, así que medir
+## en el acto daba el rectángulo VIEJO y el círculo caía al lado de los extras.
 func _focus_extras() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
 	var botones: Dictionary = lv.prep_board.extra_buttons
 	var r := Rect2()
 	var primero := true
@@ -317,14 +322,16 @@ func _nivel_4() -> void:
 	])
 	# El barco se presenta de entrada, con el foco en su botón: es la novedad
 	# del nivel y hay que verla ANTES de ponerse a cocinar.
-	_focus_boat()
+	await _focus_boat()
 	await _say_raised([
 		{ "text": "¡Oye! ¿Has visto esta función nueva? Ese icono redondo de ahí abajo es el **barco combinado**, y hoy lo estrenas.", "mood": "feliz" },
 		{ "text": "Junta **cuatro platos** en las cajas, de al menos **dos clases distintas**, y el botón se enciende.", "mood": "hablando" },
 		{ "text": "Al pulsarlo te saca los platos a la tabla: solo tienes que **arrastrarlos a la bandeja** uno a uno. Cuando esté cargada, sale a la cinta como un solo plato.", "mood": "hablando" },
 		{ "text": "Y aquí está el truco: el barco se paga por la **variedad**. Cuantas más clases distintas lleve, más prima. Cuatro clases valen mucho más que cuatro platos iguales.", "mood": "serio" },
+		{ "text": "Además **entretiene mucho más**: un barco cargado tiene al cliente comiendo un buen rato, y mientras come no se le acaba la paciencia.", "mood": "hablando" },
+		{ "text": "No todo vale para el barco, ojo: solo **nigiris**, **gunkan** y **makis**, futomakis incluidos. Lo demás no se puede cargar.", "mood": "serio" },
 		{ "text": "¡BARCO! ¡BARCO! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "Guarda variado durante la preparación y suéltalo cuando se te junte la clientela. Es la mejor forma de servir a varios de golpe.", "mood": "hablando" },
+		{ "text": "Guardar platos en las cajas puede servirte para atender a **varios clientes de golpe**, o para montar un **barco** que deje a **uno solo** satisfecho del todo. Tú decides cómo usar las cajas.", "mood": "hablando" },
 	], -1.0, EXTRAS_RAISE)
 	_play()
 
@@ -340,7 +347,11 @@ func _platos_guardados() -> int:
 
 
 ## Foco sobre el botón del barco combinado.
+## Igual que `_focus_extras`: dos fotogramas antes de medir, o el foco cae
+## fuera del botón del barco.
 func _focus_boat() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
 	var b: Control = lv.prep_board.boat_button
 	if b != null and is_instance_valid(b):
 		_focus_screen_rect(b.get_global_rect().grow(14.0))

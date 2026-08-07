@@ -419,7 +419,7 @@ func _build_top_bar() -> Control:
 	# dejarle sitio (main_menu.RES_RICE_W). Y 34 px de aire por arriba: se baja
 	# el GRÁFICO entero, no el texto de dentro (ese va centrado en la tela).
 	var ancho := GameState.canvas_size().x
-	title.position = Vector2((ancho - TITLE_W) * 0.5, 34.0 + st)
+	title.position = Vector2((ancho - TITLE_W) * 0.5, 60.0 + st)
 	bar.add_child(title)
 
 	# Flecha DIBUJADA en la madera: el único botón del juego con icono propio.
