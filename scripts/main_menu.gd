@@ -66,6 +66,8 @@ var ingot_box: Control = null
 var rice_timer_label: Label = null
 var res_y := 0.0
 var res_tween: Tween = null
+## Acumulador para refrescar la cuenta atrás del arroz una vez por segundo.
+var _rice_tick := 0.0
 ## true mientras se ve el menú (con el mapa fuera de pantalla).
 var in_menu := true
 ## Mientras hay una transición en marcha no se aceptan más pulsaciones.
@@ -165,7 +167,7 @@ func _show_menu(animate: bool) -> void:
 ## interfaz de la campaña.
 func _enter_map(animate: bool) -> void:
 	in_menu = false
-	# Los contadores se van a los extremos y dejan hueco al rótulo del mapa.
+	# Los contadores se corren a la derecha y dejan hueco al botón "Atrás".
 	_place_resources(true, animate)
 	map_visible = true
 	if not animate:
@@ -331,6 +333,17 @@ func _setup_clouds() -> void:
 
 func _process(delta: float) -> void:
 	super._process(delta)
+	# La cuenta atrás del arroz corre SIEMPRE (también en el mapa) y una vez por
+	# segundo: repintarla a 30 fps no aporta nada y el texto es el mismo.
+	_rice_tick += delta
+	if _rice_tick >= 1.0:
+		_rice_tick = 0.0
+		if rice_timer_label != null:
+			var antes := GameState.rice
+			rice_timer_label.text = GameState.rice_time_text()
+			# Si acaba de caer un saco, se repinta la caja entera.
+			if GameState.rice != antes:
+				_refresh_resources()
 	if not in_menu:
 		return
 	_mt += delta
@@ -538,7 +551,7 @@ func _refresh_resources() -> void:
 			float(GameState.rice) / float(GameState.RICE_START), 0.0, 1.0)
 	if rice_timer_label != null:
 		var t := GameState.rice_time_text()
-		rice_timer_label.text = "" if t == "" else "+1 en %s" % t
+		rice_timer_label.text = t
 
 
 ## Dónde va cada contador. En el MENÚ los dos juntos y centrados; en el MAPA,
@@ -548,10 +561,15 @@ func _refresh_resources() -> void:
 ## como en el mapa: ya no viajan a los extremos (el rótulo de "Aventura" es el
 ## que baja para no colarse). `en_mapa` se conserva por si hiciera falta
 ## diferenciarlas más adelante.
-func _resource_spots(_en_mapa: bool) -> Array:
+## Dónde va cada caja. En el MENÚ, las tres centradas; en el MAPA se corren a
+## la DERECHA en bloque, que es lo que deja hueco al botón "Atrás" a su misma
+## altura por la izquierda.
+func _resource_spots(en_mapa: bool) -> Array:
 	var w := GameState.canvas_size().x
 	var total := RES_INGOT_W + RES_MONEY_W + RES_RICE_W + RES_GAP * 2.0 			+ RES_PLUS_BLEED
 	var x0 := (w - total) * 0.5
+	if en_mapa:
+		x0 = w - total - ROUND_MARGIN
 	return [Vector2(x0, res_y),
 		Vector2(x0 + RES_INGOT_W + RES_GAP, res_y),
 		Vector2(x0 + RES_INGOT_W + RES_MONEY_W + RES_GAP * 2.0, res_y)]
@@ -609,18 +627,26 @@ func _open_pack_panel(titulo: String, packs: Array, real: bool) -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	overlay.add_child(center)
 	var box := Control.new()
-	box.custom_minimum_size = Vector2(640, 470)
+	box.custom_minimum_size = Vector2(680, 440)
 	center.add_child(box)
-	box.add_child(PrepBoard.make_nine_patch(
-		PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
+	# Panel PROPIO de tienda (madera con toldo a rayas), no el pergamino de los
+	# carteles normales: es su sitio y se dibuja a tamaño fijo, sin 9-slice.
+	var fondo := TextureRect.new()
+	fondo.texture = load("res://assets/ui/panel_tienda.png")
+	fondo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	fondo.stretch_mode = TextureRect.STRETCH_SCALE
+	fondo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(fondo)
 	PrepBoard.add_panel_banner(box, titulo, 30)
 
 	var fila := HBoxContainer.new()
 	fila.set_anchors_preset(Control.PRESET_FULL_RECT)
-	fila.offset_left = 46.0
-	fila.offset_top = 74.0
-	fila.offset_right = -46.0
-	fila.offset_bottom = -104.0
+	# Por DEBAJO del toldo, que se come el cuarto de arriba del dibujo.
+	fila.offset_left = 44.0
+	fila.offset_top = 118.0
+	fila.offset_right = -44.0
+	fila.offset_bottom = -96.0
 	fila.add_theme_constant_override("separation", 10)
 	fila.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.add_child(fila)
@@ -632,8 +658,8 @@ func _open_pack_panel(titulo: String, packs: Array, real: bool) -> void:
 	cerrar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	cerrar.offset_left = 210.0
 	cerrar.offset_right = -210.0
-	cerrar.offset_top = -78.0
-	cerrar.offset_bottom = -78.0 + PrepBoard.SMALL_H
+	cerrar.offset_top = -74.0
+	cerrar.offset_bottom = -74.0 + PrepBoard.SMALL_H
 	PrepBoard.skin_small_button(cerrar)
 	cerrar.add_theme_font_size_override("font_size", 24)
 	cerrar.pressed.connect(func() -> void: overlay.queue_free())
@@ -643,7 +669,7 @@ func _open_pack_panel(titulo: String, packs: Array, real: bool) -> void:
 ## Una carta: pergamino liso, el montón, cuánto llevas y lo que cuesta.
 func _pack_card(pack: Dictionary, real: bool, overlay: Control) -> Button:
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(168, 268)
+	b.custom_minimum_size = Vector2(172, 226)
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 	b.add_child(PrepBoard.make_nine_patch(
@@ -658,7 +684,7 @@ func _pack_card(pack: Dictionary, real: bool, overlay: Control) -> Button:
 	ic.offset_left = 12.0
 	ic.offset_top = 10.0
 	ic.offset_right = -12.0
-	ic.offset_bottom = -104.0
+	ic.offset_bottom = -98.0
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(ic)
 
@@ -709,12 +735,98 @@ func _comprar(pack: Dictionary, real: bool, overlay: Control) -> void:
 		_aviso("Las tiendas de verdad todavía no están abiertas, %s. "
 			+ "Pronto podrás traer lingotes de tierra firme.")
 		return
-	if GameState.buy_rice(int(pack["n"]), int(pack["coste"])):
-		_refresh_resources()
-		overlay.queue_free()
-	else:
+	# CON EL SACO LLENO no se vende nada: ni se cobra ni se pierde el paquete.
+	if GameState.rice >= GameState.RICE_START:
+		_aviso_gigi("¡RAAAK! ¿Más arroz? ¡Si no te cabe ni un grano más, %s! "
+			+ "Guárdate los lingotes para cuando hagan falta.")
+		return
+	# El cobro es PROPORCIONAL a lo que de verdad cabe (ver GameState.rice_deal),
+	# y se confirma SIEMPRE: gastar lingotes no puede ser un toque despistado.
+	var trato := GameState.rice_deal(int(pack["n"]), int(pack["coste"]))
+	_confirmar_arroz(pack, trato, overlay)
+
+
+## Cartel de confirmación de la compra de arroz. Avisa cuando el paquete se
+## recorta por el tope ("solo te caben 3 de los 5").
+func _confirmar_arroz(pack: Dictionary, trato: Dictionary, overlay: Control) -> void:
+	var sacos := int(trato["sacos"])
+	var coste := int(trato["coste"])
+	var recortado: bool = sacos < int(pack["n"])
+	var texto := "¿Cambias %d lingote%s por %d saco%s de arroz?" % [
+		coste, "" if coste == 1 else "s", sacos, "" if sacos == 1 else "s"]
+	if recortado:
+		texto += "
+Solo te caben %d de los %d, así que se cobra la parte." % [
+			sacos, int(pack["n"])]
+	if GameState.ingots < coste:
 		_aviso("No te llegan los **lingotes**, %s. Ese saco cuesta más de lo "
 			+ "que llevas encima.")
+		return
+
+	var velo := ColorRect.new()
+	velo.color = Color(0, 0, 0, 0.5)
+	velo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	velo.z_index = 170
+	ui_layer.add_child(velo)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	velo.add_child(center)
+	var box := Control.new()
+	box.custom_minimum_size = Vector2(520, 320)
+	center.add_child(box)
+	box.add_child(PrepBoard.make_nine_patch(
+		PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
+	PrepBoard.add_panel_banner(box, "¿Trato hecho?", 28)
+
+	var msg := Label.new()
+	msg.text = texto
+	msg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	msg.offset_left = 56.0
+	msg.offset_top = 82.0
+	msg.offset_right = -56.0
+	msg.offset_bottom = -118.0
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg.add_theme_font_size_override("font_size", 23)
+	msg.add_theme_color_override("font_color", DARK)
+	box.add_child(msg)
+
+	var btns := HBoxContainer.new()
+	btns.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	btns.offset_left = 40.0
+	btns.offset_right = -40.0
+	btns.offset_top = -102.0
+	btns.offset_bottom = -34.0
+	btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	btns.add_theme_constant_override("separation", 16)
+	box.add_child(btns)
+	var no := Button.new()
+	no.text = "No"
+	no.custom_minimum_size = Vector2(180, PrepBoard.ICON_BTN_H)
+	PrepBoard.skin_action_button(no, false)
+	no.pressed.connect(func() -> void: velo.queue_free())
+	btns.add_child(no)
+	var si := Button.new()
+	si.text = "¡Trato!"
+	si.custom_minimum_size = Vector2(190, PrepBoard.ICON_BTN_H)
+	PrepBoard.skin_action_button(si, true)
+	si.pressed.connect(func() -> void:
+		GameState.buy_rice(sacos, coste)
+		_refresh_resources()
+		velo.queue_free()
+		overlay.queue_free())
+	btns.add_child(si)
+
+
+## Aviso en boca de GIGI (el loro es quien regaña en este juego).
+func _aviso_gigi(texto: String) -> void:
+	var caja := DialogueBox.new()
+	ui_layer.add_child(caja)
+	caja.say([{ "text": texto % GameState.player_title(),
+		"who": "gigi", "mood": "loro_grito" }])
+	await caja.finished
+	caja.queue_free()
 
 
 func _aviso(texto: String) -> void:

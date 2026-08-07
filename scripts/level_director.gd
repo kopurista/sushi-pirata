@@ -10,6 +10,9 @@ extends StoryDirector
 ## Fracción del dinero objetivo a partir de la cual se consideran "bien
 ## encaminados" y saltan las explicaciones que no dependen de un suceso.
 const AVISO_PROGRESO := 0.7
+## Lo mismo para el PIRATA del nivel 3: entra en el sorteo con los demás, pero
+## si le toca tarde se le adelanta pronto, que su plato es media partida.
+const PIRATA_PROGRESO := 0.3
 ## Cuánto sube la caja para hablar de los EXTRAS: viven en la esquina alta de
 ## la tabla, más arriba que la fila de recetas.
 const EXTRAS_RAISE := 470.0
@@ -202,9 +205,11 @@ func _nivel_3() -> void:
 	_play()
 	await _tras_la_preparacion()
 
-	# El pirata va el último en la cola; si el jugador va sobrado, se adelanta.
+	# El pirata entra en el sorteo con los demás; si le toca tarde, el guion lo
+	# adelanta en cuanto se lleva un tercio del objetivo, para que dé tiempo de
+	# sobra a estrenar con él el nigiri de atún.
 	await _esperar(func() -> bool:
-		return lv.ended or _progreso() >= AVISO_PROGRESO or _hay_pirata())
+		return lv.ended or _progreso() >= PIRATA_PROGRESO or _hay_pirata())
 	if lv.ended:
 		return
 	if not _hay_pirata():

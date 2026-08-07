@@ -580,8 +580,9 @@ func _setup_ui() -> void:
 	shelf.offset_left = 14.0
 	shelf.offset_right = -14.0
 	# Más abajo Y más alta: el género entra más grande y se lee mejor.
-	shelf.offset_top = -672.0
-	shelf.offset_bottom = -88.0
+	# Pegada abajo: el hueco que quedaba dejaba ver el agua del fondo.
+	shelf.offset_top = -700.0
+	shelf.offset_bottom = -30.0
 	root.add_child(shelf)
 	shelf.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 	# La parrilla va dentro de un centrador: con anclas a los lados las tarjetas

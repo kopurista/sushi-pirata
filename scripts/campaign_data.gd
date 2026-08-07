@@ -16,7 +16,12 @@ class_name CampaignData
 ##  - goal_stars: estrellas mínimas para superar el nivel y avanzar.
 ##  - star_money: [dinero para 1★, 2★, 3★] — SOLO precio de platos (sin propinas),
 ##    calibrado al techo de producción de cada nivel.
-##  - reward_recipes: recetas que se desbloquean al superarlo la 1ª vez.
+##  - reward_recipes: recetas que se desbloquean al SUPERARLO (goal_stars, que
+##    son 2 estrellas: con 2★ el puerto queda pasado y se abre el siguiente).
+##  - reward_recipes_3 / reward_ingots_3 / reward_rice_3: el premio GORDO, solo
+##    al sacar las 3 estrellas. Las 3★ piden bastante más dinero que las 2★, así
+##    que son un reto aparte y no un trámite; se pueden conseguir volviendo al
+##    puerto más adelante, con mejor carta.
 ##    (Los potenciadores NO se desbloquean por campaña de momento.)
 ##    El reparto sigue a la CLIENTELA del puerto: donde solo hay
 ##    grumetes se sueltan recetas de nivel 1, los piratas traen las de
@@ -45,10 +50,11 @@ const PORTS: Array = [
 		"time_limit": 150.0,
 		"patience_mult": 1.0,
 		"arrival_scale": 1.0,
-		"goal_stars": 3,
-		# 4 grumetes con platos de $1-3 y el maki rindiendo 3 piezas: ~$50 de techo.
-		"star_money": [12, 20, 30],
-		"reward_recipes": ["edamame", "gunkan_wakame"],
+		"goal_stars": 2,
+		# 4 grumetes con platos de $1-3 y el maki rindiendo 3 piezas.
+		"star_money": [18, 30, 40],
+		"reward_recipes": ["gunkan_wakame"],
+		"reward_recipes_3": ["edamame"],
 		# Primer nivel de verdad: carta CERRADA (las del tutorial) y sin extras,
 		# combinados ni barco, que se presentan más adelante.
 		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "te_verde", "mochi"],
@@ -63,10 +69,13 @@ const PORTS: Array = [
 		"time_limit": 180.0,
 		"patience_mult": 0.85,
 		"arrival_scale": 0.65,
-		"goal_stars": 3,
-		# 10 clientes es MUCHA rotación aunque solo sean grumetes: techo ~$110.
-		"star_money": [20, 34, 50],
-		"reward_recipes": ["onigiri"],
+		"goal_stars": 2,
+		# 10 clientes es MUCHA rotación aunque solo sean grumetes.
+		"star_money": [45, 75, 100],
+		# Con 2★ se abre la TIENDA (y con ella la escena de Saverio); el onigiri
+		# es el premio de las 3★.
+		"reward_recipes": [],
+		"reward_recipes_3": ["onigiri"],
 		"no_extras": true,
 		"unlocks_shop": true,
 		"director": "nivel_2",
@@ -79,16 +88,17 @@ const PORTS: Array = [
 		"time_limit": 150.0,
 		"patience_mult": 0.9,
 		"arrival_scale": 0.8,
-		"goal_stars": 3,
-		# Pocos clientes pero uno come L2, y a mitad se suma el nigiri de atún.
-		"star_money": [20, 34, 50],
-		"reward_recipes": ["dorayaki", "maki_atun"],
+		"goal_stars": 2,
+		# Pocos clientes pero uno come L2, y a media partida se suma el nigiri
+		# de atún que regala David.
+		"star_money": [30, 50, 75],
+		"reward_recipes": ["maki_atun"],
+		"reward_recipes_3": ["dorayaki"],
 		# Isla: carta cerrada. La CUARTA la regala David en plena partida.
 		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "onigiri"],
 		"no_extras": false,
-		# El pirata llega el último; David lo aprovecha para regalar el nigiri
-		# de atún en plena partida (ver level_director.gd).
-		"late_type": "A",
+		# El pirata entra en el sorteo como uno más (antes iba el ÚLTIMO y se
+		# hacía esperar); si aun así tarda, el guion lo adelanta (level_director).
 		"director": "nivel_3",
 		"gift_recipes": ["nigiri_atun"],
 	},
@@ -100,9 +110,10 @@ const PORTS: Array = [
 		"time_limit": 150.0,
 		"patience_mult": 0.9,
 		"arrival_scale": 0.8,
-		"goal_stars": 3,
-		"star_money": [24, 42, 60],
-		"reward_recipes": ["sopa_miso", "caldo_dashi"],
+		"goal_stars": 2,
+		"star_money": [42, 70, 90],
+		"reward_recipes": ["caldo_dashi"],
+		"reward_recipes_3": ["sopa_miso"],
 		# Isla: carta cerrada con los dos escalones de la carta, salmón y atún.
 		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "maki_atun",
 			"nigiri_atun"],
@@ -118,10 +129,10 @@ const PORTS: Array = [
 		"time_limit": 120.0,
 		"patience_mult": 0.9,
 		"arrival_scale": 0.7,
-		"goal_stars": 3,
+		"goal_stars": 2,
 		# Dos minutos con cinco bocas, una de ellas un capitán que come de 3
 		# estrellas: el techo lo marca la producción, no la clientela.
-		"star_money": [28, 48, 70],
+		"star_money": [42, 70, 80],
 		"boat": true,
 		# Carta LIBRE, pero solo tres huecos LA PRIMERA VEZ: al repetir el
 		# puerto se juega con los cuatro de siempre (ver prep_screen).
@@ -135,7 +146,13 @@ const PORTS: Array = [
 		# David avisa en el selector de recetas antes de zarpar.
 		"prep_dialog": "nivel_5",
 		"gift_recipes": ["salmon_tsuke_don"],
-		"reward_recipes": ["aburi", "sashimi_atun_rojo"],
+		# Mientras corre el guion, el tsuke don es SOLO para Pablo (es su
+		# regalo); al repetir el puerto ya se le puede servir a cualquiera.
+		"exclusive_dishes": { "salmon_tsuke_don": "pablo" },
+		"reward_recipes": ["sashimi_atun_rojo"],
+		"reward_recipes_3": ["aburi"],
+		# Las 3★ pagan además en LINGOTES.
+		"reward_ingots_3": 2,
 	},
 	{
 		"id": "nivel_6",
@@ -145,13 +162,14 @@ const PORTS: Array = [
 		"time_limit": 150.0,
 		"patience_mult": 0.8,
 		"arrival_scale": 0.65,
-		"goal_stars": 3,
-		# 11 clientes y 2 capitanes: techo ~$110.
-		"star_money": [28, 55, 80],
+		"goal_stars": 2,
+		# 11 clientes y 2 capitanes.
+		"star_money": [40, 70, 115],
 		"boat": true,
-		"reward_recipes": ["yaki_onigiri", "futomaki_salmon",
-			"uramaki_california", "nigiri_pulpo", "sashimi_tamago",
+		"reward_recipes": ["yaki_onigiri", "futomaki_salmon", "sashimi_tamago",
 			"nigiri_inari"],
+		"reward_recipes_3": ["uramaki_california", "nigiri_pulpo"],
+		"reward_rice_3": 2,
 	},
 	{
 		"id": "nivel_7",
@@ -161,11 +179,13 @@ const PORTS: Array = [
 		"time_limit": 90.0,
 		"patience_mult": 0.85,
 		"arrival_scale": 0.7,
-		"goal_stars": 3,
-		# Partida de 1:30 (~60% de producción) con futomaki L3 disponible: ~$65.
-		"star_money": [20, 40, 58],
+		"goal_stars": 2,
+		# Partida de 1:30, o sea ~60% de la producción de una normal.
+		"star_money": [28, 48, 82],
 		"boat": true,
-		"reward_recipes": ["nigiri_anguila", "temaki", "udon", "tempura"],
+		"reward_recipes": ["nigiri_anguila", "udon"],
+		"reward_recipes_3": ["temaki", "tempura"],
+		"reward_rice_3": 2,
 	},
 	{
 		"id": "nivel_8",
@@ -175,12 +195,13 @@ const PORTS: Array = [
 		"time_limit": 180.0,
 		"patience_mult": 0.75,
 		"arrival_scale": 0.6,
-		"goal_stars": 3,
-		# Más clientes que asientos (8): rotación constante, techo ~$120-130.
-		"star_money": [32, 62, 90],
+		"goal_stars": 2,
+		# Más clientes que asientos (8): rotación constante.
+		"star_money": [45, 80, 130],
 		"boat": true,
-		"reward_recipes": ["nigiri_ebi", "hana_maki", "taiyaki",
-			"gunkan_tartar", "gunkan_ikura"],
+		"reward_recipes": ["nigiri_ebi", "taiyaki", "gunkan_tartar"],
+		"reward_recipes_3": ["hana_maki", "gunkan_ikura"],
+		"reward_ingots_3": 1,
 	},
 	{
 		"id": "nivel_9",
@@ -190,12 +211,13 @@ const PORTS: Array = [
 		"time_limit": 150.0,
 		"patience_mult": 0.7,
 		"arrival_scale": 0.55,
-		"goal_stars": 3,
-		# Final: 17 clientes (más del doble que asientos), techo ~$140.
-		"star_money": [36, 70, 100],
+		"goal_stars": 2,
+		# Final: 17 clientes, más del doble que asientos.
+		"star_money": [50, 92, 145],
 		"boat": true,
-		"reward_recipes": ["fugu", "chirashi", "dragon_roll",
-			"nigiri_wagyu", "sashimi_variado"],
+		"reward_recipes": ["fugu", "dragon_roll", "sashimi_variado"],
+		"reward_recipes_3": ["chirashi", "nigiri_wagyu"],
+		"reward_ingots_3": 2,
 	},
 ]
 

@@ -275,13 +275,20 @@ func extras_unlocked() -> bool:
 	return shop_intro_done
 
 
-## El modo Arcade se gana jugando: hace falta haber SUPERADO el nivel 5 de la
-## aventura (su objetivo de estrellas, no solo haberlo tocado).
+## Puerto que abre el modo Arcade al superarlo. Todavía no está en la campaña
+## (llega hasta el 9), así que el Arcade sigue cerrado hasta que se añada.
+const ARCADE_PORT := "nivel_10"
+
+
+## El modo Arcade se gana jugando: hace falta haber SUPERADO el puerto que lo
+## trae (su objetivo de estrellas, no solo haberlo tocado).
 func arcade_unlocked() -> bool:
-	var port := CampaignData.get_port("nivel_5")
+	# El puerto que abre el Arcade. Mientras no exista en CampaignData, el modo
+	# sigue cerrado: es una recompensa de más adelante en la travesía.
+	var port := CampaignData.get_port(ARCADE_PORT)
 	if port.is_empty():
-		return true
-	return int(level_stars.get("nivel_5", 0)) >= int(port.get("goal_stars", 1))
+		return false
+	return int(level_stars.get(ARCADE_PORT, 0)) >= int(port.get("goal_stars", 1))
 
 
 # --- Desbloqueos -----------------------------------------------------------
@@ -375,16 +382,12 @@ func rice_seconds_left() -> int:
 	return maxi(rice_next_ts - int(Time.get_unix_time_from_system()), 0)
 
 
-## "1 h 28 min" / "12 min" / "" si está lleno.
+## Cuenta atrás en h:mm:ss ("" si el saco está lleno).
 func rice_time_text() -> String:
 	var s := rice_seconds_left()
 	if s <= 0:
 		return ""
-	var h := s / 3600
-	var m := (s % 3600) / 60
-	if h > 0:
-		return "%d h %02d min" % [h, m]
-	return "%d min" % maxi(m, 1)
+	return "%d:%02d:%02d" % [s / 3600, (s % 3600) / 60, s % 60]
 
 
 ## Suma sacos sin pasarse del tope y pone en marcha el reloj si hacía falta.
@@ -397,16 +400,41 @@ func add_rice(n: int) -> void:
 	save_game()
 
 
+## Cuántos sacos del paquete se aprovecharían de verdad (el resto se perdería
+## por el tope) y lo que costarían.
+##
+## El cobro es PROPORCIONAL: si un paquete de 5 por 3 lingotes se compra
+## faltando solo 3 sacos, se pagan ceil(3 * 3/5) = 2. Se redondea hacia ARRIBA
+## para no regalar fracciones.
+func rice_deal(sacos: int, coste: int) -> Dictionary:
+	tick_rice()
+	var caben: int = mini(sacos, RICE_START - rice)
+	if caben <= 0:
+		return { "sacos": 0, "coste": 0 }
+	if caben >= sacos:
+		return { "sacos": sacos, "coste": coste }
+	return { "sacos": caben, "coste": ceili(float(coste) * caben / float(sacos)) }
+
+
 ## Sacos de arroz a cambio de LINGOTES. Devuelve false si no llegan.
 func buy_rice(sacos: int, coste: int) -> bool:
-	if ingots < coste:
+	if ingots < coste or sacos <= 0:
 		return false
 	ingots -= coste
 	add_rice(sacos)
 	return true
 
 
+## ¿Se puede zarpar? Hace falta AL MENOS UN SACO: el arroz es la energía del
+## juego y sin él no hay jornada.
+func can_play() -> bool:
+	tick_rice()
+	return rice > 0
+
+
 func consume_ingredients_for_level(recipe_ids: Array) -> bool:
+	if not can_play():
+		return false
 	var needed := ingredients_for_selection(recipe_ids)
 	for ing in needed:
 		if get_ingredient_uses(ing) <= 0:
@@ -581,6 +609,20 @@ func complete_port(port_id: String, stars: int) -> Array:
 		for r in port.get("gift_recipes", []):
 			if unlock_recipe(r):
 				newly.append(r)
+	# Premio de las TRES estrellas, aparte y solo la primera vez que se sacan.
+	# Va por separado del anterior a propósito: se puede aprobar hoy con 2 y
+	# volver mañana, con mejor carta, a por las 3.
+	if stars >= 3 and prev_best < 3:
+		for r in port.get("reward_recipes_3", []):
+			if unlock_recipe(r):
+				newly.append(r)
+		var lingotes := int(port.get("reward_ingots_3", 0))
+		if lingotes > 0:
+			ingots += lingotes
+		var sacos := int(port.get("reward_rice_3", 0))
+		if sacos > 0:
+			rice = mini(rice + sacos, RICE_START)
+	if not newly.is_empty():
 		# Toda receta nueva llega con despensa para estrenarla.
 		gift_ingredients_for(newly, PORT_GIFT)
 		# NO se pone `pending_reveal`: el cartel de fin de nivel ya las anuncia

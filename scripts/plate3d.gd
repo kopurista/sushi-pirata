@@ -29,6 +29,10 @@ var level_override: int = 0
 ## Tiempo de comida propio (0 = el de la receta). El barco tarda según cuántos
 ## platos lleve dentro, así que no vale el de su ficha.
 var eat_mult_override: float = 0.0
+## Personaje al que está RESERVADO este plato ("" = para quien lo pille). Lo usa
+## el tsuke don que David regala en el nivel 5: mientras corre el guion es de
+## Pablo el Rubio y nadie más lo toca.
+var only_who: String = ""
 var speed: float = 0.9
 var taken: bool = false
 var traveled: float = 0.0

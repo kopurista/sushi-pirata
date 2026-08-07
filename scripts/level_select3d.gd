@@ -426,7 +426,9 @@ func _build_top_bar() -> Control:
 	var back := PrepBoard.make_back_button()
 	back.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	back.size = Vector2(150, PrepBoard.ICON_BTN_H)
-	back.position = Vector2(16.0, 16.0 + st + PrepBoard.RESOURCE_H + 12.0)
+	# A la MISMA ALTURA que los contadores: en el mapa se corren a la derecha
+	# (main_menu._resource_spots) justo para dejarle este hueco.
+	back.position = Vector2(16.0, 16.0 + st)
 	back.pressed.connect(_on_map_back)
 	bar.add_child(back)
 	return bar
@@ -595,16 +597,36 @@ func _fill_recipes_row(port: Dictionary, id: String) -> void:
 
 
 ## Lo que se gana al superarlo: el plato de cada receta nueva.
-func _fill_reward_row(rewards: Array, abre_tienda: bool) -> void:
+func _fill_reward_row(port: Dictionary) -> void:
 	_row_reset(info_reward_row)
-	for r in rewards:
+	for r in port.get("reward_recipes", []):
 		_row_icon(info_reward_row, RecipeData.get_dish_texture(r), "", 40)
-	if abre_tienda:
-		var l := Label.new()
-		l.text = "+ Tienda"
-		l.add_theme_font_size_override("font_size", 19)
-		l.add_theme_color_override("font_color", Color(0.55, 0.34, 0.08))
-		info_reward_row.add_child(l)
+	if bool(port.get("unlocks_shop", false)):
+		info_reward_row.add_child(_reward_label("+ Tienda"))
+	# Premio aparte de las TRES estrellas, detrás de un separador para que se
+	# vea que hay que ganárselo por su cuenta.
+	var extra: Array = port.get("reward_recipes_3", [])
+	var lingotes := int(port.get("reward_ingots_3", 0))
+	var sacos := int(port.get("reward_rice_3", 0))
+	if extra.is_empty() and lingotes <= 0 and sacos <= 0:
+		return
+	info_reward_row.add_child(_reward_label("· 3★:"))
+	for r in extra:
+		_row_icon(info_reward_row, RecipeData.get_dish_texture(r), "", 40)
+	if lingotes > 0:
+		_row_icon(info_reward_row, load("res://assets/ui/ic_lingote.png"),
+				"x%d" % lingotes, 34)
+	if sacos > 0:
+		_row_icon(info_reward_row, load("res://assets/ui/ic_arroz.png"),
+				"x%d" % sacos, 34)
+
+
+func _reward_label(texto: String) -> Label:
+	var l := Label.new()
+	l.text = texto
+	l.add_theme_font_size_override("font_size", 19)
+	l.add_theme_color_override("font_color", Color(0.55, 0.34, 0.08))
+	return l
 
 
 ## Vuelca en el panel el nombre del nivel y TODAS sus características.
@@ -636,12 +658,14 @@ func _update_info(id: String) -> void:
 	var thresholds: Array = port.get("star_money", [])
 	var goal := int(port.get("goal_stars", 1))
 	var goal_money: int = int(thresholds[goal - 1]) if thresholds.size() >= goal else 0
-	info_goal.text = "Objetivo: %d estrellas  (%d)" % [goal, goal_money]
+	info_goal.text = "Objetivo: %d★  (%d)" % [goal, goal_money]
+	# Y lo que cuesta la tercera estrella, que ahora es un reto aparte.
+	if thresholds.size() >= 3 and goal < 3:
+		info_goal.text += "   ·   3★: %d" % int(thresholds[2])
 	var rec := GameState.get_level_score(id)
 	info_record.text = "Récord: %d" % rec if rec > 0 else "Récord: sin jugar"
 
-	_fill_reward_row(port.get("reward_recipes", []),
-			bool(port.get("unlocks_shop", false)))
+	_fill_reward_row(port)
 
 	sail_button.disabled = not unlocked
 	sail_button.text = "¡Zarpar!" if unlocked else "Bloqueado"

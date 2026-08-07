@@ -369,28 +369,31 @@ def _pile(base: Image.Image, spots) -> Image.Image:
 
 
 def build_packs() -> None:
+    """Paquetes de la tienda de lingotes y de arroz.
+
+    Los montones de 5 y 10 se GENERAN, no se componen apilando la pieza suelta
+    como en la primera versión: pedidos como pirámide explícita ("tres abajo y
+    dos encima", "cuatro, tres, dos y uno") salen alineados y con el sombreado
+    coherente, que es justo lo que el apilado a mano no daba.
+    """
     ling = crop_alpha(keep_largest(drop_white(load("ling_1"))), 2)
     save(fit_width(ling, 128), "ic_lingote")
-    # 3 apilados (es el paquete de 5: el dibujo dice "unos cuantos", no cuenta).
-    save(fit_width(_pile(ling, [
-        (0.0, 0.62, 1.0), (0.12, 0.32, 1.0), (0.05, 0.0, 1.0)]), 140),
-        "pack_lingote_5")
-    # Un montón: pirámide de 4+3+2 y uno suelto delante.
-    diez = [(i * 0.30, 1.35, 0.72) for i in range(4)]
-    diez += [(0.15 + i * 0.30, 1.02, 0.72) for i in range(3)]
-    diez += [(0.30 + i * 0.30, 0.69, 0.72) for i in range(2)]
-    diez += [(0.52, 0.36, 0.72)]
-    save(fit_width(_pile(ling, diez), 160), "pack_lingote_10")
+    save(fit_width(crop_alpha(keep_largest(drop_white(load("l5_1"))), 2), 150),
+         "pack_lingote_5")
+    save(fit_width(crop_alpha(keep_largest(drop_white(load("l10_2"))), 2), 160),
+         "pack_lingote_10")
+    save(fit_width(crop_alpha(keep_largest(drop_white(load("a10_4"))), 2), 150),
+         "pack_arroz_10")
 
+    # El de 5 sacos SÍ sigue compuesto: salió bien y no hacía falta rehacerlo.
     saco = Image.open(OUT / "ic_arroz.png").convert("RGBA")
     save(fit_width(_pile(saco, [
         (0.0, 0.55, 0.78), (0.44, 0.55, 0.78), (0.88, 0.55, 0.78),
         (0.22, 0.0, 0.78), (0.66, 0.0, 0.78)]), 150), "pack_arroz_5")
-    diez_s = [(i * 0.42, 1.10, 0.62) for i in range(4)]
-    diez_s += [(0.21 + i * 0.42, 0.55, 0.62) for i in range(3)]
-    diez_s += [(0.42 + i * 0.42, 0.0, 0.62) for i in range(2)]
-    diez_s += [(0.84, -0.55, 0.62)]
-    save(fit_width(_pile(saco, diez_s), 168), "pack_arroz_10")
+
+    # Cartel de compra: toldo a rayas e interior vacío. Se dibuja a TAMAÑO FIJO
+    # (no es 9-slice), así que se exporta a la resolución en la que se usa.
+    save(solidify(fit_width(crop_alpha(load("ptienda_2")), 660)), "panel_tienda")
 
 
 if __name__ == "__main__":

@@ -542,6 +542,17 @@ func _update_ui() -> void:
 
 
 func _on_start_pressed() -> void:
+	# SIN ARROZ NO SE ZARPA. Se avisa aquí y no al montar el nivel: allí ya
+	# sería tarde y el jugador vería la pantalla parpadear.
+	if not GameState.can_play():
+		var caja := DialogueBox.new()
+		$UI.add_child(caja)
+		caja.say([{ "text": "¡SIN ARROZ NO HAY SUSHI! ¡RAAAK! Espera a que caiga "
+			+ "el próximo saco, o cómprate unos cuantos.",
+			"who": "gigi", "mood": "loro_grito" }])
+		await caja.finished
+		caja.queue_free()
+		return
 	GameState.selected_recipes = selected.duplicate()
 	GameState.selected_perks = perks_selected.duplicate()
 	# Nivel 3D low poly (el level.tscn 2D queda como referencia hasta acabar

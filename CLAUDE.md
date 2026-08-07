@@ -139,6 +139,11 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   por eso el barco combinado la repinta con cada plato colocado. El barco usa
   `_hand_drag_cycle`, que recorre TODOS los platos pendientes con su propio
   dibujo, igual que los pasos de elección.
+- **`exclusive_dishes` de un puerto** (receta → personaje): mientras corre el
+  guion, ese plato SOLO lo coge ese personaje (`plate3d.only_who`, filtrado en
+  `client3d._scan_belt`). El tsuke don es el regalo de David para Pablo, y
+  servírselo a un grumete le quitaba la gracia; al repetir el puerto no hay
+  guion y el plato vale para cualquiera.
 - **`gift_recipes` en un puerto**: recetas que REGALA David dentro del nivel
   (el nigiri de atún del 3, el tsuke don del 5). No están en `reward_recipes`,
   así que hay que declararlas para dos cosas: `recipes_for_port` las suma a la
@@ -399,7 +404,8 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   se olvidó y borrar la partida no relanzaba la intro), `is_tutorial()`,
   `complete_tutorial()` (entrega `CampaignData.INITIAL_RECIPES`:
   maki_aguacate, nigiri_salmon, te_verde y mochi — SOLO se desbloquean así),
-  `arcade_unlocked()` (= superar nivel_5); el menú manda a la intro si falta
+  `arcade_unlocked()` (= superar `GameState.ARCADE_PORT`, el **nivel 10**, que
+  todavía no existe en la campaña: hasta entonces el Arcade sigue cerrado); el menú manda a la intro si falta
   el tutorial y el botón Arcade queda apagado con aviso hasta ganarlo.
   **La partida nueva empieza con 50 doblones** (botín de bienvenida para la
   tienda).
@@ -1438,6 +1444,13 @@ que no hay problema.
   L1=3 · L2=4 · L3=5 (gunkan L1 usa 4 por su base alta); cooldowns aprox.
   L1 3–4 s · L2 4.5–5.5 s · L3 6.5–7.5 s. Al añadir/ajustar recetas, seguir esta
   escala.
+- **APROBAR es sacar 2 ESTRELLAS** (`goal_stars` = 2 en todos los puertos):
+  con 2★ el nivel queda superado, se abre el siguiente y caen las recompensas
+  de `reward_recipes`. Las **3 estrellas piden bastante más dinero** y son un
+  reto aparte, con premio propio: `reward_recipes_3` (recetas), `reward_ingots_3`
+  (lingotes) y `reward_rice_3` (sacos). Se pueden ir a buscar más tarde,
+  repitiendo el puerto con mejor carta; `complete_port` las entrega la primera
+  vez que se llega a 3★, aunque el nivel ya estuviera aprobado.
 - **Puntuación POR DINERO** (la satisfacción se eliminó): cada umbral de
   `star_money` alcanzado da 1 estrella. El dinero que cuenta para las estrellas
   (y para el monedero) es SOLO el precio de los platos; **las propinas NO suman

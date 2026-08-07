@@ -207,6 +207,9 @@ var head_who: Dictionary = {}
 var special_who := ""
 var special_type := ""
 var special_spawned := false
+## Platos reservados a un personaje concreto en esta partida (receta → who).
+## Ver `exclusive_dishes` del puerto: solo mientras el guion está en marcha.
+var exclusive_dishes: Dictionary = {}
 var chef_anim: CharacterAnim = null
 var chef_tween: Tween = null
 var chef_prop: Sprite3D
@@ -365,6 +368,11 @@ func _ready() -> void:
 			var guia := preload("res://scripts/level_director.gd").new()
 			guia.name = "LevelDirector"
 			add_child.call_deferred(guia)
+			# Platos que en la PRIMERA pasada solo come el cliente especial:
+			# el tsuke don es el regalo de David para Pablo, y servírselo a un
+			# grumete le quitaría la gracia a la escena. Al repetir el puerto
+			# ya no hay guion y el plato vale para todo el mundo.
+			exclusive_dishes = port.get("exclusive_dishes", {})
 		# Jugar un nivel consume 1 uso de cada ingrediente de las recetas
 		# elegidas; si no alcanzan, vuelta a la seleccion.
 		if not GameState.consume_ingredients_for_level(GameState.selected_recipes):
@@ -1356,7 +1364,7 @@ Acabada", 52)
 	# Naranja fuerte, no el dorado del titular: sobre el crema del pergamino el
 	# oro se confundía con el papel y la cifra no destacaba.
 	earn_label.add_theme_font_size_override("font_size", 58)
-	earn_label.add_theme_color_override("font_color", Color(1, 0.93, 0.62))
+	earn_label.add_theme_color_override("font_color", Color(1, 0.99, 0.9))
 	earn_label.add_theme_color_override("font_outline_color", Color(0.34, 0.13, 0.02))
 	earn_label.add_theme_constant_override("outline_size", 13)
 	earn_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.4))
@@ -2243,6 +2251,7 @@ func _on_dish_served(recipe_id: String, price_override: int = 0, extras: Array =
 	p.extras = extras
 	p.level_override = level_override
 	p.eat_mult_override = eat_mult_override
+	p.only_who = str(exclusive_dishes.get(recipe_id, ""))
 	p.speed = PLATE_SPEED
 	belt_path.add_child(p)
 	p.progress = SPAWN_PROGRESS

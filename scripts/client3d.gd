@@ -455,6 +455,9 @@ func _scan_belt(snack_only: bool = false) -> void:
 		var only: String = data.get("only_type", "")
 		if only != "" and only != client_type:
 			continue
+		# Plato RESERVADO a un personaje concreto (ver plate3d.only_who).
+		if plate.only_who != "" and plate.only_who != who_override:
+			continue
 		# Solo un picoteo por plato en curso: hasta que no termine el que está
 		# comiendo no vuelve a picar (al empezar el siguiente se rearma).
 		if snack_only and (snack_taken or not data.get("snack", false)):
