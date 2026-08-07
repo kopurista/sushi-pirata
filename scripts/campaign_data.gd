@@ -346,11 +346,17 @@ static func first_port_id() -> String:
 ## menú cerrado). Si no, valen las iniciales más las recompensas de los puertos
 ## ANTERIORES: aunque el jugador tenga media carta desbloqueada por haber
 ## avanzado, un puerto temprano no debe ofrecer recetas de más adelante.
-static func recipes_for_port(port_id: String) -> Array[String]:
+##
+## `superado` (el puerto ya está pasado y se está REPITIENDO) suelta las dos
+## ataduras, igual que los huecos de receta: la carta cerrada deja de serlo y
+## entran también las recompensas del propio puerto. Volver a por las 3
+## estrellas se hace con lo que uno ya se ha ganado ahí — en el nivel 3, con
+## los platos de 2 estrellas que pide el pirata.
+static func recipes_for_port(port_id: String, superado := false) -> Array[String]:
 	var out: Array[String] = []
 	var port := get_port(port_id)
 	var fijas: Array = port.get("fixed_recipes", [])
-	if not fijas.is_empty():
+	if not fijas.is_empty() and not superado:
 		for r in fijas:
 			out.append(str(r))
 		return out
@@ -360,9 +366,13 @@ static func recipes_for_port(port_id: String) -> Array[String]:
 	for i in PORTS.size():
 		if idx >= 0 and i > idx:
 			break
-		# Las recompensas solo cuentan de los puertos ANTERIORES.
-		if idx < 0 or i < idx:
+		# Las recompensas cuentan de los puertos ANTERIORES, y también de este
+		# mismo cuando se repite (lo que se gana aquí se puede traer aquí).
+		if idx < 0 or i < idx or superado:
 			for r in PORTS[i].get("reward_recipes", []):
+				if not str(r) in out:
+					out.append(str(r))
+			for r in PORTS[i].get("reward_recipes_3", []):
 				if not str(r) in out:
 					out.append(str(r))
 		# Las recetas que REGALA David en plena partida (`gift_recipes`) no

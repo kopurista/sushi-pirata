@@ -595,16 +595,16 @@ func _fill_clients_row(mix: Dictionary) -> void:
 ## ELECCIÓN; las islas pueden traer una carta cerrada (`fixed_recipes`).
 func _fill_recipes_row(port: Dictionary, id: String) -> void:
 	_row_reset(info_recipes_row)
+	# La carta cerrada, como el recorte de huecos, solo ata la PRIMERA vez: al
+	# repetir un puerto superado se elige carta (ver prep_screen).
+	var superado: bool = GameState.port_beaten(id)
 	var fijas: Array = port.get("fixed_recipes", [])
-	if fijas.is_empty():
+	if fijas.is_empty() or superado:
 		var l := Label.new()
 		l.text = "Libre elección"
 		l.add_theme_font_size_override("font_size", 19)
 		l.add_theme_color_override("font_color", Color(0.55, 0.34, 0.08))
 		info_recipes_row.add_child(l)
-		# El recorte de huecos solo vale la primera vez (ver prep_screen).
-		var superado: bool = int(GameState.level_stars.get(selected_id, 0)) \
-				>= int(port.get("goal_stars", 1))
 		var huecos := 4 if superado else int(port.get("recipe_slots", 4))
 		if huecos != 4:
 			var h := Label.new()
@@ -813,9 +813,10 @@ func _on_sail_pressed() -> void:
 	GameState.current_port = selected_id
 	GameState.selected_recipes = []
 	# Los puertos de CARTA CERRADA (las islas) no pasan por el selector: se
-	# juega con las recetas que manda el nivel y punto.
+	# juega con las recetas que manda el nivel y punto. Eso vale la PRIMERA
+	# vez; al repetir un puerto ya superado se elige carta como en el resto.
 	var fijas: Array = CampaignData.get_port(selected_id).get("fixed_recipes", [])
-	if not fijas.is_empty():
+	if not fijas.is_empty() and not GameState.port_beaten(selected_id):
 		var recs: Array[String] = []
 		for r in fijas:
 			recs.append(str(r))

@@ -130,9 +130,15 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   Y quien adelante una llegada a mano (`_adelantar_tipo` del guion) tiene que
   **gastar su hueco de `arrival_queue`**, o entra un cliente de más y el
   contador se pasa del total.
-- **`recipe_slots` solo recorta la carta la PRIMERA vez**: al repetir un puerto
-  ya superado se juega con los cuatro huecos de siempre (`prep_screen` y la
-  ficha del mapa lo comprueban con `level_stars`).
+- **Las ataduras de carta de un puerto valen solo la PRIMERA vez**
+  (`GameState.port_beaten`): al repetir un puerto ya superado se juega con los
+  cuatro huecos de siempre aunque traiga `recipe_slots`, y una isla de
+  `fixed_recipes` pasa por el SELECTOR como los demás, con la carta abierta
+  —incluidas las recompensas del propio puerto—, que es como se vuelve a por
+  las 3 estrellas con lo que uno ya se ha ganado ahí.
+- **`recipes_for_port` tiene que mirar TAMBIÉN `reward_recipes_3`**: desde que
+  las recompensas van en dos escalones, contar solo `reward_recipes` dejaba las
+  de 3 estrellas fuera de la carta de todos los puertos siguientes.
 - **La mano guía se monta DIFERIDA, en el mismo fotograma que el cambio de
   paso**: por eso un `drag_stage` con `from` tiene que volver a pedirla cuando
   cambia la etapa medio segundo después (si no, arrastra el sprite viejo), y

@@ -55,9 +55,7 @@ func _ready() -> void:
 		# reto la PRIMERA vez; al repetirlo ya superado se juega con los cuatro
 		# de siempre.
 		var puerto := CampaignData.get_port(GameState.current_port)
-		var superado: bool = int(GameState.level_stars.get(
-				GameState.current_port, 0)) >= int(puerto.get("goal_stars", 1))
-		slots = MAX_RECIPES if superado \
+		slots = MAX_RECIPES if GameState.port_beaten(GameState.current_port) \
 				else int(puerto.get("recipe_slots", MAX_RECIPES))
 	# La lista de recetas se recorre con el DEDO (con inercia): el
 	# ScrollContainer de Godot no se arrastra con eventos táctiles.
@@ -79,7 +77,8 @@ func _ready() -> void:
 	# En aventura cada puerto tiene su carta: las islas de menú cerrado solo
 	# dejan sus recetas, y el resto no adelanta las de puertos posteriores.
 	if GameState.is_adventure():
-		var permitidas := CampaignData.recipes_for_port(GameState.current_port)
+		var permitidas := CampaignData.recipes_for_port(GameState.current_port,
+				GameState.port_beaten(GameState.current_port))
 		var filtradas: Array = []
 		for id in available:
 			if id in permitidas:

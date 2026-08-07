@@ -564,6 +564,16 @@ func has_perk(id: String) -> bool:
 
 ## ¿Está desbloqueado este nivel? El primero siempre; el resto, si el nivel
 ## anterior se ha superado con su objetivo de estrellas.
+## ¿Este puerto ya está SUPERADO (sus estrellas llegan a `goal_stars`)? Es lo
+## que decide si se está repitiendo: sin guion, con los cuatro huecos de receta
+## y con la carta abierta.
+func port_beaten(port_id: String) -> bool:
+	var port := CampaignData.get_port(port_id)
+	if port.is_empty():
+		return false
+	return int(level_stars.get(port_id, 0)) >= int(port.get("goal_stars", 1))
+
+
 func is_port_unlocked(port_id: String) -> bool:
 	var prev_id := CampaignData.prev_port_id(port_id)
 	if prev_id == "":
