@@ -472,13 +472,13 @@ func _setup_menu_ui() -> void:
 ## La caja del arroz es ESTRECHA a propósito: en el mapa tiene que dejar sitio
 ## para que el rótulo de "Aventura" quepa CENTRADO EN LA PANTALLA, y el límite
 ## lo pone ella (el saco asoma además por su izquierda).
-const RES_INGOT_W := 132.0
-const RES_MONEY_W := 152.0
-const RES_RICE_W := 152.0
+const RES_INGOT_W := 118.0
+const RES_MONEY_W := 140.0
+const RES_RICE_W := 140.0
 ## Hueco entre cajas. Tiene que dar para DOS voladizos: el "+" que asoma por la
 ## derecha de una caja y el icono que asoma por la izquierda de la siguiente.
 ## Con 12 px, el "+" de los lingotes se montaba sobre la moneda.
-const RES_GAP := 46.0
+const RES_GAP := 40.0
 ## Lo que sobresale el botón "+" por la derecha de la caja del arroz. Hay que
 ## contarlo o la caja se sale de la pantalla: el "+" mide 52 y va anclado a
 ## -30 del borde derecho, así que asoma 22.
@@ -803,13 +803,13 @@ Solo te caben %d de los %d, así que se cobra la parte." % [
 	box.add_child(btns)
 	var no := Button.new()
 	no.text = "No"
-	no.custom_minimum_size = Vector2(180, PrepBoard.ICON_BTN_H)
+	no.custom_minimum_size = Vector2(176, PrepBoard.ICON_BTN_H)
 	PrepBoard.skin_action_button(no, false)
 	no.pressed.connect(func() -> void: velo.queue_free())
 	btns.add_child(no)
 	var si := Button.new()
 	si.text = "¡Trato!"
-	si.custom_minimum_size = Vector2(190, PrepBoard.ICON_BTN_H)
+	si.custom_minimum_size = Vector2(216, PrepBoard.ICON_BTN_H)
 	PrepBoard.skin_action_button(si, true)
 	si.pressed.connect(func() -> void:
 		GameState.buy_rice(sacos, coste)

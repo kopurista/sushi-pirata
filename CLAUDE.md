@@ -1031,8 +1031,16 @@ que no hay problema.
   5 = 3, 10 = 7, en `main_menu.PACKS_ARROZ`). Los paquetes de lingotes
   (1/5/10 por 1 €, 4,50 € y 8 €) tienen su cartel montado pero **no cobran**:
   la compra de verdad es de más adelante.
-- **Las tres cajas del menú (lingotes, monedas, arroz) van CENTRADAS arriba y
-  NO se mueven** al entrar en Aventura; el que baja es el rótulo del mapa. El
+- **Sin arroz NO se zarpa** (`GameState.can_play`): hace falta al menos 1 saco,
+  y el aviso salta en el selector de recetas, no al montar el nivel (allí ya
+  sería tarde y la pantalla parpadearía).
+- **Comprar arroz siempre CONFIRMA, y el cobro es PROPORCIONAL**
+  (`GameState.rice_deal`): si el paquete de 5 por 3 lingotes se compra faltando
+  solo 3 sacos, se pagan `ceil(3 * 3/5)` = 2 y el cartel lo dice. Con el saco
+  lleno no se vende nada: sale Gigi y no se toca ni un lingote.
+- **Las tres cajas del menú (lingotes, monedas, arroz) van centradas arriba y
+  en el MAPA se corren a la DERECHA en bloque**, que es lo que deja hueco al
+  botón "Atrás" a su misma altura. El
   hueco entre cajas (`RES_GAP` 46) tiene que dar para DOS voladizos: el "+" que
   asoma por la derecha de una y el icono que asoma por la izquierda de la
   siguiente — con 12 px el "+" de los lingotes se montaba sobre la moneda.
