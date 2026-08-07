@@ -498,6 +498,7 @@ func _setup_resource_bar(st: float) -> void:
 	money_box = PrepBoard.make_resource_box(
 		"res://assets/ui/moneda.png", str(GameState.money), RES_MONEY_W)
 	ui_layer.add_child(money_box)
+	_add_plus(money_box, _on_buy_coins)
 
 	# El arroz SÍ tiene techo, así que además de la cifra lleva su barra.
 	rice_box = PrepBoard.make_resource_box(
@@ -509,8 +510,8 @@ func _setup_resource_bar(st: float) -> void:
 	# Cuenta atrás del próximo saco, colgando de la caja del arroz.
 	rice_timer_label = Label.new()
 	rice_timer_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	rice_timer_label.offset_top = 2.0
-	rice_timer_label.offset_bottom = 32.0
+	rice_timer_label.offset_top = 26.0
+	rice_timer_label.offset_bottom = 56.0
 	rice_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rice_timer_label.add_theme_font_size_override("font_size", 19)
 	rice_timer_label.add_theme_color_override("font_color", Color(1, 0.94, 0.78))
@@ -528,10 +529,11 @@ func _add_plus(caja: Control, accion: Callable) -> void:
 	mas.texture_normal = load("res://assets/ui/boton_mas.png")
 	mas.ignore_texture_size = true
 	mas.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	mas.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
-	mas.custom_minimum_size = Vector2(48, 48)
-	mas.size = Vector2(48, 48)
-	mas.position = Vector2(-28.0, -24.0)
+	# ABAJO Y AL CENTRO, cabalgando sobre el canto de la caja.
+	mas.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	mas.custom_minimum_size = Vector2(46, 46)
+	mas.size = Vector2(46, 46)
+	mas.position = Vector2(-23.0, -24.0)
 	PrepBoard.add_press_feedback(mas)
 	mas.pressed.connect(accion)
 	caja.add_child(mas)
@@ -599,6 +601,12 @@ const PACKS_LINGOTES := [
 	{ "n": 5, "icon": "pack_lingote_5", "precio": "4,50 €" },
 	{ "n": 10, "icon": "pack_lingote_10", "precio": "8,00 €" },
 ]
+## Monedas de oro a cambio de LINGOTES.
+const PACKS_MONEDAS := [
+	{ "n": 100, "icon": "moneda", "coste": 1 },
+	{ "n": 500, "icon": "pack_moneda_500", "coste": 4 },
+	{ "n": 1000, "icon": "pack_moneda_1000", "coste": 8 },
+]
 const PACKS_ARROZ := [
 	{ "n": 1, "icon": "ic_arroz", "coste": 1 },
 	{ "n": 5, "icon": "pack_arroz_5", "coste": 3 },
@@ -610,13 +618,18 @@ func _on_buy_ingots() -> void:
 	_open_pack_panel("Lingotes de oro", PACKS_LINGOTES, true)
 
 
+func _on_buy_coins() -> void:
+	_open_pack_panel("Monedas de oro", PACKS_MONEDAS, false, true)
+
+
 func _on_buy_rice() -> void:
 	_open_pack_panel("Sacos de arroz", PACKS_ARROZ, false)
 
 
 ## Cartel de compra con TRES paquetes en fila. Es el mismo pergamino y la misma
 ## cinta que el resto de carteles del juego; lo que cambia son las tres cartas.
-func _open_pack_panel(titulo: String, packs: Array, real: bool) -> void:
+func _open_pack_panel(titulo: String, packs: Array, real: bool,
+		monedas := false) -> void:
 	var overlay := ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.55)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -638,7 +651,13 @@ func _open_pack_panel(titulo: String, packs: Array, real: bool) -> void:
 	fondo.set_anchors_preset(Control.PRESET_FULL_RECT)
 	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(fondo)
-	PrepBoard.add_panel_banner(box, titulo, 30)
+	# Titular estilizado DENTRO del toldo, no una cinta encima: el panel ya
+	# tiene su propio remate y la tela sobraba.
+	var rotulo := PrepBoard.make_big_title(titulo, 34)
+	rotulo.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	rotulo.offset_top = 18.0
+	rotulo.offset_bottom = 92.0
+	box.add_child(rotulo)
 
 	var fila := HBoxContainer.new()
 	fila.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -651,7 +670,7 @@ func _open_pack_panel(titulo: String, packs: Array, real: bool) -> void:
 	fila.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.add_child(fila)
 	for pack in packs:
-		fila.add_child(_pack_card(pack, real, overlay))
+		fila.add_child(_pack_card(pack, real, overlay, monedas))
 
 	var cerrar := Button.new()
 	cerrar.text = "Cerrar"
@@ -667,7 +686,8 @@ func _open_pack_panel(titulo: String, packs: Array, real: bool) -> void:
 
 
 ## Una carta: pergamino liso, el montón, cuánto llevas y lo que cuesta.
-func _pack_card(pack: Dictionary, real: bool, overlay: Control) -> Button:
+func _pack_card(pack: Dictionary, real: bool, overlay: Control,
+		monedas := false) -> Button:
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(172, 226)
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
@@ -724,11 +744,15 @@ func _pack_card(pack: Dictionary, real: bool, overlay: Control) -> Button:
 		precio.add_child(mon)
 		precio.alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
-	b.pressed.connect(func() -> void: _comprar(pack, real, overlay))
+	b.pressed.connect(func() -> void: _comprar(pack, real, overlay, monedas))
 	return b
 
 
-func _comprar(pack: Dictionary, real: bool, overlay: Control) -> void:
+func _comprar(pack: Dictionary, real: bool, overlay: Control,
+		monedas := false) -> void:
+	if monedas:
+		_comprar_monedas(pack, overlay)
+		return
 	if real:
 		# La compra con dinero real todavía no existe: el cartel está montado
 		# para poder verlo, pero no cobra nada.
@@ -805,12 +829,14 @@ Solo te caben %d de los %d, así que se cobra la parte." % [
 	no.text = "No"
 	no.custom_minimum_size = Vector2(176, PrepBoard.ICON_BTN_H)
 	PrepBoard.skin_action_button(no, false)
+	no.add_theme_font_size_override("font_size", 26)
 	no.pressed.connect(func() -> void: velo.queue_free())
 	btns.add_child(no)
 	var si := Button.new()
 	si.text = "¡Trato!"
 	si.custom_minimum_size = Vector2(216, PrepBoard.ICON_BTN_H)
 	PrepBoard.skin_action_button(si, true)
+	si.add_theme_font_size_override("font_size", 26)
 	si.pressed.connect(func() -> void:
 		GameState.buy_rice(sacos, coste)
 		_refresh_resources()
@@ -819,9 +845,25 @@ Solo te caben %d de los %d, así que se cobra la parte." % [
 	btns.add_child(si)
 
 
+## Monedas a cambio de lingotes. No hay tope de monedas, así que aquí no hay
+## recorte proporcional: o se paga entero o no se compra.
+func _comprar_monedas(pack: Dictionary, overlay: Control) -> void:
+	var coste := int(pack["coste"])
+	if GameState.ingots < coste:
+		_aviso("No te llegan los **lingotes**, %s. Ese puñado de monedas "
+			+ "cuesta más de lo que llevas encima.")
+		return
+	GameState.ingots -= coste
+	GameState.money += int(pack["n"])
+	GameState.save_game()
+	_refresh_resources()
+	overlay.queue_free()
+
+
 ## Aviso en boca de GIGI (el loro es quien regaña en este juego).
 func _aviso_gigi(texto: String) -> void:
 	var caja := DialogueBox.new()
+	caja.z_index = 200
 	ui_layer.add_child(caja)
 	caja.say([{ "text": texto % GameState.player_title(),
 		"who": "gigi", "mood": "loro_grito" }])
@@ -831,6 +873,9 @@ func _aviso_gigi(texto: String) -> void:
 
 func _aviso(texto: String) -> void:
 	var caja := DialogueBox.new()
+	# Por DELANTE del cartel de compra (z_index 160/170): sin esto el aviso
+	# salía detrás de la tienda y no se leía.
+	caja.z_index = 200
 	ui_layer.add_child(caja)
 	caja.say([{ "text": texto % GameState.player_title(), "mood": "hablando" }])
 	await caja.finished

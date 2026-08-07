@@ -105,7 +105,7 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   Nivel 2: bienvenida al puerto, consejos, el castigo por dejar marchar a
   alguien de vacío (en caliente o, si no pasa, al llegar al 70% del objetivo)
   y, al cerrar, las primas de sobrantes. Nivel 3: el pirata entra el último
-  (`late_type` en el puerto) o se adelanta al 70% del objetivo, y David regala
+  (`late_type` en el puerto) o se adelanta al 60% del objetivo, y David regala
   el **nigiri de atún** metiéndolo en la tabla EN MARCHA
   (`prep_board.add_recipe`). Nivel 4: presenta el BARCO combinado nada más
   empezar. Nivel 5: la flota de **Pablo el Rubio** — presentación de Pablo

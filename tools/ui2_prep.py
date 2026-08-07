@@ -391,6 +391,18 @@ def build_packs() -> None:
         (0.0, 0.55, 0.78), (0.44, 0.55, 0.78), (0.88, 0.55, 0.78),
         (0.22, 0.0, 0.78), (0.66, 0.0, 0.78)]), 150), "pack_arroz_5")
 
+    # Montones de MONEDAS para el cartel de compra de oro: compuestos con
+    # `_pile` a partir de la moneda suelta, que para discos apilados funciona
+    # perfectamente (no hay que alinear caras como en los lingotes).
+    mon = Image.open(OUT / "moneda.png").convert("RGBA")
+    save(fit_width(_pile(mon, [
+        (0.0, 0.30, 0.72), (0.38, 0.30, 0.72), (0.19, 0.0, 0.72)]), 140),
+        "pack_moneda_500")
+    save(fit_width(_pile(mon, [
+        (0.0, 0.62, 0.62), (0.34, 0.62, 0.62), (0.68, 0.62, 0.62),
+        (0.17, 0.31, 0.62), (0.51, 0.31, 0.62), (0.34, 0.0, 0.62)]), 150),
+        "pack_moneda_1000")
+
     # Cartel de compra: toldo a rayas e interior vacío. Se dibuja a TAMAÑO FIJO
     # (no es 9-slice), así que se exporta a la resolución en la que se usa.
     save(solidify(fit_width(crop_alpha(load("ptienda_2")), 660)), "panel_tienda")

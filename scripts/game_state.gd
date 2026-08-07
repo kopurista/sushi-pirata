@@ -387,7 +387,7 @@ func rice_time_text() -> String:
 	var s := rice_seconds_left()
 	if s <= 0:
 		return ""
-	return "%d:%02d:%02d" % [s / 3600, (s % 3600) / 60, s % 60]
+	return "%dh%02dm%02ds" % [s / 3600, (s % 3600) / 60, s % 60]
 
 
 ## Suma sacos sin pasarse del tope y pone en marcha el reloj si hacía falta.

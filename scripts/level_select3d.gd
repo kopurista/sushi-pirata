@@ -96,6 +96,8 @@ var info_clients_row: HBoxContainer
 var info_recipes_row: HBoxContainer
 var info_reward_row: HBoxContainer
 var info_stars_box: Control
+## Filas gráficas del objetivo (estrellas + moneda + cifra).
+var goal_box: VBoxContainer = null
 var sail_button: Button
 
 
@@ -466,8 +468,13 @@ func _build_info_panel() -> Control:
 
 	info_title = Label.new()
 	info_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	info_title.add_theme_font_size_override("font_size", 28)
-	info_title.add_theme_color_override("font_color", DARK)
+	info_title.add_theme_font_size_override("font_size", 34)
+	info_title.add_theme_color_override("font_color", Color(1, 0.82, 0.28))
+	info_title.add_theme_color_override("font_outline_color", Color(0.28, 0.11, 0.03))
+	info_title.add_theme_constant_override("outline_size", 12)
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		info_title.add_theme_font_override("font", negrita)
 	vb.add_child(info_title)
 
 	info_kind = Label.new()
@@ -537,7 +544,11 @@ func _row_reset(row: HBoxContainer) -> void:
 
 
 ## Icono cuadrado con un texto pequeño debajo-derecha ("x4", por ejemplo).
-func _row_icon(row: HBoxContainer, tex: Texture2D, pie := "", lado := 44) -> void:
+## `tachado` marca una recompensa YA CONSEGUIDA: se apaga el icono y se le
+## cruza una raya, para que se vea de un vistazo que en este puerto ya no
+## queda nada que rascar.
+func _row_icon(row: HBoxContainer, tex: Texture2D, pie := "", lado := 44,
+		tachado := false) -> void:
 	if tex == null:
 		return
 	var caja := Control.new()
@@ -555,6 +566,16 @@ func _row_icon(row: HBoxContainer, tex: Texture2D, pie := "", lado := 44) -> voi
 		l.add_theme_font_size_override("font_size", 18)
 		l.add_theme_color_override("font_color", DARK)
 		caja.add_child(l)
+	if tachado:
+		ic.modulate = Color(1, 1, 1, 0.42)
+		var raya := ColorRect.new()
+		raya.color = Color(0.62, 0.13, 0.06, 0.92)
+		raya.size = Vector2(lado * 1.08, 5.0)
+		raya.position = Vector2(-lado * 0.04, lado * 0.5 - 2.5)
+		raya.pivot_offset = raya.size * 0.5
+		raya.rotation_degrees = -18.0
+		raya.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		caja.add_child(raya)
 	row.add_child(caja)
 
 
@@ -597,28 +618,41 @@ func _fill_recipes_row(port: Dictionary, id: String) -> void:
 
 
 ## Lo que se gana al superarlo: el plato de cada receta nueva.
-func _fill_reward_row(port: Dictionary) -> void:
+## Recompensas EN GRÁFICO: una fila por escalón de estrellas, con las estrellas
+## delante y los premios detrás. Lo ya conseguido sale tachado.
+func _fill_reward_row(port: Dictionary, id: String) -> void:
 	_row_reset(info_reward_row)
-	for r in port.get("reward_recipes", []):
-		_row_icon(info_reward_row, RecipeData.get_dish_texture(r), "", 40)
-	if bool(port.get("unlocks_shop", false)):
-		info_reward_row.add_child(_reward_label("+ Tienda"))
-	# Premio aparte de las TRES estrellas, detrás de un separador para que se
-	# vea que hay que ganárselo por su cuenta.
+	var logradas: int = int(GameState.level_stars.get(id, 0))
+	var meta := int(port.get("goal_stars", 2))
+
+	# Escalón de la META (2★ normalmente).
+	var base: Array = port.get("reward_recipes", [])
+	var tienda := bool(port.get("unlocks_shop", false))
+	if not base.is_empty() or tienda:
+		info_reward_row.add_child(PrepBoard.make_star_row(meta, 3, 22, true))
+		for r in base:
+			_row_icon(info_reward_row, RecipeData.get_dish_texture(r), "", 40,
+					logradas >= meta)
+		if tienda:
+			_row_icon(info_reward_row, load("res://assets/ui/ic_tienda.png"),
+					"", 40, logradas >= meta)
+
+	# Escalón de las TRES estrellas.
 	var extra: Array = port.get("reward_recipes_3", [])
 	var lingotes := int(port.get("reward_ingots_3", 0))
 	var sacos := int(port.get("reward_rice_3", 0))
 	if extra.is_empty() and lingotes <= 0 and sacos <= 0:
 		return
-	info_reward_row.add_child(_reward_label("· 3★:"))
+	var hecho := logradas >= 3
+	info_reward_row.add_child(PrepBoard.make_star_row(3, 3, 22, true))
 	for r in extra:
-		_row_icon(info_reward_row, RecipeData.get_dish_texture(r), "", 40)
+		_row_icon(info_reward_row, RecipeData.get_dish_texture(r), "", 40, hecho)
 	if lingotes > 0:
 		_row_icon(info_reward_row, load("res://assets/ui/ic_lingote.png"),
-				"x%d" % lingotes, 34)
+				"x%d" % lingotes, 34, hecho)
 	if sacos > 0:
 		_row_icon(info_reward_row, load("res://assets/ui/ic_arroz.png"),
-				"x%d" % sacos, 34)
+				"x%d" % sacos, 34, hecho)
 
 
 func _reward_label(texto: String) -> Label:
@@ -627,6 +661,39 @@ func _reward_label(texto: String) -> Label:
 	l.add_theme_font_size_override("font_size", 19)
 	l.add_theme_color_override("font_color", Color(0.55, 0.34, 0.08))
 	return l
+
+
+## Filas del objetivo: una por escalón de estrellas, con las estrellas delante
+## y la moneda con la cifra detrás.
+func _fill_goal_rows(goal: int, goal_money: int, thresholds: Array) -> void:
+	if goal_box == null:
+		goal_box = VBoxContainer.new()
+		goal_box.add_theme_constant_override("separation", 2)
+		info_goal.get_parent().add_child(goal_box)
+		info_goal.get_parent().move_child(goal_box, info_goal.get_index() + 1)
+	for c in goal_box.get_children():
+		c.queue_free()
+	var escalones: Array = [[goal, goal_money]]
+	if thresholds.size() >= 3 and goal < 3:
+		escalones.append([3, int(thresholds[2])])
+	for e in escalones:
+		var fila := HBoxContainer.new()
+		fila.alignment = BoxContainer.ALIGNMENT_CENTER
+		fila.add_theme_constant_override("separation", 8)
+		fila.add_child(PrepBoard.make_star_row(int(e[0]), 3, 26, true))
+		var mon := TextureRect.new()
+		mon.texture = load("res://assets/ui/moneda.png")
+		mon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		mon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		mon.custom_minimum_size = Vector2(30, 30)
+		fila.add_child(mon)
+		var l := Label.new()
+		l.text = str(int(e[1]))
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		l.add_theme_font_size_override("font_size", 24)
+		l.add_theme_color_override("font_color", DARK)
+		fila.add_child(l)
+		goal_box.add_child(fila)
 
 
 ## Vuelca en el panel el nombre del nivel y TODAS sus características.
@@ -638,7 +705,9 @@ func _update_info(id: String) -> void:
 	var unlocked := GameState.is_port_unlocked(id)
 	var best: int = int(GameState.level_stars.get(id, 0))
 
-	info_title.text = "Nivel %d — %s" % [idx + 1, port.get("name", id)]
+	# Solo el NOMBRE del puerto, estilizado: el "Nivel N" no aportaba nada que
+	# no dijera ya el cartel del propio nodo en el mapa.
+	info_title.text = str(port.get("name", id))
 	info_kind.text = CampaignData.kind_name(id)
 	# La frase descriptiva sobra: la ficha ya lo cuenta todo con sus iconos.
 	# Solo queda el aviso de nivel bloqueado.
@@ -658,14 +727,14 @@ func _update_info(id: String) -> void:
 	var thresholds: Array = port.get("star_money", [])
 	var goal := int(port.get("goal_stars", 1))
 	var goal_money: int = int(thresholds[goal - 1]) if thresholds.size() >= goal else 0
-	info_goal.text = "Objetivo: %d★  (%d)" % [goal, goal_money]
-	# Y lo que cuesta la tercera estrella, que ahora es un reto aparte.
-	if thresholds.size() >= 3 and goal < 3:
-		info_goal.text += "   ·   3★: %d" % int(thresholds[2])
+	# El objetivo se enseña EN GRÁFICO (estrellas + moneda + cifra) en vez de
+	# la línea "Objetivo: 2★ (30)", que se leía como una ficha técnica.
+	info_goal.visible = false
+	_fill_goal_rows(goal, goal_money, thresholds)
 	var rec := GameState.get_level_score(id)
 	info_record.text = "Récord: %d" % rec if rec > 0 else "Récord: sin jugar"
 
-	_fill_reward_row(port)
+	_fill_reward_row(port, id)
 
 	sail_button.disabled = not unlocked
 	sail_button.text = "¡Zarpar!" if unlocked else "Bloqueado"

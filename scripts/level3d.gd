@@ -1667,7 +1667,9 @@ func _skin_panels() -> void:
 	# ya lleva cuerdas en las cuatro esquinas y una tela encima lo cargaba.
 	$HUD/ResultsPanel/VBox/TitleLabel.visible = false
 	var dark := Color(0.26, 0.16, 0.08)
-	for l in [$HUD/ResultsPanel/VBox/TitleLabel, score_label, earn_label,
+	# `earn_label` NO va aquí: `_restyle_results_panel` ya le pone su crema
+	# claro y este bucle, que corre después, se lo pisaba y lo dejaba marrón.
+	for l in [$HUD/ResultsPanel/VBox/TitleLabel, score_label,
 			$HUD/PowerupPanel/VBox/Title]:
 		l.add_theme_color_override("font_color", dark)
 	stars_label.add_theme_color_override("font_color", Color(0.78, 0.55, 0.08))
@@ -2047,9 +2049,13 @@ func _on_client_served(food: int, tip: int) -> void:
 ## En cuanto se junta el dinero OBJETIVO (el umbral de las 3 estrellas) el turno
 ## se da por bueno y se cierra antes de tiempo: lo que sobra de clientes y de
 ## reloj se cobra como prima en los resultados.
-## Lo que se mide contra los umbrales de estrella: platos MÁS propinas.
+## Lo que se mide contra los umbrales de estrella: SOLO el precio de los platos.
+##
+## Las propinas NO entran aquí: van únicamente al bote de potenciadores. Estuvo
+## sumando `money_earned + tips_total`, así que cada propina se contaba DOS
+## veces (subía el bote azul y además el oro verde) y el marcador iba inflado.
 func _score_money() -> int:
-	return money_earned + tips_total
+	return money_earned
 
 
 func _check_goal_reached() -> void:

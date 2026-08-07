@@ -97,8 +97,10 @@ const PORTS: Array = [
 		# Isla: carta cerrada. La CUARTA la regala David en plena partida.
 		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "onigiri"],
 		"no_extras": false,
-		# El pirata entra en el sorteo como uno más (antes iba el ÚLTIMO y se
-		# hacía esperar); si aun así tarda, el guion lo adelanta (level_director).
+		# El pirata llega SIEMPRE el último; si el jugador va sobrado, el guion
+		# lo adelanta para que dé tiempo a estrenar con él el nigiri de atún
+		# que regala David (ver level_director.gd).
+		"late_type": "A",
 		"director": "nivel_3",
 		"gift_recipes": ["nigiri_atun"],
 	},
