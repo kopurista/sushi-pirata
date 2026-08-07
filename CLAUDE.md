@@ -1459,6 +1459,10 @@ que no hay problema.
   (lingotes) y `reward_rice_3` (sacos). Se pueden ir a buscar más tarde,
   repitiendo el puerto con mejor carta; `complete_port` las entrega la primera
   vez que se llega a 3★, aunque el nivel ya estuviera aprobado.
+- **`_score_money()` es SOLO el precio de los platos.** Estuvo devolviendo
+  `money_earned + tips_total`, así que cada propina se contaba DOS veces (subía
+  el bote azul y además la barra verde del oro) y el marcador iba inflado. Las
+  propinas van únicamente al bote de potenciadores.
 - **Puntuación POR DINERO** (la satisfacción se eliminó): cada umbral de
   `star_money` alcanzado da 1 estrella. El dinero que cuenta para las estrellas
   (y para el monedero) es SOLO el precio de los platos; **las propinas NO suman
