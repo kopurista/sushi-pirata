@@ -90,10 +90,11 @@ func _ready() -> void:
 	# Se llega desde el negro del menú: el velo es del autoload y lo abre él
 	# solo, aquí solo se consume la marca de transición.
 	GameState.take_transition()
-	# La PRIMERA visita es una escena: David presenta a Saverio, que explica la
-	# tienda y regala los extras. A partir de ahí, Saverio saluda cada vez.
-	if GameState.shop_unlocked() and not GameState.shop_intro_done:
-		_presentacion.call_deferred()
+	# La presentación de Saverio ya NO vive aquí: ocurre en el puerto del nivel
+	# 2, que es donde él está. Lo que sí puede pasar al entrar es la visita de
+	# Pablo el Rubio, una vez superado su nivel.
+	if _toca_pablo():
+		_pablo_y_saverio.call_deferred()
 	else:
 		_saludar.call_deferred()
 
@@ -142,29 +143,35 @@ func _pick(lista: Array) -> Dictionary:
 ## David lleva al jugador a conocer a Saverio. David habla desde la IZQUIERDA y
 ## Saverio desde la DERECHA (los dos en pantalla a la vez, ver DialogueBox).
 ## Al terminar quedan desbloqueados los EXTRAS, con 5 usos de regalo de cada uno.
-func _presentacion() -> void:
+## ¿Toca la escena de Pablo? Solo una vez, y solo con el nivel 5 superado.
+func _toca_pablo() -> bool:
+	if GameState.pablo_shop_done:
+		return false
+	var p5 := CampaignData.get_port("nivel_5")
+	return int(GameState.level_stars.get("nivel_5", 0)) 			>= int(p5.get("goal_stars", 2))
+
+
+## Pablo el Rubio se pasa por el puesto. Los dos hablan desde la DERECHA (es su
+## lado en DialogueBox), así que se van turnando el retrato: David no está en
+## esta escena y el sitio de la izquierda queda vacío a propósito.
+func _pablo_y_saverio() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
 	var caja := DialogueBox.new()
 	ui.add_child(caja)
 	caja.say([
-		{ "text": "¡Y aquí lo tienes! El mejor puesto de estos mares... y el único, todo hay que decirlo.", "mood": "riendo" },
-		{ "text": "¡David Jones! Y con la tripulación nueva, por lo que veo.", "who": "saverio", "mood": "feliz" },
-		{ "text": "Este es **Saverio**. Lleva media vida entre ingredientes: si algo no lo sabe él, no lo sabe nadie.", "mood": "hablando" },
-		{ "text": "Encantado, cocinero. Aquí se vende una cosa muy simple: **usos** de ingredientes.", "who": "saverio", "mood": "explicando" },
-		{ "text": "Y aquí interrumpo yo, que esto es importante: **un uso = una partida**. Si llevas salmón a un nivel, gastas un uso de salmón. Da igual que hagas un nigiri o veinte.", "mood": "serio" },
-		{ "text": "Exacto. Por eso conviene venir con la despensa surtida antes de zarpar. Yo saco **género nuevo cada día**; si no te gusta lo que ves, puedes pedirme que lo recargue.", "who": "saverio", "mood": "hablando" },
-		{ "text": "Y luego están mis tres joyas, que no faltan nunca en la balda: los **extras**.", "who": "saverio", "mood": "explicando" },
-		{ "text": "El **jengibre** limpia el paladar: el plato no le cuenta al cliente como repetido, así que le sabe a nuevo.", "who": "saverio", "mood": "hablando" },
-		{ "text": "El **wasabi** despierta: hace más **probable** que te dejen propina. Y la **soja** redondea: cuando la propina cae, cae más **gorda**.", "who": "saverio", "mood": "explicando" },
-		{ "text": "Van sobre un plato ya terminado, y se gastan por plato servido, no por partida. Toma: **5 usos de cada uno**, cortesía de la casa.", "who": "saverio", "mood": "feliz" },
-		{ "text": "¡Eso es hacer amigos, Saverio! Anda, %s, mira el género con calma y compra lo que te haga falta." % GameState.player_title(), "mood": "riendo" },
-		{ "text": "Yo te espero en el mar. ¡Que no se te enfríe la cinta!", "mood": "hablando" },
+		{ "text": "¡Saveriooo! Cuánto tiempo sin dejarme robar nada.", "who": "pablo", "mood": "riendo" },
+		{ "text": "Pablo. Como te acerques a mis barriles te clavo el remo.", "who": "saverio", "mood": "serio" },
+		{ "text": "Tranquilo, hoy vengo de cliente. Este de aquí me abordó la flota entera y me dejó la tripulación llena hasta las cejas.", "who": "pablo", "mood": "guason" },
+		{ "text": "¿Este? ¿El de David? Vaya, vaya... entonces sí que sabe cocinar.", "who": "saverio", "mood": "feliz" },
+		{ "text": "Sabe. Y por eso vengo a avisarte: si le vendes barato, me lo llevo yo de cocinero.", "who": "pablo", "mood": "punal" },
+		{ "text": "Ni lo sueñes. Anda, toma tu té y déjame trabajar.", "who": "saverio", "mood": "riendo" },
+		{ "text": "Vendré a verte, cocinero. Y no traeré el puñal... casi seguro.", "who": "pablo", "mood": "riendo" },
 	])
 	await caja.finished
-	for ing in RecipeData.EXTRAS:
-		GameState.add_ingredient_uses(ing, GameState.TUTORIAL_GIFT)
-	GameState.shop_intro_done = true
-	GameState.save_game()
 	caja.queue_free()
+	GameState.pablo_shop_done = true
+	GameState.save_game()
 	_refresh()
 
 

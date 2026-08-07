@@ -101,6 +101,10 @@ var tutorial_done := false
 ## true cuando David ya ha presentado la TIENDA y a Saverio (tras el nivel 2).
 ## Es lo que además abre los EXTRAS: antes de esa escena no existen.
 var shop_intro_done := false
+## David ya explicó para qué sirve el ARROZ (al elegir el primer puerto).
+var rice_intro_done := false
+## Ya se vio la escena de Pablo y Saverio en la tienda (tras el nivel 5).
+var pablo_shop_done := false
 ## Usos de ingredientes que regala el juego al desbloquear recetas: la tanda
 ## del tutorial viene más surtida que las de cada nivel.
 const TUTORIAL_GIFT := 5
@@ -867,6 +871,8 @@ func save_game() -> void:
 		"player_name": player_name,
 		"tutorial_done": tutorial_done,
 		"shop_intro_done": shop_intro_done,
+		"rice_intro_done": rice_intro_done,
+		"pablo_shop_done": pablo_shop_done,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
@@ -942,6 +948,8 @@ func load_game() -> void:
 		settings[k] = int(settings[k])
 	tutorial_done = bool(parsed.get("tutorial_done", false))
 	shop_intro_done = bool(parsed.get("shop_intro_done", false))
+	rice_intro_done = bool(parsed.get("rice_intro_done", false))
+	pablo_shop_done = bool(parsed.get("pablo_shop_done", false))
 	# Guardado de ANTES del tutorial: si ya tenía recetas es que ya jugó, así
 	# que no se le vuelve a plantar la introducción.
 	if not parsed.has("tutorial_done") and not unlocked_recipes.is_empty():
@@ -995,6 +1003,8 @@ func _new_game() -> void:
 	# introducción: el true viejo se colaba en el guardado nuevo.
 	tutorial_done = false
 	shop_intro_done = false
+	rice_intro_done = false
+	pablo_shop_done = false
 	# Los usos iniciales SOLO en partida nueva (si se diera también al cargar,
 	# se rellenarían gratis en cada arranque).
 	for ing in CampaignData.INITIAL_INGREDIENTS:

@@ -139,6 +139,17 @@ func _nivel_2() -> void:
 		{ "text": "Dos: si alguien se te atasca en la silla, dale un **mochi**. Se va contento, te deja la propina y libera el sitio para el siguiente.", "mood": "hablando" },
 		{ "text": "¡SITIO PARA EL SIGUIENTE! ¡RAAAK!", "who": "gigi", "mood": "loro" },
 	])
+	# SAVERIO vive en este puerto: David lo presenta aquí, no al entrar en la
+	# tienda. Así el tendero es alguien a quien has conocido antes de comprarle.
+	await _say([
+		{ "text": "Ah, y mira quién está descargando en el muelle. ¡Saverio!", "mood": "feliz" },
+		{ "text": "¡David Jones! Y con tripulación nueva, por lo que veo.", "who": "saverio", "mood": "feliz" },
+		{ "text": "Este es **Saverio**. Lleva media vida entre ingredientes: si algo no lo sabe él, no lo sabe nadie.", "mood": "hablando" },
+		{ "text": "Encantado, cocinero. Yo vendo una cosa muy simple: **usos** de ingredientes.", "who": "saverio", "mood": "explicando" },
+		{ "text": "Y esto es importante: **un uso = una jornada**. Si llevas salmón a un puerto, gastas un uso de salmón. Da igual que hagas un nigiri o veinte.", "mood": "serio" },
+		{ "text": "Por eso conviene zarpar con la despensa surtida. Saco **género nuevo cada día**.", "who": "saverio", "mood": "hablando" },
+		{ "text": "Pero eso lo hablamos luego, que hoy tienes diez bocas esperando. ¡A la cinta!", "mood": "riendo" },
+	])
 	_play()
 	await _tras_la_preparacion()
 
@@ -172,6 +183,19 @@ func _nivel_2() -> void:
 		{ "text": "¡LOS CLIENTES NO ME GUSTAN, PERO SU DINERO SÍ! ¡RAAAK! ¡Y el dinero de los que ni vienen me gusta AÚN MÁS!", "who": "gigi", "mood": "loro_sorpresa" },
 		{ "text": "Por una vez, el bicho lo ha resumido mejor que yo. Ser rápido paga doble, %s." % GameState.player_title(), "mood": "loro_resignado" },
 	])
+	# Y al cerrar el turno, Saverio invita a su puesto: es el momento en que la
+	# TIENDA queda abierta, y de paso deja los extras de regalo.
+	await _say([
+		{ "text": "¡Buen turno! Oye, antes de que leves anclas: mi puesto está aquí al lado, en el muelle.", "who": "saverio", "mood": "feliz" },
+		{ "text": "Pásate cuando quieras y mira el género. Y llévate mis tres joyas de cortesía: los **extras**.", "who": "saverio", "mood": "explicando" },
+		{ "text": "El **jengibre** limpia el paladar y el plato no le cuenta al cliente como repetido. El **wasabi** hace más **probable** la propina, y la **soja**, más **gorda**.", "who": "saverio", "mood": "hablando" },
+		{ "text": "Van sobre un plato ya terminado y se gastan por plato servido. **Cinco usos de cada uno**, cortesía de la casa.", "who": "saverio", "mood": "feliz" },
+		{ "text": "¡Eso es hacer amigos, Saverio! Ya tienes tienda, %s. Úsala antes de zarpar." % GameState.player_title(), "mood": "riendo" },
+	])
+	for ing in RecipeData.EXTRAS:
+		GameState.add_ingredient_uses(ing, GameState.TUTORIAL_GIFT)
+	GameState.shop_intro_done = true
+	GameState.save_game()
 	# El guion termina aquí: si no se cierra a mano, el retrato y el pergamino
 	# se quedan clavados encima del panel de resultados.
 	dialog.close()

@@ -938,38 +938,61 @@ func _panel_falta_genero(recetas: Array[String]) -> void:
 	msg.add_theme_color_override("font_color", Color(0.42, 0.3, 0.18))
 	vb.add_child(msg)
 
-	var btns := VBoxContainer.new()
+	# Los dos botones EN UNA LÍNEA: apilados ocupaban media pantalla.
+	var btns := HBoxContainer.new()
 	btns.alignment = BoxContainer.ALIGNMENT_CENTER
-	btns.add_theme_constant_override("separation", 12)
+	btns.add_theme_constant_override("separation", 14)
 	vb.add_child(btns)
 	var jugar := Button.new()
 	jugar.text = "Jugar"
-	jugar.custom_minimum_size = Vector2(250, 62)
+	jugar.custom_minimum_size = Vector2(178, PrepBoard.ICON_BTN_H)
 	PrepBoard.skin_action_button(jugar, true)
-	jugar.add_theme_font_size_override("font_size", 24)
+	jugar.add_theme_font_size_override("font_size", 22)
 	jugar.pressed.connect(func() -> void: _zarpar_con(recetas))
 	btns.add_child(jugar)
 	# La tienda puede no estar abierta todavía (el nivel 1 es una isla y Saverio
 	# aparece en el 2): entonces no se ofrece.
 	if GameState.shop_unlocked():
 		var tienda := Button.new()
-		tienda.text = "Visitar tienda"
-		tienda.custom_minimum_size = Vector2(250, 62)
+		tienda.text = "Tienda"
+		tienda.custom_minimum_size = Vector2(196, PrepBoard.ICON_BTN_H)
 		PrepBoard.skin_button(tienda)
-		tienda.add_theme_font_size_override("font_size", 24)
+		tienda.add_theme_font_size_override("font_size", 22)
+		# Con SU icono, como el "Jugar" lleva su visto: el rótulo se corre a la
+		# derecha para dejarle sitio.
+		var ic := TextureRect.new()
+		ic.texture = load("res://assets/ui/ic_tienda.png")
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+		ic.offset_left = 8.0
+		ic.offset_right = 62.0
+		ic.offset_top = -3.0
+		ic.offset_bottom = 3.0
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tienda.add_child(ic)
+		for st in ["normal", "hover", "pressed", "focus"]:
+			var pad := StyleBoxEmpty.new()
+			pad.content_margin_left = 66.0
+			pad.content_margin_right = 12.0
+			tienda.add_theme_stylebox_override(st, pad)
 		tienda.pressed.connect(func() -> void:
 			GameState.fade_to_scene("res://scenes/shop_screen.tscn", 0.35, 0.45))
 		btns.add_child(tienda)
 
-	# La X cierra y devuelve el mando al mapa, sin zarpar.
-	var cerrar := Button.new()
-	cerrar.custom_minimum_size = Vector2(60, 60)
+	# La X cierra y devuelve el mando al mapa, sin zarpar. Botón CUADRADO con
+	# su propia textura: con el tablón ancho de `skin_action_button` la equis
+	# quedaba pegada al borde izquierdo y no centrada.
+	var cerrar := TextureButton.new()
+	cerrar.texture_normal = load("res://assets/ui/boton_cerrar.png")
+	cerrar.ignore_texture_size = true
+	cerrar.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	cerrar.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	cerrar.offset_left = -74.0
-	cerrar.offset_top = 14.0
-	cerrar.offset_right = -14.0
-	cerrar.offset_bottom = 74.0
-	PrepBoard.skin_action_button(cerrar, false)
+	cerrar.offset_left = -76.0
+	cerrar.offset_top = 12.0
+	cerrar.offset_right = -12.0
+	cerrar.offset_bottom = 76.0
+	PrepBoard.add_press_feedback(cerrar)
 	cerrar.pressed.connect(overlay.queue_free)
 	box.add_child(cerrar)
 

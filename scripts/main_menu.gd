@@ -167,6 +167,8 @@ func _show_menu(animate: bool) -> void:
 ## interfaz de la campaña.
 func _enter_map(animate: bool) -> void:
 	in_menu = false
+	# Con el mapa ya en pantalla, la explicación del arroz (solo la 1ª vez).
+	_explicar_arroz.call_deferred()
 	# Los contadores se corren a la derecha y dejan hueco al botón "Atrás".
 	_place_resources(true, animate)
 	map_visible = true
@@ -613,6 +615,47 @@ const PACKS_ARROZ := [
 	{ "n": 5, "icon": "pack_arroz_5", "coste": 3 },
 	{ "n": 10, "icon": "pack_arroz_10", "coste": 7 },
 ]
+
+
+## Al elegir el PRIMER puerto, David explica para qué sirve el arroz, con el
+## foco puesto en su caja. Solo la primera vez (`rice_intro_done`).
+##
+## El foco es un velo oscuro con la caja del arroz POR ENCIMA (subiéndole el
+## z_index un momento): en el mapa no está el paño con agujero de los guiones
+## de nivel, y para señalar una sola cosa esto basta y no arrastra el shader.
+func _explicar_arroz() -> void:
+	if GameState.rice_intro_done or rice_box == null:
+		return
+	GameState.rice_intro_done = true
+	GameState.save_game()
+	var velo := ColorRect.new()
+	velo.color = Color(0, 0, 0, 0.72)
+	velo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	velo.z_index = 150
+	velo.mouse_filter = Control.MOUSE_FILTER_STOP
+	ui_layer.add_child(velo)
+	var z_antes := rice_box.z_index
+	rice_box.z_index = 180
+
+	var caja := DialogueBox.new()
+	caja.z_index = 200
+	# El velo lo pone ESTA escena (con el saco por encima); el de la caja
+	# oscurecería también el saco y el foco se perdería. Mismo apaño que hacen
+	# los guiones de nivel (`story_director`).
+	caja.veil_on = false
+	ui_layer.add_child(caja)
+	caja.say([
+		{ "text": "Un momento antes de zarpar, %s. ¿Ves ese saco de ahí arriba?" % GameState.player_title(), "mood": "hablando" },
+		{ "text": "Es **arroz**. Sin arroz no hay sushi, y sin sushi no hay jornada: cada vez que sales a un puerto se gasta **un saco**.", "mood": "serio" },
+		{ "text": "Se repone solo con el tiempo: cae **un saco cada hora y media**, aunque tengas el juego cerrado. Debajo del saco tienes la cuenta atrás.", "mood": "hablando" },
+		{ "text": "Si tienes prisa, puedes comprarlo con **lingotes de oro** en el botón de al lado. Y más adelante también podrás conseguirlo viendo anuncios.", "mood": "hablando" },
+		{ "text": "La bodega tiene su tope, eso sí. Se amplía según vayas juntando estrellas y superando puertos, pero eso ya lo verás.", "mood": "serio" },
+		{ "text": "¡SIN ARROZ NO SE NAVEGA! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+	])
+	await caja.finished
+	caja.queue_free()
+	rice_box.z_index = z_antes
+	velo.queue_free()
 
 
 func _on_buy_ingots() -> void:

@@ -94,9 +94,12 @@ func _run() -> void:
 	await _say_raised([
 		{ "text": "¿Ves esos pergaminos de ahí abajo? Son tus **recetas**. Empezaremos por la favorita de los grumetes: toca el **maki de aguacate**.", "mood": "hablando" },
 	])
-	await _focus_node(pb.buttons["maki_aguacate"], 12.0)
+	# PRIMERO `_play` y DESPUÉS el foco: `_play` llama a `_clear_focus`,
+	# así que enfocando antes se borraba solo y el jugador se quedaba
+	# sin ver señalada ni una receta (poner `focus_rect.visible` no
+	# servía de nada: el velo seguía con `dim` a 0).
 	_play("¡El pergamino del **maki de aguacate**! ¡Ese de ahí abajo!")
-	focus_rect.visible = true
+	await _focus_node(pb.buttons["maki_aguacate"], 12.0)
 	await _wait_craft("select")
 
 	# ---- Elaboración guiada del maki ----
@@ -191,9 +194,12 @@ func _run() -> void:
 		{ "text": "Vamos con el clásico de los clásicos: el **nigiri de salmón**. Arroz, tres golpes de forma y el lomo encima. Rápido de hacer y deja buen oro.", "mood": "feliz" },
 		{ "text": "¡Adelante, demuéstrame esas manos!", "mood": "gritando" },
 	])
-	await _focus_node(pb.buttons["nigiri_salmon"], 12.0)
+	# PRIMERO `_play` y DESPUÉS el foco: `_play` llama a `_clear_focus`,
+	# así que enfocando antes se borraba solo y el jugador se quedaba
+	# sin ver señalada ni una receta (poner `focus_rect.visible` no
+	# servía de nada: el velo seguía con `dim` a 0).
 	_play("¡El **nigiri de salmón**! Toca su pergamino.")
-	focus_rect.visible = true
+	await _focus_node(pb.buttons["nigiri_salmon"], 12.0)
 	await _wait_craft("select")
 	_play("Sigue la mano hasta terminar el nigiri.")
 	await _wait_craft("done")
@@ -224,9 +230,12 @@ func _run() -> void:
 		{ "text": "Y tiene magia: les quita el **hastío**. Porque repetirle el mismo plato a un cliente lo harta, y cada repetición le sabe a menos. Un té... y vuelve a disfrutarlo como el primer día.", "mood": "hablando" },
 		{ "text": "¡Prepara un té y mándalo a la cinta!", "mood": "gritando" },
 	])
-	await _focus_node(pb.buttons["te_verde"], 12.0)
+	# PRIMERO `_play` y DESPUÉS el foco: `_play` llama a `_clear_focus`,
+	# así que enfocando antes se borraba solo y el jugador se quedaba
+	# sin ver señalada ni una receta (poner `focus_rect.visible` no
+	# servía de nada: el velo seguía con `dim` a 0).
 	_play("¡El **té verde**! Toca su pergamino y sigue la mano.")
-	focus_rect.visible = true
+	await _focus_node(pb.buttons["te_verde"], 12.0)
 	await _wait_craft("select")
 	# En cuanto elige la receta el foco sobra: lo que toca ya está en la tabla.
 	_clear_focus()
@@ -236,11 +245,14 @@ func _run() -> void:
 	await _wait_served()
 	_play()
 	pb.allowed_recipes = ["__nada__"]
-	# En cuanto le llega el té, el bocado del nigiri se acaba enseguida: ya ha
-	# cumplido su papel de dar tiempo y alargarlo más solo aburre.
+	# EL BOCADO AGUANTA HASTA QUE LE LLEGA EL TÉ. Es justo lo que hay que
+	# enseñar: un picoteo se coge SIN soltar lo que ya se está comiendo. Antes
+	# se cortaba en cuanto el té salía a la cinta y el jugador no llegaba a ver
+	# al cliente cogerlo (`snack_taken` es la marca de que lo ha pillado).
 	if _cliente_vivo():
-		client.slow_eat = 1.0
-		client.eat_timer = minf(client.eat_timer, 2.2)
+		client.slow_eat = 12.0
+	while _cliente_vivo() and client.is_eating() and not client.snack_taken:
+		await get_tree().process_frame
 
 	# ---- La barra de paciencia (ya ha terminado de comer) ----
 	# Con el té ya servido, el bocado vuelve a su ritmo normal para que el
@@ -269,9 +281,12 @@ func _run() -> void:
 		{ "text": "...eso, a su manera. Es un **postre**: propina asegurada, y al terminarlo el cliente se **despide** con la barriga llena y deja la silla libre.", "mood": "loro_resignado" },
 		{ "text": "Cada postre tiene su clientela, y el mochi es cosa de grumetes. Amasa la masa, el matcha por encima, y cierra la bola recogiéndola arriba y abajo. ¡Al lío!", "mood": "hablando" },
 	])
-	await _focus_node(pb.buttons["mochi"], 12.0)
+	# PRIMERO `_play` y DESPUÉS el foco: `_play` llama a `_clear_focus`,
+	# así que enfocando antes se borraba solo y el jugador se quedaba
+	# sin ver señalada ni una receta (poner `focus_rect.visible` no
+	# servía de nada: el velo seguía con `dim` a 0).
 	_play("¡El **mochi de matcha**! Toca su pergamino.")
-	focus_rect.visible = true
+	await _focus_node(pb.buttons["mochi"], 12.0)
 	await _wait_craft("select")
 	_play("Sigue la mano hasta cerrar la bola de mochi.")
 	await _wait_craft("done")
