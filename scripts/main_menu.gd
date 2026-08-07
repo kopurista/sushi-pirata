@@ -501,17 +501,18 @@ func _setup_resource_bar(st: float) -> void:
 	_add_plus(money_box, _on_buy_coins)
 
 	# El arroz SÍ tiene techo, así que además de la cifra lleva su barra.
+	# SIN barra: la cifra y la cuenta atrás ya dicen cuánto queda, y el blanco
+	# de la barra competía con el saco y con el "+".
 	rice_box = PrepBoard.make_resource_box(
-		"res://assets/ui/ic_arroz.png", str(GameState.rice), RES_RICE_W,
-		clampf(float(GameState.rice) / float(GameState.RICE_START), 0.0, 1.0))
+		"res://assets/ui/ic_arroz.png", str(GameState.rice), RES_RICE_W)
 	ui_layer.add_child(rice_box)
 	_add_plus(rice_box, _on_buy_rice)
 
 	# Cuenta atrás del próximo saco, colgando de la caja del arroz.
 	rice_timer_label = Label.new()
 	rice_timer_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	rice_timer_label.offset_top = 26.0
-	rice_timer_label.offset_bottom = 56.0
+	rice_timer_label.offset_top = 34.0
+	rice_timer_label.offset_bottom = 64.0
 	rice_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rice_timer_label.add_theme_font_size_override("font_size", 19)
 	rice_timer_label.add_theme_color_override("font_color", Color(1, 0.94, 0.78))
@@ -533,7 +534,7 @@ func _add_plus(caja: Control, accion: Callable) -> void:
 	mas.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	mas.custom_minimum_size = Vector2(46, 46)
 	mas.size = Vector2(46, 46)
-	mas.position = Vector2(-23.0, -24.0)
+	mas.position = Vector2(-23.0, -14.0)
 	PrepBoard.add_press_feedback(mas)
 	mas.pressed.connect(accion)
 	caja.add_child(mas)
@@ -547,10 +548,6 @@ func _refresh_resources() -> void:
 	(ingot_box.get_node("Valor") as Label).text = str(GameState.ingots)
 	(money_box.get_node("Valor") as Label).text = str(GameState.money)
 	(rice_box.get_node("Valor") as Label).text = str(GameState.rice)
-	var barra := rice_box.get_node_or_null("Barra")
-	if barra != null:
-		(barra as ProgressBar).value = clampf(
-			float(GameState.rice) / float(GameState.RICE_START), 0.0, 1.0)
 	if rice_timer_label != null:
 		var t := GameState.rice_time_text()
 		rice_timer_label.text = t
@@ -603,7 +600,7 @@ const PACKS_LINGOTES := [
 ]
 ## Monedas de oro a cambio de LINGOTES.
 const PACKS_MONEDAS := [
-	{ "n": 100, "icon": "moneda", "coste": 1 },
+	{ "n": 100, "icon": "pack_moneda_100", "coste": 1 },
 	{ "n": 500, "icon": "pack_moneda_500", "coste": 4 },
 	{ "n": 1000, "icon": "pack_moneda_1000", "coste": 8 },
 ]

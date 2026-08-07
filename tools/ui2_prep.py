@@ -391,17 +391,13 @@ def build_packs() -> None:
         (0.0, 0.55, 0.78), (0.44, 0.55, 0.78), (0.88, 0.55, 0.78),
         (0.22, 0.0, 0.78), (0.66, 0.0, 0.78)]), 150), "pack_arroz_5")
 
-    # Montones de MONEDAS para el cartel de compra de oro: compuestos con
-    # `_pile` a partir de la moneda suelta, que para discos apilados funciona
-    # perfectamente (no hay que alinear caras como en los lingotes).
-    mon = Image.open(OUT / "moneda.png").convert("RGBA")
-    save(fit_width(_pile(mon, [
-        (0.0, 0.30, 0.72), (0.38, 0.30, 0.72), (0.19, 0.0, 0.72)]), 140),
-        "pack_moneda_500")
-    save(fit_width(_pile(mon, [
-        (0.0, 0.62, 0.62), (0.34, 0.62, 0.62), (0.68, 0.62, 0.62),
-        (0.17, 0.31, 0.62), (0.51, 0.31, 0.62), (0.34, 0.0, 0.62)]), 150),
-        "pack_moneda_1000")
+    # BOLSAS de monedas para el cartel de compra de oro. Una moneda suelta
+    # apilada no dice "cien monedas"; una bolsa llena sí, y el montón de bolsas
+    # escala la idea sin tener que contar discos.
+    for src, dst, w in [("b1_1", "pack_moneda_100", 140),
+                        ("b5_1", "pack_moneda_500", 150),
+                        ("b10_2", "pack_moneda_1000", 150)]:
+        save(fit_width(crop_alpha(keep_largest(drop_white(load(src))), 2), w), dst)
 
     # Cartel de compra: toldo a rayas e interior vacío. Se dibuja a TAMAÑO FIJO
     # (no es 9-slice), así que se exporta a la resolución en la que se usa.

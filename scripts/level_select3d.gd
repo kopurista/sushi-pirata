@@ -98,6 +98,8 @@ var info_reward_row: HBoxContainer
 var info_stars_box: Control
 ## Filas gráficas del objetivo (estrellas + moneda + cifra).
 var goal_box: VBoxContainer = null
+## Fila del récord (moneda + cifra).
+var record_box: HBoxContainer = null
 var sail_button: Button
 
 
@@ -676,24 +678,70 @@ func _fill_goal_rows(goal: int, goal_money: int, thresholds: Array) -> void:
 	var escalones: Array = [[goal, goal_money]]
 	if thresholds.size() >= 3 and goal < 3:
 		escalones.append([3, int(thresholds[2])])
+	# Se lee como una FRASE: "tantas monedas -> tantas estrellas". Por eso el
+	# dinero va primero y la flecha (la misma del paso de diálogo) hace de
+	# "te da".
 	for e in escalones:
 		var fila := HBoxContainer.new()
 		fila.alignment = BoxContainer.ALIGNMENT_CENTER
 		fila.add_theme_constant_override("separation", 8)
+		fila.add_child(_money_chip(int(e[1])))
+		var flecha := TextureRect.new()
+		flecha.texture = load("res://assets/ui/ic_siguiente.png")
+		flecha.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		flecha.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		flecha.custom_minimum_size = Vector2(30, 26)
+		fila.add_child(flecha)
 		fila.add_child(PrepBoard.make_star_row(int(e[0]), 3, 26, true))
-		var mon := TextureRect.new()
-		mon.texture = load("res://assets/ui/moneda.png")
-		mon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		mon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		mon.custom_minimum_size = Vector2(30, 30)
-		fila.add_child(mon)
-		var l := Label.new()
-		l.text = str(int(e[1]))
-		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		l.add_theme_font_size_override("font_size", 24)
-		l.add_theme_color_override("font_color", DARK)
-		fila.add_child(l)
 		goal_box.add_child(fila)
+
+
+## Moneda + cifra, que es como se enseña el dinero en toda la ficha.
+func _money_chip(cantidad: int, cuerpo := 24) -> HBoxContainer:
+	var caja := HBoxContainer.new()
+	caja.add_theme_constant_override("separation", 5)
+	caja.alignment = BoxContainer.ALIGNMENT_CENTER
+	var mon := TextureRect.new()
+	mon.texture = load("res://assets/ui/moneda.png")
+	mon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	mon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	mon.custom_minimum_size = Vector2(cuerpo + 6, cuerpo + 6)
+	caja.add_child(mon)
+	var l := Label.new()
+	l.text = str(cantidad)
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.add_theme_font_size_override("font_size", cuerpo)
+	l.add_theme_color_override("font_color", DARK)
+	caja.add_child(l)
+	return caja
+
+
+## El récord, con su moneda al lado en vez de "Récord: 61".
+func _fill_record_row(rec: int) -> void:
+	if record_box == null:
+		record_box = HBoxContainer.new()
+		record_box.alignment = BoxContainer.ALIGNMENT_CENTER
+		record_box.add_theme_constant_override("separation", 8)
+		info_record.get_parent().add_child(record_box)
+		info_record.get_parent().move_child(record_box, info_record.get_index() + 1)
+	info_record.visible = false
+	for c in record_box.get_children():
+		c.queue_free()
+	var l := Label.new()
+	l.text = "Récord:"
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.add_theme_font_size_override("font_size", 20)
+	l.add_theme_color_override("font_color", FADED)
+	record_box.add_child(l)
+	if rec > 0:
+		record_box.add_child(_money_chip(rec, 22))
+	else:
+		var sin := Label.new()
+		sin.text = "sin jugar"
+		sin.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		sin.add_theme_font_size_override("font_size", 20)
+		sin.add_theme_color_override("font_color", FADED)
+		record_box.add_child(sin)
 
 
 ## Vuelca en el panel el nombre del nivel y TODAS sus características.
@@ -732,7 +780,7 @@ func _update_info(id: String) -> void:
 	info_goal.visible = false
 	_fill_goal_rows(goal, goal_money, thresholds)
 	var rec := GameState.get_level_score(id)
-	info_record.text = "Récord: %d" % rec if rec > 0 else "Récord: sin jugar"
+	_fill_record_row(rec)
 
 	_fill_reward_row(port, id)
 

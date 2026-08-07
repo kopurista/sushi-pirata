@@ -372,8 +372,10 @@ static func make_resource_box(icon_path: String, text: String,
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.texture = load(icon_path)
 	ic.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	ic.offset_left = -14.0
-	ic.offset_right = 56.0
+	# Más a la izquierda de lo que parece: el "+" vive ahora en el centro del
+	# canto inferior y con -14 el icono le rozaba.
+	ic.offset_left = -26.0
+	ic.offset_right = 46.0
 	ic.offset_top = -8.0
 	ic.offset_bottom = 8.0
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -382,7 +384,7 @@ static func make_resource_box(icon_path: String, text: String,
 	l.name = "Valor"
 	l.text = text
 	l.set_anchors_preset(Control.PRESET_FULL_RECT)
-	l.offset_left = 58.0
+	l.offset_left = 50.0
 	l.offset_right = -14.0
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
