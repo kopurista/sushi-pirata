@@ -130,12 +130,20 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   Y quien adelante una llegada a mano (`_adelantar_tipo` del guion) tiene que
   **gastar su hueco de `arrival_queue`**, o entra un cliente de más y el
   contador se pasa del total.
-- **Las ataduras de carta de un puerto valen solo la PRIMERA vez**
-  (`GameState.port_beaten`): al repetir un puerto ya superado se juega con los
-  cuatro huecos de siempre aunque traiga `recipe_slots`, y una isla de
-  `fixed_recipes` pasa por el SELECTOR como los demás, con la carta abierta
-  —incluidas las recompensas del propio puerto—, que es como se vuelve a por
-  las 3 estrellas con lo que uno ya se ha ganado ahí.
+- **En las ISLAS la carta la decide el DISEÑO, no el jugador**: van con
+  `fixed_recipes` y no pasan por el selector NUNCA, tampoco al repetirlas. Lo
+  único que cambia al repetir es que pueden traer otra lista
+  (`fixed_recipes_replay`): el nivel 3 vuelve ya con el nigiri de atún que
+  regaló David. Como el jugador no elige, tampoco puede esquivar un ingrediente
+  que le falte: antes de zarpar, el mapa lo comprueba
+  (`GameState.missing_ingredients`) y **Gigi canta lo que falta y para qué
+  receta**, con un cartel de tres salidas — Jugar, Visitar tienda (solo si ya
+  está abierta) y una X que devuelve al mapa.
+- **`recipe_slots` sí se suelta al repetir** (`GameState.port_beaten`): un
+  puerto ya superado se juega con los cuatro huecos de siempre.
+- **Los ingredientes GRATIS (coste 0) no se piden ni se gastan**:
+  `ingredients_for_selection` los salta. El sésamo estaba dejando el uramaki
+  California sin poder jugarse por un ingrediente que la tienda ni vende.
 - **`recipes_for_port` tiene que mirar TAMBIÉN `reward_recipes_3`**: desde que
   las recompensas van en dos escalones, contar solo `reward_recipes` dejaba las
   de 3 estrellas fuera de la carta de todos los puertos siguientes.
