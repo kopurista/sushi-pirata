@@ -79,13 +79,27 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   y el director en `PROCESS_MODE_ALWAYS`), retiene el reloj (`lv.clock_hold`),
   pinta el FOCO circular y vigila la inactividad. Las hijas solo escriben
   `_run()`. De ella cuelgan `tutorial_director.gd` y `level_director.gd`.
-- **FOCO**: el radio sale del LADO MAYOR del rectángulo, no de la diagonal
-  (con la diagonal un botón de receta pedía 135 px y el círculo se comía media
-  tabla), acotado a 48-150 px. Y `_focus_node()` **espera DOS fotogramas antes
-  de medir**: los contenedores de Godot recolocan a sus hijos de forma
-  diferida, así que justo después de tocar `allowed_recipes` el botón sigue en
-  su sitio VIEJO — de ahí que los focos del nigiri y del té cayeran al lado
-  del pergamino en vez de encima.
+- **FOCO**: es una **ELIPSE** ajustada al rectángulo (`radius` es un `vec2`),
+  no un círculo: la fila entera de recetas mide 700×150 y el círculo que la
+  cubriera se comía la tabla y media pantalla. Cada semieje se multiplica por
+  `HOLGURA` (1.25) porque la elipse INSCRITA deja fuera las cuatro esquinas y
+  los pergaminos de los extremos salían medio apagados. `_focus_node()`
+  **espera DOS fotogramas antes de medir**: los contenedores de Godot recolocan
+  a sus hijos de forma diferida, así que justo después de tocar
+  `allowed_recipes` el botón sigue en su sitio VIEJO. `_focus_nodes()` enfoca
+  la envolvente de varios (David hablando de las recetas EN GENERAL: ahí se
+  encienden todas con `allowed_recipes = []` y se vuelven a apagar después).
+- **EL SHADER DEL FOCO NECESITA EL TAMAÑO DEL LIENZO** (`screen`): tenía
+  `UV * vec2(720, 1280)` clavado y en el móvil el lienzo mide ~720×1560, así
+  que el foco caía muy por encima de lo que señalaba.
+- **`_say` NO puede deducir si hay foco leyendo el uniforme `dim`.** Era lo que
+  hacía, y `_fade_dim` llega al valor con un TWEEN: en el fotograma siguiente a
+  poner el foco `dim` valía aún 0, así que `_say` creía que no había foco, lo
+  borraba y lo cambiaba por el velo suave. Solo sobrevivían los focos puestos
+  después de un `_play` (ahí `_say` espera `PAUSA_ANTES` y al tween le da
+  tiempo). Por eso en el tutorial no se veían ni el reloj, ni el oro, ni los
+  clientes, y sí los de más adelante. Ahora manda la bandera `_focus_on`.
+- **Y el foco va SIEMPRE DESPUÉS de `_play`**, que llama a `_clear_focus`.
 - **Vigía de inactividad**: 10 s sin tocar nada en una fase interactiva y Gigi
   grita "¡ESPABILA!" + el recordatorio que dejó puesto `_play(aviso)`. No salta
   con alguien hablando ni con un gesto sostenido en curso
@@ -93,6 +107,12 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 - **Cliente del tutorial**: asiento **3**. Con la cámara isométrica (yaw 45) el
   eje +X cae hacia ABAJO-DERECHA, así que la cara +X son los asientos 2 y 3 y
   el 3 es el más bajo; además esa cara entra por la borda inferior.
+- **`slow_eat` solo se aplica al EMPEZAR un plato; para acortar el bocado YA EN
+  MARCHA está `client3d.bite_speed`** (se reinicia con cada plato). El nigiri
+  del tutorial se sirve larguísimo para poder explicar el té mientras mastica,
+  y en cuanto el grumete pica el té ese motivo desaparece pero le quedaba casi
+  un minuto de barra bajando: ahí se sube `bite_speed`, que vacía la barra a
+  buen ritmo en vez de pegar un salto.
 - **Orden del tutorial**: maki → cinta/cajas → primer cliente → oro → **nigiri
   de salmón** (con `client.slow_eat` ×4.5, para que dé tiempo a explicar cosas
   mientras mastica) → Gigi explica la **barra de comer** → **té verde** →
@@ -353,6 +373,10 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   jugador se equivoca; David hace de contrapunto (`loro_resignado`).
   **Saverio sale a la DERECHA** y David a la izquierda: en la escena de la
   tienda están los dos a la vez y el que no habla se queda apagado y hundido.
+  **Una línea puede llevar `side`** para forzar el lado SOLO en esa escena:
+  Saverio y Pablo son los dos de la derecha y juntos se turnaban el mismo hueco
+  con media pantalla vacía, así que en la tienda Pablo pasa a la izquierda (y
+  su tablón, al contrario del retrato).
   El tablón del nombre va en el lado CONTRARIO al retrato de quien habla —
   encima del suyo le tapaba el pecho y se salía por el borde.
   **Encuadre**: Saverio se generó primero demasiado cerca (su cabeza ocupaba
@@ -375,6 +399,18 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   pasar el texto abría de paso su panel de compra. Mientras SE VA no consume
   nada (`_closing`), o los 0.16 s de la salida se comían el primer toque del
   jugador justo cuando el guion le acaba de dar el turno.
+- **La FLECHA de "toca para seguir" va en un hueco propio y con valores
+  ABSOLUTOS**: el latido movía `position:x` con `as_relative()` sobre el nodo
+  anclado y, como cada línea nueva mata y rehace el tween, si moría a mitad de
+  la ida la flecha se quedaba desplazada y el siguiente latido partía de ahí.
+  Se iba escapando a la derecha hasta salirse del pergamino. Misma lección que
+  las transiciones del menú: nada de `as_relative()` en algo que se repite.
+- **La GEOMETRÍA de la caja va en constantes** (`PANEL_TOP/PANEL_BOTTOM/
+  PORTRAIT_TOP/PORTRAIT_BOTTOM`, `TEXT_SIZE` 30, `TEXT_MARGIN` 112): el alto de
+  la caja y el apoyo de los retratos tienen que moverse JUNTOS o los personajes
+  se quedan flotando. Antes de subir el cuerpo de letra, MEDIR: con la fuente
+  real, la línea más larga del guion pide 7 renglones a cuerpo 30 con margen
+  112, y la caja tiene que dar para eso (de ahí los 406 px de alto).
 - **Máquina de escribir de `DialogueBox`, la trampa**: NO comparar contra
   `RichTextLabel.get_total_character_count()`. Devuelve 0 hasta que el nodo ha
   maquetado, así que en el primer `_process` se cumplía `0 >= 0` y la línea
@@ -462,8 +498,10 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   anclados con `cam.unproject_position` (cámara fija). **Fin de nivel: 4 s con
   todo parado** (banda quieta, platos con `ended`, `prep_board` deshabilitada)
   antes del cartel. **Botón "Salir"** bajo el reloj: confirmación en pergamino;
-  en fase de preparación DEVUELVE los usos de ingredientes, en partida avisa de
-  que se pierden; vuelve a level_select3d (aventura) o main_menu (prueba). La
+  en fase de preparación DEVUELVE los usos de ingredientes, los de
+  potenciadores permanentes **y el saco de arroz** (la fase dura 10 s, así que
+  ese es el margen para arrepentirse); en partida avisa de que se pierden,
+  arroz incluido, y el cartel lo dice con esas palabras; vuelve a level_select3d (aventura) o main_menu (prueba). La
   banda usa `belt_scroll_3d.gdshader` con `scroll_tiles` empujado por frame
   (se para al congelar y al terminar, acelera con "Cinta rápida").
 - `scripts/client3d.gd` — cliente 3D (misma lógica que client.gd): modelo GLB
@@ -1113,7 +1151,10 @@ que no hay problema.
   posiciones de reposo se leen en `_ready`, **después** de un `process_frame`.
 - **El cartel de la cuenta atrás ENTRA y SALE con movimiento** (`_show_phase`,
   `PHASE_TRAVEL`): entra por la izquierda con rebote y sale por la derecha. Se
-  probó dejándolo meciéndose en su sitio y no es una transición.
+  probó dejándolo meciéndose en su sitio y no es una transición. Va **JUSTO
+  ENCIMA DE LA CINTA** de la tabla de elaboración (apoyado sobre la fila de
+  cabezas, `PHASE_W`×`PHASE_H` = 430×78): arriba del todo competía con el reloj
+  y el marcador, y ahí es donde el jugador tiene los ojos mientras cocina.
 - **Botones (TODOS los del juego)**: `prep_board.skin_button()` es el único
   sitio donde se define su aspecto — tablón de madera con marco dorado y
   remaches (`assets/ui/boton_madera.png`, `BUTTON_MARGIN` 44), sombra

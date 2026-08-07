@@ -89,11 +89,27 @@ func _run() -> void:
 	])
 
 	# ---- Elegir el maki ----
+	# Mientras David habla de las recetas EN GENERAL, la fila entera se enciende
+	# (`allowed_recipes` vacío = todas) y el foco las abarca todas: apagadas
+	# menos una, el jugador veía tres siluetas grises justo cuando le estaban
+	# diciendo "estos son tus pergaminos". Se vuelven a apagar en cuanto toca
+	# elegir el maki.
+	#
+	# La caja se sube UNA vez para las dos tandas (en vez de dos `_say_raised`
+	# seguidos): bajándola y volviéndola a subir entre frase y frase, el
+	# pergamino daba un bote a media explicación.
+	pb.allowed_recipes = []
+	dialog.set_raised(true)
+	await _focus_nodes(pb.buttons.values(), 16.0)
+	await _say([
+		{ "text": "¿Ves esos pergaminos de ahí abajo? Son tus **recetas**. Cada una es un plato distinto, y aprenderás muchas más navegando.", "mood": "hablando" },
+	])
 	pb.allowed_recipes = ["maki_aguacate"]
 	await _focus_node(pb.buttons["maki_aguacate"], 12.0)
-	await _say_raised([
-		{ "text": "¿Ves esos pergaminos de ahí abajo? Son tus **recetas**. Empezaremos por la favorita de los grumetes: toca el **maki de aguacate**.", "mood": "hablando" },
+	await _say([
+		{ "text": "Empezaremos por la favorita de los grumetes: toca el **maki de aguacate**.", "mood": "hablando" },
 	])
+	dialog.set_raised(false)
 	# PRIMERO `_play` y DESPUÉS el foco: `_play` llama a `_clear_focus`,
 	# así que enfocando antes se borraba solo y el jugador se quedaba
 	# sin ver señalada ni una receta (poner `focus_rect.visible` no
@@ -166,7 +182,10 @@ func _run() -> void:
 		await _wait_served()
 	if _cliente_vivo():
 		client.guaranteed_next = true
-	pb.allowed_recipes = ["__nada__"]
+	# El maki se queda ENCENDIDO: es de lo que se está hablando (con la receta
+	# apagada el "x2" se leía sobre un pergamino gris) y además es lo que puede
+	# tocar el jugador ahora, que es justo lo que vigila `_vigilar_repeticion`.
+	pb.allowed_recipes = ["maki_aguacate"]
 	await _focus_node(pb.buttons["maki_aguacate"], 12.0)
 	await _say_raised([
 		{ "text": "Y un secreto de cocina: hay platos que con una elaboración rinden **varios usos**. ¿Ves el **x2** en el pergamino del maki? Los dos siguientes saldrán solos, sin trabajo.", "mood": "feliz" },
@@ -249,16 +268,19 @@ func _run() -> void:
 	# enseñar: un picoteo se coge SIN soltar lo que ya se está comiendo. Antes
 	# se cortaba en cuanto el té salía a la cinta y el jugador no llegaba a ver
 	# al cliente cogerlo (`snack_taken` es la marca de que lo ha pillado).
-	if _cliente_vivo():
-		client.slow_eat = 12.0
 	while _cliente_vivo() and client.is_eating() and not client.snack_taken:
 		await get_tree().process_frame
 
 	# ---- La barra de paciencia (ya ha terminado de comer) ----
-	# Con el té ya servido, el bocado vuelve a su ritmo normal para que el
-	# cliente termine y aparezca la barra de paciencia que toca explicar.
+	# CON EL TÉ YA PICADO, el bocado se acelera. El nigiri se sirvió con
+	# `slow_eat` altísimo para que diera tiempo a explicar el té, pero eso solo
+	# se aplica al EMPEZAR el plato: en cuanto el picoteo ha cumplido su papel
+	# quedaba casi un minuto de barra bajando a cámara lenta. `bite_speed` sí
+	# actúa sobre el bocado en marcha, así que la barra se vacía a buen ritmo en
+	# vez de pegar un salto.
 	if _cliente_vivo():
 		client.slow_eat = 1.0
+		client.bite_speed = 10.0
 	while _cliente_vivo() and client.is_eating():
 		await get_tree().process_frame
 	await get_tree().create_timer(0.7).timeout

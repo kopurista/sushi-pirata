@@ -30,6 +30,15 @@ var dialog: DialogueBox
 var focus_rect: ColorRect
 var focus_mat: ShaderMaterial
 
+## ¿Hay un FOCO puesto ahora mismo? Es una bandera y NO se deduce del uniforme
+## `dim` del shader, que era lo que se hacía antes: `_fade_dim` llega al valor
+## con un tween, así que en el fotograma siguiente a poner el foco `dim` todavía
+## valía 0 y `_say` creía que no había foco, lo borraba y lo cambiaba por el
+## velo suave. Solo se salvaban los focos que venían después de un `_play` (ahí
+## `_say` espera PAUSA_ANTES y al tween le da tiempo a arrancar), y por eso en
+## el tutorial no se veía ni el reloj, ni el oro, ni los clientes... pero sí los
+## de más adelante.
+var _focus_on := false
 ## Aviso que suelta Gigi si el jugador se queda parado ("" = vigía apagado).
 var _recordatorio := ""
 var _quieto := 0.0
@@ -63,6 +72,10 @@ func _ready() -> void:
 	# llegaran, el primer fotograma se dibujaba con los valores por defecto del
 	# shader (pantalla oscura con un agujero en el centro) y se veía un
 	# parpadeo negro justo al aparecer el primer foco.
+	# El shader trabaja en píxeles de LIENZO, así que necesita saber cuánto mide
+	# (lo tenía clavado a 720×1280 y en el móvil el lienzo es más alto: el foco
+	# caía muy por encima de lo que señalaba).
+	focus_mat.set_shader_parameter("screen", GameState.canvas_size())
 	_apagar_velo()
 	focus_rect.visible = true
 	focus_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -148,7 +161,7 @@ func _say(lines: Array, espera := -1.0, congelar := true) -> void:
 	lv.clock_hold = true
 	get_tree().paused = congelar
 	# Sin foco puesto, el fondo se oscurece un poco igualmente mientras hablan.
-	var velo_propio: bool = float(focus_mat.get_shader_parameter("dim")) <= 0.0
+	var velo_propio := not _focus_on
 	if velo_propio:
 		_soft_dim()
 	# `keep_open`: la caja NO se oculta al agotar la tanda. Entre dos tandas
@@ -180,22 +193,34 @@ func _play(aviso := "") -> void:
 	_clear_focus()
 
 
-## FOCO circular sobre un rectángulo de pantalla (en píxeles de diseño).
-## El radio sale del LADO MAYOR, no de la diagonal: con la diagonal un botón de
-## receta pedía 135 px de radio y el círculo se comía media tabla.
+## FOCO sobre un rectángulo de pantalla (en píxeles de lienzo).
+##
+## Es una ELIPSE ajustada al rectángulo, no un círculo: la fila entera de
+## recetas mide 700×150 y el círculo que la cubriera se habría comido la tabla
+## de elaboración y media pantalla por encima. Cada semieje se acota por su
+## lado, así que un botón suelto sigue saliendo redondo.
+## `HOLGURA` ensancha la elipse por encima del rectángulo inscrito: sin ella
+## las cuatro ESQUINAS de lo enfocado se quedan fuera del agujero, y en la fila
+## de recetas eso dejaba los dos pergaminos de los extremos medio apagados.
+const HOLGURA := 1.25
+
+
 func _focus_screen_rect(r: Rect2) -> void:
 	var c := r.position + r.size * 0.5
-	var radius: float = clampf(maxf(r.size.x, r.size.y) * 0.5 + 10.0, 48.0, 150.0)
+	var rx: float = clampf((r.size.x * 0.5 + 10.0) * HOLGURA, 48.0, 520.0)
+	var ry: float = clampf((r.size.y * 0.5 + 10.0) * HOLGURA, 48.0, 520.0)
 	focus_mat.set_shader_parameter("center", c)
-	focus_mat.set_shader_parameter("radius", radius)
-	focus_mat.set_shader_parameter("feather", clampf(radius * 0.55, 34.0, 100.0))
+	focus_mat.set_shader_parameter("radius", Vector2(rx, ry))
+	focus_mat.set_shader_parameter("feather",
+		clampf(minf(rx, ry) * 0.55, 34.0, 100.0))
+	_focus_on = true
 	_fade_dim(DIM_FOCO)
 
 
 ## Velo LEVE de pantalla completa, sin agujero: solo para hablar.
 func _soft_dim() -> void:
 	focus_mat.set_shader_parameter("center", Vector2(-999.0, -999.0))
-	focus_mat.set_shader_parameter("radius", 0.0)
+	focus_mat.set_shader_parameter("radius", Vector2.ONE)
 	focus_mat.set_shader_parameter("feather", 0.001)
 	_fade_dim(DIM_SUAVE)
 
@@ -209,6 +234,24 @@ func _focus_node(c: Control, pad := 10.0) -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_focus_screen_rect(c.get_global_rect().grow(pad))
+
+
+## Foco sobre VARIOS controles a la vez (la fila entera de recetas cuando David
+## habla de ellas en general). Se enfoca la envolvente de todos.
+func _focus_nodes(nodos: Array, pad := 10.0) -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var caja := Rect2()
+	var primero := true
+	for n in nodos:
+		if n == null or not is_instance_valid(n) or not (n is Control):
+			continue
+		var r: Rect2 = (n as Control).get_global_rect()
+		caja = r if primero else caja.merge(r)
+		primero = false
+	if primero:
+		return
+	_focus_screen_rect(caja.grow(pad))
 
 
 ## Foco sobre un cliente 3D: se proyecta su posición con la cámara (fija).
@@ -236,8 +279,9 @@ func _clear_focus() -> void:
 ## Deja el paño transparente (sigue en el árbol, para no volver a estrenar el
 ## shader y provocar otro parpadeo).
 func _apagar_velo() -> void:
+	_focus_on = false
 	focus_mat.set_shader_parameter("center", Vector2(-9999.0, -9999.0))
-	focus_mat.set_shader_parameter("radius", 0.0)
+	focus_mat.set_shader_parameter("radius", Vector2.ONE)
 	focus_mat.set_shader_parameter("feather", 0.001)
 	focus_mat.set_shader_parameter("dim", 0.0)
 	if _dim_tween != null and _dim_tween.is_valid():

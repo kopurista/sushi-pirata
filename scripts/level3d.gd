@@ -389,7 +389,7 @@ func _ready() -> void:
 	if GameState.is_tutorial():
 		# Objetivo de muestra: se enseña en el marcador, pero el tutorial no
 		# termina por dinero (lo cierra su guion).
-		star_money = [12]
+		star_money = [10]
 		time_limit = 600.0
 		total_clients = 1
 		prep_phase = false
@@ -1554,15 +1554,24 @@ func _show_phase(on: bool) -> void:
 ## CARTEL de la cuenta atrás: la misma tablilla de madera que lleva el nombre
 ## de quien habla en los diálogos, meciéndose de un lado a otro. Antes era un
 ## texto suelto sobre el 3D.
+## Ancho y alto del cartel. MÁS GRANDE que la tablilla del nombre de un
+## diálogo: es una cuenta atrás que hay que leer de reojo mientras se cocina.
+const PHASE_W := 430.0
+const PHASE_H := 78.0
+
+
 func _setup_phase_sign() -> void:
 	var padre := phase_label.get_parent()
 	var sign := Control.new()
 	sign.name = "PhaseSign"
-	sign.custom_minimum_size = Vector2(330, PrepBoard.PLATE_H)
+	sign.custom_minimum_size = Vector2(PHASE_W, PHASE_H)
 	sign.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	sign.size = sign.custom_minimum_size
-	sign.position = Vector2((GameState.canvas_size().x - 330.0) * 0.5,
-		phase_label.position.y)
+	# JUSTO ENCIMA DE LA CINTA de la tabla de elaboración, no arriba del todo:
+	# ahí es donde el jugador tiene los ojos mientras cocina, y arriba competía
+	# con el reloj y el marcador. Se apoya sobre la fila de cabezas de cliente.
+	sign.position = Vector2((GameState.canvas_size().x - PHASE_W) * 0.5,
+		GameState.canvas_size().y - 588.0 - HEAD_ICON - 12.0 - PHASE_H)
 	sign.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sign.visible = false
 	padre.add_child(sign)
@@ -1575,9 +1584,9 @@ func _setup_phase_sign() -> void:
 	phase_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	phase_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	phase_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	phase_label.add_theme_font_size_override("font_size", 26)
+	phase_label.add_theme_font_size_override("font_size", 36)
 	phase_label.add_theme_color_override("font_color", Color(1, 0.96, 0.84))
-	phase_label.add_theme_constant_override("outline_size", 8)
+	phase_label.add_theme_constant_override("outline_size", 9)
 	sign.add_child(phase_label)
 	phase_sign = sign
 	phase_home_x = sign.position.x
@@ -2951,8 +2960,11 @@ func _on_exit_pressed() -> void:
 	vb.add_child(titulo)
 
 	var msg := Label.new()
-	msg.text = "Aún estás preparando: no perderás nada." if prep_phase \
-		else "¡La partida está en marcha!\nLos usos de ingredientes gastados se perderán."
+	# El aviso dice EXPRESAMENTE qué pasa con el saco de arroz, que es lo caro:
+	# en preparación se devuelve entero, y en marcha ya está gastado.
+	msg.text = "Aún estás preparando: recuperarás los ingredientes y el saco de arroz." \
+		if prep_phase \
+		else "¡La partida está en marcha!\nPerderás los ingredientes gastados y el saco de arroz."
 	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	msg.add_theme_font_size_override("font_size", 22)
@@ -2985,13 +2997,16 @@ func _on_exit_pressed() -> void:
 
 func _confirm_exit() -> void:
 	# En la fase de preparacion la salida es gratis: se devuelve TODO lo que se
-	# descuento al empezar el nivel (usos de ingredientes y de potenciadores
-	# permanentes). Aun no se ha jugado nada, asi que no se pierde nada.
+	# descuento al empezar el nivel (usos de ingredientes, potenciadores
+	# permanentes Y EL SACO DE ARROZ). Aun no se ha jugado nada, asi que no se
+	# pierde nada; la fase dura 10 s, asi que el margen es justo ese. En cuanto
+	# entra el primer cliente, el saco ya esta gastado.
 	if prep_phase and GameState.is_adventure():
 		for ing in GameState.ingredients_for_selection(GameState.selected_recipes):
 			GameState.add_ingredient_uses(ing, 1)
 		for perk in GameState.selected_perks:
 			GameState.add_perk_uses(perk, 1)
+		GameState.add_rice(1)
 	# Se guarda aunque se abandone: el rato jugado hasta aquí cuenta igual.
 	GameState.save_game()
 	get_tree().paused = false

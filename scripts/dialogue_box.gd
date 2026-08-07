@@ -10,7 +10,13 @@ extends Control
 ##                "Gigi". Por eso sus moods son los `loro*`.
 ##   "saverio"  → el tendero, retrato a la DERECHA (para la escena de la tienda,
 ##                donde los dos están en pantalla a la vez).
+##   "pablo"    → el capitán del nivel 5, también a la DERECHA (comparte cuadro
+##                con David).
 ## El que NO habla se queda en pantalla apagado y un poco más abajo.
+##
+## Una línea puede llevar `side` ("left"/"right") para forzar el lado SOLO en
+## esa escena: Saverio y Pablo son los dos de la derecha y juntos se turnaban
+## el mismo hueco, así que en la tienda Pablo pasa a la izquierda.
 ##
 ## El texto se escribe letra a letra; un toque mientras escribe lo completa, y
 ## con la línea completa (flecha ▶ latiendo) el siguiente toque avanza. Al
@@ -58,6 +64,18 @@ const SPEAKERS := {
 	},
 }
 const DEFAULT_SPEAKER := "david"
+
+## GEOMETRÍA de la caja y los retratos, en offsets desde el borde INFERIOR.
+## Van en constantes porque el alto de la caja y el apoyo de los retratos tienen
+## que moverse juntos: subir solo la caja dejaba a los personajes flotando.
+const PANEL_TOP := -406.0
+const PANEL_BOTTOM := -12.0
+const PORTRAIT_TOP := -860.0
+const PORTRAIT_BOTTOM := -390.0
+## Cuerpo del texto y margen a cada lado. El margen tiene que dejar fuera los
+## rodillos dibujados del pergamino (~52 px) con holgura de sobra.
+const TEXT_SIZE := 30
+const TEXT_MARGIN := 112.0
 
 ## Velocidad de la máquina de escribir (caracteres por segundo).
 const CHARS_PER_SEC := 45.0
@@ -164,21 +182,21 @@ func _ready() -> void:
 		else:
 			p.offset_left = -386.0
 			p.offset_right = -6.0
-		p.offset_top = -804.0
-		p.offset_bottom = -334.0
+		p.offset_top = PORTRAIT_TOP
+		p.offset_bottom = PORTRAIT_BOTTOM
 		p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		p.visible = false
 		add_child(p)
 		_portraits[side] = p
-	_portrait_home_y = -804.0
+	_portrait_home_y = PORTRAIT_TOP
 
 	# La caja: pergamino a lo ancho de la parte inferior.
 	_panel = Control.new()
 	_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	_panel.offset_left = 10.0
 	_panel.offset_right = -10.0
-	_panel.offset_top = -350.0
-	_panel.offset_bottom = -12.0
+	_panel.offset_top = PANEL_TOP
+	_panel.offset_bottom = PANEL_BOTTOM
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_panel)
 	_panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
@@ -222,12 +240,12 @@ func _ready() -> void:
 	_text.bbcode_enabled = true
 	_text.scroll_active = false
 	_text.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_text.offset_left = 95.0
+	_text.offset_left = TEXT_MARGIN
 	_text.offset_top = 56.0
-	_text.offset_right = -95.0
+	_text.offset_right = -TEXT_MARGIN
 	_text.offset_bottom = -50.0
-	_text.add_theme_font_size_override("normal_font_size", 27)
-	_text.add_theme_font_size_override("bold_font_size", 27)
+	_text.add_theme_font_size_override("normal_font_size", TEXT_SIZE)
+	_text.add_theme_font_size_override("bold_font_size", TEXT_SIZE)
 	_text.add_theme_color_override("default_color", DARK)
 	_text.add_theme_constant_override("line_separation", 3)
 	# Maqueta el texto ENTERO y luego lo va destapando. Con el modo por
@@ -246,17 +264,29 @@ func _ready() -> void:
 	# dibujado y no se veía.
 	# ICONO DIBUJADO, no el carácter "▶": como glifo dependía de la fuente del
 	# sistema y en el móvil salía como un cuadro o no se veía.
+	#
+	# EL LATIDO VA DENTRO DE UN HUECO PROPIO, y con valores ABSOLUTOS. Antes el
+	# tween movía `position:x` con `as_relative()` sobre el nodo anclado: si se
+	# mataba a mitad de la ida (cada línea nueva lo rehace) la flecha se quedaba
+	# desplazada y el siguiente latido partía de ahí, así que iba escapándose
+	# hacia la derecha hasta salirse del pergamino. Es la misma lección que las
+	# transiciones del menú: nada de `as_relative()` en algo que se repite.
+	var hueco := Control.new()
+	hueco.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	hueco.offset_left = -TEXT_MARGIN - 56.0
+	hueco.offset_top = -110.0
+	hueco.offset_right = -TEXT_MARGIN
+	hueco.offset_bottom = -54.0
+	hueco.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hueco.clip_contents = false
+	_panel.add_child(hueco)
 	_next_hint = TextureRect.new()
 	_next_hint.texture = load("res://assets/ui/ic_siguiente.png")
 	_next_hint.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_next_hint.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_next_hint.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_next_hint.offset_left = -150.0
-	_next_hint.offset_top = -110.0
-	_next_hint.offset_right = -96.0
-	_next_hint.offset_bottom = -62.0
+	_next_hint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_next_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_panel.add_child(_next_hint)
+	hueco.add_child(_next_hint)
 
 
 ## Muestra una tanda de líneas. Cada línea puede ser un String o un Dictionary
@@ -328,13 +358,13 @@ func set_raised(on: bool, alto := RAISE) -> void:
 		_raise_tween.kill()
 	_raise_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE)
 	_raise_tween.tween_property(_panel, "offset_top", _panel_home_y + dy, 0.25)
-	_raise_tween.tween_property(_panel, "offset_bottom", -12.0 + dy, 0.25)
+	_raise_tween.tween_property(_panel, "offset_bottom", PANEL_BOTTOM + dy, 0.25)
 	for side in _portraits.keys():
 		var p: TextureRect = _portraits[side]
 		var sink: float = 0.0 if _is_speaking_side(side) else IDLE_SINK
 		_raise_tween.tween_property(p, "offset_top",
 				_portrait_home_y + dy + sink, 0.25)
-		_raise_tween.tween_property(p, "offset_bottom", -334.0 + dy + sink, 0.25)
+		_raise_tween.tween_property(p, "offset_bottom", PORTRAIT_BOTTOM + dy + sink, 0.25)
 
 
 ## Convierte los marcadores **palabra** del guion en negrita de color.
@@ -388,9 +418,20 @@ func _set_plate_side(side: String) -> void:
 
 
 ## Coloca al hablante en su lado, le pone la expresión y apaga al otro.
-func _set_speaker(who: String, mood: String) -> void:
+##
+## `lado` fuerza el lado SOLO para esta escena. Cada personaje tiene el suyo
+## fijo porque casi siempre comparte pantalla con David (izquierda), pero
+## Saverio y Pablo son los dos de la derecha: juntos se turnaban el mismo hueco
+## y la mitad izquierda quedaba vacía. Ahí Pablo se pasa a la izquierda.
+func _set_speaker(who: String, mood: String, lado := "") -> void:
 	var info: Dictionary = SPEAKERS.get(who, SPEAKERS[DEFAULT_SPEAKER])
-	var side: String = info["side"]
+	var side: String = lado if lado in ["left", "right"] else str(info["side"])
+	# Al cambiar de lado, el hueco de siempre se queda vacío (si no, el retrato
+	# se vería a la vez en los dos sitios).
+	var otro: String = "right" if side == "left" else "left"
+	if _stage.get(otro, "") == who:
+		_stage[otro] = ""
+		_portraits[otro].visible = false
 	_stage[side] = who
 	var path := "%s/%s_%s.png" % [info["dir"], info["file"], mood]
 	if not ResourceLoader.exists(path):
@@ -402,7 +443,10 @@ func _set_speaker(who: String, mood: String) -> void:
 	_name_label.text = str(info["name"])
 	# Cada hablante tiene su lado de tablón FIJO (`plate`): David a la derecha,
 	# Gigi a la izquierda. Así se distingue de un vistazo quién está hablando.
-	_set_plate_side(str(info.get("plate", "right")))
+	# Con el lado forzado, el tablón se va al CONTRARIO del retrato: encima del
+	# suyo le tapaba el pecho.
+	_set_plate_side(("right" if side == "left" else "left") if lado != ""
+			else str(info.get("plate", "right")))
 	# El que habla, a plena luz y arriba; el otro, apagado y algo hundido.
 	var dy := -_raise_amount if _raised else 0.0
 	for s in _portraits.keys():
@@ -414,7 +458,7 @@ func _set_speaker(who: String, mood: String) -> void:
 		q.scale = Vector2.ONE if hablando else Vector2(IDLE_SCALE, IDLE_SCALE)
 		var sink: float = 0.0 if hablando else IDLE_SINK
 		q.offset_top = _portrait_home_y + dy + sink
-		q.offset_bottom = -334.0 + dy + sink
+		q.offset_bottom = PORTRAIT_BOTTOM + dy + sink
 
 
 func _advance() -> void:
@@ -433,7 +477,9 @@ func _advance() -> void:
 		who = DEFAULT_SPEAKER
 	var mood: String = str(SPEAKERS[who]["mood"]) if line is String \
 			else str(line.get("mood", SPEAKERS[who]["mood"]))
-	_set_speaker(who, mood)
+	# `side` en la línea: lado forzado para esta escena (ver _set_speaker).
+	var lado: String = "" if line is String else str(line.get("side", ""))
+	_set_speaker(who, mood, lado)
 	_text.text = format_keywords(text)
 	# El contador va sobre el texto SIN los marcadores: es lo que se ve.
 	_total_chars = text.replace("**", "").length()
@@ -461,11 +507,12 @@ func _finish_typing() -> void:
 	_next_hint.visible = true
 	if _hint_tween != null:
 		_hint_tween.kill()
+	_next_hint.position.x = 0.0
 	_hint_tween = _next_hint.create_tween().set_loops()
-	_hint_tween.tween_property(_next_hint, "position:x", 7.0, 0.38) \
-			.as_relative().set_trans(Tween.TRANS_SINE)
-	_hint_tween.tween_property(_next_hint, "position:x", -7.0, 0.38) \
-			.as_relative().set_trans(Tween.TRANS_SINE)
+	_hint_tween.tween_property(_next_hint, "position:x", 8.0, 0.38) \
+			.set_trans(Tween.TRANS_SINE)
+	_hint_tween.tween_property(_next_hint, "position:x", 0.0, 0.38) \
+			.set_trans(Tween.TRANS_SINE)
 
 
 ## Mientras se habla, la caja se queda con TODO el puntero: toques, clics y

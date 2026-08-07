@@ -159,14 +159,17 @@ func _pablo_y_saverio() -> void:
 	await get_tree().process_frame
 	var caja := DialogueBox.new()
 	ui.add_child(caja)
+	# PABLO A LA IZQUIERDA solo aquí: su lado de siempre es la derecha porque
+	# comparte pantalla con David, pero Saverio también sale por la derecha y
+	# los dos se turnaban el mismo hueco con media pantalla vacía.
 	caja.say([
-		{ "text": "¡Saveriooo! Cuánto tiempo sin dejarme robar nada.", "who": "pablo", "mood": "riendo" },
+		{ "text": "¡Saveriooo! Cuánto tiempo sin dejarme robar nada.", "who": "pablo", "mood": "riendo", "side": "left" },
 		{ "text": "Pablo. Como te acerques a mis barriles te clavo el remo.", "who": "saverio", "mood": "serio" },
-		{ "text": "Tranquilo, hoy vengo de cliente. Este de aquí me abordó la flota entera y me dejó la tripulación llena hasta las cejas.", "who": "pablo", "mood": "guason" },
+		{ "text": "Tranquilo, hoy vengo de cliente. Este de aquí me abordó la flota entera y me dejó la tripulación llena hasta las cejas.", "who": "pablo", "mood": "guason", "side": "left" },
 		{ "text": "¿Este? ¿El de David? Vaya, vaya... entonces sí que sabe cocinar.", "who": "saverio", "mood": "feliz" },
-		{ "text": "Sabe. Y por eso vengo a avisarte: si le vendes barato, me lo llevo yo de cocinero.", "who": "pablo", "mood": "punal" },
+		{ "text": "Sabe. Y por eso vengo a avisarte: si le vendes barato, me lo llevo yo de cocinero.", "who": "pablo", "mood": "punal", "side": "left" },
 		{ "text": "Ni lo sueñes. Anda, toma tu té y déjame trabajar.", "who": "saverio", "mood": "riendo" },
-		{ "text": "Vendré a verte, cocinero. Y no traeré el puñal... casi seguro.", "who": "pablo", "mood": "riendo" },
+		{ "text": "Vendré a verte, cocinero. Y no traeré el puñal... casi seguro.", "who": "pablo", "mood": "riendo", "side": "left" },
 	])
 	await caja.finished
 	caja.queue_free()

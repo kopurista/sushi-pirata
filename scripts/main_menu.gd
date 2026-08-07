@@ -772,7 +772,8 @@ func _pack_card(pack: Dictionary, real: bool, overlay: Control,
 	precio.offset_bottom = -54.0 + PrepBoard.SMALL_H
 	precio.text = str(pack["precio"]) if real else "%d" % int(pack["coste"])
 	PrepBoard.skin_small_button(precio)
-	precio.add_theme_font_size_override("font_size", 22)
+	# Es el número que decide la compra: con 22 px se leía como una nota al pie.
+	precio.add_theme_font_size_override("font_size", 30)
 	precio.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(precio)
 	# En el arroz, el precio va en LINGOTES: se enseña la moneda al lado.

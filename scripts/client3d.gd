@@ -96,6 +96,12 @@ var guaranteed_next: bool = false
 ## Multiplicador extra del tiempo de comer. Solo lo toca el guion del tutorial,
 ## que necesita bocados largos para poder explicar cosas mientras el cliente come.
 var slow_eat: float = 1.0
+## Velocidad del bocado EN CURSO (1 = normal). `slow_eat` solo se aplica al
+## EMPEZAR un plato, así que no sirve para acortar el que ya está en marcha: en
+## el tutorial el nigiri se sirve larguísimo para poder explicar el té mientras
+## mastica, y en cuanto el grumete pica el té ese motivo desaparece pero le
+## quedaba casi un minuto de barra bajando. Se reinicia con cada plato.
+var bite_speed: float = 1.0
 ## Personaje CONCRETO en vez del que le tocaría por tipo (`CharacterData.MODELS`):
 ## lo usa Pablo el Rubio en el nivel 5, que come como un capitán pero tiene su
 ## propio modelo. "" = el del tipo de siempre.
@@ -339,7 +345,7 @@ func _process(delta: float) -> void:
 		State.EATING:
 			# Tras el fin del nivel el ultimo bocado va MUY deprisa: el jugador
 			# ya no puede hacer nada y solo espera a ver lo que le dejan.
-			var speed := END_BITE_SPEED if _leave_when_done else 1.0
+			var speed := END_BITE_SPEED if _leave_when_done else bite_speed
 			_eat_t += delta * speed
 			if _anim != null:
 				_anim.reset()
@@ -543,8 +549,9 @@ func _eat_snack(recipe_id: String, data: Dictionary) -> void:
 func _start_eating(plate_global: Vector3) -> void:
 	state = State.EATING
 	_eat_t = 0.0
-	# Plato nuevo: vuelve a tener derecho a un picoteo.
+	# Plato nuevo: vuelve a tener derecho a un picoteo y al ritmo normal.
 	snack_taken = false
+	bite_speed = 1.0
 	var recipe := RecipeData.get_recipe(current_id)
 	var range_s: Array = EAT_TIMES[client_type].get(current_satiety, EAT_TIMES[client_type][1])
 	# "eat_mult": algunos platos (p. ej. la sopa de miso) se comen mas despacio.
