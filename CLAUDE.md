@@ -1012,8 +1012,24 @@ que no hay problema.
   cajas**, no en la pantalla: el saco del arroz asoma por la izquierda de su
   caja y la cola de la cinta lo rozaba. El arroz
   (`GameState.rice`, `RICE_START` 20) es la energía del juego: 1 uso por nivel,
-  y se repondrá con dinero real más adelante; su barra es **la propia caja
-  rellenándose** de canto a canto, no una barrita metida dentro.
+  su barra es **la propia caja rellenándose** de canto a canto, no una barrita
+  metida dentro. **Se gasta 1 saco por jornada** (en
+  `consume_ingredients_for_level`) y se repone solo: **1 saco cada 90 min de
+  tiempo REAL**, tope 20. Lo que se guarda es `rice_next_ts`, la MARCA DE
+  TIEMPO del próximo saco —no un contador—, así que el reloj corre igual con el
+  juego cerrado; `tick_rice()` cobra de golpe todos los que hayan caído. Va
+  contra el reloj del aparato, así que adelantarlo regala arroz: asumido
+  mientras no haya cuentas en servidor.
+- **LINGOTES DE ORO** (`GameState.ingots`, empieza en 5): la moneda que se
+  comprará con dinero real. Con ellos se compran sacos (1 saco = 1 lingote,
+  5 = 3, 10 = 7, en `main_menu.PACKS_ARROZ`). Los paquetes de lingotes
+  (1/5/10 por 1 €, 4,50 € y 8 €) tienen su cartel montado pero **no cobran**:
+  la compra de verdad es de más adelante.
+- **Las tres cajas del menú (lingotes, monedas, arroz) van CENTRADAS arriba y
+  NO se mueven** al entrar en Aventura; el que baja es el rótulo del mapa. El
+  hueco entre cajas (`RES_GAP` 46) tiene que dar para DOS voladizos: el "+" que
+  asoma por la derecha de una y el icono que asoma por la izquierda de la
+  siguiente — con 12 px el "+" de los lingotes se montaba sobre la moneda.
 - **EL TECLADO EN LA BUILD WEB LO DECIDE UNA OPCIÓN DE EXPORTACIÓN, NO EL
   CÓDIGO**: `html/experimental_virtual_keyboard` en `export_presets.cfg`. Con
   ella en `false` (como venía), el runtime web evalúa

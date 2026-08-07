@@ -61,6 +61,9 @@ var medal_button: Control = null
 ## mapa: solo cambian de sitio (ver `_place_resources`).
 var money_box: Control = null
 var rice_box: Control = null
+var ingot_box: Control = null
+## Cuenta atrás del próximo saco, debajo de la caja del arroz.
+var rice_timer_label: Label = null
 var res_y := 0.0
 var res_tween: Tween = null
 ## true mientras se ve el menú (con el mapa fuera de pantalla).
@@ -456,9 +459,13 @@ func _setup_menu_ui() -> void:
 ## La caja del arroz es ESTRECHA a propósito: en el mapa tiene que dejar sitio
 ## para que el rótulo de "Aventura" quepa CENTRADO EN LA PANTALLA, y el límite
 ## lo pone ella (el saco asoma además por su izquierda).
-const RES_MONEY_W := 168.0
-const RES_RICE_W := 158.0
-const RES_GAP := 18.0
+const RES_INGOT_W := 132.0
+const RES_MONEY_W := 152.0
+const RES_RICE_W := 152.0
+## Hueco entre cajas. Tiene que dar para DOS voladizos: el "+" que asoma por la
+## derecha de una caja y el icono que asoma por la izquierda de la siguiente.
+## Con 12 px, el "+" de los lingotes se montaba sobre la moneda.
+const RES_GAP := 46.0
 ## Lo que sobresale el botón "+" por la derecha de la caja del arroz. Hay que
 ## contarlo o la caja se sale de la pantalla: el "+" mide 52 y va anclado a
 ## -30 del borde derecho, así que asoma 22.
@@ -467,72 +474,253 @@ const RES_PLUS_BLEED := 22.0
 
 func _setup_resource_bar(st: float) -> void:
 	res_y = ROUND_MARGIN + st
-	# Los dos contadores van SUELTOS (no dentro de un HBox) para poder moverlos
-	# uno a cada extremo al entrar en Aventura: son LOS MISMOS de siempre, no se
-	# cambian por otros, así que la transición se ve como un viaje y no como un
-	# corte. Antes el mapa dibujaba su propio monedero y el del menú se quedaba
-	# a medias.
+	# TRES contadores centrados arriba: lingotes, monedas y arroz. Se quedan
+	# QUIETOS al entrar en Aventura (antes viajaban a los extremos para dejar
+	# sitio al rótulo; ahora el rótulo es el que baja).
+	ingot_box = PrepBoard.make_resource_box(
+		"res://assets/ui/ic_lingote.png", str(GameState.ingots), RES_INGOT_W)
+	ui_layer.add_child(ingot_box)
+	_add_plus(ingot_box, _on_buy_ingots)
+
 	money_box = PrepBoard.make_resource_box(
 		"res://assets/ui/moneda.png", str(GameState.money), RES_MONEY_W)
 	ui_layer.add_child(money_box)
 
-	# El arroz SÍ tiene techo (RICE_START), así que además de la cifra lleva una
-	# barra blanca que se va gastando.
+	# El arroz SÍ tiene techo, así que además de la cifra lleva su barra.
 	rice_box = PrepBoard.make_resource_box(
 		"res://assets/ui/ic_arroz.png", str(GameState.rice), RES_RICE_W,
 		clampf(float(GameState.rice) / float(GameState.RICE_START), 0.0, 1.0))
 	ui_layer.add_child(rice_box)
-	# El "+" cabalga sobre el borde derecho de la caja del arroz.
+	_add_plus(rice_box, _on_buy_rice)
+
+	# Cuenta atrás del próximo saco, colgando de la caja del arroz.
+	rice_timer_label = Label.new()
+	rice_timer_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	rice_timer_label.offset_top = 2.0
+	rice_timer_label.offset_bottom = 32.0
+	rice_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rice_timer_label.add_theme_font_size_override("font_size", 19)
+	rice_timer_label.add_theme_color_override("font_color", Color(1, 0.94, 0.78))
+	rice_timer_label.add_theme_color_override("font_outline_color", Color(0.14, 0.06, 0.02))
+	rice_timer_label.add_theme_constant_override("outline_size", 6)
+	rice_timer_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rice_box.add_child(rice_timer_label)
+	_refresh_resources()
+	_place_resources(false, false)
+
+
+## El botón "+" que cabalga sobre el borde derecho de una caja.
+func _add_plus(caja: Control, accion: Callable) -> void:
 	var mas := TextureButton.new()
 	mas.texture_normal = load("res://assets/ui/boton_mas.png")
 	mas.ignore_texture_size = true
 	mas.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	mas.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
-	mas.custom_minimum_size = Vector2(52, 52)
-	mas.size = Vector2(52, 52)
-	mas.position = Vector2(-30.0, -26.0)
+	mas.custom_minimum_size = Vector2(48, 48)
+	mas.size = Vector2(48, 48)
+	mas.position = Vector2(-28.0, -24.0)
 	PrepBoard.add_press_feedback(mas)
-	mas.pressed.connect(_on_buy_rice)
-	rice_box.add_child(mas)
-	_place_resources(false, false)
+	mas.pressed.connect(accion)
+	caja.add_child(mas)
+
+
+## Repinta las tres cifras, la barra del arroz y su cuenta atrás.
+func _refresh_resources() -> void:
+	if money_box == null:
+		return
+	GameState.tick_rice()
+	(ingot_box.get_node("Valor") as Label).text = str(GameState.ingots)
+	(money_box.get_node("Valor") as Label).text = str(GameState.money)
+	(rice_box.get_node("Valor") as Label).text = str(GameState.rice)
+	var barra := rice_box.get_node_or_null("Barra")
+	if barra != null:
+		(barra as ProgressBar).value = clampf(
+			float(GameState.rice) / float(GameState.RICE_START), 0.0, 1.0)
+	if rice_timer_label != null:
+		var t := GameState.rice_time_text()
+		rice_timer_label.text = "" if t == "" else "+1 en %s" % t
 
 
 ## Dónde va cada contador. En el MENÚ los dos juntos y centrados; en el MAPA,
 ## el dinero pegado a la izquierda y el arroz a la derecha, dejando el hueco
 ## del medio para el rótulo de "Aventura".
-func _resource_spots(en_mapa: bool) -> Array:
+## Las tres cajas van CENTRADAS arriba, y en el mismo sitio tanto en el menú
+## como en el mapa: ya no viajan a los extremos (el rótulo de "Aventura" es el
+## que baja para no colarse). `en_mapa` se conserva por si hiciera falta
+## diferenciarlas más adelante.
+func _resource_spots(_en_mapa: bool) -> Array:
 	var w := GameState.canvas_size().x
-	if en_mapa:
-		return [Vector2(ROUND_MARGIN, res_y),
-			Vector2(w - RES_RICE_W - ROUND_MARGIN - RES_PLUS_BLEED, res_y)]
-	# Centrado contando el "+", que asoma por la derecha: sin él, el conjunto se
-	# veía desplazado hacia la izquierda.
-	var total := RES_MONEY_W + RES_GAP + RES_RICE_W + RES_PLUS_BLEED
+	var total := RES_INGOT_W + RES_MONEY_W + RES_RICE_W + RES_GAP * 2.0 			+ RES_PLUS_BLEED
 	var x0 := (w - total) * 0.5
-	return [Vector2(x0, res_y), Vector2(x0 + RES_MONEY_W + RES_GAP, res_y)]
+	return [Vector2(x0, res_y),
+		Vector2(x0 + RES_INGOT_W + RES_GAP, res_y),
+		Vector2(x0 + RES_INGOT_W + RES_MONEY_W + RES_GAP * 2.0, res_y)]
 
 
 func _place_resources(en_mapa: bool, animate: bool) -> void:
 	if money_box == null:
 		return
 	var spots := _resource_spots(en_mapa)
+	var cajas := [ingot_box, money_box, rice_box]
 	if not animate:
-		money_box.position = spots[0]
-		rice_box.position = spots[1]
+		for i in cajas.size():
+			cajas[i].position = spots[i]
 		return
 	if res_tween != null and res_tween.is_valid():
 		res_tween.kill()
 	res_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_QUAD) 			.set_ease(Tween.EASE_IN_OUT)
-	res_tween.tween_property(money_box, "position", spots[0], 0.75)
-	res_tween.tween_property(rice_box, "position", spots[1], 0.75)
+	for i in cajas.size():
+		res_tween.tween_property(cajas[i], "position", spots[i], 0.75)
 
 
-## Comprar arroz: la tienda de verdad (dinero real) es cosa de más adelante.
+## PAQUETES de lingotes (dinero real) y de arroz (a cambio de lingotes).
+## `n` es lo que se lleva, `precio` el rótulo y `coste` lo que cuesta en
+## lingotes (0 = se paga con dinero real, todavía sin implementar).
+const PACKS_LINGOTES := [
+	{ "n": 1, "icon": "ic_lingote", "precio": "1,00 €" },
+	{ "n": 5, "icon": "pack_lingote_5", "precio": "4,50 €" },
+	{ "n": 10, "icon": "pack_lingote_10", "precio": "8,00 €" },
+]
+const PACKS_ARROZ := [
+	{ "n": 1, "icon": "ic_arroz", "coste": 1 },
+	{ "n": 5, "icon": "pack_arroz_5", "coste": 3 },
+	{ "n": 10, "icon": "pack_arroz_10", "coste": 7 },
+]
+
+
+func _on_buy_ingots() -> void:
+	_open_pack_panel("Lingotes de oro", PACKS_LINGOTES, true)
+
+
 func _on_buy_rice() -> void:
+	_open_pack_panel("Sacos de arroz", PACKS_ARROZ, false)
+
+
+## Cartel de compra con TRES paquetes en fila. Es el mismo pergamino y la misma
+## cinta que el resto de carteles del juego; lo que cambia son las tres cartas.
+func _open_pack_panel(titulo: String, packs: Array, real: bool) -> void:
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.55)
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 160
+	ui_layer.add_child(overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(center)
+	var box := Control.new()
+	box.custom_minimum_size = Vector2(640, 470)
+	center.add_child(box)
+	box.add_child(PrepBoard.make_nine_patch(
+		PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
+	PrepBoard.add_panel_banner(box, titulo, 30)
+
+	var fila := HBoxContainer.new()
+	fila.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fila.offset_left = 46.0
+	fila.offset_top = 74.0
+	fila.offset_right = -46.0
+	fila.offset_bottom = -104.0
+	fila.add_theme_constant_override("separation", 10)
+	fila.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(fila)
+	for pack in packs:
+		fila.add_child(_pack_card(pack, real, overlay))
+
+	var cerrar := Button.new()
+	cerrar.text = "Cerrar"
+	cerrar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	cerrar.offset_left = 210.0
+	cerrar.offset_right = -210.0
+	cerrar.offset_top = -78.0
+	cerrar.offset_bottom = -78.0 + PrepBoard.SMALL_H
+	PrepBoard.skin_small_button(cerrar)
+	cerrar.add_theme_font_size_override("font_size", 24)
+	cerrar.pressed.connect(func() -> void: overlay.queue_free())
+	box.add_child(cerrar)
+
+
+## Una carta: pergamino liso, el montón, cuánto llevas y lo que cuesta.
+func _pack_card(pack: Dictionary, real: bool, overlay: Control) -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(168, 268)
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	b.add_child(PrepBoard.make_nine_patch(
+		PrepBoard.CARD_TEX, PrepBoard.CARD_MARGIN))
+	PrepBoard.add_press_feedback(b, 0.96)
+
+	var ic := TextureRect.new()
+	ic.texture = load("res://assets/ui/%s.png" % pack["icon"])
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ic.offset_left = 12.0
+	ic.offset_top = 10.0
+	ic.offset_right = -12.0
+	ic.offset_bottom = -104.0
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(ic)
+
+	var cuanto := Label.new()
+	cuanto.text = "x%d" % int(pack["n"])
+	cuanto.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	cuanto.offset_top = -100.0
+	cuanto.offset_bottom = -58.0
+	cuanto.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cuanto.add_theme_font_size_override("font_size", 32)
+	cuanto.add_theme_color_override("font_color", DARK)
+	cuanto.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(cuanto)
+
+	# El precio va en su propio botoncito, para que se lea como "esto se pulsa".
+	var precio := Button.new()
+	precio.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	precio.offset_left = 12.0
+	precio.offset_right = -12.0
+	precio.offset_top = -54.0
+	precio.offset_bottom = -54.0 + PrepBoard.SMALL_H
+	precio.text = str(pack["precio"]) if real else "%d" % int(pack["coste"])
+	PrepBoard.skin_small_button(precio)
+	precio.add_theme_font_size_override("font_size", 22)
+	precio.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(precio)
+	# En el arroz, el precio va en LINGOTES: se enseña la moneda al lado.
+	if not real:
+		var mon := TextureRect.new()
+		mon.texture = load("res://assets/ui/ic_lingote.png")
+		mon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		mon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		mon.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+		mon.size = Vector2(34, 34)
+		mon.position = Vector2(26.0, -17.0)
+		mon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		precio.add_child(mon)
+		precio.alignment = HORIZONTAL_ALIGNMENT_RIGHT
+
+	b.pressed.connect(func() -> void: _comprar(pack, real, overlay))
+	return b
+
+
+func _comprar(pack: Dictionary, real: bool, overlay: Control) -> void:
+	if real:
+		# La compra con dinero real todavía no existe: el cartel está montado
+		# para poder verlo, pero no cobra nada.
+		_aviso("Las tiendas de verdad todavía no están abiertas, %s. "
+			+ "Pronto podrás traer lingotes de tierra firme.")
+		return
+	if GameState.buy_rice(int(pack["n"]), int(pack["coste"])):
+		_refresh_resources()
+		overlay.queue_free()
+	else:
+		_aviso("No te llegan los **lingotes**, %s. Ese saco cuesta más de lo "
+			+ "que llevas encima.")
+
+
+func _aviso(texto: String) -> void:
 	var caja := DialogueBox.new()
 	ui_layer.add_child(caja)
-	caja.say([{ "text": "Ya casi no queda **arroz** en la bodega... "
-		+ "pronto podrás encargar más en el puerto.", "mood": "hablando" }])
+	caja.say([{ "text": texto % GameState.player_title(), "mood": "hablando" }])
 	await caja.finished
 	caja.queue_free()
 
@@ -686,7 +874,7 @@ func _ui_out(con_recursos := true) -> void:
 	ui_tween.tween_property(medal_button, "position:y", home_medal_y + 260.0, OUT_TIME)
 	ui_tween.tween_property(gear_button, "position:y", home_gear_y + 260.0, OUT_TIME)
 	if con_recursos:
-		for caja in [money_box, rice_box]:
+		for caja in [ingot_box, money_box, rice_box]:
 			if caja != null:
 				ui_tween.tween_property(caja, "position:y", res_y - 220.0, OUT_TIME)
 
@@ -1027,7 +1215,7 @@ func _ui_in(con_recursos := true) -> void:
 	medal_button.position.y = home_medal_y + 260.0
 	gear_button.position.y = home_gear_y + 260.0
 	if con_recursos:
-		for caja in [money_box, rice_box]:
+		for caja in [ingot_box, money_box, rice_box]:
 			if caja != null:
 				caja.position.y = res_y - 220.0
 	ui_tween = create_tween().set_parallel(true)
@@ -1038,7 +1226,7 @@ func _ui_in(con_recursos := true) -> void:
 	ui_tween.tween_property(logo_holder, "position:y", home_logo_y, 0.6) 			.set_delay(0.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	ui_tween.tween_property(button_box, "position:y", home_box_y, 0.6) 			.set_delay(0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	if con_recursos:
-		for caja in [money_box, rice_box]:
+		for caja in [ingot_box, money_box, rice_box]:
 			if caja != null:
 				ui_tween.tween_property(caja, "position:y", res_y, 0.55) 						.set_delay(0.15).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	get_tree().create_timer(1.0).timeout.connect(_start_logo_idle)

@@ -34,6 +34,10 @@ var money: int = 0
 ## ARROZ: cada nivel jugado gasta 1. Es la "energía" del juego (se repondrá
 ## con dinero real más adelante); la partida nueva empieza con RICE_START.
 var rice: int = RICE_START
+## Momento (Unix) en que cae el próximo saco. 0 = el saco está lleno y no
+## corre ningún reloj.
+var rice_next_ts: int = 0
+var ingots: int = INGOTS_START
 ## Género elegido por el jugador ("m"/"f"/"x"). Decide qué chef sale y, por
 ## contraste, qué ayudante: el ayudante es del género contrario (con el jugador
 ## neutro le toca uno al azar). Se elige en Opciones, pestaña Perfil.
@@ -340,6 +344,68 @@ func ingredients_for_selection(recipe_ids: Array) -> Array[String]:
 
 ## Consume 1 uso de cada ingrediente distinto de la selección (al EMPEZAR un
 ## nivel de aventura). Devuelve false sin consumir nada si falta alguno.
+## Cobra los sacos que hayan caído desde la última vez. Se llama al cargar y
+## cada vez que alguien mira el contador, así que el tiempo cuenta igual con el
+## juego cerrado: lo que se guarda es CUÁNDO cae el siguiente, no cuánto falta.
+##
+## Ojo: va contra el reloj del aparato, así que adelantarlo regala arroz. Para
+## un juego de un solo jugador es un cambio aceptable; si algún día hay cuentas
+## en servidor, la hora tendrá que venir de ahí.
+func tick_rice() -> void:
+	if rice >= RICE_START:
+		rice_next_ts = 0
+		return
+	var ahora := int(Time.get_unix_time_from_system())
+	if rice_next_ts <= 0:
+		rice_next_ts = ahora + RICE_PERIOD
+		return
+	# El reloj pudo haber estado parado días: se cobran TODOS los sacos.
+	while rice < RICE_START and ahora >= rice_next_ts:
+		rice += 1
+		rice_next_ts += RICE_PERIOD
+	if rice >= RICE_START:
+		rice_next_ts = 0
+
+
+## Segundos que faltan para el próximo saco (0 = el saco está lleno).
+func rice_seconds_left() -> int:
+	tick_rice()
+	if rice >= RICE_START or rice_next_ts <= 0:
+		return 0
+	return maxi(rice_next_ts - int(Time.get_unix_time_from_system()), 0)
+
+
+## "1 h 28 min" / "12 min" / "" si está lleno.
+func rice_time_text() -> String:
+	var s := rice_seconds_left()
+	if s <= 0:
+		return ""
+	var h := s / 3600
+	var m := (s % 3600) / 60
+	if h > 0:
+		return "%d h %02d min" % [h, m]
+	return "%d min" % maxi(m, 1)
+
+
+## Suma sacos sin pasarse del tope y pone en marcha el reloj si hacía falta.
+func add_rice(n: int) -> void:
+	rice = mini(rice + n, RICE_START)
+	if rice < RICE_START and rice_next_ts <= 0:
+		rice_next_ts = int(Time.get_unix_time_from_system()) + RICE_PERIOD
+	elif rice >= RICE_START:
+		rice_next_ts = 0
+	save_game()
+
+
+## Sacos de arroz a cambio de LINGOTES. Devuelve false si no llegan.
+func buy_rice(sacos: int, coste: int) -> bool:
+	if ingots < coste:
+		return false
+	ingots -= coste
+	add_rice(sacos)
+	return true
+
+
 func consume_ingredients_for_level(recipe_ids: Array) -> bool:
 	var needed := ingredients_for_selection(recipe_ids)
 	for ing in needed:
@@ -347,6 +413,12 @@ func consume_ingredients_for_level(recipe_ids: Array) -> bool:
 			return false
 	for ing in needed:
 		ingredients[ing] = get_ingredient_uses(ing) - 1
+	# UN SACO POR JORNADA. Aquí es donde el arroz se gasta de verdad; sin esto
+	# el contador de los 90 min no bajaría nunca del tope y no se vería.
+	if rice > 0:
+		rice -= 1
+		if rice_next_ts <= 0:
+			rice_next_ts = int(Time.get_unix_time_from_system()) + RICE_PERIOD
 	save_game()
 	return true
 
@@ -692,8 +764,15 @@ func apply_graphics() -> void:
 
 # --- Guardado / carga ------------------------------------------------------
 
-## Arroz de una partida nueva.
+## Arroz de una partida nueva Y TOPE del saco: no se acumula más de esto.
 const RICE_START := 20
+## Cada cuánto (en segundos de tiempo REAL) cae un saco de arroz: 1 h 30 min.
+## Se guarda la MARCA DE TIEMPO del próximo saco, no un contador, para que
+## siga corriendo con el juego cerrado.
+const RICE_PERIOD := 5400
+## LINGOTES DE ORO: la moneda que se comprará con dinero real. Con ellos se
+## compran sacos de arroz.
+const INGOTS_START := 5
 
 
 func save_game() -> void:
@@ -704,6 +783,8 @@ func save_game() -> void:
 		"play_seconds": play_seconds,
 		"money": money,
 		"rice": rice,
+		"rice_next_ts": rice_next_ts,
+		"ingots": ingots,
 		"unlocked_recipes": unlocked_recipes,
 		"unlocked_powerups": unlocked_powerups,
 		"level_stars": level_stars,
@@ -742,6 +823,10 @@ func load_game() -> void:
 	money = int(parsed.get("money", 0))
 	# Los guardados anteriores al arroz arrancan con el saco lleno.
 	rice = int(parsed.get("rice", RICE_START))
+	rice_next_ts = int(parsed.get("rice_next_ts", 0))
+	ingots = int(parsed.get("ingots", INGOTS_START))
+	# Los sacos que hayan caído con el juego CERRADO se cobran al cargar.
+	tick_rice()
 	unlocked_recipes = _to_string_array(parsed.get("unlocked_recipes", []))
 	unlocked_powerups = _to_string_array(parsed.get("unlocked_powerups", []))
 	level_stars = {}
@@ -825,6 +910,8 @@ func _new_game() -> void:
 	# Un pequeño botín de bienvenida para las primeras compras en la tienda.
 	money = 50
 	rice = RICE_START
+	rice_next_ts = 0
+	ingots = INGOTS_START
 	unlocked_recipes = []
 	unlocked_powerups = []
 	level_stars = {}

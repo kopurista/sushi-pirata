@@ -340,6 +340,59 @@ def build_bar(name: str = "barra", h: int = BAR_H) -> None:
     save(fill.resize((w // BAR_SS, alto), Image.LANCZOS), name + "_relleno")
 
 
+# ------------------------------------------------- montones de los paquetes
+
+def _pile(base: Image.Image, spots) -> Image.Image:
+    """Apila copias del MISMO dibujo para formar un montón.
+
+    Los paquetes de la tienda de lingotes y de arroz se componen aquí en vez de
+    generarse: usando el mismo dibujo, el montón de 5 y el de 10 son
+    inequívocamente "más de lo mismo" que la pieza suelta, que es justo lo que
+    tiene que leerse. `spots` va en fracciones del lado de la pieza:
+    (dx, dy, escala), y se pinta de ATRÁS HACIA DELANTE (el de más abajo,
+    el último) para que el solape se vea bien.
+    """
+    w, h = base.size
+    xs = [x for x, _, e in spots]
+    ys = [y for _, y, e in spots]
+    es = [e for _, _, e in spots]
+    ancho = int((max(xs) - min(xs) + max(es)) * w) + 8
+    alto = int((max(ys) - min(ys) + max(es)) * h) + 8
+    lienzo = Image.new("RGBA", (ancho, alto), (0, 0, 0, 0))
+    for dx, dy, esc in sorted(spots, key=lambda t: t[1]):
+        pieza = base.resize((max(1, int(w * esc)), max(1, int(h * esc))),
+                            Image.LANCZOS)
+        px = int((dx - min(xs)) * w) + 4
+        py = int((dy - min(ys)) * h) + 4
+        lienzo.alpha_composite(pieza, (px, py))
+    return lienzo
+
+
+def build_packs() -> None:
+    ling = crop_alpha(keep_largest(drop_white(load("ling_1"))), 2)
+    save(fit_width(ling, 128), "ic_lingote")
+    # 3 apilados (es el paquete de 5: el dibujo dice "unos cuantos", no cuenta).
+    save(fit_width(_pile(ling, [
+        (0.0, 0.62, 1.0), (0.12, 0.32, 1.0), (0.05, 0.0, 1.0)]), 140),
+        "pack_lingote_5")
+    # Un montón: pirámide de 4+3+2 y uno suelto delante.
+    diez = [(i * 0.30, 1.35, 0.72) for i in range(4)]
+    diez += [(0.15 + i * 0.30, 1.02, 0.72) for i in range(3)]
+    diez += [(0.30 + i * 0.30, 0.69, 0.72) for i in range(2)]
+    diez += [(0.52, 0.36, 0.72)]
+    save(fit_width(_pile(ling, diez), 160), "pack_lingote_10")
+
+    saco = Image.open(OUT / "ic_arroz.png").convert("RGBA")
+    save(fit_width(_pile(saco, [
+        (0.0, 0.55, 0.78), (0.44, 0.55, 0.78), (0.88, 0.55, 0.78),
+        (0.22, 0.0, 0.78), (0.66, 0.0, 0.78)]), 150), "pack_arroz_5")
+    diez_s = [(i * 0.42, 1.10, 0.62) for i in range(4)]
+    diez_s += [(0.21 + i * 0.42, 0.55, 0.62) for i in range(3)]
+    diez_s += [(0.42 + i * 0.42, 0.0, 0.62) for i in range(2)]
+    diez_s += [(0.84, -0.55, 0.62)]
+    save(fit_width(_pile(saco, diez_s), 168), "pack_arroz_10")
+
+
 if __name__ == "__main__":
     build_panel()
     build_button()
@@ -359,3 +412,4 @@ if __name__ == "__main__":
     build_zarpar()
     build_nameplate()
     build_board()
+    build_packs()
