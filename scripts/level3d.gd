@@ -23,11 +23,15 @@ const PLATE3D := preload("res://scripts/plate3d.gd")
 const GAME_FPS := 60
 
 const TOTAL_CLIENTS := 10
-## Duracion de una partida (2 min 30 s). El reloj no corre durante la fase de
-## preparacion inicial.
+## Duracion de una partida en los niveles CON reloj (modo prueba y abordajes;
+## la campaña manda el suyo). El reloj no corre durante la fase de preparacion.
 const TIME_LIMIT := 150.0
+## Ventana por defecto sobre la que se reparten las llegadas (ver arrival_span).
+const ARRIVAL_SPAN := 150.0
 ## Margen antes del final en el que ya no llega ningun cliente.
 const ARRIVAL_TAIL := 22.0
+## Momento de la primera llegada, en segundos desde que arranca el turno.
+const FIRST_ARRIVAL := 5.0
 ## Tope de espera del cartel de fin mientras alguien termina su ultimo bocado
 ## (un plato de nivel 3 puede llevar 17 s): red de seguridad, no debe hacer falta.
 const END_BITE_MAX := 25.0
@@ -122,6 +126,18 @@ var clock_hold := false
 
 var total_clients := TOTAL_CLIENTS
 var time_limit := TIME_LIMIT
+## ¿Este turno va CONTRA RELOJ? Solo los abordajes (y el modo prueba). En las
+## islas y los puertos manda la clientela: no hay cuenta atrás y el HUD ni
+## siquiera enseña el reloj (ver CampaignData.is_timed).
+var timed := true
+## Clientela SIN TOPE: en los abordajes sigue entrando gente mientras quede
+## reloj, así que el nivel no puede terminar por haberse ido el último.
+var unlimited := false
+## Ventana sobre la que se reparten las llegadas. NO es la duración del nivel:
+## marca el RITMO al que entra la clientela, también donde no hay reloj.
+var arrival_span := ARRIVAL_SPAN
+## Segundos entre llegada y llegada (se deduce de arrival_span y la clientela).
+var arrival_step := 12.0
 var star_money: Array = DEFAULT_STAR_MONEY
 var client_weights: Dictionary = {}
 var type_queue: Array[String] = []
@@ -229,6 +245,9 @@ var _t := 0.0
 @onready var money_label: Label = $HUD/TopRow/MoneyBox/MoneyRow/MoneyLabel
 @onready var clients_label: Label = $HUD/TopRow/ClientsBox/ClientsLabel
 @onready var jar_label: Label = $HUD/TopRow/MoneyBox/JarRow/JarLabel
+## Relleno que ocupa el hueco del reloj en los niveles que no lo llevan, para
+## que el oro siga cayendo en el centro de la pantalla (ver _apply_hud_layout).
+var time_gap: Control = null
 @onready var phase_label: Label = $HUD/PhaseLabel
 @onready var prep_board: Control = $HUD/PrepBoard
 @onready var manual_box: HBoxContainer = $HUD/ManualPowerups
@@ -315,13 +334,24 @@ func _ready() -> void:
 	var arrival_scale := 1.0
 	if GameState.is_adventure():
 		var port := CampaignData.get_port(GameState.current_port)
-		time_limit = float(port.get("time_limit", TIME_LIMIT))
+		# El reloj es cosa del TIPO de nivel, no del puerto: solo los abordajes
+		# lo llevan, y todos con la misma duración. Lo que sí trae cada puerto es
+		# la ventana de llegadas, que es otra cosa (el ritmo de la clientela).
+		timed = CampaignData.is_timed(GameState.current_port)
+		unlimited = CampaignData.unlimited_clients(GameState.current_port)
+		time_limit = CampaignData.time_limit_for(GameState.current_port)
+		arrival_span = float(port.get("arrival_span", ARRIVAL_SPAN))
 		patience_mult = float(port.get("patience_mult", 1.0))
 		arrival_scale = float(port.get("arrival_scale", 1.0))
 		star_money = port.get("star_money", DEFAULT_STAR_MONEY)
 		client_weights = port.get("client_weights", {})
 		# "client_mix" define el recuento EXACTO de cada tipo: cola barajada.
+		# En un ABORDAJE esa cola es solo la primera tanda —no hay cupo— y, en
+		# cuanto se agota, las llegadas siguen sorteándose con esas mismas
+		# proporciones (si el puerto no trae pesos propios).
 		var mix: Dictionary = port.get("client_mix", {})
+		if unlimited and client_weights.is_empty():
+			client_weights = mix
 		if mix.is_empty():
 			total_clients = int(port.get("total_clients", TOTAL_CLIENTS))
 		else:
@@ -364,7 +394,11 @@ func _ready() -> void:
 		# El guion solo la PRIMERA vez: repetir un nivel ya superado se juega
 		# sin interrupciones.
 		var ya_superado: bool = int(GameState.level_stars.get(GameState.current_port, 0)) 				>= int(port.get("goal_stars", 1))
-		if str(port.get("director", "")) != "" and not ya_superado:
+		# Y tampoco si ya se vio en un intento anterior: quedarse corto de
+		# estrellas obligaba a tragarse el guion entero otra vez al repetir.
+		var ya_narrado: bool = ya_superado \
+			or GameState.port_narrated(GameState.current_port)
+		if str(port.get("director", "")) != "" and not ya_narrado:
 			var guia := preload("res://scripts/level_director.gd").new()
 			guia.name = "LevelDirector"
 			add_child.call_deferred(guia)
@@ -390,7 +424,10 @@ func _ready() -> void:
 		# Objetivo de muestra: se enseña en el marcador, pero el tutorial no
 		# termina por dinero (lo cierra su guion).
 		star_money = [10]
-		time_limit = 600.0
+		# El tutorial no lleva reloj: ni cuenta atrás ni contador en el HUD.
+		# Termina cuando lo dice su guion, y punto.
+		timed = false
+		time_limit = 0.0
 		total_clients = 1
 		prep_phase = false
 		_show_phase(false)
@@ -398,15 +435,32 @@ func _ready() -> void:
 		var director := preload("res://scripts/tutorial_director.gd").new()
 		director.name = "TutorialDirector"
 		add_child(director)
+		_apply_hud_layout()
+		_mark_star_steps()
 		_update_hud()
 		return
-	# Llegadas escalonadas con azar (ver level.gd 2D para la explicacion).
-	var last := (time_limit - ARRIVAL_TAIL) * arrival_scale
-	var step := (last - 5.0) / float(total_clients - 1)
-	for i in total_clients:
-		var center := 5.0 + i * step
-		arrival_queue.append(clampf(center + randf_range(-6.0, 6.0) * arrival_scale, 2.0, last))
+	# Llegadas escalonadas con azar (ver level.gd 2D para la explicacion). El
+	# paso sale de repartir la clientela del puerto por su ventana de llegadas:
+	# eso es lo que da el RITMO, y se respeta haya reloj o no.
+	var last := (arrival_span - ARRIVAL_TAIL) * arrival_scale
+	arrival_step = maxf((last - FIRST_ARRIVAL) / float(maxi(total_clients - 1, 1)), 1.5)
+	if unlimited:
+		# Abordaje: no hay cupo de clientes. Se sigue llamando a gente con ese
+		# mismo paso mientras quede reloj para que les dé tiempo a comer algo
+		# (nadie entra en los ultimos ARRIVAL_TAIL segundos). Si la barra esta
+		# llena las llegadas se acumulan y entran segun se libere un taburete.
+		var tope := time_limit - ARRIVAL_TAIL
+		var t := FIRST_ARRIVAL
+		while t <= tope:
+			arrival_queue.append(clampf(t + randf_range(-3.0, 3.0) * arrival_scale, 2.0, tope))
+			t += arrival_step
+	else:
+		for i in total_clients:
+			var center := FIRST_ARRIVAL + i * arrival_step
+			arrival_queue.append(clampf(center + randf_range(-6.0, 6.0) * arrival_scale, 2.0, last))
 	arrival_queue.sort()
+	_apply_hud_layout()
+	_mark_star_steps()
 	_update_hud()
 	# El nivel NO arranca solo: primero el cartel de "¿Comenzamos?". La bandera
 	# se pone AQUÍ y no dentro: entre el _ready y la llamada diferida corrían
@@ -1344,7 +1398,11 @@ func _restyle_results_panel() -> void:
 	# cuerpo tenía que bajar tanto que dejaba de leerse como un titular.
 	var titular := PrepBoard.make_big_title("Jornada
 Acabada", 52)
-	titular.custom_minimum_size = Vector2(0, 116)
+	# Interlineado AÚN MÁS corto que el de `make_big_title`, y solo aquí: es el
+	# único titular de dos líneas del juego, y con el general las dos palabras
+	# seguían leyéndose como dos carteles sueltos.
+	titular.add_theme_constant_override("line_spacing", -int(52 * 0.54))
+	titular.custom_minimum_size = Vector2(0, 106)
 	vb.add_child(titular)
 	vb.move_child(titular, 0)
 	# La cifra del total va GRANDE y con su moneda al lado. `earn_label` sale
@@ -1386,10 +1444,12 @@ Acabada", 52)
 	detail_panel = Control.new()
 	detail_panel.name = "DetailPanel"
 	detail_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	detail_panel.offset_left = 26.0
-	detail_panel.offset_top = 150.0
-	detail_panel.offset_right = -26.0
-	detail_panel.offset_bottom = -150.0
+	# Algo más recogido que la pantalla entera: es una hoja que se consulta, no
+	# otra pantalla, y a sangre de los bordes no se leía como algo que se cierra.
+	detail_panel.offset_left = 52.0
+	detail_panel.offset_top = 228.0
+	detail_panel.offset_right = -52.0
+	detail_panel.offset_bottom = -228.0
 	detail_panel.visible = false
 	detail_panel.z_index = 130
 	# `_show_results` PAUSA el árbol, así que sin esto la hoja del desglose no
@@ -1400,21 +1460,24 @@ Acabada", 52)
 		PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 	PrepBoard.add_panel_banner(detail_panel, "El turno, al detalle", 28, 0.0)
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
-	scroll.offset_left = 46.0
-	scroll.offset_top = 78.0
-	scroll.offset_right = -46.0
-	scroll.offset_bottom = -96.0
+	scroll.offset_left = 44.0
+	scroll.offset_top = 76.0
+	scroll.offset_right = -44.0
+	scroll.offset_bottom = -84.0
 	detail_panel.add_child(scroll)
 	TouchScroll.attach(scroll)
+	# El botón se sube del canto y se ensancha lo justo para su texto: pegado
+	# abajo parecía caído fuera del pergamino, y con 200 px de margen a cada
+	# lado la palabra "Cerrar" nadaba dentro de un tablón enorme.
 	var cerrar := Button.new()
 	cerrar.text = "Cerrar"
 	cerrar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	cerrar.offset_left = 200.0
-	cerrar.offset_right = -200.0
-	cerrar.offset_top = -78.0
-	cerrar.offset_bottom = -78.0 + PrepBoard.SMALL_H
+	cerrar.offset_left = 148.0
+	cerrar.offset_right = -148.0
+	cerrar.offset_top = -66.0
+	cerrar.offset_bottom = -66.0 + PrepBoard.SMALL_H
 	PrepBoard.skin_small_button(cerrar)
-	cerrar.add_theme_font_size_override("font_size", 24)
+	cerrar.add_theme_font_size_override("font_size", 30)
 	cerrar.pressed.connect(func() -> void: detail_panel.visible = false)
 	detail_panel.add_child(cerrar)
 
@@ -1622,6 +1685,12 @@ func _setup_money_bars() -> void:
 
 ## Mete la barra en una fila con SU icono a la izquierda (la moneda para el oro,
 ## el saquito para el bote). Al pasar a barras se habían perdido los dos.
+##
+## LOS DOS VAN EN `SIZE_SHRINK_CENTER` VERTICAL. Un HBoxContainer estira a sus
+## hijos al alto de la fila si no se le dice lo contrario, y como la moneda mide
+## 44 y la barra 32, la barra se estiraba a 44: además de deformar una textura
+## que solo se puede estirar a lo ancho, dejaba la moneda y la barra descuadradas
+## entre sí. Con SHRINK_CENTER cada uno conserva su alto y quedan centrados.
 func _with_icon(bar: Control, icono: String, lado: float) -> HBoxContainer:
 	var fila := HBoxContainer.new()
 	fila.add_theme_constant_override("separation", 6)
@@ -1631,10 +1700,49 @@ func _with_icon(bar: Control, icono: String, lado: float) -> HBoxContainer:
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.custom_minimum_size = Vector2(lado, lado)
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fila.add_child(ic)
+	bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	fila.add_child(bar)
 	return fila
+
+
+## Las DOS MUESCAS de la barra del oro, en los umbrales de 1 y 2 estrellas: la
+## barra se lee entonces como tres tramos, uno por estrella, y de un vistazo se
+## ve cuánto falta para la siguiente en vez de solo "cuánto llevo del total".
+## Van por ANCLA (fracción del ancho), así que siguen a la barra si cambia de
+## tamaño.
+##
+## Se llama al final de `_ready`, no desde `_setup_money_bars`: los umbrales
+## salen del puerto y todavía no están puestos cuando se visten los paneles.
+func _mark_star_steps() -> void:
+	if money_bar == null or star_money.size() < 2:
+		return
+	var meta := float(star_money.back())
+	if meta <= 0.0:
+		return
+	for i in star_money.size() - 1:
+		var frac := clampf(float(star_money[i]) / meta, 0.0, 1.0)
+		# CREMA, no marrón oscuro: la muesca tiene que verse sobre los DOS fondos
+		# por los que pasa —el verde del relleno y el marrón del canal— y un tono
+		# oscuro se perdía por completo en la parte vacía de la barra.
+		var marca := ColorRect.new()
+		marca.color = Color(1.0, 0.94, 0.76, 0.92)
+		marca.anchor_left = frac
+		marca.anchor_right = frac
+		marca.anchor_top = 0.0
+		marca.anchor_bottom = 1.0
+		marca.offset_left = -2.5
+		marca.offset_right = 2.5
+		# Sin llegar a los cantos: la barra tiene topes redondeados y una muesca
+		# de borde a borde se los comía.
+		marca.offset_top = 6.0
+		marca.offset_bottom = -6.0
+		marca.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		money_bar.add_child(marca)
+		# Por debajo de la etiqueta con la cifra, que va la última.
+		money_bar.move_child(marca, 0)
 
 
 func _make_hud_bar(tex: String, cap: int, tamano: Vector2, tinte: Color,
@@ -1853,6 +1961,13 @@ func _process(delta: float) -> void:
 		if prep_time_left <= 0.0:
 			prep_phase = false
 			_show_phase(false)
+			# La partida ha empezado de verdad: el guion de este puerto queda
+			# marcado como visto, así que si el jugador se queda corto de
+			# estrellas y repite, la segunda vez se juega sin explicaciones.
+			# Se marca AQUÍ y no al montar el nivel porque salir durante la
+			# preparación es gratis: ahí no debería quemarse la narración.
+			if GameState.is_adventure():
+				GameState.mark_port_narrated(GameState.current_port)
 		_update_hud()
 		return
 
@@ -1867,10 +1982,13 @@ func _process(delta: float) -> void:
 		_update_hud()
 		return
 
-	# Con el reloj retenido (tutorial, mientras David habla) el tiempo no corre.
+	# Con el reloj retenido (los guiones, mientras David habla) el tiempo no
+	# corre. `elapsed` cuenta SIEMPRE, tenga reloj el nivel o no: es lo que
+	# marca las llegadas. Lo que solo pasa en los niveles con reloj es que se
+	# acabe el turno al agotarse.
 	if not clock_hold:
 		elapsed += delta
-	if elapsed >= time_limit:
+	if timed and elapsed >= time_limit:
 		_end_level()
 		return
 
@@ -2042,7 +2160,9 @@ func _on_client_finished(report: Dictionary, seat_idx: int) -> void:
 	clients_finished += 1
 	_update_client_heads()
 	_update_hud()
-	if clients_finished >= total_clients:
+	# En las islas y los puertos el turno lo acota la CLIENTELA: cuando se va el
+	# último, se acabó el trabajo. En los abordajes no, que siguen entrando.
+	if not unlimited and clients_finished >= total_clients:
 		_end_level()
 
 
@@ -2055,16 +2175,22 @@ func _on_client_served(food: int, tip: int) -> void:
 	_check_goal_reached()
 
 
-## En cuanto se junta el dinero OBJETIVO (el umbral de las 3 estrellas) el turno
-## se da por bueno y se cierra antes de tiempo: lo que sobra de clientes y de
-## reloj se cobra como prima en los resultados.
-## Lo que se mide contra los umbrales de estrella: SOLO el precio de los platos.
-##
-## Las propinas NO entran aquí: van únicamente al bote de potenciadores. Estuvo
-## sumando `money_earned + tips_total`, así que cada propina se contaba DOS
-## veces (subía el bote azul y además el oro verde) y el marcador iba inflado.
+## DINERO BASE: solo el precio de los platos. Es lo que marca el contador del
+## HUD y lo ÚNICO que puede cerrar el turno antes de tiempo (ver
+## `_check_goal_reached`): así el nivel nunca se corta por unas propinas que el
+## jugador no controla.
 func _score_money() -> int:
 	return money_earned
+
+
+## Lo que se mide contra los umbrales de ESTRELLA al cerrar la jornada: el
+## dinero base MÁS las propinas. Es la misma cifra que se cobra (sin las primas
+## de cierre), así que el total del cartel y las estrellas cuadran.
+##
+## Ojo con la asimetría, que es a propósito: las propinas SUMAN para las
+## estrellas pero NO adelantan el final del turno.
+func _star_money() -> int:
+	return money_earned + tips_total
 
 
 func _check_goal_reached() -> void:
@@ -2099,7 +2225,8 @@ func _tip_threshold(claimed: int) -> int:
 func _add_tip(amount: int) -> void:
 	tips_total += amount
 	GameState.bump_stat("tips_total", amount)
-	_check_goal_reached()
+	# SIN `_check_goal_reached()`: las propinas cuentan para las estrellas al
+	# cerrar la jornada, pero no adelantan el final del turno.
 	while tips_total >= _tip_threshold(powerups_claimed):
 		powerups_claimed += 1
 		pending_powerups += 1
@@ -2122,6 +2249,9 @@ func _open_powerup_choice() -> void:
 	for child in powerup_options.get_children():
 		child.queue_free()
 	var ids: Array = PowerupData.POWERUPS.keys()
+	# "Horas extra" alarga el reloj: en un nivel sin reloj no significaría nada.
+	if not timed:
+		ids.erase("horas_extra")
 	ids.shuffle()
 	for i in 3:
 		var id: String = ids[i]
@@ -2219,11 +2349,16 @@ func _apply_powerup(id: String) -> void:
 			freeze_timer = 10.0
 
 
+## Los 3 clientes de regalo son clientela DE MÁS: suben el cupo del turno, o en
+## un nivel sin reloj (donde el cupo es lo que lo cierra) el nivel podía darse
+## por acabado antes de que llegaran a entrar.
 func _add_extra_clients(type: String) -> void:
 	for i in 3:
 		forced_types.append(type)
 		arrival_queue.append(elapsed + 1.0 + i * 6.0)
+		total_clients += 1
 	arrival_queue.sort()
+	_update_hud()
 	total_clients += 3
 
 
@@ -2381,21 +2516,32 @@ func _end_level() -> void:
 ## Puntuacion POR DINERO: cada umbral de "star_money" alcanzado da una estrella.
 func _finalize_results() -> void:
 	results_shown = true
-	# Las ESTRELLAS salen solo del dinero de los PLATOS: es lo que mide la
-	# producción del turno, y es el umbral que dispara el cierre anticipado.
+	# Las ESTRELLAS salen del dinero base MÁS las propinas: es exactamente la
+	# cifra que se lleva el jugador de la jornada, así que el total del cartel y
+	# las estrellas cuentan la misma historia. Lo que NO cuenta aquí son las
+	# primas de cierre, que son un premio por acabar pronto y no producción.
 	var stars := 0
 	for threshold in star_money:
-		if _score_money() >= int(threshold):
+		if _star_money() >= int(threshold):
 			stars += 1
 
-	# Lo que se cobra SÍ incluye propinas y las primas por lo que ha sobrado.
+	# Lo que se cobra: platos + propinas + las primas por lo que ha sobrado.
 	bonus_clients = 0
-	var leftover := _leftover_clients()
-	for t in leftover:
-		bonus_clients += int(LEFTOVER_BONUS.get(t, 0)) * int(leftover[t])
-	bonus_time = int(floor(maxf(time_limit - elapsed, 0.0) / TIME_BONUS_BLOCK)) \
-			* TIME_BONUS
-	var total_money := _score_money() + bonus_clients + bonus_time
+	# En un abordaje la clientela no se acaba nunca, así que no hay "clientes
+	# que se han quedado sin venir" que premiar: la prima es solo de los niveles
+	# con cupo, donde cerrar antes de tiempo SÍ deja gente en el muelle.
+	if not unlimited:
+		var leftover := _leftover_clients()
+		for t in leftover:
+			bonus_clients += int(LEFTOVER_BONUS.get(t, 0)) * int(leftover[t])
+	bonus_time = 0
+	if timed:
+		bonus_time = int(floor(maxf(time_limit - elapsed, 0.0) / TIME_BONUS_BLOCK)) \
+				* TIME_BONUS
+	# El total INCLUYE las propinas: el desglose las listaba ("Dinero base" +
+	# "Propinas" + primas) pero la cifra grande se las dejaba fuera, así que las
+	# líneas del desglose no sumaban el titular.
+	var total_money := _star_money() + bonus_clients + bonus_time
 
 	var new_recipes: Array = []
 	if GameState.is_adventure():
@@ -2421,13 +2567,104 @@ func _finalize_results() -> void:
 
 const TYPE_NAMES := { "E": "Grumete", "A": "Pirata", "G": "Capitán" }
 
+# ------------------------------------------------------- estrellas del cartel
+
+## Tamaño de cada estrella del cartel de resultados y hueco entre ellas.
+const STAR_SIZE := 58.0
+## Lo que tarda en aparecer la primera y lo que se espera entre una y la
+## siguiente. Se van cayendo de izquierda a derecha, no de golpe.
+const STAR_DELAY := 0.34
+const STAR_GAP := 0.42
+
+
+## Las tres estrellas ENTRAN DE UNA EN UNA, y cada una cuenta lo suyo: la
+## conseguida llega girando y dando un pisotón, con un destello y un rebote
+## detrás; la que falta se deja caer desde arriba, apagada y torcida, y se queda
+## hundida en su hueco. Enterarse de que te falta una estrella tiene que dar
+## pena, no salir escrito en gris.
+##
+## Va todo en PROCESS_MODE_ALWAYS porque `_show_results` PAUSA el árbol: un
+## tween creado sobre un nodo en pausa no avanza ni un fotograma.
+func _reveal_stars(stars: int) -> void:
+	stars_row.process_mode = Node.PROCESS_MODE_ALWAYS
+	for i in 3:
+		var lograda := i < stars
+		var hueco := Control.new()
+		hueco.custom_minimum_size = Vector2(STAR_SIZE, STAR_SIZE)
+		hueco.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hueco.process_mode = Node.PROCESS_MODE_ALWAYS
+		stars_row.add_child(hueco)
+
+		# La estrella VACÍA se queda siempre debajo, como el hueco que hay que
+		# llenar: sin ella, una estrella que aún no ha entrado deja un vacío y la
+		# fila baila mientras se revelan.
+		var fondo := _star_sprite("res://assets/ui/estrella_vacia.png")
+		fondo.modulate = Color(1, 1, 1, 0.28)
+		hueco.add_child(fondo)
+
+		var ic := _star_sprite("res://assets/ui/estrella_llena.png" if lograda
+				else "res://assets/ui/estrella_vacia.png")
+		ic.modulate.a = 0.0
+		hueco.add_child(ic)
+
+		# EL RETRASO DE CADA ESTRELLA VA EN `set_delay` DE CADA TWEENER, no en un
+		# `tween_interval` al principio. Con el intervalo delante y el tween en
+		# modo paralelo, las animaciones corren A LA VEZ que el intervalo en vez
+		# de después, así que las tres estrellas entraban de golpe.
+		var d := STAR_DELAY + i * STAR_GAP
+		var t := hueco.create_tween().set_parallel(true)
+		if lograda:
+			# Entra enorme y girada, se clava de golpe (BACK sobrepasa y vuelve),
+			# suelta un destello blanco y remata con un latido.
+			ic.scale = Vector2(2.6, 2.6)
+			ic.rotation_degrees = -210.0
+			t.tween_property(ic, "modulate:a", 1.0, 0.12).set_delay(d)
+			t.tween_property(ic, "scale", Vector2.ONE, 0.42).set_delay(d) \
+					.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			t.tween_property(ic, "rotation_degrees", 0.0, 0.42).set_delay(d) \
+					.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			t.tween_property(ic, "modulate", Color(2.4, 2.4, 2.0, 1.0), 0.08) \
+					.set_delay(d + 0.42)
+			t.tween_property(ic, "modulate", Color.WHITE, 0.24) \
+					.set_delay(d + 0.50)
+			t.tween_property(ic, "scale", Vector2(1.18, 1.18), 0.14) \
+					.set_delay(d + 0.50).set_trans(Tween.TRANS_SINE)
+			t.tween_property(ic, "scale", Vector2.ONE, 0.20) \
+					.set_delay(d + 0.64).set_trans(Tween.TRANS_SINE)
+		else:
+			# Se descuelga desde arriba, sin fuerza, y aterriza torcida, hundida
+			# y a media luz. TRANS_QUAD entrando: cae y se para, sin rebote.
+			ic.position.y -= 34.0
+			ic.scale = Vector2(1.1, 1.1)
+			t.tween_property(ic, "modulate:a", 0.5, 0.5).set_delay(d)
+			t.tween_property(ic, "position:y", 5.0, 0.6).set_delay(d) \
+					.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			t.tween_property(ic, "scale", Vector2(0.9, 0.9), 0.6).set_delay(d) \
+					.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			t.tween_property(ic, "rotation_degrees", -10.0, 0.6).set_delay(d) \
+					.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+
+
+## Una estrella suelta, con el pivote en el centro para poder girarla y
+## escalarla sin que se vaya de su hueco.
+func _star_sprite(ruta: String) -> TextureRect:
+	var ic := TextureRect.new()
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.texture = load(ruta)
+	ic.position = Vector2.ZERO
+	ic.size = Vector2(STAR_SIZE, STAR_SIZE)
+	ic.pivot_offset = Vector2(STAR_SIZE, STAR_SIZE) * 0.5
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return ic
+
 
 func _show_results(stars: int, total_money: int, new_recipes: Array) -> void:
 	# El juego se dirige al jugador por su nombre (Opciones); sin nombre usa el
 	# tratamiento que toque por el género elegido.
 	for c in stars_row.get_children():
 		c.queue_free()
-	stars_row.add_child(prep_board.make_star_row(stars, 3, 58))
+	_reveal_stars(stars)
 	# La cifra del cartel es el TOTAL de la jornada (platos + propinas +
 	# primas), en grande y con su moneda al lado. Ya no se enseña el
 	# porcentaje ni el nombre del puerto: el desglose está a un botón.
@@ -2545,7 +2782,9 @@ func _show_next_recipe(overlay: ColorRect, queue: Array) -> void:
 
 	if not queue.is_empty():
 		var counter := Label.new()
-		counter.text = "Quedan %d más" % queue.size()
+		# "Queda 1" en singular: con una sola receta pendiente ponía "Quedan 1".
+		counter.text = ("Queda 1 más" if queue.size() == 1
+				else "Quedan %d más" % queue.size())
 		counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		counter.add_theme_font_size_override("font_size", 20)
 		counter.add_theme_color_override("font_color", Color(0.5, 0.38, 0.22))
@@ -2573,17 +2812,12 @@ func _show_next_recipe(overlay: ColorRect, queue: Array) -> void:
 		loop.tween_property(box, "scale", Vector2.ONE, 0.9).set_trans(Tween.TRANS_SINE))
 
 
-## Desglose agrupado por tipo de cliente (cabeceras de pergamino plegables).
-## Arrastrar por CUALQUIER punto del pergamino de resultados desplaza la lista.
-## El ScrollContainer solo se desplaza con gestos que caen en su propio hueco y
-## que ningun hijo se haya tragado; en la practica el jugador arrastra encima
-## de una cabecera o de una fila y no pasaba nada. Aqui el panel entero
-## escucha el arrastre y mueve el scroll a mano.
+## El desglose YA NO VIVE EN EL CARTEL: `_restyle_results_panel` se lleva su
+## `Scroll` a la hoja aparte (`detail_panel`), donde lo desplaza `TouchScroll`.
+## Aquí quedaba el apaño de arrastrar por cualquier punto del pergamino, que
+## buscaba `$HUD/ResultsPanel/VBox/Scroll` — un nodo que ya no está ahí, así que
+## soltaba un error de get_node cada vez que se cerraba una jornada.
 func _setup_results_scroll() -> void:
-	var scroll: ScrollContainer = $HUD/ResultsPanel/VBox/Scroll
-	results_panel.gui_input.connect(func(event: InputEvent) -> void:
-		if event is InputEventScreenDrag:
-			scroll.scroll_vertical -= int(event.relative.y))
 	# Con MOUSE_FILTER_STOP el panel se come el arrastre antes de que llegue
 	# a los botones; PASS deja que ambos funcionen.
 	results_panel.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -3039,9 +3273,48 @@ func _button_pad(b: Button, estado: String) -> StyleBox:
 	return out
 
 
+## Coloca la barra superior segun lo que haya que enseñar. Sin reloj (islas,
+## puertos y tutorial) el hueco de la izquierda queda vacio, asi que se pone un
+## relleno del ANCHO del contador de clientes: el oro se queda centrado en la
+## pantalla de verdad y la fila no se descuelga hacia un lado.
+func _apply_hud_layout() -> void:
+	var top: HBoxContainer = $HUD/TopRow
+	var caja_reloj: Control = $HUD/TopRow/TimeBox
+	caja_reloj.visible = timed
+	if timed:
+		if time_gap != null:
+			time_gap.visible = false
+		return
+	if time_gap == null:
+		time_gap = Control.new()
+		time_gap.name = "TimeGap"
+		time_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		top.add_child(time_gap)
+		top.move_child(time_gap, 0)
+	time_gap.visible = true
+	# La primera medida NO puede tomarse aquí: en el _ready los contenedores aún
+	# no han colocado a nadie y todo mide 0. Y si el nivel arranca con un guion
+	# hablando, el árbol está en pausa y `_update_hud` no corre, así que el hueco
+	# se quedaría a cero toda la presentación.
+	_medir_hueco.call_deferred()
+
+
+## Ajusta el relleno al ancho real del contador de clientes, un fotograma
+## después (los contenedores de Godot recolocan a sus hijos de forma diferida).
+func _medir_hueco() -> void:
+	await get_tree().process_frame
+	if time_gap != null and is_instance_valid(time_gap):
+		time_gap.custom_minimum_size.x = clients_label.get_parent().size.x
+
+
 func _update_hud() -> void:
-	var remaining := maxf(time_limit - elapsed, 0.0)
-	time_label.text = "%d:%02d" % [int(remaining) / 60, int(remaining) % 60]
+	if timed:
+		var remaining := maxf(time_limit - elapsed, 0.0)
+		time_label.text = "%d:%02d" % [int(remaining) / 60, int(remaining) % 60]
+	elif time_gap != null:
+		# El relleno sigue al ancho real del contador de clientes: con "0/10" y
+		# con "10/10" el oro tiene que quedarse en el mismo sitio.
+		time_gap.custom_minimum_size.x = clients_label.get_parent().size.x
 	var meta := int(star_money.back())
 	money_label.text = "%d / %d" % [_score_money(), meta]
 	jar_label.text = "%d / %d" % [tips_total, _tip_threshold(powerups_claimed)]
@@ -3052,5 +3325,7 @@ func _update_hud() -> void:
 		tip_bar.value = clampf(tips_total, 0, tip_bar.max_value)
 	# Cuenta los que YA HAN VENIDO, no los que se han ido: con los idos el
 	# marcador se quedaba en 0 con la barra llena, que es justo cuando el
-	# jugador quiere saber cuánta clientela le queda por llegar.
-	clients_label.text = "%d/%d" % [clients_spawned, total_clients]
+	# jugador quiere saber cuánta clientela le queda por llegar. En los
+	# abordajes no hay cupo, así que se enseña solo cuántos han pasado.
+	clients_label.text = "%d" % clients_spawned if unlimited \
+			else "%d/%d" % [clients_spawned, total_clients]

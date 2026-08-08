@@ -546,11 +546,13 @@ func _row_reset(row: HBoxContainer) -> void:
 
 
 ## Icono cuadrado con un texto pequeño debajo-derecha ("x4", por ejemplo).
-## `tachado` marca una recompensa YA CONSEGUIDA: se apaga el icono y se le
-## cruza una raya, para que se vea de un vistazo que en este puerto ya no
-## queda nada que rascar.
+## `hecho` marca una recompensa YA CONSEGUIDA: se le pone un VISTO VERDE encima
+## (`ic_hecho.png`, un dibujo del set, no un carácter ✔). Antes se tachaba con
+## una raya roja y se leía como "esto no lo tienes", justo lo contrario.
+## `apagado` atenúa el icono sin más: lo usan las recetas para las que faltan
+## ingredientes.
 func _row_icon(row: HBoxContainer, tex: Texture2D, pie := "", lado := 44,
-		tachado := false) -> void:
+		hecho := false, apagado := false) -> void:
 	if tex == null:
 		return
 	var caja := Control.new()
@@ -568,21 +570,23 @@ func _row_icon(row: HBoxContainer, tex: Texture2D, pie := "", lado := 44,
 		l.add_theme_font_size_override("font_size", 18)
 		l.add_theme_color_override("font_color", DARK)
 		caja.add_child(l)
-	if tachado:
-		ic.modulate = Color(1, 1, 1, 0.42)
-		var raya := ColorRect.new()
-		raya.color = Color(0.62, 0.13, 0.06, 0.92)
-		raya.size = Vector2(lado * 1.08, 5.0)
-		raya.position = Vector2(-lado * 0.04, lado * 0.5 - 2.5)
-		raya.pivot_offset = raya.size * 0.5
-		raya.rotation_degrees = -18.0
-		raya.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		caja.add_child(raya)
+	if apagado:
+		ic.modulate = Color(1, 1, 1, 0.38)
+	if hecho:
+		ic.modulate = Color(1, 1, 1, 0.55)
+		var visto := TextureRect.new()
+		visto.texture = load("res://assets/ui/ic_hecho.png")
+		visto.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		visto.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		visto.size = Vector2(lado * 0.78, lado * 0.78)
+		visto.position = Vector2(lado * 0.24, lado * 0.24)
+		visto.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		caja.add_child(visto)
 	row.add_child(caja)
 
 
 ## Clientes del nivel: una cabeza por tipo con su "xN".
-func _fill_clients_row(mix: Dictionary) -> void:
+func _fill_clients_row(mix: Dictionary, sin_cupo := false) -> void:
 	_row_reset(info_clients_row)
 	for t in ["E", "A", "G"]:
 		var n := int(mix.get(t, 0))
@@ -590,7 +594,13 @@ func _fill_clients_row(mix: Dictionary) -> void:
 			continue
 		var ruta := "res://assets/ui/head_%s.png" % t
 		if ResourceLoader.exists(ruta):
-			_row_icon(info_clients_row, load(ruta), "x%d" % n)
+			_row_icon(info_clients_row, load(ruta), "" if sin_cupo else "x%d" % n)
+	if sin_cupo:
+		var l := Label.new()
+		l.text = "sin fin"
+		l.add_theme_font_size_override("font_size", 19)
+		l.add_theme_color_override("font_color", Color(0.55, 0.34, 0.08))
+		info_clients_row.add_child(l)
 
 
 ## Recetas que se pueden llevar. Los puertos y los abordajes son de LIBRE
@@ -615,8 +625,18 @@ func _fill_recipes_row(port: Dictionary, id: String) -> void:
 			h.add_theme_color_override("font_color", DARK)
 			info_recipes_row.add_child(h)
 		return
+	# Una receta para la que NO hay ingredientes sale atenuada: en las islas la
+	# carta la manda el diseño, así que conviene ver antes de zarpar cuál de los
+	# platos no se va a poder cocinar.
+	var faltan: Array = GameState.missing_ingredients(fijas)
 	for r in fijas:
-		_row_icon(info_recipes_row, RecipeData.get_dish_texture(r), "", 40)
+		var sin_genero := false
+		for ing in RecipeData.get_ingredients(r):
+			if ing in faltan:
+				sin_genero = true
+				break
+		_row_icon(info_recipes_row, RecipeData.get_dish_texture(r), "", 40,
+				false, sin_genero)
 
 
 ## Lo que se gana al superarlo: el plato de cada receta nueva.
@@ -667,7 +687,10 @@ func _reward_label(texto: String) -> Label:
 
 ## Filas del objetivo: una por escalón de estrellas, con las estrellas delante
 ## y la moneda con la cifra detrás.
-func _fill_goal_rows(goal: int, goal_money: int, thresholds: Array) -> void:
+## `completo` (las 3 estrellas ya conseguidas) deja la sección VACÍA: no queda
+## ningún escalón por alcanzar, así que la lista de umbrales solo era ruido.
+func _fill_goal_rows(goal: int, goal_money: int, thresholds: Array,
+		completo := false) -> void:
 	if goal_box == null:
 		goal_box = VBoxContainer.new()
 		goal_box.add_theme_constant_override("separation", 2)
@@ -675,6 +698,9 @@ func _fill_goal_rows(goal: int, goal_money: int, thresholds: Array) -> void:
 		info_goal.get_parent().move_child(goal_box, info_goal.get_index() + 1)
 	for c in goal_box.get_children():
 		c.queue_free()
+	goal_box.visible = not completo
+	if completo:
+		return
 	var escalones: Array = [[goal, goal_money]]
 	if thresholds.size() >= 3 and goal < 3:
 		escalones.append([3, int(thresholds[2])])
@@ -717,7 +743,9 @@ func _money_chip(cantidad: int, cuerpo := 24) -> HBoxContainer:
 
 
 ## El récord, con su moneda al lado en vez de "Récord: 61".
-func _fill_record_row(rec: int) -> void:
+## Con el puerto ya EXPRIMIDO (3 estrellas) el récord pasa a ser lo único que
+## queda por mejorar, así que se enseña en grande.
+func _fill_record_row(rec: int, grande := false) -> void:
 	if record_box == null:
 		record_box = HBoxContainer.new()
 		record_box.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -727,19 +755,20 @@ func _fill_record_row(rec: int) -> void:
 	info_record.visible = false
 	for c in record_box.get_children():
 		c.queue_free()
+	var cuerpo := 30 if grande else 20
 	var l := Label.new()
 	l.text = "Récord:"
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", 20)
-	l.add_theme_color_override("font_color", FADED)
+	l.add_theme_font_size_override("font_size", cuerpo)
+	l.add_theme_color_override("font_color", DARK if grande else FADED)
 	record_box.add_child(l)
 	if rec > 0:
-		record_box.add_child(_money_chip(rec, 22))
+		record_box.add_child(_money_chip(rec, 34 if grande else 22))
 	else:
 		var sin := Label.new()
 		sin.text = "sin jugar"
 		sin.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		sin.add_theme_font_size_override("font_size", 20)
+		sin.add_theme_font_size_override("font_size", cuerpo)
 		sin.add_theme_color_override("font_color", FADED)
 		record_box.add_child(sin)
 
@@ -768,19 +797,28 @@ func _update_info(id: String) -> void:
 	info_stars_box.add_child(PrepBoard.make_star_row(best, 3, 30, true))
 
 	var mix: Dictionary = port.get("client_mix", {})
-	_fill_clients_row(mix)
+	# En un abordaje la clientela no tiene cupo: la mezcla solo dice QUIÉN se
+	# sienta, no cuántos, así que las cabezas van sin su "xN".
+	_fill_clients_row(mix, CampaignData.unlimited_clients(id))
 	_fill_recipes_row(port, id)
-	var t := int(port.get("time_limit", 150.0))
+	# El reloj solo lo llevan los abordajes; las islas y los puertos los cierra
+	# la clientela, y una línea de "Tiempo" ahí sería mentira.
+	var t := int(CampaignData.time_limit_for(id))
+	info_time.visible = t > 0
 	info_time.text = "Tiempo: %d:%02d" % [t / 60, t % 60]
 	var thresholds: Array = port.get("star_money", [])
 	var goal := int(port.get("goal_stars", 1))
 	var goal_money: int = int(thresholds[goal - 1]) if thresholds.size() >= goal else 0
 	# El objetivo se enseña EN GRÁFICO (estrellas + moneda + cifra) en vez de
 	# la línea "Objetivo: 2★ (30)", que se leía como una ficha técnica.
+	# Con las TRES ESTRELLAS ya en el bolsillo no queda escalón que alcanzar:
+	# desaparecen los objetivos y el récord pasa a primer plano, que es lo único
+	# que se puede seguir mejorando en ese puerto.
+	var exprimido := best >= 3
 	info_goal.visible = false
-	_fill_goal_rows(goal, goal_money, thresholds)
+	_fill_goal_rows(goal, goal_money, thresholds, exprimido)
 	var rec := GameState.get_level_score(id)
-	_fill_record_row(rec)
+	_fill_record_row(rec, exprimido)
 
 	_fill_reward_row(port, id)
 

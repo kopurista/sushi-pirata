@@ -7,15 +7,28 @@ class_name CampaignData
 ##
 ## Campos de cada nivel:
 ##  - id, name, desc: identificación y texto para la pantalla de niveles.
-##  - client_mix: recuento EXACTO de clientes {E,A,G} (E grumete, A pirata,
-##    G capitán). El nivel construye una cola barajada con exactamente esos
-##    clientes; total_clients se deriva de la suma.
-##  - time_limit: duración en segundos.
+##  - client_mix: en ISLAS y PUERTOS, el recuento EXACTO de clientes {E,A,G}
+##    (E grumete, A pirata, G capitán): el nivel construye una cola barajada con
+##    exactamente esos clientes y total_clients sale de la suma. En los
+##    ABORDAJES no hay tope de clientes, así que la mezcla es solo la PRIMERA
+##    tanda (en el orden que fije `late_type`) y, agotada, las llegadas siguen
+##    sorteándose con esas mismas proporciones hasta que se acabe el reloj.
+##  - arrival_span: ventana en segundos sobre la que se reparten las llegadas.
+##    NO es la duración del nivel (ver más abajo): solo marca el RITMO al que
+##    entra la clientela, y por eso lo llevan también los niveles sin reloj.
 ##  - patience_mult: multiplicador de paciencia (<1 = más difícil).
 ##  - arrival_scale: comprime el horario de llegadas (<1 = vienen más rápido).
 ##  - goal_stars: estrellas mínimas para superar el nivel y avanzar.
 ##  - star_money: [dinero para 1★, 2★, 3★] — SOLO precio de platos (sin propinas),
 ##    calibrado al techo de producción de cada nivel.
+##    CÓMO SE CALIBRAN LOS ABORDAJES (los de cupo cerrado los marca su
+##    clientela, que es un número exacto): el techo lo pone LA COCINA, no la
+##    clientela, porque siempre hay a quien servir. La medida de referencia sale
+##    del propio guardado — 62 platos elaborados en una partida y el nivel 2
+##    (3 min, carta de $2-4, 3★ en 100) superado — y da unos **30 platos
+##    COMIDOS por 150 s** en manos buenas. De ahí: 3★ ≈ 30 × precio medio de la
+##    carta que se puede llevar × 0.65 (nadie sirve perfecto), y 1★/2★ al 35% y
+##    al 62% de esa cifra, que es la forma que ya tenía la campaña.
 ##  - fixed_recipes: carta CERRADA (las islas). El jugador no elige: se juega
 ##    con esas recetas y punto, también al repetir el puerto.
 ##    `fixed_recipes_replay` es la lista para cuando ya está superado (en el
@@ -34,6 +47,17 @@ class_name CampaignData
 ##    Entre las iniciales y las recompensas quedan cubiertas las 34
 ##    recetas visibles; las `hidden` (barco, combinados, variantes de
 ##    fritura) no se desbloquean, salen de sus mecánicas.
+##
+## CÓMO TERMINA UN NIVEL (depende del TIPO, ver KINDS):
+##  - "abordaje": es el único que lleva RELOJ, y son SHIP_TIME (3 min) para
+##    todos. No hay tope de clientes: entran mientras quede tiempo. Acaba al
+##    agotarse el reloj o al llegar al oro objetivo.
+##  - "isla" y "puerto": SIN reloj. Lo que los acota es la CLIENTELA: acaban
+##    cuando se ha ido el último cliente de `client_mix` o al llegar al oro
+##    objetivo. Su HUD no enseña contador de tiempo.
+
+## Duración de los niveles de ABORDAJE, los únicos con reloj.
+const SHIP_TIME := 150.0
 
 ## Con lo que arranca una partida nueva.
 ## Las 4 recetas del tutorial de David Jones: se DESBLOQUEAN al completarlo
@@ -51,7 +75,7 @@ const PORTS: Array = [
 		"name": "Cala Tortuga",
 		"desc": "Cuatro grumetes y las cuatro recetas que te enseñó David.",
 		"client_mix": { "E": 4 },
-		"time_limit": 150.0,
+		"arrival_span": 150.0,
 		"patience_mult": 1.0,
 		"arrival_scale": 1.0,
 		"goal_stars": 2,
@@ -70,7 +94,7 @@ const PORTS: Array = [
 		"name": "Puerto Corona",
 		"desc": "Un puerto de verdad: diez grumetes sin parar de entrar.",
 		"client_mix": { "E": 10 },
-		"time_limit": 180.0,
+		"arrival_span": 180.0,
 		"patience_mult": 0.85,
 		"arrival_scale": 0.65,
 		"goal_stars": 2,
@@ -89,7 +113,7 @@ const PORTS: Array = [
 		"name": "Isla del Mono",
 		"desc": "Llega el primer pirata: prefiere platos de 2 estrellas.",
 		"client_mix": { "E": 3, "A": 1 },
-		"time_limit": 150.0,
+		"arrival_span": 150.0,
 		"patience_mult": 0.9,
 		"arrival_scale": 0.8,
 		"goal_stars": 2,
@@ -116,7 +140,7 @@ const PORTS: Array = [
 		"name": "Arrecife del Ron",
 		"desc": "Cuatro grumetes y dos piratas con sed de atún.",
 		"client_mix": { "E": 4, "A": 2 },
-		"time_limit": 150.0,
+		"arrival_span": 150.0,
 		"patience_mult": 0.9,
 		"arrival_scale": 0.8,
 		"goal_stars": 2,
@@ -135,13 +159,17 @@ const PORTS: Array = [
 		"name": "Flota del capitán Pablo el Rubio",
 		"desc": "Abordaje a la flota de un viejo conocido de David.",
 		"client_mix": { "E": 2, "A": 2, "G": 1 },
-		"time_limit": 120.0,
+		"arrival_span": 120.0,
 		"patience_mult": 0.9,
 		"arrival_scale": 0.7,
 		"goal_stars": 2,
-		# Dos minutos con cinco bocas, una de ellas un capitán que come de 3
-		# estrellas: el techo lo marca la producción, no la clientela.
-		"star_money": [42, 70, 80],
+		# Abordaje: 2:30 y clientela sin fin, con un capitán (Pablo) que come de 3
+		# estrellas. Entran unos 8 clientes (paso de 15,9 s), así que la barra no
+		# llega a llenarse: es el abordaje más tranquilo. Con SOLO 3 huecos y sin
+		# recetas de 3★ desbloqueadas, la carta buena es nigiri de atún $6, maki
+		# de atún $5 (con maestría, 3 piezas) y onigiri $4 → media $5.
+		# 30 platos × $5 × 0.65 ≈ 100.
+		"star_money": [38, 65, 100],
 		"boat": true,
 		# Carta LIBRE, pero solo tres huecos LA PRIMERA VEZ: al repetir el
 		# puerto se juega con los cuatro de siempre (ver prep_screen).
@@ -168,12 +196,14 @@ const PORTS: Array = [
 		"name": "Bahía del Kraken",
 		"desc": "11 bocas: 6 grumetes, 3 piratas y 2 capitanes impacientes.",
 		"client_mix": { "E": 6, "A": 3, "G": 2 },
-		"time_limit": 150.0,
+		"arrival_span": 150.0,
 		"patience_mult": 0.8,
 		"arrival_scale": 0.65,
 		"goal_stars": 2,
-		# 11 clientes y 2 capitanes.
-		"star_money": [40, 70, 115],
+		# Se estrenan las recetas de 3★ (aburi $12, sashimi de atún rojo $11) y
+		# entran ~16 clientes, dos de ellos capitanes que las cogen al 95%:
+		# media $6. 30 platos × $6 × 0.65 ≈ 120.
+		"star_money": [42, 74, 120],
 		"boat": true,
 		"reward_recipes": ["yaki_onigiri", "futomaki_salmon", "sashimi_tamago",
 			"nigiri_inari"],
@@ -183,14 +213,18 @@ const PORTS: Array = [
 	{
 		"id": "nivel_7",
 		"name": "Estrecho del Rayo",
-		"desc": "¡Escala relámpago! Solo 1:30 para servir a 8 clientes.",
+		"desc": "¡Escala relámpago! La clientela entra sin darte respiro.",
 		"client_mix": { "E": 4, "A": 2, "G": 2 },
-		"time_limit": 90.0,
+		# La ventana de llegadas más corta de la campaña: en un abordaje eso no
+		# acorta el nivel, lo llena — los clientes se pisan unos a otros.
+		"arrival_span": 90.0,
 		"patience_mult": 0.85,
 		"arrival_scale": 0.7,
 		"goal_stars": 2,
-		# Partida de 1:30, o sea ~60% de la producción de una normal.
-		"star_money": [28, 48, 82],
+		# Misma carta que el 6 (media $6) pero con el doble de llegadas: ~21
+		# clientes para 8 taburetes, así que la barra está SIEMPRE llena y no se
+		# pierde ni un segundo de asiento. 30 platos × $6 × 0.68 ≈ 125.
+		"star_money": [45, 78, 125],
 		"boat": true,
 		"reward_recipes": ["nigiri_anguila", "udon"],
 		"reward_recipes_3": ["temaki", "tempura"],
@@ -201,7 +235,7 @@ const PORTS: Array = [
 		"name": "Puerto Tormenta",
 		"desc": "14 clientes al abordaje: la cinta no puede parar.",
 		"client_mix": { "E": 8, "A": 4, "G": 2 },
-		"time_limit": 180.0,
+		"arrival_span": 180.0,
 		"patience_mult": 0.75,
 		"arrival_scale": 0.6,
 		"goal_stars": 2,
@@ -217,12 +251,14 @@ const PORTS: Array = [
 		"name": "Mar del Leviatán",
 		"desc": "La gran travesía final: 17 clientes y toda la carta en juego.",
 		"client_mix": { "E": 9, "A": 5, "G": 3 },
-		"time_limit": 150.0,
+		"arrival_span": 150.0,
 		"patience_mult": 0.7,
 		"arrival_scale": 0.55,
 		"goal_stars": 2,
-		# Final: 17 clientes, más del doble que asientos.
-		"star_money": [50, 92, 145],
+		# Final: la carta entera en juego (hasta $12-14, con la maestría del hana
+		# maki dando 4 piezas) y tres capitanes en la mezcla → media $8.
+		# 30 platos × $8 × 0.65 ≈ 155.
+		"star_money": [55, 96, 155],
 		"boat": true,
 		"reward_recipes": ["fugu", "dragon_roll", "sashimi_variado"],
 		"reward_recipes_3": ["chirashi", "nigiri_wagyu"],
@@ -299,6 +335,23 @@ const MAP_POS: Dictionary = {
 ## Tipo de nivel ("isla", "puerto", "abordaje").
 static func get_kind(id: String) -> String:
 	return KINDS.get(id, "isla")
+
+
+## ¿Este nivel se juega CONTRA RELOJ? Solo los abordajes: las islas y los
+## puertos los acota la clientela, no el tiempo.
+static func is_timed(id: String) -> bool:
+	return get_kind(id) == "abordaje"
+
+
+## Segundos de partida (0 = sin reloj: manda la clientela).
+static func time_limit_for(id: String) -> float:
+	return SHIP_TIME if is_timed(id) else 0.0
+
+
+## ¿Entran clientes sin tope? Los abordajes no tienen cupo: mientras quede
+## reloj, sigue llegando gente.
+static func unlimited_clients(id: String) -> bool:
+	return is_timed(id)
 
 
 ## Nombre legible del tipo de nivel.

@@ -80,8 +80,7 @@ func _tras_la_preparacion() -> void:
 ## explicar qué pasa cuando un plato da la vuelta entera sin que nadie lo coja.
 func _nivel_1() -> void:
 	await _say([
-		{ "text": "¡Bienvenido a **Cala Tortuga**, tu primer trabajo de verdad! Cuatro grumetes y las cuatro recetas que te enseñé.", "mood": "feliz" },
-		{ "text": "Hoy mando yo menos y cocinas tú más. Yo te aviso si veo algo que debas saber.", "mood": "hablando" },
+		{ "text": "¡**Cala Tortuga**, tu primer trabajo! Cuatro grumetes y tus cuatro recetas. Hoy cocinas tú.", "mood": "feliz" },
 		{ "text": "¡Y NO LA LÍES! ¡RAAAK!", "who": "gigi", "mood": "loro" },
 	])
 	# IMPRESCINDIBLE soltar el reloj antes de esperar a nada del nivel: con
@@ -95,20 +94,18 @@ func _nivel_1() -> void:
 	var desperdiciados: int = lv.plates_wasted
 	await _esperar(func() -> bool:
 		return lv.ended or lv.plates_wasted > desperdiciados \
-				or lv.elapsed > lv.time_limit * 0.55)
+				or lv.elapsed > lv.arrival_span * 0.55)
 	if lv.ended:
 		return
 	if lv.plates_wasted > desperdiciados:
 		await _say([
-			{ "text": "¡RAAAK! ¡A LA BASURA! ¡Ese plato ha ido derechito al cubo!", "who": "gigi", "mood": "loro_sorpresa" },
-			{ "text": "Eso es lo que pasa cuando un plato da la **vuelta entera** a la cinta sin que nadie lo coja: acaba en la basura de la esquina.", "mood": "sorprendido" },
-			{ "text": "Y no sale gratis: te llevas un mordisco en el oro por el género echado a perder. Sirve pensando en QUIÉN va a cogerlo, no por llenar la cinta.", "mood": "serio" },
+			{ "text": "¡A LA BASURA! ¡RAAAK! ¡Derechito al cubo!", "who": "gigi", "mood": "loro_sorpresa" },
+			{ "text": "El plato que da la **vuelta entera** sin que nadie lo coja acaba en la basura, y cuesta oro. Sirve pensando en QUIÉN va a cogerlo.", "mood": "serio" },
 		])
 	else:
 		await _say([
-			{ "text": "Vas bien, cocinero. Un consejo antes de que te confíes.", "mood": "hablando" },
-			{ "text": "Si un plato da la **vuelta entera** a la cinta sin que nadie lo coja, cae en la basura de la esquina... y te cuesta oro.", "mood": "serio" },
-			{ "text": "Así que nada de inundar la cinta: cada plato, a un cliente que vaya a cogerlo.", "mood": "hablando" },
+			{ "text": "Vas bien. Un aviso: el plato que da la **vuelta entera** sin que nadie lo coja acaba en la basura y cuesta oro.", "mood": "serio" },
+			{ "text": "Nada de inundar la cinta: cada plato, a un cliente que vaya a cogerlo.", "mood": "hablando" },
 		])
 	_play()
 
@@ -119,10 +116,8 @@ func _nivel_1() -> void:
 	if lv.ended:
 		return
 	await _say([
-		{ "text": "¡RAAAK! ¡ALGO BRILLA! ¡LA CLIENTELA HA SOLTADO ALGO!", "who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "¡Se ha llenado el bote de las **propinas**! Cuando eso pasa, la clientela agradecida te regala un **potenciador**.", "mood": "feliz" },
-		{ "text": "Son ayudas de un solo uso para la faena: acelerar la **cinta**, cocinar sin esperas, sacar dos platos de golpe... Elige el que te saque del apuro en ese momento.", "mood": "hablando" },
-		{ "text": "Y no lo guardes para luego: el turno se acaba y lo que no gastas no vale nada.", "mood": "serio" },
+		{ "text": "¡ALGO BRILLA! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "El bote de **propinas** se ha llenado: te regalan un **potenciador**. Es de un solo uso, así que gástalo.", "mood": "feliz" },
 	])
 	_play()
 
@@ -133,22 +128,17 @@ func _nivel_1() -> void:
 ## el castigo por dejar marchar a alguien de vacío y, al cerrar, las primas.
 func _nivel_2() -> void:
 	await _say([
-		{ "text": "¡**Puerto Corona**! Esto ya son palabras mayores, %s." % GameState.player_title(), "mood": "feliz" },
-		{ "text": "En un **puerto** no entra un cliente de vez en cuando: entra un **goteo constante**. Hoy son diez grumetes, y no te van a esperar en fila.", "mood": "serio" },
-		{ "text": "Dos trucos de capitán. Uno: llena las **cajas** durante la preparación y suelta varios platos de golpe cuando se te junten los clientes.", "mood": "hablando" },
-		{ "text": "Dos: si alguien se te atasca en la silla, dale un **mochi**. Se va contento, te deja la propina y libera el sitio para el siguiente.", "mood": "hablando" },
+		{ "text": "¡**Puerto Corona**, %s! Aquí no entra un cliente de vez en cuando: es un goteo constante." % GameState.player_title(), "mood": "feliz" },
+		{ "text": "Llena las **cajas** en la preparación, y al que se te atasque en la silla, dale un **mochi**.", "mood": "hablando" },
 		{ "text": "¡SITIO PARA EL SIGUIENTE! ¡RAAAK!", "who": "gigi", "mood": "loro" },
 	])
 	# SAVERIO vive en este puerto: David lo presenta aquí, no al entrar en la
 	# tienda. Así el tendero es alguien a quien has conocido antes de comprarle.
 	await _say([
-		{ "text": "Ah, y mira quién está descargando en el muelle. ¡Saverio!", "mood": "feliz" },
-		{ "text": "¡David Jones! Y con tripulación nueva, por lo que veo.", "who": "saverio", "mood": "feliz" },
-		{ "text": "Este es **Saverio**. Lleva media vida entre ingredientes: si algo no lo sabe él, no lo sabe nadie.", "mood": "hablando" },
-		{ "text": "Encantado, cocinero. Yo vendo una cosa muy simple: **usos** de ingredientes.", "who": "saverio", "mood": "explicando" },
-		{ "text": "Y esto es importante: **un uso = una jornada**. Si llevas salmón a un puerto, gastas un uso de salmón. Da igual que hagas un nigiri o veinte.", "mood": "serio" },
-		{ "text": "Por eso conviene zarpar con la despensa surtida. Saco **género nuevo cada día**.", "who": "saverio", "mood": "hablando" },
-		{ "text": "Pero eso lo hablamos luego, que hoy tienes diez bocas esperando. ¡A la cinta!", "mood": "riendo" },
+		{ "text": "Mira quién descarga en el muelle: **Saverio**, el mejor tendero de estos mares.", "mood": "feliz" },
+		{ "text": "Encantado, cocinero. Yo vendo **usos** de ingredientes, y saco género nuevo cada día.", "who": "saverio", "mood": "explicando" },
+		{ "text": "Apunta esto: **un uso = una jornada**. Da igual que hagas un nigiri o veinte.", "mood": "serio" },
+		{ "text": "Luego habláis, que hoy tienes diez bocas esperando. ¡A la cinta!", "mood": "riendo" },
 	])
 	_play()
 	await _tras_la_preparacion()
@@ -162,35 +152,29 @@ func _nivel_2() -> void:
 	if not lv.ended:
 		if _progreso() < AVISO_PROGRESO:
 			await _say([
-				{ "text": "¡SE NOS VA UNO DE VACÍO! ¡RAAAK! ¡SIN PROBAR BOCADO! ¡QUÉ VERGÜENZA PARA ESTE BARCO!", "who": "gigi", "mood": "loro_grito" },
-				{ "text": "Cálmate, plumas... pero tiene razón. Un cliente que se levanta **sin haber comido nada** no solo no paga: encima nos cuesta doblones.", "mood": "loro_resignado" },
-				{ "text": "Cuanto más importante el cliente, más caro sale el desaire. Que no se te quede nadie mirando la cinta vacía.", "mood": "serio" },
+				{ "text": "¡SE NOS VA UNO DE VACÍO! ¡SIN PROBAR BOCADO! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+				{ "text": "Y tiene razón: quien se levanta **sin comer nada** no paga y encima nos cuesta doblones.", "mood": "loro_resignado" },
 			])
 		else:
 			await _say([
-				{ "text": "¡Así se hace! Llevas ya buena parte del botín.", "mood": "riendo" },
-				{ "text": "Ya que va bien, apunta esto para cuando venga mal dada: si un cliente se levanta **sin haber probado nada**, además de no pagar, nos cuesta doblones.", "mood": "hablando" },
-				{ "text": "Más vale servirle algo barato que dejarlo marchar de vacío. Recuérdalo.", "mood": "serio" },
+				{ "text": "¡Buen botín! Apunta esto: quien se levanta **sin probar nada** no paga y encima cuesta doblones.", "mood": "riendo" },
+				{ "text": "Más vale servirle algo barato que dejarlo marchar de vacío.", "mood": "serio" },
 			])
 		_play()
 
 	# Cierre del turno: las primas por lo que ha sobrado.
 	await _esperar(func() -> bool: return lv.ended)
 	await _say([
-		{ "text": "¡Turno cerrado! Y ahora la parte que más me gusta: la cuenta.", "mood": "feliz" },
-		{ "text": "Cuando juntas el **oro objetivo** antes de tiempo, cerramos la caja ahí mismo... y todo lo que sobra se te paga igual.", "mood": "hablando" },
-		{ "text": "Cada cliente al que ya **no hizo falta atender** cuenta como propina de despedida —cuanto más importante, más deja—, y cada trozo de **tiempo** que sobra también se paga.", "mood": "serio" },
-		{ "text": "¡LOS CLIENTES NO ME GUSTAN, PERO SU DINERO SÍ! ¡RAAAK! ¡Y el dinero de los que ni vienen me gusta AÚN MÁS!", "who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "Por una vez, el bicho lo ha resumido mejor que yo. Ser rápido paga doble, %s." % GameState.player_title(), "mood": "loro_resignado" },
+		{ "text": "¡Turno cerrado! Al llegar al **oro objetivo** se cierra la caja... y lo que sobra se paga igual.", "mood": "feliz" },
+		{ "text": "Cada cliente al que ya no hizo falta atender cuenta como propina de despedida. Ser rápido paga doble, %s." % GameState.player_title(), "mood": "serio" },
 	])
 	# Y al cerrar el turno, Saverio invita a su puesto: es el momento en que la
 	# TIENDA queda abierta, y de paso deja los extras de regalo.
 	await _say([
-		{ "text": "¡Buen turno! Oye, antes de que leves anclas: mi puesto está aquí al lado, en el muelle.", "who": "saverio", "mood": "feliz" },
-		{ "text": "Pásate cuando quieras y mira el género. Y llévate mis tres joyas de cortesía: los **extras**.", "who": "saverio", "mood": "explicando" },
-		{ "text": "El **jengibre** limpia el paladar y el plato no le cuenta al cliente como repetido. El **wasabi** hace más **probable** la propina, y la **soja**, más **gorda**.", "who": "saverio", "mood": "hablando" },
-		{ "text": "Van sobre un plato ya terminado y se gastan por plato servido. **Cinco usos de cada uno**, cortesía de la casa.", "who": "saverio", "mood": "feliz" },
-		{ "text": "¡Eso es hacer amigos, Saverio! Ya tienes tienda, %s. Úsala antes de zarpar." % GameState.player_title(), "mood": "riendo" },
+		{ "text": "¡Buen turno! Mi puesto está aquí al lado: pásate a ver el género cuando quieras.", "who": "saverio", "mood": "feliz" },
+		{ "text": "Y llévate mis **extras**: **jengibre** (el plato no cuenta como repetido), **wasabi** (propina más probable) y **soja** (más gorda).", "who": "saverio", "mood": "explicando" },
+		{ "text": "Cinco usos de cada uno. Van sobre un plato ya terminado, antes de mandarlo a la cinta.", "who": "saverio", "mood": "hablando" },
+		{ "text": "¡Eso es hacer amigos! Ya tienes **tienda**, %s." % GameState.player_title(), "mood": "riendo" },
 	])
 	for ing in RecipeData.EXTRAS:
 		GameState.add_ingredient_uses(ing, GameState.TUTORIAL_GIFT)
@@ -219,12 +203,10 @@ func _nivel_3() -> void:
 		return
 	await _focus_extras()
 	await _say_raised([
-		{ "text": "¡Alto ahí, no lo sirvas todavía! Mira la esquina de tu tabla: los **extras**.", "mood": "hablando" },
-		{ "text": "Se le echan a un plato **ya terminado**, justo antes de mandarlo a la cinta, y se gastan por plato servido.", "mood": "serio" },
-		{ "text": "El **jengibre** limpia el paladar: ese plato no le cuenta al cliente como repetido, así que le sabe a nuevo.", "mood": "hablando" },
-		{ "text": "El **wasabi** hace más **probable** que te dejen propina, y la **soja** hace que, cuando cae, caiga más **gorda**.", "mood": "hablando" },
-		{ "text": "¡ECHA WASABI A TODO! ¡RAAAK! ¡A TODO!", "who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "A todo no, plumas, que se gastan. Úsalos donde más renten.", "mood": "loro_resignado" },
+		{ "text": "¡No lo sirvas todavía! Esa esquina de la tabla son los **extras**: van sobre un plato ya terminado.", "mood": "hablando" },
+		{ "text": "**Jengibre**: no cuenta como repetido. **Wasabi**: propina más probable. **Soja**: más gorda.", "mood": "serio" },
+		{ "text": "¡ECHA WASABI A TODO! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "A todo no, que se gastan. Úsalos donde más renten.", "mood": "loro_resignado" },
 	], -1.0, EXTRAS_RAISE)
 	_play()
 	await _tras_la_preparacion()
@@ -245,9 +227,8 @@ func _nivel_3() -> void:
 	await get_tree().create_timer(1.4).timeout
 	_focus_client(pirata)
 	await _say([
-		{ "text": "¡RAAAK! ¡ESE NO ES UN GRUMETE! ¡MIRA QUÉ PINTA! ¡UN **PIRATA** EN LA BARRA!", "who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "Tranquilo, plumas, que muerden poco. Pero tiene razón: eso es un **pirata**, y no come como un grumete.", "mood": "loro_resignado" },
-		{ "text": "Tiene el paladar más fino: prefiere platos **más elaborados**, y por eso también paga bastante mejor.", "mood": "serio" },
+		{ "text": "¡ESE NO ES UN GRUMETE! ¡UN **PIRATA** EN LA BARRA! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "Paladar más fino: quiere platos **más elaborados**, y paga bastante mejor.", "mood": "loro_resignado" },
 	])
 
 	# El regalo: una receta de nivel 2 que entra en la tabla en plena partida.
@@ -257,11 +238,9 @@ func _nivel_3() -> void:
 	lv.prep_board.add_recipe("nigiri_atun")
 	await _focus_node(lv.prep_board.buttons["nigiri_atun"], 12.0)
 	await _say_raised([
-		{ "text": "Por eso te traigo esto: el **nigiri de atún**. Tuyo desde ya, y te lo pongo en la tabla ahora mismo para que lo estrenes con él.", "mood": "feliz" },
-		{ "text": "Fíjate en las **estrellas** de cada pergamino: son el nivel del plato.", "mood": "hablando" },
-		{ "text": "Los **grumetes** van a lo suyo, a los platos de **1 estrella**. Los **piratas** prefieren los de **2**, aunque de vez en cuando pican de 1 o de 3.", "mood": "serio" },
-		{ "text": "Y los **capitanes** —como un servidor— venimos por los de **3 estrellas**; los de 2 los cogemos, pero con menos ganas.", "mood": "riendo" },
-		{ "text": "Así que mira siempre **quién está sentado y dónde**: el plato sale de tu tabla y va parando delante de cada silla. Manda el bueno al cliente bueno... y no dejes que el primero de la cinta se coma lo que era para el de atrás.", "mood": "hablando" },
+		{ "text": "Por eso te traigo el **nigiri de atún**. Tuyo, y te lo pongo en la tabla para que lo estrenes con él.", "mood": "feliz" },
+		{ "text": "Las **estrellas** del pergamino son el nivel del plato: grumetes de **1**, piratas de **2**, capitanes de **3**.", "mood": "serio" },
+		{ "text": "Mira siempre quién está sentado y dónde: el primero de la cinta se come lo que era para el de atrás.", "mood": "hablando" },
 	])
 	_play("¡El **nigiri de atún**! Estrénalo con el pirata.")
 	# El aviso solo vale hasta que sirva algo.
@@ -274,13 +253,11 @@ func _nivel_3() -> void:
 	var regalados := _reponer_extras()
 	await _focus_extras()
 	var consejo: Array = [
-		{ "text": "Un consejo de capitán para este puerto: hoy solo llevas **un plato de 2 estrellas** para el pirata, así que se lo vas a repetir sí o sí.", "mood": "serio" },
-		{ "text": "Échale **jengibre** al **nigiri de atún** y el plato no le contará como repetido: le sabrá a nuevo cada vez.", "mood": "hablando" },
-		{ "text": "Y si encima le pones **wasabi** o **soja**, la propina será más probable y más gorda. Ahí es donde se hace el dinero de verdad.", "mood": "feliz" },
+		{ "text": "Hoy solo llevas **un plato de 2 estrellas**, así que se lo vas a repetir: échale **jengibre** y le sabrá a nuevo.", "mood": "serio" },
+		{ "text": "Con **wasabi** o **soja** encima, la propina sube. Ahí se hace el dinero de verdad.", "mood": "feliz" },
 	]
 	if regalados:
-		consejo.append({ "text": "¿Que andas corto de extras? Toma de mi despensa, invita la casa. ¡Pero no te acostumbres!", "mood": "riendo" })
-		consejo.append({ "text": "¡NO TE ACOSTUMBRES! ¡RAAAK!", "who": "gigi", "mood": "loro" })
+		consejo.append({ "text": "¿Andas corto de extras? Toma de mi despensa. ¡Pero no te acostumbres!", "mood": "riendo" })
 	await _say_raised(consejo, -1.0, EXTRAS_RAISE)
 	_play()
 
@@ -346,20 +323,16 @@ func _reponer_extras() -> bool:
 func _nivel_4() -> void:
 	await _say([
 		{ "text": "**Arrecife del Ron**. Dos piratas hoy, y vienen por el **atún**.", "mood": "hablando" },
-		{ "text": "Antes de nada: si te falta algún ingrediente, date una vuelta por la **tienda** de Saverio antes de zarpar. Sin género no hay plato.", "mood": "serio" },
 	])
 	# El barco se presenta de entrada, con el foco en su botón: es la novedad
 	# del nivel y hay que verla ANTES de ponerse a cocinar.
 	await _focus_boat()
 	await _say_raised([
-		{ "text": "¡Oye! ¿Has visto esta función nueva? Ese icono redondo de ahí abajo es el **barco combinado**, y hoy lo estrenas.", "mood": "feliz" },
-		{ "text": "Junta **cuatro platos** en las cajas, de al menos **dos clases distintas**, y el botón se enciende.", "mood": "hablando" },
-		{ "text": "Al pulsarlo te saca los platos a la tabla: solo tienes que **arrastrarlos a la bandeja** uno a uno. Cuando esté cargada, sale a la cinta como un solo plato.", "mood": "hablando" },
-		{ "text": "Y aquí está el truco: el barco se paga por la **variedad**. Cuantas más clases distintas lleve, más prima. Cuatro clases valen mucho más que cuatro platos iguales.", "mood": "serio" },
-		{ "text": "Además **entretiene mucho más**: un barco cargado tiene al cliente comiendo un buen rato, y mientras come no se le acaba la paciencia.", "mood": "hablando" },
-		{ "text": "No todo vale para el barco, ojo: solo **nigiris**, **gunkan** y **makis**, futomakis incluidos. Lo demás no se puede cargar.", "mood": "serio" },
+		{ "text": "Ese icono redondo es el **barco combinado**, y hoy lo estrenas.", "mood": "feliz" },
+		{ "text": "Junta **cuatro platos** en las cajas, de **dos clases distintas** por lo menos, y se enciende. Luego los arrastras a la bandeja.", "mood": "hablando" },
+		{ "text": "Se paga por la **variedad**, y entretiene mucho: mientras come, al cliente no se le acaba la paciencia.", "mood": "serio" },
+		{ "text": "Solo admite **nigiris**, **gunkan** y **makis**.", "mood": "hablando" },
 		{ "text": "¡BARCO! ¡BARCO! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "Guardar platos en las cajas puede servirte para atender a **varios clientes de golpe**, o para montar un **barco** que deje a **uno solo** satisfecho del todo. Tú decides cómo usar las cajas.", "mood": "hablando" },
 	], -1.0, EXTRAS_RAISE)
 	_play()
 
@@ -407,16 +380,12 @@ var _tsuke_servido := false
 ## por fin se sienta a la barra David regala el salmón tsuke don.
 func _nivel_5() -> void:
 	await _say([
-		{ "text": "Agárrate, %s: eso de ahí enfrente no es un puerto, es la **flota de Pablo el Rubio**." % GameState.player_title(), "mood": "hablando" },
-		{ "text": "¡PIRATAS! ¡RAAAK! ¡NOS ABORDAN! ¡ESCONDED EL ARROZ!", "who": "gigi", "mood": "loro_grito" },
-		{ "text": "Que no, plumas, que Pablo es de los míos. Nos conocemos de hace años.", "mood": "loro_resignado" },
+		{ "text": "Eso de ahí enfrente no es un puerto, %s: es la **flota de Pablo el Rubio**." % GameState.player_title(), "mood": "hablando" },
+		{ "text": "¡PIRATAS! ¡NOS ABORDAN! ¡ESCONDED EL ARROZ! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
 		{ "text": "¡**David Jones**! ¡Cuánto bueno por estas aguas!", "who": "pablo", "mood": "feliz" },
-		{ "text": "¡Pablo! Te presento a mi cocinero. Pablo, guarda eso an...", "mood": "hablando" },
-		{ "text": "¡ZAS! ¡Te pillé! Tranquilo, hombre, que es de broma. **Casi** siempre.", "who": "pablo", "mood": "punal" },
-		{ "text": "¡LE HA CLAVADO LA NAVAJA! ¡RAAAK! ¡AL CAPITÁN! ¡QUE ALGUIEN HAGA ALGO!", "who": "gigi", "mood": "loro_grito" },
-		{ "text": "No me ha clavado nada, bicho, me ha rozado el chaleco. Hace la misma gracia desde hace quince años.", "mood": "loro_resignado" },
-		{ "text": "Y sigue teniéndola. Me quedo un rato por aquí: quiero probar qué sabe hacer tu chico.", "who": "pablo", "mood": "guason" },
-		{ "text": "Ya lo has oído. Hoy solo llevas **tres recetas** y hay poco tiempo, así que ve soltando platos sin parar. Yo te echo un cable cuando llegue Pablo.", "mood": "serio" },
+		{ "text": "¡Pablo! Te presento a mi cocinero. Guarda eso an...", "mood": "hablando" },
+		{ "text": "¡ZAS! ¡Te pillé! Que es de broma, hombre. **Casi** siempre.", "who": "pablo", "mood": "punal" },
+		{ "text": "Hace la misma gracia desde hace quince años. Tú a lo tuyo: poco tiempo y **tres recetas**, así que suelta platos sin parar.", "mood": "loro_resignado" },
 	])
 	_play()
 	await _tras_la_preparacion()
@@ -437,9 +406,8 @@ func _nivel_5() -> void:
 	await get_tree().create_timer(1.4).timeout
 	_focus_client(pablo)
 	await _say([
-		{ "text": "¡Ahí lo tienes! Un **capitán** en tu barra, y de los que pagan bien.", "mood": "feliz" },
 		{ "text": "¡Qué barco tan mono tenéis! Se ve pequeñito desde el mío.", "who": "pablo", "mood": "guason" },
-		{ "text": "Tú sirve, %s, que a este lo conozco: come de tres estrellas o no come." % GameState.player_title(), "mood": "hablando" },
+		{ "text": "Tú sirve, %s: a este lo conozco, come de **tres estrellas** o no come." % GameState.player_title(), "mood": "hablando" },
 	])
 
 	# El regalo: una receta de 3 estrellas que entra en la tabla en marcha.
@@ -449,12 +417,10 @@ func _nivel_5() -> void:
 	lv.prep_board.add_recipe(RECETA_PABLO)
 	await _focus_node(lv.prep_board.buttons[RECETA_PABLO], 12.0)
 	await _say_raised([
-		{ "text": "Y para eso te traigo esto: el **salmón tsuke don**. Tres estrellas, y guardado para una ocasión como esta.", "mood": "feliz" },
-		{ "text": "Moldeas el **arroz** en el cuenco, coges el **salmón** y lo cortas... **despacio**. Ese corte es la receta entera: si vas con prisa, destrozas el lomo.", "mood": "serio" },
-		{ "text": "El salmón cortado se deja **reposando en la soja** mientras montas el cuenco: **wakame** encima del arroz y el **pepino** en tres cortes.", "mood": "hablando" },
-		{ "text": "Y al final vuelcas el salmón de la soja sobre el cuenco. Ahí lo tienes.", "mood": "hablando" },
-		{ "text": "¡DESPACIO CON EL CUCHILLO! ¡RAAAK! ¡Que te estoy mirando!", "who": "gigi", "mood": "loro" },
-		{ "text": "Por esta vez, si te sale mal el corte no te cuesta oro: estás aprendiendo. Otro día sí.", "mood": "riendo" },
+		{ "text": "Para eso te traigo el **salmón tsuke don**. Tres estrellas, guardado para una ocasión así.", "mood": "feliz" },
+		{ "text": "Lo suyo es el corte del salmón: **despacio**. Si vas con prisa, destrozas el lomo.", "mood": "serio" },
+		{ "text": "¡DESPACIO CON EL CUCHILLO! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+		{ "text": "Hoy, si te sale mal, no te cuesta oro: estás aprendiendo.", "mood": "riendo" },
 	])
 	# Mientras aprende el corte, equivocarse sale gratis (pero Gigi regaña).
 	_ensenando_corte = true
@@ -484,9 +450,8 @@ func _on_corte_fallado() -> void:
 		return
 	_regano_corte = true
 	await _say([
-		{ "text": "¡DEMASIADO RÁPIDO! ¡RAAAK! ¡ASÍ NO SE CORTA UN SALMÓN!", "who": "gigi", "mood": "loro_grito" },
-		{ "text": "El dedo va de **izquierda a derecha** y **sin correr**: hay que cruzar la tabla entera despacio hasta que la barra se llene. Si llegas antes de tiempo, no vale.", "who": "gigi", "mood": "loro" },
-		{ "text": "Hazle caso, que de cuchillos entiende. Hoy el destrozo lo pago yo; mañana lo pagas tú.", "mood": "loro_resignado" },
+		{ "text": "¡DEMASIADO RÁPIDO! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "De **izquierda a derecha** y **sin correr**: cruza la tabla entera hasta que la barra se llene.", "who": "gigi", "mood": "loro" },
 	])
 	_play(AVISO_TSUKE)
 

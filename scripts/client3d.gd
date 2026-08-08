@@ -38,13 +38,30 @@ const TAKE_CHANCES: Dictionary = {
 
 const FAVORITE_TIER: Dictionary = { "E": 1, "A": 2, "G": 3 }
 
-## Rango de tiempo de comida (s) por tipo de cliente Y nivel del plato.
-## Subidos ~20% respecto al 2D: en 3D el ritmo general es mas pausado.
+## Segundos que tarda un cliente en comerse un plato, por TIPO y por NIVEL del
+## plato. Son FIJOS (antes era un rango al azar): el juego es de gestión y el
+## jugador tiene que poder contar cuándo se libera un asiento.
+##
+## Salen de una regla de dos piezas:
+##  - El NIVEL pone la base (6 / 10 / 15 s). Comer NO gasta paciencia, así que
+##    el bocado es lo único que sostiene una mesa de cuatro sitios: si todo se
+##    comiera rápido, cuatro clientes pedirían más de lo que puede producir una
+##    cocina con enfriamientos de 3 a 9 s.
+##  - El TIPO aplica un factor: grumete x1.2 (come despacio y disfruta), pirata
+##    x1.0 (la referencia) y capitán x0.8 (rápido y eficiente).
+##
+## El resultado es que los doblones POR SEGUNDO DE ASIENTO —que es el recurso
+## de verdad escaso— suben limpio en las dos direcciones: 0.51 el grumete con
+## un plato de 1 estrella y 1.04 el capitán con uno de 3, justo el doble.
 const EAT_TIMES: Dictionary = {
-	"E": { 1: [3.5, 6.0], 2: [8.0, 11.5], 3: [12.5, 17.0] },
-	"A": { 1: [4.0, 6.5], 2: [6.0, 9.5], 3: [10.5, 14.0] },
-	"G": { 1: [2.5, 4.0], 2: [5.0, 7.5], 3: [9.0, 13.5] },
+	"E": { 1: 7.0, 2: 12.0, 3: 18.0 },
+	"A": { 1: 6.0, 2: 10.0, 3: 15.0 },
+	"G": { 1: 5.0, 2: 8.0, 3: 12.0 },
 }
+## Variación sobre el tiempo fijo. Con números clavados, dos clientes que
+## empiezan el mismo plato a la vez terminan a la vez y la mesa se vacía a
+## oleadas; un 5% rompe la sincronía sin que deje de ser predecible.
+const EAT_JITTER := 0.05
 
 ## Castigo (doblones) si el cliente se marcha SIN haber probado NADA: cuanto
 ## mas importante es el cliente, mas cuesta desatenderlo. Se cobra tanto si se
@@ -54,7 +71,15 @@ const LEAVE_PENALTY: Dictionary = { "E": 5, "A": 8, "G": 12 }
 
 ## Al recibir un plato la paciencia sube (fraccion del maximo) segun el nivel.
 ## Rebajado (antes 0.12/0.30/0.50): cada plato retiene menos al cliente.
-const PATIENCE_FOOD: Dictionary = { 1: 0.09, 2: 0.22, 3: 0.38 }
+##
+## El de 3 estrellas bajo despues de 0.38, porque con esa recarga el CAPITAN
+## era practicamente inmortal: recuperaba 13.3 s de paciencia por plato, mas de
+## lo que gastaba esperando, asi que servido con soltura no se marchaba nunca.
+## Con 0.32 el hueco que se le puede dejar entre platos baja de 13.3 a 11.2 s
+## (y a 7.5 s cuando ya lleva veinte), que con cuatro sitios ocupados es un
+## margen que se pierde solo. Los otros dos niveles no se tocan: el grumete ya
+## estaba bien (empata a 3.1 s, imposible de sostener) y el pirata en el filo.
+const PATIENCE_FOOD: Dictionary = { 1: 0.09, 2: 0.22, 3: 0.32 }
 ## Repetir el MISMO plato recarga MENOS de la mitad cada vez (endurecido desde
 ## 0.5); cambiar de plato solo retrocede UN nivel de aburrimiento.
 const REPEAT_DECAY := 0.4
@@ -234,6 +259,25 @@ func _merged_aabb(node: Node) -> AABB:
 ## Las barras viven en level.world_ui (CanvasLayer bajo el HUD) y se anclan
 ## proyectando un punto sobre la cabeza; la camara es fija, asi que basta con
 ## recolocarlas cuando el cliente se sienta.
+## Colores de la barra de PACIENCIA, que va cambiando con lo que le queda:
+## verde de sobra, ámbar a partir del 60% y roja del 25% para abajo. El paso de
+## un color a otro es un degradado, así que la barra avisa antes de que sea
+## tarde sin dar un salto de color.
+const PAT_VERDE := Color(0.32, 0.80, 0.30)
+const PAT_AMBAR := Color(1.00, 0.62, 0.10)
+const PAT_ROJO := Color(0.88, 0.20, 0.16)
+const PAT_ALTO := 1.0
+const PAT_MEDIO := 0.6
+const PAT_BAJO := 0.25
+## La barra de COMER es azul y no cambia nunca: así se distingue de un vistazo
+## de la de paciencia, que es la que hay que vigilar.
+const COMER_AZUL := Color(0.24, 0.60, 0.96)
+## Congelada por el unagi: azul claro, para que se vea que está parada.
+const PAT_HIELO := Color(0.55, 0.85, 1.0)
+
+var _patience_fill: StyleBoxFlat = null
+
+
 func _make_bars() -> void:
 	_patience_bar = ProgressBar.new()
 	_patience_bar.show_percentage = false
@@ -241,11 +285,15 @@ func _make_bars() -> void:
 	_patience_bar.max_value = patience_max
 	_patience_bar.value = patience
 	_patience_bar.visible = false
+	_patience_fill = StyleBoxFlat.new()
+	_patience_fill.bg_color = PAT_VERDE
+	_patience_fill.set_corner_radius_all(4)
+	_patience_bar.add_theme_stylebox_override("fill", _patience_fill)
 	_eat_bar = ProgressBar.new()
 	_eat_bar.show_percentage = false
 	_eat_bar.size = Vector2(76, 13)
 	var fill := StyleBoxFlat.new()
-	fill.bg_color = Color(1, 0.65, 0.2)
+	fill.bg_color = COMER_AZUL
 	fill.set_corner_radius_all(4)
 	_eat_bar.add_theme_stylebox_override("fill", fill)
 	_eat_bar.visible = false
@@ -307,8 +355,25 @@ func eat_bar() -> ProgressBar:
 
 
 func patience_bar_update() -> void:
-	if _patience_bar != null:
-		_patience_bar.value = patience
+	if _patience_bar == null:
+		return
+	_patience_bar.value = patience
+	if _patience_fill == null:
+		return
+	if patience_frozen > 0.0:
+		_patience_fill.bg_color = PAT_HIELO
+		return
+	_patience_fill.bg_color = _patience_color(
+		clampf(patience / maxf(patience_max, 0.001), 0.0, 1.0))
+
+
+## Verde → ámbar → rojo, interpolado por tramos.
+static func _patience_color(f: float) -> Color:
+	if f >= PAT_MEDIO:
+		return PAT_AMBAR.lerp(PAT_VERDE, (f - PAT_MEDIO) / (PAT_ALTO - PAT_MEDIO))
+	if f >= PAT_BAJO:
+		return PAT_ROJO.lerp(PAT_AMBAR, (f - PAT_BAJO) / (PAT_MEDIO - PAT_BAJO))
+	return PAT_ROJO
 
 
 func _process(delta: float) -> void:
@@ -324,11 +389,9 @@ func _process(delta: float) -> void:
 			# baja nada. Se tiñe de azul para que se vea que está parada.
 			if patience_frozen > 0.0:
 				patience_frozen = maxf(patience_frozen - delta, 0.0)
-				_patience_bar.modulate = Color(0.55, 0.85, 1.0)
 				patience_bar_update()
 				_scan_belt()
 				return
-			_patience_bar.modulate = Color.WHITE
 			# Cuanto mas ha comido, mas rapido se agota la paciencia.
 			var drain := 1.0 + PATIENCE_DRAIN_PER_PLATE * eaten_ids.size()
 			# Recién sentado la paciencia baja MUCHO más despacio: casi todo el
@@ -553,11 +616,12 @@ func _start_eating(plate_global: Vector3) -> void:
 	snack_taken = false
 	bite_speed = 1.0
 	var recipe := RecipeData.get_recipe(current_id)
-	var range_s: Array = EAT_TIMES[client_type].get(current_satiety, EAT_TIMES[client_type][1])
+	var base: float = float(EAT_TIMES[client_type].get(current_satiety,
+		EAT_TIMES[client_type][1]))
 	# "eat_mult": algunos platos (p. ej. la sopa de miso) se comen mas despacio.
 	# `slow_eat` lo usa el guion del TUTORIAL para que un plato concreto dure
 	# lo suficiente como para explicar otra receta mientras el cliente come.
-	eat_duration = randf_range(range_s[0], range_s[1]) \
+	eat_duration = base * randf_range(1.0 - EAT_JITTER, 1.0 + EAT_JITTER) \
 			* _eat_mult_of(recipe) * slow_eat
 	eat_timer = eat_duration
 	_eat_bar.max_value = eat_duration

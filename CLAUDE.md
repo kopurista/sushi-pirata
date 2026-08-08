@@ -3,8 +3,9 @@
 Juego móvil **vertical (720×1280)**, 2D isométrico voxel/pixelart, de **estrategia y
 gestión en tiempo real**. El jugador es el cocinero de un barco pirata que sirve
 sushi en una **cinta transportadora kaiten** a clientes con comportamientos
-distintos. Partidas de **2 min 30 s** (`TIME_LIMIT`, sin contar la fase de
-preparación inicial). Motor: **Godot 4.7.1**.
+distintos. **Cada tipo de nivel se cierra de una manera** (ver más abajo): los
+ABORDAJES van contra reloj (2 min 30 s, clientela sin fin) y las ISLAS y PUERTOS no
+tienen reloj: los acota la clientela. Motor: **Godot 4.7.1**.
 
 El núcleo NO es cocinar rápido, sino **gestionar la cinta, los recursos, las
 recetas (cada una una herramienta con propiedades) y el comportamiento de los
@@ -104,9 +105,11 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   grita "¡ESPABILA!" + el recordatorio que dejó puesto `_play(aviso)`. No salta
   con alguien hablando ni con un gesto sostenido en curso
   (`prep_board.is_gesture_locked()`), que se arruinaría.
-- **Cliente del tutorial**: asiento **3**. Con la cámara isométrica (yaw 45) el
-  eje +X cae hacia ABAJO-DERECHA, así que la cara +X son los asientos 2 y 3 y
-  el 3 es el más bajo; además esa cara entra por la borda inferior.
+- **Cliente del tutorial**: asiento **6**, el de ARRIBA A LA IZQUIERDA. Con la
+  cámara iso la altura en pantalla es -(x+z) y la horizontal x-z, así que el 0 y
+  el 6 empatan arriba pero el 0 cae a la derecha. Se usa el 6 porque el plato le
+  llega ANTES: nacen en el vértice +X/+Z y su punto de cinta está a 6,3 de
+  recorrido frente a los 8,1 del 0. Entra por la borda de ARRIBA.
 - **`slow_eat` solo se aplica al EMPEZAR un plato; para acortar el bocado YA EN
   MARCHA está `client3d.bite_speed`** (se reinicia con cada plato). El nigiri
   del tutorial se sirve larguísimo para poder explicar el té mientras mastica,
@@ -184,6 +187,13 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   carta de los puertos siguientes —y a la del suyo propio, para cuando se
   repite— y `complete_port` las desbloquea al superar el nivel, por si la
   partida se cerró por objetivo antes de que David llegara a darlas.
+- **El "x2" del tutorial tiene TRES desenlaces** y ninguno obliga a nada: con
+  el grumete comiendo y un maki gratis en la mano, si el jugador lo manda a la
+  **cinta** Gigi le corta (ese ya está masticando), si lo guarda en una **caja**
+  David le da la razón, y si no hace nada el guion sigue sin comentar. Lo
+  vigilan `_vigilar_maki_libre` (por `prep_board.stored_count`) y
+  `_vigilar_maki_a_la_cinta` (por `dish_served`), compartiendo bandera para que
+  hable UNO solo y una sola vez.
 - **`prep_board.free_mistakes`**: mientras un guion ESTÁ ENSEÑANDO un gesto,
   fallar el corte lento no cuesta dinero (el aviso y el destello rojo siguen).
   El guion se entera por la señal `slice_failed`, aparte de `money_penalty`
@@ -252,10 +262,30 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   descanso. Avisa por la señal `helper_used` para que el ayudante 3D amase un
   momento y dé un saltito. Se gana sirviendo 18 platos en una partida).
   Solo funcionan en aventura: Arcade no toca el progreso.
+- **CÓMO TERMINA UN NIVEL, POR TIPO** (`CampaignData.is_timed` /
+  `unlimited_clients` / `time_limit_for`): los **ABORDAJES** son los ÚNICOS con
+  reloj —`SHIP_TIME`, 2:30 para todos— y **no tienen cupo de clientes**: sigue
+  entrando gente mientras quede tiempo, así que ahí `client_mix` es solo la
+  PRIMERA tanda (con su `late_type`) y, agotada, las llegadas se sortean con
+  esas mismas proporciones (`client_weights` se rellena con la mezcla). Las
+  **ISLAS y los PUERTOS** no llevan reloj: acaban cuando se va el último cliente
+  de `client_mix`, o al llegar al oro objetivo.
+  Consecuencias que hay que respetar: en los niveles sin reloj el HUD **oculta
+  el reloj** y mete un relleno del ancho del contador de clientes en su hueco
+  (`level3d._apply_hud_layout`), para que el oro quede centrado DE VERDAD en la
+  pantalla; el contador de clientes de un abordaje enseña solo cuántos han
+  pasado (sin "/N", que no existe); no hay prima "por tiempo sobrante" sin reloj
+  ni prima "por clientes sobrantes" con clientela infinita; y el potenciador
+  "Horas extra" se cae del sorteo donde no hay reloj.
+  **`elapsed` sigue contando SIEMPRE**, haya reloj o no: es lo que dispara las
+  llegadas. Lo que solo pasa con reloj es que se acabe el turno al agotarse.
 - `scripts/campaign_data.gd` — los 9 niveles de la campaña (`PORTS`, ordenados):
   `client_mix` (recuento EXACTO {E,A,G}; el nivel construye una cola barajada y
-  `total_clients` sale de la suma), `time_limit` (150 s; nivel 7 es exprés de
-  90 s), `patience_mult`, `arrival_scale` (<1 = llegan más seguidos),
+  `total_clients` sale de la suma), **`arrival_span`** (la VENTANA sobre la que
+  se reparten las llegadas; **no es la duración del nivel**, solo el RITMO al
+  que entra la clientela, y por eso lo llevan también los niveles sin reloj:
+  de ahí sale `arrival_step`, que en un abordaje se repite hasta que se acaba
+  el tiempo), `patience_mult`, `arrival_scale` (<1 = llegan más seguidos),
   `goal_stars` (3 en todos), `star_money` ([$1★,$2★,$3★], calibrado al techo de
   producción de cada nivel) y `reward_recipes`. **El reparto sigue a la
   CLIENTELA del puerto**: donde solo hay grumetes caen recetas de nivel 1, los
@@ -292,6 +322,14 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   sombras y animaciones las consulta cada escena al construirse
   (`shadows_on()` / `animations_on()`). `reset_progress()` borra el progreso
   pero **respeta los ajustes**: no son progreso.
+- `scripts/guide_data.gd` — texto de la **GUÍA DEL JUEGO** (`GuideData`),
+  partido en secciones `{title, icon, body}`. Solo datos: lo pinta la pestaña
+  **Guía** de Opciones, con las secciones PLEGABLES (se abre una y se cierra la
+  anterior; la lista entera de un tirón eran varias pantallas de scroll y no se
+  encontraba nada). Las palabras clave van entre `**asteriscos**` y las pasa
+  `DialogueBox.format_keywords`, el mismo marcador que los diálogos.
+  **Las cifras de la guía son las de verdad**: si se toca una constante del
+  juego hay que tocarla aquí, o la guía miente.
 - `scripts/achievement_data.gd` — catálogo de LOGROS (`AchievementData`), solo
   datos: id, apartado, texto, `stat` y tres metas (bronce/plata/oro). El
   progreso NO se guarda por logro: se deduce de `GameState.stats`, así que un
@@ -301,7 +339,9 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   `GROUP_TABS` son los rótulos CORTOS de las pestañas: cinco tablones de madera
   en 720 px solo dejan ~84 px de texto entre las esquinas doradas.
 - `scripts/options_screen.gd` — Opciones (raíz **Node3D**, fondo `SceneBackdrop`)
-  en TRES pestañas: **Perfil** (nombre y género —se elige TOCANDO AL PERSONAJE,
+  en CUATRO pestañas (los rótulos van a cuerpo 22: cuatro tablones en 720 px no
+  dan para más), la tercera de ellas la **Guía** (ver `guide_data.gd`):
+  **Perfil** (nombre y género —se elige TOCANDO AL PERSONAJE,
   no un botón con su nombre—, con "Aplicar cambios"),
   **Gráficos** (bloques Alta / Media / Baja / Personalizado, también con
   "Aplicar cambios") y **Progreso** (horas jugadas y borrado). Los cambios
@@ -469,10 +509,18 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   pendiente). SIN bocadillos de ánimo, satisfacción NI saciedad objetivo: el
   cliente se queda hasta que su barra de paciencia se agota (nunca "termina de
   comer"), y cada plato comido ACELERA el drenaje de paciencia
-  (`PATIENCE_DRAIN_PER_PLATE` ×0.025 por plato). `EAT_TIMES` es una matriz
-  tipo×nivel de plato (subida ~20% para el ritmo 3D); `PATIENCE_FOOD` recarga
-  paciencia según el nivel del plato (L1 9% · L2 22% · L3 38%, rebajada para
-  que cada plato retenga menos) escalada por el "aburrimiento" (`boredom`):
+  (`PATIENCE_DRAIN_PER_PLATE` ×0.025 por plato). `EAT_TIMES` da el tiempo de bocado
+  FIJO por tipo×nivel (7/12/18 grumete · 6/10/15 pirata · 5/8/12 capitán, con
+  un `EAT_JITTER` de ±5% para que dos clientes iguales no terminen en bloque):
+  el nivel pone la base (6/10/15) y el tipo un factor (x1.2 · x1.0 · x0.8), de
+  modo que los doblones POR SEGUNDO DE ASIENTO suben limpio de 0.51 (grumete
+  con 1★) a 1.04 (capitán con 3★). Como comer NO gasta paciencia, el bocado es
+  lo único que sostiene una mesa de cuatro sitios frente a una cocina con
+  enfriamientos de 3-9 s. `PATIENCE_FOOD` recarga
+  paciencia según el nivel del plato (L1 9% · L2 22% · L3 32%; el 3★ bajó desde
+  el 38% porque con esa recarga el CAPITÁN no llegaba a marcharse nunca —ganaba
+  más paciencia por plato de la que gastaba esperando—) escalada por el
+  "aburrimiento" (`boredom`):
   repetir el MISMO plato sube el nivel y recarga ×0.4 cada vez
   (`REPEAT_DECAY`, endurecido desde 0.5); cambiar de plato NO reinicia, solo
   retrocede un nivel.
@@ -1053,6 +1101,18 @@ que no hay problema.
 - **Marcador de la partida: DOS BARRAS**, oro (verde) y propinas (azul), con la
   cifra SUPERPUESTA. Cada barra tiene SU textura a SU altura (32 y 20) porque
   el tope redondo mide media altura; ver `_setup_money_bars`.
+  **La del oro va PARTIDA EN TRES TRAMOS** (`_mark_star_steps`), con una muesca
+  en el umbral de 1 y de 2 estrellas: así se ve cuánto falta para la SIGUIENTE
+  estrella y no solo cuánto llevas del total. Las muescas van por ANCLA
+  (fracción del ancho) y en color CREMA, no marrón: tienen que verse sobre los
+  dos fondos por los que pasan —el relleno verde y el canal oscuro— y un tono
+  oscuro se perdía entero en la parte vacía. Se colocan al final de `_ready`,
+  no en `_setup_money_bars`: los umbrales salen del puerto y aún no están
+  puestos cuando se visten los paneles.
+- **El icono y la barra van en `SIZE_SHRINK_CENTER` vertical** (`_with_icon`):
+  un HBoxContainer estira a sus hijos al alto de la fila, así que la barra de
+  32 se estiraba al alto de la moneda (44) —deformando una textura que solo se
+  puede estirar a lo ancho— y las dos quedaban descuadradas.
 - **Contadores de recurso** (`make_resource_box`): dinero y ARROZ, con el icono
   cabalgando sobre el borde izquierdo. **La MISMA caja en todas las pantallas
   donde hay dinero** (menú, mapa de aventura y tienda).
@@ -1137,7 +1197,18 @@ que no hay problema.
   hoja (`detail_panel`), detrás del botón del lateral.
 - **`_show_results` PAUSA el árbol**, así que todo lo que se monte encima del
   cartel necesita `PROCESS_MODE_ALWAYS` o no recibe ni un toque: la hoja del
-  desglose no dejaba ni desplazar ni cerrar por esto.
+  desglose no dejaba ni desplazar ni cerrar por esto. Y los TWEENS tampoco
+  corren: las estrellas del cartel llevan `PROCESS_MODE_ALWAYS` por eso.
+- **Las ESTRELLAS del cartel entran DE UNA EN UNA** (`_reveal_stars`), y cada
+  una cuenta lo suyo: la conseguida llega girando y enorme, se clava con
+  `TRANS_BACK`, suelta un destello y remata con un latido; la que falta se
+  descuelga desde arriba con `TRANS_QUAD` entrando y aterriza torcida, hundida
+  y a media luz. Debajo queda siempre la estrella vacía a poca opacidad, o la
+  fila bailaría mientras se revelan.
+  **EL RETRASO DE CADA UNA VA EN `set_delay()` DE CADA TWEENER, no en un
+  `tween_interval` al principio**: con el intervalo delante y el tween en modo
+  paralelo, las animaciones corren A LA VEZ que el intervalo en lugar de
+  después, y las tres estrellas entraban de golpe.
 - **Rótulo grande = `make_big_title()`** (letras doradas con contorno grueso),
   para carteles cortos: "¿Salir?" y "Jornada acabada". Una cinta con una frase
   larga pesaba más que el propio mensaje.
@@ -1279,13 +1350,24 @@ que no hay problema.
   punto: ahí está el **cubo de basura 3D** (`level3d._add_trash_bin`) y el
   plato se vuelca dentro con una caída corta en vez de desaparecer de golpe.
   El castigo por tirarlo es el **20%** de su precio (`WASTE_PENALTY`).
-- **El nivel TERMINA en cuanto se alcanza el dinero objetivo** (el umbral de
-  3 estrellas): `_check_goal_reached()` tras cada plato cobrado.
-- **Las ESTRELLAS salen solo del dinero de PLATOS**; lo que se COBRA al acabar
-  es `platos + propinas + primas`. Primas: **3** doblones por cada grumete que
+- **DOS CIFRAS DE DINERO, y la asimetría es a propósito** (`_score_money` /
+  `_star_money`): el **dinero BASE** (solo el precio de los platos) es lo que
+  marca el contador del HUD y lo ÚNICO que puede cerrar el turno antes de
+  tiempo, para que el nivel no se corte por unas propinas que el jugador no
+  controla; las **ESTRELLAS** se miden con `base + propinas`, que es justo lo
+  que se lleva de la jornada, así que el total del cartel y las estrellas
+  cuentan la misma historia. Las primas de cierre no cuentan para estrellas:
+  son premio por acabar pronto, no producción.
+- **El nivel TERMINA en cuanto el dinero BASE alcanza el objetivo** (el umbral
+  de 3 estrellas): `_check_goal_reached()` tras cada plato cobrado. `_add_tip`
+  NO lo llama.
+- Lo que se COBRA al acabar es `platos + propinas + primas`. Primas: **3**
+  doblones por cada grumete que
   se quedó sin venir, **8** por pirata, **15** por capitán
   (`LEFTOVER_BONUS`), y **3** por cada bloque completo de **10 s** de reloj
   sobrante. El desglose del panel de resultados los enseña por separado.
+  **Cada prima solo existe donde tiene sentido**: la de clientes, en los niveles
+  con cupo (islas y puertos); la de tiempo, en los que llevan reloj (abordajes).
 - **Regalo de ingredientes**: al desbloquear recetas el juego da usos de todo
   lo que piden (`GameState.gift_ingredients_for`): **5** con el tutorial
   (`TUTORIAL_GIFT`) y **3** por cada nivel superado (`PORT_GIFT`). Los
@@ -1514,17 +1596,27 @@ que no hay problema.
   (lingotes) y `reward_rice_3` (sacos). Se pueden ir a buscar más tarde,
   repitiendo el puerto con mejor carta; `complete_port` las entrega la primera
   vez que se llega a 3★, aunque el nivel ya estuviera aprobado.
-- **`_score_money()` es SOLO el precio de los platos.** Estuvo devolviendo
-  `money_earned + tips_total`, así que cada propina se contaba DOS veces (subía
-  el bote azul y además la barra verde del oro) y el marcador iba inflado. Las
-  propinas van únicamente al bote de potenciadores.
+- **`_score_money()` es SOLO el precio de los platos** y `_star_money()` es
+  `platos + propinas` (ver arriba). El contador del HUD y el corte anticipado
+  van con el primero; las estrellas y el total del cartel, con el segundo.
+  Ojo con el histórico: `_score_money` llegó a devolver `money_earned +
+  tips_total` y entonces cada propina se contaba DOS veces (subía el bote azul
+  y además la barra verde del oro EN PARTIDA). Esa suma solo vale al CERRAR.
 - **Puntuación POR DINERO** (la satisfacción se eliminó): cada umbral de
-  `star_money` alcanzado da 1 estrella. El dinero que cuenta para las estrellas
-  (y para el monedero) es SOLO el precio de los platos; **las propinas NO suman
-  a ese dinero**: van únicamente al bote (potenciadores). El techo lo marca la
+  `star_money` alcanzado da 1 estrella. El techo lo marca la
   PRODUCCIÓN (partida de 2:30 solo L1 ≈ $50-70; sube con piratas/capitanes que
-  comen L2-L3). Umbrales por nivel en `campaign_data.gd` (n1 16/30/45 …
-  n9 36/70/100); pendientes de afinar tras probar.
+  comen L2-L3). Umbrales por nivel en `campaign_data.gd`.
+  **Los ABORDAJES se calibran por la COCINA, no por la clientela**, porque
+  nunca se acaban los clientes. La medida no es a ojo: sale del guardado real
+  (62 platos elaborados en una partida; el nivel 2, de 3 min y carta de $2-4,
+  con 3★ en 100 y superado) y da **~30 platos COMIDOS por 150 s** jugando bien.
+  Fórmula: 3★ ≈ 30 × precio medio de la carta llevable × 0.65, y 1★/2★ al 35% y
+  al 62%, que es la forma que ya tenía la campaña (n6 era 40/70/115 = 35/61/100%).
+  **Y el aluvión de clientes se limita SOLO**: los abordajes tardíos programan
+  más llegadas que asientos (el 9 llega a 31 para 8 taburetes), pero un cliente
+  no aparece hasta que se libera un sitio y uno sin comer aguanta ~50-60 s
+  (`FIRST_PLATE_DRAIN` 0.45), así que caben ~20 por partida y el resto no llega
+  a entrar — ni cobra su `LEAVE_PENALTY`.
   NO hay dinero extra por estrellas (economía limpia para la tienda).
   En aventura el dinero va al monedero persistente; en Prueba no toca el progreso.
 - **Probabilidades de coger plato** (`client3d.TAKE_CHANCES`), por tipo × nivel:

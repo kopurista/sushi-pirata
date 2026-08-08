@@ -30,10 +30,11 @@ const FAVORITE_TIER: Dictionary = { "E": 1, "A": 2, "G": 3 }
 ##  - Pirata: menos con nivel 1 que con nivel 2; nivel 3 más que nivel 2.
 ##  - Capitán: muy poco con nivel 1, algo más con nivel 2, normal con nivel 3.
 const EAT_TIMES: Dictionary = {
-	"E": { 1: [3.5, 6.0], 2: [8.0, 11.5], 3: [12.5, 17.0] },
-	"A": { 1: [4.0, 6.5], 2: [6.0, 9.5], 3: [10.5, 14.0] },
-	"G": { 1: [2.5, 4.0], 2: [5.0, 7.5], 3: [9.0, 13.5] },
+	"E": { 1: 7.0, 2: 12.0, 3: 18.0 },
+	"A": { 1: 6.0, 2: 10.0, 3: 15.0 },
+	"G": { 1: 5.0, 2: 8.0, 3: 12.0 },
 }
+const EAT_JITTER := 0.05
 
 const TYPE_SPRITES: Dictionary = {
 	"E": "res://assets/characters/grumete.webp",
@@ -45,7 +46,7 @@ const TYPE_SCALES: Dictionary = { "E": 0.095, "A": 0.115, "G": 0.13 }
 
 ## Al recibir un plato la paciencia sube (fracción del máximo) según el nivel
 ## del plato: los de nivel alto alargan mucho más la estancia del cliente.
-const PATIENCE_FOOD: Dictionary = { 1: 0.09, 2: 0.22, 3: 0.38 }
+const PATIENCE_FOOD: Dictionary = { 1: 0.09, 2: 0.22, 3: 0.32 }
 ## Si el MISMO plato se repite seguido, cada repetición recarga MENOS de la
 ## mitad que la anterior (el cliente se aburre del plato). Cambiar de plato NO
 ## reinicia del todo: retrocede UN nivel de aburrimiento (`boredom`).
@@ -237,9 +238,11 @@ func _on_zone_area_entered(area: Area2D) -> void:
 func _start_eating(plate_global: Vector2) -> void:
 	state = State.EATING
 	var recipe := RecipeData.get_recipe(current_id)
-	var range_s: Array = EAT_TIMES[client_type].get(current_satiety, EAT_TIMES[client_type][1])
+	var base: float = float(EAT_TIMES[client_type].get(current_satiety,
+		EAT_TIMES[client_type][1]))
 	# "eat_mult": algunos platos (p. ej. la sopa de miso) se comen más despacio.
-	eat_duration = randf_range(range_s[0], range_s[1]) * float(recipe.get("eat_mult", 1.0))
+	eat_duration = base * randf_range(1.0 - EAT_JITTER, 1.0 + EAT_JITTER) \
+			* float(recipe.get("eat_mult", 1.0))
 	eat_timer = eat_duration
 	eat_bar.max_value = eat_duration
 	eat_bar.value = eat_duration

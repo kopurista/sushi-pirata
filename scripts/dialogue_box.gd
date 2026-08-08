@@ -73,9 +73,12 @@ const PANEL_BOTTOM := -12.0
 const PORTRAIT_TOP := -860.0
 const PORTRAIT_BOTTOM := -390.0
 ## Cuerpo del texto y margen a cada lado. El margen tiene que dejar fuera los
-## rodillos dibujados del pergamino (~52 px) con holgura de sobra.
-const TEXT_SIZE := 30
-const TEXT_MARGIN := 112.0
+## rodillos dibujados del pergamino (~52 px) y algo de aire; más allá de eso,
+## cuanto más estrecho mejor, porque cada píxel que se le quita al margen es
+## ancho de renglón. Medido con la fuente real: a cuerpo 34 y margen 76 la
+## línea más larga del guion cabe en 6 renglones (264 px), y la caja da 282.
+const TEXT_SIZE := 34
+const TEXT_MARGIN := 76.0
 
 ## Velocidad de la máquina de escribir (caracteres por segundo).
 const CHARS_PER_SEC := 45.0

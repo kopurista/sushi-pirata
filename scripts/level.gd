@@ -799,7 +799,9 @@ func _show_next_recipe(overlay: ColorRect, queue: Array) -> void:
 	# Contador cuando hay varias recetas por anunciar.
 	if not queue.is_empty():
 		var counter := Label.new()
-		counter.text = "Quedan %d más" % queue.size()
+		# "Queda 1" en singular: con una sola receta pendiente ponía "Quedan 1".
+		counter.text = ("Queda 1 más" if queue.size() == 1
+				else "Quedan %d más" % queue.size())
 		counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		counter.add_theme_font_size_override("font_size", 20)
 		counter.add_theme_color_override("font_color", Color(0.5, 0.38, 0.22))

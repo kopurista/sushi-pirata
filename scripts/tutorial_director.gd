@@ -8,11 +8,13 @@ extends StoryDirector
 ## clientes): termina este guion, que entrega las 4 recetas
 ## (GameState.complete_tutorial) y devuelve al menú.
 
-## Asiento del cliente del tutorial: el MÁS ALTO de la pantalla. Con la cámara
-## isométrica (yaw 45) la altura en pantalla es -(x+z), y los asientos 0 y 6
-## empatan en lo más alto; el 0 está en la cara -Z, que entra por la borda de
-## ARRIBA. Los platos tardan lo justo en llegarle desde el emplatado.
-const SEAT := 0
+## Asiento del cliente del tutorial: el de ARRIBA A LA IZQUIERDA. Con la cámara
+## isométrica (yaw 45) la altura en pantalla es -(x+z) y la horizontal es x-z,
+## así que los asientos 0 y 6 empatan en lo más alto pero el 0 cae a la derecha
+## y el 6 a la izquierda. Se usa el 6 porque el plato le llega ANTES: los platos
+## nacen en el vértice +X/+Z y la vuelta pasa por su punto de cinta mucho antes
+## que por el del 0. También entra por la borda de arriba.
+const SEAT := 6
 ## Lo que se alarga el nigiri del tutorial: da tiempo a explicar el té mientras
 ## el grumete sigue masticando.
 ## El nigiri del tutorial se come LENTÍSIMO a propósito: tiene que durar lo
@@ -65,27 +67,23 @@ func _run() -> void:
 	var pname: String = GameState.player_name if GameState.player_name != "" else "grumete"
 
 	# ---- Bienvenida a la cocina y paseo por el HUD ----
+	# UNA FRASE POR IDEA. El tutorial se probó con parrafadas de tres y cuatro
+	# líneas por foco y se hacía lento y pesado: aquí lo que enseña es el foco,
+	# no el texto.
 	await _say([
-		{ "text": "¡Y esta es mi **cocina flotante**! La cinta da la vuelta entera al barco: los platos navegan solos hasta los clientes.", "mood": "feliz" },
-		{ "text": "Antes de ponerte el delantal, un vistazo al puente de mando.", "mood": "hablando" },
-	])
-	await _focus_node(lv.time_label, 24.0)
-	await _say([
-		{ "text": "Ese reloj marca el **tiempo** del turno. Cada puerto nos deja un rato distinto... hoy lo paro y lo arranco yo a mi antojo, que para eso soy el capitán. ¡JA!", "mood": "riendo" },
+		{ "text": "¡Mi **cocina flotante**! La cinta da la vuelta al barco y los platos llegan solos.", "mood": "feliz" },
 	])
 	await _focus_node(lv.money_label, 24.0)
 	await _say([
-		{ "text": "Aquí, el **oro** del turno. Cada plato que un cliente se come lo engorda, y la cifra de al lado es el botín que buscamos.", "mood": "serio" },
-		{ "text": "Con ese oro compraremos **ingredientes** en los puertos: sin ingredientes no hay sushi, y sin sushi no hay leyenda.", "mood": "hablando" },
+		{ "text": "El **oro**: cada plato comido lo engorda. La cifra de al lado es el botín del turno.", "mood": "serio" },
 	])
 	await _focus_node(lv.jar_label, 24.0)
 	await _say([
-		{ "text": "Justo **debajo del oro** está el bote de las **propinas**. Cuando se llena, la clientela agradecida te regala un **potenciador**: una ayuda en plena faena. ¡No lo desprecies nunca!", "mood": "feliz" },
+		{ "text": "Debajo, el bote de **propinas**. Al llenarse te regalan un **potenciador**.", "mood": "feliz" },
 	])
 	await _focus_node(lv.clients_label, 24.0)
 	await _say([
-		{ "text": "Y ahí cuento los **clientes** del turno: los atendidos y los que faltan. Cuando pasen todos, se acabó el trabajo.", "mood": "hablando" },
-		{ "text": "Una cosa más: cada turno arranca con unos segundos de **preparación**, sin clientes, para ir adelantando platos. Úsalos siempre.", "mood": "serio" },
+		{ "text": "Y los **clientes** que quedan. Cuando pasen todos, se acabó el trabajo.", "mood": "hablando" },
 	])
 
 	# ---- Elegir el maki ----
@@ -102,12 +100,12 @@ func _run() -> void:
 	dialog.set_raised(true)
 	await _focus_nodes(pb.buttons.values(), 16.0)
 	await _say([
-		{ "text": "¿Ves esos pergaminos de ahí abajo? Son tus **recetas**. Cada una es un plato distinto, y aprenderás muchas más navegando.", "mood": "hablando" },
+		{ "text": "Esos pergaminos son tus **recetas**. Navegando aprenderás muchas más.", "mood": "hablando" },
 	])
 	pb.allowed_recipes = ["maki_aguacate"]
 	await _focus_node(pb.buttons["maki_aguacate"], 12.0)
 	await _say([
-		{ "text": "Empezaremos por la favorita de los grumetes: toca el **maki de aguacate**.", "mood": "hablando" },
+		{ "text": "Empezamos por la favorita de los grumetes: el **maki de aguacate**.", "mood": "hablando" },
 	])
 	dialog.set_raised(false)
 	# PRIMERO `_play` y DESPUÉS el foco: `_play` llama a `_clear_focus`,
@@ -119,25 +117,13 @@ func _run() -> void:
 	await _wait_craft("select")
 
 	# ---- Elaboración guiada del maki ----
+	# SIN CORTES A MEDIA ELABORACIÓN: David dice una sola cosa —sigue la mano— y
+	# se calla hasta que el rollo está hecho. Antes iba comentando paso a paso, y
+	# quien cocinaba deprisa terminaba el maki mientras él seguía explicando el
+	# paso anterior; el guion se perdía el gesto que esperaba y hacía falta un
+	# segundo maki para desatascarlo.
 	await _say([
-		{ "text": "¡Eso es! Ahora sigue las indicaciones.", "mood": "feliz" },
-		{ "text": "Fíjate bien: la **mano** y el **cartel** de la tabla siempre te cantan el paso que toca. Nunca cocinarás a ciegas.", "mood": "hablando" },
-		{ "text": "Primero, toca el **arroz** para llevarlo a la tabla.", "mood": "hablando" },
-	])
-	_play("Toca el **arroz** de la fila de ingredientes.")
-	await _wait_craft("tap")
-	await _say([
-		{ "text": "Ahora dale forma: pulsa **3 veces** sobre el arroz, como amasando.", "mood": "hablando" },
-	])
-	_play("Pulsa sobre el arroz hasta amasarlo.")
-	await _wait_craft("tap", 3)
-	await _say([
-		{ "text": "¡Así se amasa! Ahora **arrastra** el aguacate hasta la tabla.", "mood": "feliz" },
-	])
-	_play("Arrastra el **aguacate** hasta la tabla.")
-	await _wait_craft("drag")
-	await _say([
-		{ "text": "Ya casi está. Sigue tú solo las indicaciones de la mano hasta rematar el rollo.", "mood": "serio" },
+		{ "text": "¡Eso es! La **mano** y el **cartel** te cantan el paso que toca. Síguelos.", "mood": "feliz" },
 	])
 	_play("Sigue la mano hasta terminar el rollo.")
 	await _wait_craft("done")
@@ -146,11 +132,8 @@ func _run() -> void:
 	# 0,4 s de margen: felicitarle en el mismo fotograma en que suelta el
 	# gesto se sentía atropellado.
 	await _say([
-		{ "text": "¡Genial! Tu primer maki. Casi me caen las lágrimas.", "mood": "riendo" },
-		{ "text": "Ahora tienes dos opciones. Una: arrastrarlo arriba, a la **cinta**, y que navegue hasta los clientes.", "mood": "hablando" },
-		{ "text": "Dos: guardarlo en una **caja**, a la derecha. Cada caja apila varios platos **iguales**.", "mood": "hablando" },
-		{ "text": "Y eso importa más de lo que parece: acumulando platos puedes soltar **varios de golpe** y llegar también a los clientes que están **lejos** en la cinta, no solo al primero de la fila.", "mood": "serio" },
-		{ "text": "Cinta o caja, tú mandas. ¡Coloca ese maki!", "mood": "feliz" },
+		{ "text": "¡Tu primer maki! Ahora, o lo subes a la **cinta**, o lo guardas en una **caja**.", "mood": "riendo" },
+		{ "text": "Las cajas apilan platos **iguales**: sueltas varios de golpe y llegas a los clientes de más atrás.", "mood": "hablando" },
 	], 0.4)
 	_play("Lleva el maki a la **cinta** o guárdalo en una **caja**.")
 	# ¿Cinta o caja? El guion se adapta a lo que haga el jugador.
@@ -164,20 +147,26 @@ func _run() -> void:
 	_recordatorio = ""
 
 	# ---- Primer cliente: entra por la borda de abajo y se sienta a la derecha ----
+	# LAS RECETAS SE APAGAN MIENTRAS EL GRUMETE SE SIENTA: si no, el jugador se
+	# pone a hacer makis en ese hueco muerto y llega a la explicación siguiente
+	# con la tabla y las cajas llenas de platos que el guion no espera.
+	pb.allowed_recipes = ["__nada__"]
 	await get_tree().create_timer(1.5).timeout
 	_spawn_client()
 	# Un momento para verlo caminar antes de que nadie hable.
 	await get_tree().create_timer(1.6).timeout
 	_focus_client(client)
 	var llegada: Array = [
-		{ "text": "¡Atención! Ahí llega nuestro **primer cliente**: un grumete hambriento.", "mood": "sorprendido" },
+		{ "text": "¡Ahí llega tu **primer cliente**! Un grumete hambriento.", "mood": "sorprendido" },
 	]
 	if to_belt:
-		llegada.append({ "text": "Tu maki ya navega por la cinta: espera a que le llegue... o sigue preparando platos mientras tanto. ¡El tiempo es oro!", "mood": "hablando" })
+		llegada.append({ "text": "Tu maki ya navega hacia él. Mientras, tú puedes ir adelantando otro plato.", "mood": "hablando" })
 		await _say(llegada)
 	else:
-		llegada.append({ "text": "Tu maki espera en la caja: **arrástralo a la cinta** para que le llegue. Desde las cajas se sirve arrastrando, recuérdalo.", "mood": "hablando" })
+		llegada.append({ "text": "Sácalo de la caja **arrastrándolo a la cinta**: desde las cajas se sirve así.", "mood": "hablando" })
 		await _say(llegada)
+		# Solo el maki, que es lo que tiene que arrastrar.
+		pb.allowed_recipes = ["maki_aguacate"]
 		_play("Arrastra el maki de la **caja** a la **cinta**.")
 		await _wait_served()
 	if _cliente_vivo():
@@ -188,13 +177,17 @@ func _run() -> void:
 	pb.allowed_recipes = ["maki_aguacate"]
 	await _focus_node(pb.buttons["maki_aguacate"], 12.0)
 	await _say_raised([
-		{ "text": "Y un secreto de cocina: hay platos que con una elaboración rinden **varios usos**. ¿Ves el **x2** en el pergamino del maki? Los dos siguientes saldrán solos, sin trabajo.", "mood": "feliz" },
+		{ "text": "¿Ves el **x2** del maki? Hay platos que rinden **varios usos**: los dos siguientes salen solos.", "mood": "feliz" },
 	])
 	_play()
 
-	# Gigi salta si el jugador insiste con el maki mientras el grumete come.
+	# TRES DESENLACES, y ninguno obliga a nada: el jugador tiene un maki gratis
+	# entre las manos y el grumete comiendo. Si no hace nada, el guion sigue sin
+	# comentar nada; si lo manda a la cinta, Gigi le corta; y si lo guarda,
+	# David le da la razón. Es la primera decisión que toma solo.
 	var vigilante := { "on": true }
-	_vigilar_repeticion(pb, vigilante)
+	_vigilar_maki_libre(pb, vigilante)
+	_vigilar_maki_a_la_cinta(pb, vigilante)
 
 	# Espera a que el grumete coma y pague su primer plato.
 	if _cliente_vivo():
@@ -202,16 +195,14 @@ func _run() -> void:
 	vigilante["on"] = false
 	await _focus_node(lv.money_label, 24.0)
 	await _say([
-		{ "text": "¿Has visto el **oro** subir? Así se hace fortuna: plato comido, doblón ganado.", "mood": "riendo" },
-		{ "text": "Y cuanto más elaborado es el plato, más doblones deja. Pero eso lo iremos viendo, no corras.", "mood": "hablando" },
+		{ "text": "¡El **oro** sube! Plato comido, doblón ganado... y cuanto mejor el plato, más deja.", "mood": "riendo" },
 	])
 
 	# ---- Nigiri de salmón (se lo comerá MUY despacio) ----
 	pb.allowed_recipes = ["maki_aguacate", "nigiri_salmon"]
 	await _focus_node(pb.buttons["nigiri_salmon"], 12.0)
 	await _say_raised([
-		{ "text": "Vamos con el clásico de los clásicos: el **nigiri de salmón**. Arroz, tres golpes de forma y el lomo encima. Rápido de hacer y deja buen oro.", "mood": "feliz" },
-		{ "text": "¡Adelante, demuéstrame esas manos!", "mood": "gritando" },
+		{ "text": "Ahora el clásico: **nigiri de salmón**. Más trabajo, más oro. ¡Demuéstrame esas manos!", "mood": "feliz" },
 	])
 	# PRIMERO `_play` y DESPUÉS el foco: `_play` llama a `_clear_focus`,
 	# así que enfocando antes se borraba solo y el jugador se quedaba
@@ -235,19 +226,16 @@ func _run() -> void:
 	if _cliente_vivo():
 		_focus_bar(client.eat_bar())
 	await _say([
-		{ "text": "¡RAAK! ¿Ves esa barrita de ahí? Es lo que le queda de **bocado**. Mientras baja está comiendo, y no coge NADA más de la cinta.", "who": "gigi", "mood": "loro" },
-		{ "text": "¡Cuanto más gordo el plato, más tarda! ¡Y este salmón se lo está tomando con calma, el muy zoquete!", "who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "Aprovecha ese rato: mientras uno mastica, tú adelantas el siguiente plato. Ahí está el oficio.", "mood": "loro_resignado" },
+		{ "text": "¡RAAK! Esa barra **azul** es su **bocado**. Mientras baja, no coge nada más de la cinta.", "who": "gigi", "mood": "loro" },
+		{ "text": "Aprovecha: mientras uno mastica, tú adelantas el siguiente plato. Ahí está el oficio.", "mood": "loro_resignado" },
 	], 0.8)
 
 	# ---- Té verde (sigue comiendo: da tiempo de sobra) ----
 	pb.allowed_recipes = ["maki_aguacate", "nigiri_salmon", "te_verde"]
 	await _focus_node(pb.buttons["te_verde"], 12.0)
 	await _say_raised([
-		{ "text": "Y mientras mastica, te enseño el **té verde**. Arrastra las hojas al cuenco y mantén pulsado mientras reposa.", "mood": "hablando" },
-		{ "text": "Es un **picoteo**: los clientes pueden cogerlo sin soltar el plato que estén comiendo.", "mood": "serio" },
-		{ "text": "Y tiene magia: les quita el **hastío**. Porque repetirle el mismo plato a un cliente lo harta, y cada repetición le sabe a menos. Un té... y vuelve a disfrutarlo como el primer día.", "mood": "hablando" },
-		{ "text": "¡Prepara un té y mándalo a la cinta!", "mood": "gritando" },
+		{ "text": "Mientras mastica, el **té verde**: es un **picoteo**, se coge sin soltar el plato.", "mood": "hablando" },
+		{ "text": "Y quita el **hastío**: repetirle un plato a un cliente lo harta, y el té le limpia el paladar.", "mood": "serio" },
 	])
 	# PRIMERO `_play` y DESPUÉS el foco: `_play` llama a `_clear_focus`,
 	# así que enfocando antes se borraba solo y el jugador se quedaba
@@ -287,21 +275,16 @@ func _run() -> void:
 	if _cliente_vivo():
 		_focus_bar(client.patience_bar())
 	await _say([
-		{ "text": "Ahora fíjate en esa otra barra de encima de su cabeza: es su **paciencia**.", "mood": "hablando" },
-		{ "text": "Cuando no está comiendo, la paciencia BAJA sola. Si se le agota, se levanta y se larga... y si se va sin haber probado nada, encima nos cuesta oro.", "mood": "serio" },
-		{ "text": "Cada plato que se come se la vuelve a llenar, y cuanto mejor es el plato, más la llena. Ese es el juego: que ninguna paciencia llegue al fondo.", "mood": "hablando" },
-		{ "text": "Y al revés: si lo que quieres es que un cliente **se vaya**, no hay nada como ofrecerle un **postre**. En su caso, un **mochi de matcha**.", "mood": "serio" },
-		{ "text": "¡Y este ya lleva un buen rato ahí sentado! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+		{ "text": "Esa otra barra es su **paciencia**. Si no come, baja: verde, ámbar, roja... y se larga.", "mood": "hablando" },
+		{ "text": "Cada plato se la rellena, y cuanto mejor es, más. Que ninguna llegue al fondo.", "mood": "serio" },
 	])
 
 	# ---- Mochi ----
 	pb.allowed_recipes = ["maki_aguacate", "nigiri_salmon", "te_verde", "mochi"]
 	await _focus_node(pb.buttons["mochi"], 12.0)
 	await _say_raised([
-		{ "text": "Pues cerremos la faena con el broche dulce: el **mochi de matcha**.", "mood": "feliz" },
-		{ "text": "¡ME ENCANTA EL MOCHI! ¡Echa clientes al comerlo! ¡ADIÓS, CLIENTES PESADOS! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "...eso, a su manera. Es un **postre**: propina asegurada, y al terminarlo el cliente se **despide** con la barriga llena y deja la silla libre.", "mood": "loro_resignado" },
-		{ "text": "Cada postre tiene su clientela, y el mochi es cosa de grumetes. Amasa la masa, el matcha por encima, y cierra la bola recogiéndola arriba y abajo. ¡Al lío!", "mood": "hablando" },
+		{ "text": "¡MOCHI! ¡Al comérselo se LARGAN! ¡ADIÓS, PESADOS! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "...a su manera, sí. Es un **postre**: propina segura y el cliente se despide. ¡Al lío!", "mood": "loro_resignado" },
 	])
 	# PRIMERO `_play` y DESPUÉS el foco: `_play` llama a `_clear_focus`,
 	# así que enfocando antes se borraba solo y el jugador se quedaba
@@ -323,38 +306,61 @@ func _run() -> void:
 	# Un momento para verlo levantarse y echar a andar antes de hablar.
 	await get_tree().create_timer(1.6).timeout
 	await _say([
-		{ "text": "¿Lo ves? Barriga llena, propina en el bote y silla libre. Un adiós de capitán.", "mood": "riendo" },
-		{ "text": "¡Y BIEN QUE SE VA! ¡RAAAK! Escúchame, novato, que esto sí es importante: echar a un cliente antes de tiempo es BUENO.", "who": "gigi", "mood": "loro" },
-		{ "text": "¡Uno! Te llevas su **propina** segura y el bote se llena antes: ¡potenciador para ti! ¡Y dos! Un pesado sentado al **principio de la cinta** se zampa todo lo que pasa, y los de más atrás se quedan mirando.", "who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "Por una vez el plumas ha dicho algo sensato. Una silla libre es una silla que puedes volver a llenar.", "mood": "loro_resignado" },
-		{ "text": "Y cada plato con truco lo tienes apuntado en el **recetario**, dentro del **Inventario**. Cuando dudes de una receta, consúltalo: ahí está todo.", "mood": "hablando" },
+		{ "text": "Barriga llena, propina en el bote y **silla libre**. Echar clientes a tiempo es BUENO.", "mood": "riendo" },
+		{ "text": "¡Y TANTO! ¡Un pesado al principio de la cinta se zampa todo lo que pasa! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "Lo que dudes de una receta, míralo en el **recetario** del **Inventario**.", "mood": "hablando" },
 	], -1.0, false)
 
 	# ---- Fin del tutorial ----
 	GameState.complete_tutorial()
 	await _say([
-		{ "text": "¡Lo has hecho de maravilla, %s! Sabía que no me equivocaba contigo." % pname, "mood": "riendo" },
-		{ "text": "Estas **4 recetas** ya son tuyas, y te he dejado ingredientes en la despensa para estrenarlas. Con la **Aventura** recorreremos los mares desbloqueando muchas más.", "mood": "feliz" },
-		{ "text": "Cuando te veas con manos de veterano se abrirá también el modo **Arcade**: supera el **nivel 5** de la aventura y será tuyo.", "mood": "serio" },
-		{ "text": "¡Leva anclas, cocinero! ¡Los siete mares tienen hambre!", "mood": "gritando" },
+		{ "text": "¡De maravilla, %s! Estas **4 recetas** son tuyas, con ingredientes para estrenarlas." % pname, "mood": "riendo" },
+		{ "text": "¡Leva anclas! En la **Aventura** desbloquearás muchas más.", "mood": "gritando" },
 		{ "text": "¡RAAAK! ¡Y no quemes nada!", "who": "gigi", "mood": "loro" },
 	])
 	GameState.transition = "menu"
 	GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45)
 
 
-## Corre en paralelo al guion: mientras `estado["on"]`, si el jugador vuelve a
-## elegir el maki con el grumete masticando, Gigi le corta.
-func _vigilar_repeticion(pb: Control, estado: Dictionary) -> void:
-	while estado["on"]:
-		var args: Array = await pb.craft_event
-		if not estado["on"]:
+## Corre en paralelo al guion mientras el grumete come su primer maki y el
+## jugador tiene el segundo (el del "x2") libre. Reacciona A LO QUE HAGA:
+##
+##   · lo manda a la CINTA  → Gigi le corta: el cliente ya está comiendo.
+##   · lo guarda en la CAJA → David le da la razón: eso es tener cabeza.
+##   · no hace nada         → ni una palabra, el guion sigue.
+##
+## Solo habla UNA vez (`estado["on"]` se apaga al hablar y el guion lo apaga
+## también al terminar el plato): repetir el aviso con cada maki convertía un
+## consejo en una regañina.
+func _vigilar_maki_libre(pb: Control, estado: Dictionary) -> void:
+	var guardados: int = pb.stored_count("maki_aguacate")
+	while bool(estado["on"]):
+		await get_tree().process_frame
+		if not bool(estado["on"]):
 			return
-		if args[0] != "select" or pb.current_recipe != "maki_aguacate":
-			continue
+		if pb.stored_count("maki_aguacate") > guardados:
+			estado["on"] = false
+			await _say([
+				{ "text": "¡Muy bien pensado! A la **caja**, que ahí espera sin estropearse.", "mood": "feliz" },
+				{ "text": "Cuando se te junte la clientela, ese maki ya está hecho y sale en un suspiro.", "mood": "hablando" },
+			])
+			_play()
+			return
+
+
+## Y si en vez de guardarlo lo suelta a la cinta, Gigi salta. Va aparte porque
+## se engancha a `dish_served`, no al fotograma.
+func _vigilar_maki_a_la_cinta(pb: Control, estado: Dictionary) -> void:
+	while bool(estado["on"]):
+		await pb.dish_served
+		if not bool(estado["on"]):
+			return
 		if not _cliente_vivo() or not client.is_eating():
 			continue
+		estado["on"] = false
 		await _say([
-			{ "text": "¡NO TAN DEPRISA, MEQUETREFE! ¡RAAAK! ¡Que aún está masticando el anterior!", "who": "gigi", "mood": "loro_grito" },
-			{ "text": "Tiene razón el plumas: un cliente solo come un plato a la vez. Míralo antes de amontonarle comida delante.", "mood": "loro_resignado" },
+			{ "text": "¡EH, EH, EH! ¡RAAAK! ¡Que ese ya está masticando! ¡No necesita otro!", "who": "gigi", "mood": "loro_grito" },
+			{ "text": "El plumas tiene razón: guárdalo en una **caja** y sírvelo cuando haga falta.", "mood": "loro_resignado" },
 		])
+		_play()
+		return

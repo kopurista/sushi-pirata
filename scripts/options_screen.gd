@@ -131,14 +131,16 @@ func _setup_ui() -> void:
 	tabs.offset_bottom = 168.0
 	tabs.add_theme_constant_override("separation", 8)
 	root.add_child(tabs)
+	# CUATRO tablones en 720 px: los rótulos van cortos y a cuerpo 22, que es lo
+	# que deja el marco dorado del botón sin comerse las letras.
 	for def in [["perfil", "Perfil"], ["graficos", "Gráficos"],
-			["progreso", "Progreso"]]:
+			["guia", "Guía"], ["progreso", "Progreso"]]:
 		var b := Button.new()
 		b.text = def[1]
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.custom_minimum_size = Vector2(0, 72)
 		PrepBoard.skin_button(b)
-		b.add_theme_font_size_override("font_size", 26)
+		b.add_theme_font_size_override("font_size", 22)
 		b.pressed.connect(_show_tab.bind(def[0]))
 		tabs.add_child(b)
 		tab_buttons[def[0]] = b
@@ -184,8 +186,117 @@ func _show_tab(tab: String) -> void:
 			_build_profile(box)
 		"graficos":
 			_build_graphics(box)
+		"guia":
+			_build_guide(box)
 		"progreso":
 			_build_progress(box)
+
+
+# --------------------------------------------------------------- GUÍA
+
+## Manual del juego, por secciones PLEGABLES: la lista entera de un tirón son
+## varias pantallas de scroll y no se encuentra nada. Se ve el índice completo y
+## se abre solo lo que interesa; al abrir una se cierra la anterior, para no
+## acabar con un muro de texto otra vez.
+##
+## El texto vive en `guide_data.gd`.
+var _guia_abierta := -1
+
+
+func _build_guide(box: VBoxContainer) -> void:
+	_note(box, "Todo lo que hay que saber para cocinar en alta mar. Toca un "
+		+ "apartado para abrirlo.")
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box.add_child(scroll)
+	TouchScroll.attach(scroll)
+	var lista := VBoxContainer.new()
+	lista.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lista.add_theme_constant_override("separation", 10)
+	scroll.add_child(lista)
+	_guia_abierta = -1
+	for i in GuideData.SECTIONS.size():
+		_guide_section(lista, int(i))
+
+
+func _guide_section(lista: VBoxContainer, idx: int) -> void:
+	var sec: Dictionary = GuideData.SECTIONS[idx]
+	var caja := VBoxContainer.new()
+	caja.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	caja.add_theme_constant_override("separation", 6)
+	lista.add_child(caja)
+
+	# Cabecera: tablón de madera con el icono de la mecánica y su nombre.
+	var cab := Button.new()
+	cab.text = "   " + str(sec["title"])
+	cab.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	cab.custom_minimum_size = Vector2(0, 66)
+	PrepBoard.skin_button(cab)
+	cab.add_theme_font_size_override("font_size", 25)
+	# Hueco a la izquierda para el icono, que va montado dentro del botón.
+	var sb: StyleBox = cab.get_theme_stylebox("normal")
+	if sb != null:
+		var pad: StyleBox = sb.duplicate()
+		pad.content_margin_left = 74.0
+		for estado in ["normal", "hover", "pressed", "focus", "disabled"]:
+			cab.add_theme_stylebox_override(estado, pad)
+	var ruta := str(sec.get("icon", ""))
+	if ruta != "" and ResourceLoader.exists(ruta):
+		var ic := TextureRect.new()
+		ic.texture = load(ruta)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+		ic.size = Vector2(46, 46)
+		ic.position = Vector2(18, -23)
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cab.add_child(ic)
+	caja.add_child(cab)
+
+	# Cuerpo: oculto hasta que se toca la cabecera.
+	var cuerpo := RichTextLabel.new()
+	cuerpo.bbcode_enabled = true
+	cuerpo.fit_content = true
+	cuerpo.scroll_active = false
+	cuerpo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cuerpo.text = DialogueBox.format_keywords(str(sec["body"]))
+	cuerpo.add_theme_font_size_override("normal_font_size", 21)
+	cuerpo.add_theme_font_size_override("bold_font_size", 21)
+	cuerpo.add_theme_color_override("default_color", Color(0.34, 0.24, 0.13))
+	cuerpo.add_theme_constant_override("line_separation", 4)
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		cuerpo.add_theme_font_override("bold_font", negrita)
+	cuerpo.visible = false
+	caja.add_child(cuerpo)
+
+	cab.pressed.connect(func() -> void: _toggle_guide(idx, cuerpo))
+
+
+## Abre una sección y cierra la que estuviera abierta.
+func _toggle_guide(idx: int, cuerpo: RichTextLabel) -> void:
+	var abrir := not cuerpo.visible
+	for c in _guide_bodies():
+		c.visible = false
+	cuerpo.visible = abrir
+	_guia_abierta = idx if abrir else -1
+
+
+func _guide_bodies() -> Array:
+	var out: Array = []
+	if content == null:
+		return out
+	for caja in content.get_children():
+		for hijo in caja.get_children():
+			if not (hijo is ScrollContainer):
+				continue
+			for lista in hijo.get_children():
+				for sec in lista.get_children():
+					for n in sec.get_children():
+						if n is RichTextLabel:
+							out.append(n)
+	return out
 
 
 # -------------------------------------------------------------- PERFIL

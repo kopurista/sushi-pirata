@@ -152,14 +152,23 @@ func _espabila() -> void:
 ## `congelar` a false deja el juego CORRIENDO mientras se habla: para cuando lo
 ## interesante es justo lo que está pasando detrás (un cliente que se marcha).
 func _say(lines: Array, espera := -1.0, congelar := true) -> void:
-	# Si veníamos de jugar, un respiro antes de hablar.
-	if not lv.clock_hold:
-		await get_tree().create_timer(
-				PAUSA_ANTES if espera < 0.0 else espera).timeout
+	# Tipo explícito: `lv` es un Node3D pelado, así que `clock_hold` llega como
+	# Variant y el `:=` no puede deducir nada de él.
+	var venia_jugando: bool = not lv.clock_hold
+	# EL ÁRBOL SE PARA YA, ANTES DEL RESPIRO. Si el respiro se tomaba con el
+	# juego corriendo, esos 0,3 s eran una ventana en la que el jugador seguía
+	# cocinando: en el tutorial, quien fuera rápido terminaba el maki mientras
+	# David aún explicaba el paso anterior, el guion se perdía el gesto que
+	# estaba esperando y había que hacer un segundo maki para desatascarlo.
 	# El reloj se retiene SIEMPRE mientras alguien habla; `congelar` solo decide
 	# si además se para el árbol (a veces interesa ver lo que pasa detrás).
 	lv.clock_hold = true
 	get_tree().paused = congelar
+	# Si veníamos de jugar, un respiro antes de hablar (el temporizador corre
+	# aunque el árbol esté en pausa).
+	if venia_jugando:
+		await get_tree().create_timer(
+				PAUSA_ANTES if espera < 0.0 else espera).timeout
 	# Sin foco puesto, el fondo se oscurece un poco igualmente mientras hablan.
 	var velo_propio := not _focus_on
 	if velo_propio:

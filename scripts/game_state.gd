@@ -105,6 +105,10 @@ var shop_intro_done := false
 var rice_intro_done := false
 ## Ya se vio la escena de Pablo y Saverio en la tienda (tras el nivel 5).
 var pablo_shop_done := false
+## Puertos cuyo GUION ya se ha visto (ver `port_narrated`). Se marca al terminar
+## la fase de preparación, así que fallar y repetir NO obliga a volver a pasar
+## por las explicaciones.
+var narrated_ports: Array = []
 ## Usos de ingredientes que regala el juego al desbloquear recetas: la tanda
 ## del tutorial viene más surtida que las de cada nivel.
 const TUTORIAL_GIFT := 5
@@ -259,7 +263,9 @@ func complete_tutorial() -> void:
 		unlock_recipe(r)
 	# Se estrenan con la despensa llena: 5 usos de todo lo que piden.
 	gift_ingredients_for(CampaignData.INITIAL_RECIPES, TUTORIAL_GIFT)
-	pending_reveal = CampaignData.INITIAL_RECIPES.duplicate()
+	# SIN `pending_reveal`: el propio David acaba de entregarlas en su despedida
+	# ("estas 4 recetas son tuyas"), así que el pergamino de "¡Recetas nuevas!"
+	# del menú contaba lo mismo otra vez, dos pantallas seguidas.
 	save_game()
 
 
@@ -587,6 +593,21 @@ func has_perk(id: String) -> bool:
 ## ¿Este puerto ya está SUPERADO (sus estrellas llegan a `goal_stars`)? Es lo
 ## que decide si se está repitiendo: sin guion, con los cuatro huecos de receta
 ## y con la carta abierta.
+## ¿Ya se ha VISTO el guion de este puerto? Se marca en cuanto termina la fase
+## de preparación, no al superarlo: quedarse corto de estrellas y tener que
+## repetir no debería obligar a tragarse las explicaciones otra vez. La segunda
+## pasada se juega limpia, con las restricciones del puerto pero sin narración.
+func port_narrated(port_id: String) -> bool:
+	return port_id in narrated_ports
+
+
+func mark_port_narrated(port_id: String) -> void:
+	if port_id == "" or port_id in narrated_ports:
+		return
+	narrated_ports.append(port_id)
+	save_game()
+
+
 func port_beaten(port_id: String) -> bool:
 	var port := CampaignData.get_port(port_id)
 	if port.is_empty():
@@ -873,6 +894,7 @@ func save_game() -> void:
 		"shop_intro_done": shop_intro_done,
 		"rice_intro_done": rice_intro_done,
 		"pablo_shop_done": pablo_shop_done,
+		"narrated_ports": narrated_ports,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
@@ -950,6 +972,7 @@ func load_game() -> void:
 	shop_intro_done = bool(parsed.get("shop_intro_done", false))
 	rice_intro_done = bool(parsed.get("rice_intro_done", false))
 	pablo_shop_done = bool(parsed.get("pablo_shop_done", false))
+	narrated_ports = parsed.get("narrated_ports", [])
 	# Guardado de ANTES del tutorial: si ya tenía recetas es que ya jugó, así
 	# que no se le vuelve a plantar la introducción.
 	if not parsed.has("tutorial_done") and not unlocked_recipes.is_empty():
@@ -1005,6 +1028,7 @@ func _new_game() -> void:
 	shop_intro_done = false
 	rice_intro_done = false
 	pablo_shop_done = false
+	narrated_ports = []
 	# Los usos iniciales SOLO en partida nueva (si se diera también al cargar,
 	# se rellenarían gratis en cada arranque).
 	for ing in CampaignData.INITIAL_INGREDIENTS:

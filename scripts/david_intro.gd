@@ -347,7 +347,10 @@ func _build_cargo() -> void:
 func _build_mast() -> void:
 	var mx := -2.15
 	var mz := -3.9
-	var alto := 6.6
+	# El palo sobresale POR ENCIMA de la bandera. Con el tope justo a la altura
+	# del paño, el mástil se veía cortado a ras y la bandera parecía recortada
+	# contra el cielo, sin nada de donde colgar.
+	var alto := 7.15
 	# Palo, con textura de madera.
 	var palo := MeshInstance3D.new()
 	var cil := CylinderMesh.new()
@@ -389,16 +392,20 @@ func _build_mast() -> void:
 		cuerda.rotate_object_local(Vector3.RIGHT, PI * 0.5)
 		cuerda.material_override = _mat(Color(0.72, 0.64, 0.47))
 		add_child(cuerda)
-	# Bandera pirata al tope, ENTERA dentro del encuadre.
+	# Bandera pirata al tope, ENTERA dentro del encuadre y AGARRADA AL PALO: su
+	# borde izquierdo monta sobre el mástil (y se adelanta un pelo en z, hacia la
+	# cámara, para no pelear en profundidad con él). Antes empezaba justo al lado
+	# y quedaba un hilo de cielo entre paño y mástil, que era lo que la hacía
+	# parecer un recorte pegado.
 	_flag = Node3D.new()
-	_flag.position = Vector3(mx, alto - 0.55, mz)
+	_flag.position = Vector3(mx, alto - 1.1, mz + 0.06)
 	_flag.add_to_group(GeometryBatch.NO_BATCH_GROUP)
 	add_child(_flag)
 	var cloth := MeshInstance3D.new()
 	var mesh := QuadMesh.new()
 	mesh.size = Vector2(1.5, 1.0)
 	cloth.mesh = mesh
-	cloth.position = Vector3(0.78, 0.0, 0.0)
+	cloth.position = Vector3(0.68, 0.0, 0.0)
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = load("res://assets/props/bandera_pirata.png")
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED

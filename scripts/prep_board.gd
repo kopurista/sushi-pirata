@@ -1751,7 +1751,7 @@ func _combo_ready() -> String:
 		var parts: Array = RecipeData.COMBOS[id].get("parts", [])
 		var ok := true
 		for part in parts:
-			if _stored_count(part) <= 0:
+			if stored_count(part) <= 0:
 				ok = false
 				break
 		if ok and not parts.is_empty():
@@ -1760,7 +1760,10 @@ func _combo_ready() -> String:
 
 
 ## Cuántas unidades de esa receta hay en las cajas.
-func _stored_count(id: String) -> int:
+## Cuántas unidades de esa receta hay guardadas en las cajas. Público porque
+## lo consulta el guion del tutorial para saber si el jugador ha guardado el
+## maki en vez de mandarlo a la cinta.
+func stored_count(id: String) -> int:
 	var n := 0
 	for i in stacks:
 		if stacks[i].id == id:
