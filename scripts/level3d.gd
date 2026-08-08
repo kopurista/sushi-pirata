@@ -1379,7 +1379,7 @@ func _merged_aabb(node: Node) -> AABB:
 ## Tamaño del cartel de resultados: un cartel PEQUEÑO con lo justo (estrellas,
 ## nivel, oro y los dos botones), en vez del panel casi a pantalla completa de
 ## antes. El desglose se va a su propia hoja, detrás del botón del lateral.
-const RESULT_SIZE := Vector2(548, 530)
+const RESULT_SIZE := Vector2(548, 472)
 
 
 ## Convierte el panel de resultados en un cartel compacto con cuerdas en las
@@ -1410,6 +1410,10 @@ Acabada", 52)
 	titular.custom_minimum_size = Vector2(0, 106)
 	vb.add_child(titular)
 	vb.move_child(titular, 0)
+	# El titular sube hacia el canto del cartel: debajo va el recuento animado
+	# del dinero, y centrado se le comía el sitio.
+	vb.alignment = BoxContainer.ALIGNMENT_BEGIN
+	vb.offset_top = 44.0
 	# La cifra del total va GRANDE y con su moneda al lado. `earn_label` sale
 	# del VBox y se mete en esa fila.
 	var fila := HBoxContainer.new()
@@ -1437,6 +1441,11 @@ Acabada", 52)
 	if negrita != null:
 		earn_label.add_theme_font_override("font", negrita)
 	earn_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	# Pivote al CENTRO: el latido del recuento la escala, y con el pivote por
+	# defecto (esquina superior izquierda) la cifra se iba hacia abajo-derecha
+	# en vez de hincharse en su sitio.
+	earn_label.resized.connect(func() -> void:
+		earn_label.pivot_offset = earn_label.size * 0.5)
 	fila.add_child(earn_label)
 	vb.add_child(fila)
 	vb.move_child(fila, idx)
@@ -1468,7 +1477,7 @@ Acabada", 52)
 	scroll.offset_left = 44.0
 	scroll.offset_top = 76.0
 	scroll.offset_right = -44.0
-	scroll.offset_bottom = -84.0
+	scroll.offset_bottom = -118.0
 	detail_panel.add_child(scroll)
 	TouchScroll.attach(scroll)
 	# El botón se sube del canto y se ensancha lo justo para su texto: pegado
@@ -1477,12 +1486,12 @@ Acabada", 52)
 	var cerrar := Button.new()
 	cerrar.text = "Cerrar"
 	cerrar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	cerrar.offset_left = 148.0
-	cerrar.offset_right = -148.0
-	cerrar.offset_top = -66.0
-	cerrar.offset_bottom = -66.0 + PrepBoard.SMALL_H
+	cerrar.offset_left = 214.0
+	cerrar.offset_right = -214.0
+	cerrar.offset_top = -104.0
+	cerrar.offset_bottom = -104.0 + PrepBoard.SMALL_H
 	PrepBoard.skin_small_button(cerrar)
-	cerrar.add_theme_font_size_override("font_size", 30)
+	cerrar.add_theme_font_size_override("font_size", 26)
 	cerrar.pressed.connect(func() -> void: detail_panel.visible = false)
 	detail_panel.add_child(cerrar)
 
@@ -1675,7 +1684,10 @@ func _setup_money_bars() -> void:
 	var money_row: Control = money_label.get_parent()
 	var jar_row: Control = jar_label.get_parent()
 
-	money_bar = _make_hud_bar("barra_oro", 16, Vector2(214, 32),
+	# MÁS LARGA que la del bote: es la que tiene que dar cabida a objetivos de
+	# tres y cuatro cifras sin que el número de la meta se monte sobre las
+	# muescas de estrella.
+	money_bar = _make_hud_bar("barra_oro", 16, Vector2(266, 32),
 		Color(0.36, 0.86, 0.36), money_label, 26)
 	# La de propinas era de 20 px con letra de 17 y no se leía: sube a la misma
 	# textura que la del oro (32) con cuerpo 22.
@@ -1715,41 +1727,75 @@ func _with_icon(bar: Control, icono: String, lado: float) -> HBoxContainer:
 	return fila
 
 
+## Color del MARCO de la barra, sacado de su propia textura
+## (`barra_oro_fondo.png`, el borde vale 76/45/23): las muescas son del mismo
+## trazo que dibuja el canal, así que se leen como parte de la barra y no como
+## algo pegado encima.
+const BAR_STROKE := Color(0.298, 0.176, 0.090)
+## Inclinación de las muescas: son BARRAS "/" y no palotes "|". Un palote se
+## confundía con el borde de un tramo lleno; inclinado se lee como una marca.
+## Van A SANGRE, de canto a canto del canal: cortadas antes del borde parecían
+## un carácter escrito encima en vez de una división de la propia barra.
+const MARK_TILT := 24.0
+const MARK_W := 5.0
+## Lo que se pasa de largo por arriba y por abajo. El sobrante lo recorta el
+## `clip_contents` de la barra, así que el corte sale limpio y recto aunque la
+## marca esté girada (girada, su alto útil es `alto * cos(TILT)`, siempre menor
+## que el de la barra).
+const MARK_BLEED := 1.5
+
+## Muescas de la barra del oro: `{ nodo, frac }`. Se recolocan por fotograma en
+## `_place_star_marks`, porque una marca girada no puede vivir de anclas (el
+## giro necesita el pivote en su centro, y el centro sale del tamaño ya
+## resuelto).
+var star_marks: Array = []
+
+
 ## Las DOS MUESCAS de la barra del oro, en los umbrales de 1 y 2 estrellas: la
 ## barra se lee entonces como tres tramos, uno por estrella, y de un vistazo se
 ## ve cuánto falta para la siguiente en vez de solo "cuánto llevo del total".
-## Van por ANCLA (fracción del ancho), así que siguen a la barra si cambia de
-## tamaño.
 ##
 ## Se llama al final de `_ready`, no desde `_setup_money_bars`: los umbrales
 ## salen del puerto y todavía no están puestos cuando se visten los paneles.
 func _mark_star_steps() -> void:
+	star_marks.clear()
 	if money_bar == null or star_money.size() < 2:
 		return
+	# Las muescas se dibujan más largas que el canal y se recortan aquí: así
+	# llegan al borde de arriba y al de abajo con un corte recto, sin el degradado
+	# de los cantos de un rectángulo girado.
+	money_bar.clip_contents = true
 	var meta := float(star_money.back())
 	if meta <= 0.0:
 		return
 	for i in star_money.size() - 1:
-		var frac := clampf(float(star_money[i]) / meta, 0.0, 1.0)
-		# CREMA, no marrón oscuro: la muesca tiene que verse sobre los DOS fondos
-		# por los que pasa —el verde del relleno y el marrón del canal— y un tono
-		# oscuro se perdía por completo en la parte vacía de la barra.
 		var marca := ColorRect.new()
-		marca.color = Color(1.0, 0.94, 0.76, 0.92)
-		marca.anchor_left = frac
-		marca.anchor_right = frac
-		marca.anchor_top = 0.0
-		marca.anchor_bottom = 1.0
-		marca.offset_left = -2.5
-		marca.offset_right = 2.5
-		# Sin llegar a los cantos: la barra tiene topes redondeados y una muesca
-		# de borde a borde se los comía.
-		marca.offset_top = 6.0
-		marca.offset_bottom = -6.0
+		marca.color = BAR_STROKE
+		marca.rotation_degrees = MARK_TILT
 		marca.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		money_bar.add_child(marca)
-		# Por debajo de la etiqueta con la cifra, que va la última.
+		# Por debajo de las etiquetas, que van las últimas.
 		money_bar.move_child(marca, 0)
+		star_marks.append({
+			"nodo": marca,
+			"frac": clampf(float(star_money[i]) / meta, 0.0, 1.0),
+		})
+
+
+func _place_star_marks() -> void:
+	if money_bar == null or star_marks.is_empty():
+		return
+	var ancho := money_bar.size.x
+	var alto := money_bar.size.y
+	if ancho <= 0.0:
+		return
+	var largo := alto * MARK_BLEED
+	for m in star_marks:
+		var n: ColorRect = m["nodo"]
+		n.size = Vector2(MARK_W, largo)
+		n.pivot_offset = n.size * 0.5
+		n.position = Vector2(float(m["frac"]) * ancho - MARK_W * 0.5,
+			(alto - largo) * 0.5)
 
 
 func _make_hud_bar(tex: String, cap: int, tamano: Vector2, tinte: Color,
@@ -1784,6 +1830,9 @@ func _make_meta_label(bar: ProgressBar, cuerpo: int) -> Label:
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_skin_bar_label(l, cuerpo)
+	# Trazo MÁS GRUESO que el de la cifra móvil: esta acaba sola sobre el
+	# relleno lleno (verde o azul), y con el contorno fino se emborronaba.
+	l.add_theme_constant_override("outline_size", 10)
 	bar.add_child(l)
 	return l
 
@@ -1807,8 +1856,10 @@ func _place_bar_value(bar: ProgressBar, movil: Label, meta_l: Label,
 		valor: int, meta: int) -> void:
 	if movil == null or meta_l == null:
 		return
-	meta_l.text = str(meta)
 	var lleno: bool = meta > 0 and valor >= meta
+	# Con la barra llena la cifra que queda es LO CONSEGUIDO, no el objetivo:
+	# pasado el umbral, repetir la meta escondía que se había cerrado con más.
+	meta_l.text = str(valor if lleno else meta)
 	movil.visible = not lleno
 	if lleno:
 		return
@@ -2640,64 +2691,87 @@ const STAR_GAP := 0.42
 ##
 ## Va todo en PROCESS_MODE_ALWAYS porque `_show_results` PAUSA el árbol: un
 ## tween creado sobre un nodo en pausa no avanza ni un fotograma.
-func _reveal_stars(stars: int) -> void:
+## Huecos de las estrellas: cada uno con su estrella vacía de fondo y la llena
+## encima, apagada, esperando su turno. `star_slots` guarda las llenas para
+## poder encenderlas UNA A UNA según sube el recuento del dinero.
+var star_slots: Array = []
+
+
+func _build_star_slots() -> void:
+	star_slots.clear()
 	stars_row.process_mode = Node.PROCESS_MODE_ALWAYS
 	for i in 3:
-		var lograda := i < stars
 		var hueco := Control.new()
 		hueco.custom_minimum_size = Vector2(STAR_SIZE, STAR_SIZE)
 		hueco.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hueco.process_mode = Node.PROCESS_MODE_ALWAYS
 		stars_row.add_child(hueco)
-
 		# La estrella VACÍA se queda siempre debajo, como el hueco que hay que
 		# llenar: sin ella, una estrella que aún no ha entrado deja un vacío y la
 		# fila baila mientras se revelan.
 		var fondo := _star_sprite("res://assets/ui/estrella_vacia.png")
 		fondo.modulate = Color(1, 1, 1, 0.28)
 		hueco.add_child(fondo)
-
-		var ic := _star_sprite("res://assets/ui/estrella_llena.png" if lograda
-				else "res://assets/ui/estrella_vacia.png")
+		var ic := _star_sprite("res://assets/ui/estrella_llena.png")
 		ic.modulate.a = 0.0
 		hueco.add_child(ic)
+		star_slots.append(ic)
 
-		# EL RETRASO DE CADA ESTRELLA VA EN `set_delay` DE CADA TWEENER, no en un
-		# `tween_interval` al principio. Con el intervalo delante y el tween en
-		# modo paralelo, las animaciones corren A LA VEZ que el intervalo en vez
-		# de después, así que las tres estrellas entraban de golpe.
-		var d := STAR_DELAY + i * STAR_GAP
-		var t := hueco.create_tween().set_parallel(true)
-		if lograda:
-			# Entra enorme y girada, se clava de golpe (BACK sobrepasa y vuelve),
-			# suelta un destello blanco y remata con un latido.
-			ic.scale = Vector2(2.6, 2.6)
-			ic.rotation_degrees = -210.0
-			t.tween_property(ic, "modulate:a", 1.0, 0.12).set_delay(d)
-			t.tween_property(ic, "scale", Vector2.ONE, 0.42).set_delay(d) \
-					.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-			t.tween_property(ic, "rotation_degrees", 0.0, 0.42).set_delay(d) \
-					.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-			t.tween_property(ic, "modulate", Color(2.4, 2.4, 2.0, 1.0), 0.08) \
-					.set_delay(d + 0.42)
-			t.tween_property(ic, "modulate", Color.WHITE, 0.24) \
-					.set_delay(d + 0.50)
-			t.tween_property(ic, "scale", Vector2(1.18, 1.18), 0.14) \
-					.set_delay(d + 0.50).set_trans(Tween.TRANS_SINE)
-			t.tween_property(ic, "scale", Vector2.ONE, 0.20) \
-					.set_delay(d + 0.64).set_trans(Tween.TRANS_SINE)
-		else:
-			# Se descuelga desde arriba, sin fuerza, y aterriza torcida, hundida
-			# y a media luz. TRANS_QUAD entrando: cae y se para, sin rebote.
-			ic.position.y -= 34.0
-			ic.scale = Vector2(1.1, 1.1)
-			t.tween_property(ic, "modulate:a", 0.5, 0.5).set_delay(d)
-			t.tween_property(ic, "position:y", 5.0, 0.6).set_delay(d) \
-					.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-			t.tween_property(ic, "scale", Vector2(0.9, 0.9), 0.6).set_delay(d) \
-					.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-			t.tween_property(ic, "rotation_degrees", -10.0, 0.6).set_delay(d) \
-					.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+
+## Enciende una estrella CONSEGUIDA: entra enorme y girada, se clava de golpe
+## (BACK sobrepasa y vuelve), suelta un destello y remata con un latido.
+## `especial` es la TERCERA: gira entera, tarda más y deja un fogonazo dorado
+## que se abre detrás. Sacar las tres tiene que notarse.
+func _pop_star(idx: int, especial := false) -> void:
+	if idx < 0 or idx >= star_slots.size():
+		return
+	var ic: TextureRect = star_slots[idx]
+	ic.scale = Vector2(3.4, 3.4) if especial else Vector2(2.6, 2.6)
+	ic.rotation_degrees = -540.0 if especial else -210.0
+	var dur := 0.62 if especial else 0.42
+	if especial:
+		# Fogonazo: una estrella gigante detrás que se abre y se apaga.
+		var flash := _star_sprite("res://assets/ui/estrella_llena.png")
+		flash.modulate = Color(1.8, 1.6, 0.9, 0.85)
+		ic.get_parent().add_child(flash)
+		ic.get_parent().move_child(flash, 0)
+		var tf := flash.create_tween().set_parallel(true)
+		tf.tween_property(flash, "scale", Vector2(3.6, 3.6), 0.55).set_delay(dur * 0.7) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tf.tween_property(flash, "modulate:a", 0.0, 0.55).set_delay(dur * 0.7)
+		tf.chain().tween_callback(flash.queue_free)
+	var t := ic.create_tween().set_parallel(true)
+	t.tween_property(ic, "modulate:a", 1.0, 0.12)
+	t.tween_property(ic, "scale", Vector2.ONE, dur) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_property(ic, "rotation_degrees", 0.0, dur) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_property(ic, "modulate", Color(2.4, 2.4, 2.0, 1.0), 0.08).set_delay(dur)
+	t.tween_property(ic, "modulate", Color.WHITE, 0.24).set_delay(dur + 0.08)
+	t.tween_property(ic, "scale", Vector2(1.22, 1.22), 0.14) \
+			.set_delay(dur + 0.08).set_trans(Tween.TRANS_SINE)
+	t.tween_property(ic, "scale", Vector2.ONE, 0.2) \
+			.set_delay(dur + 0.22).set_trans(Tween.TRANS_SINE)
+
+
+## La estrella que NO se ha conseguido: se descuelga desde arriba, sin fuerza, y
+## aterriza torcida, hundida y a media luz. TRANS_QUAD entrando: cae y se para,
+## sin rebote ninguno. Enterarse de que falta una tiene que dar pena.
+func _drop_star(idx: int) -> void:
+	if idx < 0 or idx >= star_slots.size():
+		return
+	var ic: TextureRect = star_slots[idx]
+	ic.texture = load("res://assets/ui/estrella_vacia.png")
+	ic.position.y -= 34.0
+	ic.scale = Vector2(1.1, 1.1)
+	var t := ic.create_tween().set_parallel(true)
+	t.tween_property(ic, "modulate:a", 0.5, 0.5)
+	t.tween_property(ic, "position:y", 5.0, 0.6) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	t.tween_property(ic, "scale", Vector2(0.9, 0.9), 0.6) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	t.tween_property(ic, "rotation_degrees", -10.0, 0.6) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 
 
 ## Una estrella suelta, con el pivote en el centro para poder girarla y
@@ -2719,11 +2793,12 @@ func _show_results(stars: int, total_money: int, new_recipes: Array) -> void:
 	# tratamiento que toque por el género elegido.
 	for c in stars_row.get_children():
 		c.queue_free()
-	_reveal_stars(stars)
+	_build_star_slots()
 	# La cifra del cartel es el TOTAL de la jornada (platos + propinas +
 	# primas), en grande y con su moneda al lado. Ya no se enseña el
 	# porcentaje ni el nombre del puerto: el desglose está a un botón.
-	earn_label.text = str(total_money)
+	# Arranca en 0: la sube `_count_up_money` por tramos.
+	earn_label.text = "0"
 	score_label.visible = false
 	_build_breakdown()
 	_setup_results_scroll()
@@ -2736,7 +2811,130 @@ func _show_results(stars: int, total_money: int, new_recipes: Array) -> void:
 		exit_button.visible = false
 	results_panel.visible = true
 	get_tree().paused = true
+	await _count_up_money(stars)
 	_reveal_recipes(new_recipes)
+
+
+# --------------------------------------------------- recuento de la jornada
+
+## Lo que tarda cada tramo del recuento y el respiro entre uno y otro.
+const COUNT_BASE := 1.0
+const COUNT_EXTRA := 0.65
+const COUNT_PAUSE := 0.35
+## Dónde nace la chapa del "+N" respecto a la cifra grande, y cuánto sube.
+const CHIP_RISE := 96.0
+
+
+## EL TOTAL SE CUENTA POR TRAMOS, no aparece hecho: primero sube el dinero de
+## los PLATOS desde 0, después entra la chapa de las PROPINAS y su cifra se suma
+## encima, y al final la de las PRIMAS de cierre. Cada chapa lleva su icono y
+## sube flotando mientras el número de abajo la absorbe.
+##
+## LAS ESTRELLAS SE ENCIENDEN AL PASO del contador: cuando la suma cruza el
+## umbral de una estrella, esa estrella entra. Se comprueba contra `stars`, que
+## se calculó con base + propinas, para que las primas del último tramo no
+## enciendan una estrella que no se ha ganado.
+func _count_up_money(stars: int) -> void:
+	var encendidas := { "n": 0 }
+	await _count_leg(0, money_earned, COUNT_BASE, stars, encendidas)
+	if tips_total > 0:
+		await get_tree().create_timer(COUNT_PAUSE).timeout
+		_money_chip(tips_total, "res://assets/ui/ic_propina.png")
+		await _count_leg(money_earned, money_earned + tips_total,
+			COUNT_EXTRA, stars, encendidas)
+	var primas := bonus_clients + bonus_time
+	if primas > 0:
+		await get_tree().create_timer(COUNT_PAUSE).timeout
+		_money_chip(primas, "res://assets/ui/reloj.png" if bonus_time > bonus_clients
+			else "res://assets/ui/head_E.png")
+		await _count_leg(money_earned + tips_total,
+			money_earned + tips_total + primas, COUNT_EXTRA, stars, encendidas)
+	# Las que no se han conseguido caen ahora, cuando ya no hay nada que sumar.
+	await get_tree().create_timer(COUNT_PAUSE).timeout
+	for i in range(int(encendidas["n"]), 3):
+		_drop_star(i)
+		await get_tree().create_timer(0.18).timeout
+
+
+## Un tramo del contador. Sube la cifra de `desde` a `hasta` y va encendiendo
+## las estrellas cuyo umbral se cruce por el camino.
+func _count_leg(desde: int, hasta: int, dur: float, stars: int,
+		encendidas: Dictionary) -> void:
+	if hasta <= desde:
+		return
+	var t := earn_label.create_tween()
+	t.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.tween_method(_count_tick.bind(stars, encendidas),
+		float(desde), float(hasta), dur)
+	# Un latido de la cifra al terminar el tramo, para que se note el salto.
+	t.chain().tween_property(earn_label, "scale", Vector2(1.14, 1.14), 0.1)
+	t.tween_property(earn_label, "scale", Vector2.ONE, 0.14)
+	await t.finished
+
+
+## Cada paso del contador: escribe la cifra y enciende las estrellas cuyo umbral
+## se acabe de cruzar. `stars` acota cuántas pueden encenderse, para que las
+## primas del último tramo no regalen una que no se ha ganado.
+func _count_tick(v: float, stars: int, encendidas: Dictionary) -> void:
+	var actual := int(round(v))
+	earn_label.text = str(actual)
+	while int(encendidas["n"]) < stars \
+			and int(encendidas["n"]) < star_money.size() \
+			and actual >= int(star_money[int(encendidas["n"])]):
+		var idx := int(encendidas["n"])
+		encendidas["n"] = idx + 1
+		# La TERCERA lleva su propia entrada, más larga y con fogonazo.
+		_pop_star(idx, idx == 2)
+
+
+## Chapa flotante "+N" con su icono, que sale de la cifra grande y sube
+## desvaneciéndose: es la que cuenta DE DÓNDE sale cada salto del contador.
+func _money_chip(cantidad: int, icono: String) -> void:
+	var chip := HBoxContainer.new()
+	chip.add_theme_constant_override("separation", 6)
+	chip.alignment = BoxContainer.ALIGNMENT_CENTER
+	chip.process_mode = Node.PROCESS_MODE_ALWAYS
+	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip.z_index = 5
+	if ResourceLoader.exists(icono):
+		var ic := TextureRect.new()
+		ic.texture = load(icono)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.custom_minimum_size = Vector2(44, 44)
+		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip.add_child(ic)
+	var l := Label.new()
+	l.text = "+%d" % cantidad
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.add_theme_font_size_override("font_size", 40)
+	l.add_theme_color_override("font_color", Color(1, 0.94, 0.62))
+	l.add_theme_color_override("font_outline_color", Color(0.28, 0.11, 0.03))
+	l.add_theme_constant_override("outline_size", 10)
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		l.add_theme_font_override("font", negrita)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip.add_child(l)
+	results_panel.add_child(chip)
+	# Nace sobre la cifra grande y sube desde ahí.
+	var centro := earn_label.get_global_rect().get_center() \
+		- results_panel.global_position
+	# A la DERECHA de la cifra, no encima: subiendo por el centro, la chapa
+	# cruzaba justo por delante de las estrellas y tapaba la que acababa de
+	# encenderse.
+	chip.position = centro + Vector2(72, -14)
+	chip.modulate.a = 0.0
+	chip.scale = Vector2(0.6, 0.6)
+	var t := chip.create_tween().set_parallel(true)
+	t.tween_property(chip, "modulate:a", 1.0, 0.14)
+	t.tween_property(chip, "scale", Vector2.ONE, 0.26) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_property(chip, "position:y", chip.position.y - CHIP_RISE, 0.9) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.tween_property(chip, "modulate:a", 0.0, 0.35).set_delay(0.55)
+	t.chain().tween_callback(chip.queue_free)
 
 
 ## Anuncia las recetas recien desbloqueadas con una animacion, de una en una.
@@ -3379,6 +3577,7 @@ func _update_hud() -> void:
 		tip_bar.value = clampf(tips_total, 0, tip_bar.max_value)
 		_place_bar_value(money_bar, money_label, money_meta, _score_money(), meta)
 		_place_bar_value(tip_bar, jar_label, tip_meta, tips_total, umbral)
+		_place_star_marks()
 	# Cuenta los que YA HAN VENIDO, no los que se han ido: con los idos el
 	# marcador se quedaba en 0 con la barra llena, que es justo cuando el
 	# jugador quiere saber cuánta clientela le queda por llegar. En los

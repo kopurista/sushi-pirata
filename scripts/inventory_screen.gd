@@ -471,7 +471,17 @@ func _build_pantry_book() -> Control:
 	root.add_child(book_host)
 	var pages := _make_book(book_host)
 
-	var ids: Array = RecipeData.INGREDIENTS.keys()
+	# PRIMERO lo que sirve para algo. Un ingrediente cuya receta aún no se sabe
+	# cocinar no se puede comprar ni gastar, así que va detrás y en silueta:
+	# está en el libro para que se vea que existe, no para consultarlo.
+	var conocidos: Array = []
+	var por_saber: Array = []
+	for ing in RecipeData.INGREDIENTS:
+		if _ingredient_known(str(ing)):
+			conocidos.append(ing)
+		else:
+			por_saber.append(ing)
+	var ids: Array = conocidos + por_saber
 	var total_pages := maxi(1, ceili(float(ids.size()) / float(INGREDIENTS_PER_PAGE)))
 	pantry_page = clampi(pantry_page, 0, total_pages - 1)
 
@@ -498,8 +508,26 @@ func _build_pantry_book() -> Control:
 	return root
 
 
+## ¿Este ingrediente lo pide alguna receta YA DESBLOQUEADA? Los EXTRAS
+## (jengibre, wasabi, soja) no salen en ninguna receta, así que se miran aparte:
+## existen desde que Saverio los presenta.
+func _ingredient_known(ing: String) -> bool:
+	# Los GRATIS (arroz, sésamo) están siempre: no se compran ni se gastan, y
+	# `RecipeData.get_ingredients` los salta a propósito, así que buscarlos en
+	# las recetas no los encontraría nunca.
+	if int(RecipeData.INGREDIENTS.get(ing, {}).get("cost", 0)) <= 0:
+		return true
+	if ing in RecipeData.EXTRAS:
+		return GameState.extras_unlocked()
+	for rid in GameState.unlocked_recipes:
+		if ing in RecipeData.get_ingredients(str(rid)):
+			return true
+	return false
+
+
 func _build_pantry_entry(ing: String) -> Control:
 	var data: Dictionary = RecipeData.INGREDIENTS[ing]
+	var conocido := _ingredient_known(ing)
 	var row := HBoxContainer.new()
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	# Reparten la altura de la página entre todos, en vez de amontonarse
@@ -513,6 +541,9 @@ func _build_pantry_entry(ing: String) -> Control:
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.texture = RecipeData.get_ingredient_texture(ing)
 	icon.custom_minimum_size = Vector2(88, 88)
+	if not conocido:
+		# Silueta oscura, igual que una receta por aprender en el recetario.
+		icon.modulate = Color(0.12, 0.1, 0.09, 0.75)
 	row.add_child(icon)
 
 	var col := VBoxContainer.new()
@@ -520,19 +551,23 @@ func _build_pantry_entry(ing: String) -> Control:
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
 	col.add_theme_constant_override("separation", 0)
 	var name_l := Label.new()
-	name_l.text = str(data.get("name", ing))
+	name_l.text = str(data.get("name", ing)) if conocido else "???"
 	name_l.add_theme_font_size_override("font_size", 20)
-	name_l.add_theme_color_override("font_color", DARK)
+	name_l.add_theme_color_override("font_color", DARK if conocido else FADED)
 	col.add_child(name_l)
 	var uses_l := Label.new()
 	# El arroz no se compra ni se gasta: es infinito.
 	var infinite := int(data.get("cost", 0)) <= 0
-	uses_l.text = "Siempre disponible" if infinite \
-			else "Usos: %d" % GameState.get_ingredient_uses(ing)
+	if not conocido:
+		uses_l.text = "Receta por aprender"
+		uses_l.add_theme_color_override("font_color", FADED)
+	else:
+		uses_l.text = "Siempre disponible" if infinite \
+				else "Usos: %d" % GameState.get_ingredient_uses(ing)
+		uses_l.add_theme_color_override("font_color",
+			Color(0.2, 0.45, 0.12) if infinite or GameState.get_ingredient_uses(ing) > 0
+			else Color(0.7, 0.18, 0.12))
 	uses_l.add_theme_font_size_override("font_size", 18)
-	uses_l.add_theme_color_override("font_color",
-		Color(0.2, 0.45, 0.12) if infinite or GameState.get_ingredient_uses(ing) > 0
-		else Color(0.7, 0.18, 0.12))
 	col.add_child(uses_l)
 	row.add_child(col)
 	return row

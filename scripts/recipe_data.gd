@@ -675,7 +675,7 @@ const RECIPES: Dictionary = {
 		"clears_boredom": true,
 		"steps": [
 			{ "type": "drag_ingredient", "ingredient": "te", "prop": "cuenco_vacio" },
-			{ "type": "hold_board", "duration": 1.5 },
+			{ "type": "hold_board", "duration": 1.2 },
 		],
 		"stages": ["bol_agua", ""],
 	},

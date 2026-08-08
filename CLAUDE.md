@@ -1104,10 +1104,24 @@ que no hay problema.
   **DOS CIFRAS POR BARRA, no un "0 / 40"** (`_place_bar_value`): el OBJETIVO se
   queda clavado al extremo derecho, y la cifra que sube VIAJA con el relleno —
   arranca pegada al principio y se mantiene en la punta, que es donde el
-  jugador está mirando. Al alcanzar el objetivo la móvil se oculta y queda solo
-  la meta: repetir "40 / 40" no dice nada. Dos topes al colocarla: por la
-  izquierda para que no se salga del canto sin relleno, y por la derecha para
-  que no se monte sobre la cifra de la meta.
+  jugador está mirando. Al llenarse la barra la móvil se oculta y la de la
+  derecha pasa a enseñar **lo conseguido**, no la meta: pasado el umbral,
+  repetir el objetivo escondía que se había cerrado con más. Lleva un contorno
+  más grueso (10) porque acaba sola sobre el relleno. Dos topes al colocar la
+  móvil: por la izquierda para que no se salga del canto sin relleno, y por la
+  derecha para que no se monte sobre la cifra de la meta.
+  **Las muescas de estrella son BARRAS "/", no palotes "|"**, y del color del
+  MARCO de la barra (`BAR_STROKE`, sacado del borde de `barra_oro_fondo.png`):
+  así se leen como parte del dibujo de la barra. Van **A SANGRE**, de canto a
+  canto: se dibujan más largas que el canal y las recorta el `clip_contents`
+  de la propia barra, que es lo que da un corte recto arriba y abajo pese al
+  giro. Una marca girada NO puede vivir de anclas —el giro necesita el pivote
+  en su centro, y el centro sale del tamaño ya resuelto—, así que se recolocan
+  por fotograma en `_place_star_marks`.
+  **La barra del oro es más LARGA que la del bote** (266 vs 178): es la que
+  tiene que dar cabida a objetivos de tres y cuatro cifras sin que el número de
+  la meta se monte sobre las muescas. Más de eso no cabe: con el reloj visible
+  (abordajes) la fila de arriba se queda sin hueco.
   **La del oro va PARTIDA EN TRES TRAMOS** (`_mark_star_steps`), con una muesca
   en el umbral de 1 y de 2 estrellas: así se ve cuánto falta para la SIGUIENTE
   estrella y no solo cuánto llevas del total. Las muescas van por ANCLA
@@ -1206,16 +1220,25 @@ que no hay problema.
   cartel necesita `PROCESS_MODE_ALWAYS` o no recibe ni un toque: la hoja del
   desglose no dejaba ni desplazar ni cerrar por esto. Y los TWEENS tampoco
   corren: las estrellas del cartel llevan `PROCESS_MODE_ALWAYS` por eso.
-- **Las ESTRELLAS del cartel entran DE UNA EN UNA** (`_reveal_stars`), y cada
-  una cuenta lo suyo: la conseguida llega girando y enorme, se clava con
-  `TRANS_BACK`, suelta un destello y remata con un latido; la que falta se
-  descuelga desde arriba con `TRANS_QUAD` entrando y aterriza torcida, hundida
-  y a media luz. Debajo queda siempre la estrella vacía a poca opacidad, o la
-  fila bailaría mientras se revelan.
-  **EL RETRASO DE CADA UNA VA EN `set_delay()` DE CADA TWEENER, no en un
-  `tween_interval` al principio**: con el intervalo delante y el tween en modo
-  paralelo, las animaciones corren A LA VEZ que el intervalo en lugar de
-  después, y las tres estrellas entraban de golpe.
+- **EL TOTAL DE LA JORNADA SE CUENTA POR TRAMOS** (`_count_up_money`), no
+  aparece hecho: primero sube el dinero de los PLATOS desde 0, luego entra la
+  chapa "+N" de las PROPINAS con su icono y la cifra la absorbe, y al final la
+  de las PRIMAS de cierre. Las chapas suben flotando **a la derecha** de la
+  cifra: por el centro cruzaban justo por delante de las estrellas y tapaban la
+  que acababa de encenderse.
+- **Las ESTRELLAS se encienden AL PASO del contador** (`_count_tick`): cuando
+  la suma cruza el umbral de una, esa entra. Se acota con el número de
+  estrellas YA CALCULADO (base + propinas), o las primas del último tramo
+  regalarían una que no se ha ganado. La conseguida llega girando y enorme, se
+  clava con `TRANS_BACK`, suelta un destello y remata con un latido; **la
+  TERCERA** (`_pop_star(idx, true)`) gira entera, tarda más y deja un fogonazo
+  dorado que se abre detrás. La que falta (`_drop_star`) se descuelga desde
+  arriba con `TRANS_QUAD` entrando y aterriza torcida, hundida y a media luz, y
+  solo al final, cuando ya no queda nada que sumar. Debajo queda siempre la
+  estrella vacía a poca opacidad, o la fila bailaría mientras se revelan.
+  **UN RETRASO VA EN `set_delay()` DE CADA TWEENER, no en un `tween_interval`
+  al principio**: con el intervalo delante y el tween en modo paralelo, las
+  animaciones corren A LA VEZ que el intervalo en lugar de después.
 - **Rótulo grande = `make_big_title()`** (letras doradas con contorno grueso),
   para carteles cortos: "¿Salir?" y "Jornada acabada". Una cinta con una frase
   larga pesaba más que el propio mensaje.
@@ -1390,6 +1413,15 @@ que no hay problema.
 - **El surtido de la tienda solo trae ingredientes de recetas DESBLOQUEADAS**
   (`roll_shop_stock` filtra por `unlocked_recipes`), y `unlock_recipe` pone
   `shop_day = ""` para que el surtido se rehaga al aprender algo nuevo.
+  **Al recargar NO se repite nada de la tanda anterior**: se sortea primero
+  entre lo que NO estaba y solo se rellena con lo de antes si no hay bastante
+  género distinto (con pocas recetas desbloqueadas el surtido no da para ocho
+  artículos nuevos). Pagar por recargar y que salga lo mismo es tirar el dinero.
+- **La DESPENSA del inventario ordena por lo que sirve**: delante los
+  ingredientes de recetas que ya se saben cocinar, detrás los demás en silueta
+  con "???" (`_ingredient_known`). Los GRATIS (arroz, sésamo) cuentan siempre
+  como conocidos: no se compran ni se gastan, y `RecipeData.get_ingredients`
+  los salta a propósito, así que buscarlos en las recetas no los encontraría.
 - **Campos nuevos de puerto en `CampaignData`**: `fixed_recipes` (carta
   cerrada), `recipe_slots` (huecos que se pueden llevar, 4 por defecto),
   `no_extras` (oculta extras, combinar y barco → `prep_board.hide_extras`),

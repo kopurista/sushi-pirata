@@ -529,9 +529,25 @@ func roll_shop_stock() -> void:
 		if int(RecipeData.INGREDIENTS[ing].get("cost", 0)) > 0:
 			pool.append(ing)
 	pool.shuffle()
+	# NADA REPETIDO de la tanda anterior: recargar y que vuelva a salir lo mismo
+	# es tirar el dinero. Se sortea primero entre lo que NO estaba, y solo si no
+	# hay bastante género distinto se rellena con lo de antes (con pocas recetas
+	# desbloqueadas el surtido no da para ocho artículos nuevos).
+	var antes := {}
+	for ing in shop_stock:
+		antes[ing] = true
+	var nuevos: Array[String] = []
+	var repes: Array[String] = []
+	for ing in pool:
+		if antes.has(ing):
+			repes.append(ing)
+		else:
+			nuevos.append(ing)
 	shop_stock = []
-	for i in mini(SHOP_SLOTS, pool.size()):
-		shop_stock.append(pool[i])
+	for ing in nuevos + repes:
+		if shop_stock.size() >= SHOP_SLOTS:
+			break
+		shop_stock.append(ing)
 
 
 ## "Recargar artículos": paga y vuelve a sortear. False si no llega el dinero.
