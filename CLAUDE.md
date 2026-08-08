@@ -1101,6 +1101,13 @@ que no hay problema.
 - **Marcador de la partida: DOS BARRAS**, oro (verde) y propinas (azul), con la
   cifra SUPERPUESTA. Cada barra tiene SU textura a SU altura (32 y 20) porque
   el tope redondo mide media altura; ver `_setup_money_bars`.
+  **DOS CIFRAS POR BARRA, no un "0 / 40"** (`_place_bar_value`): el OBJETIVO se
+  queda clavado al extremo derecho, y la cifra que sube VIAJA con el relleno —
+  arranca pegada al principio y se mantiene en la punta, que es donde el
+  jugador está mirando. Al alcanzar el objetivo la móvil se oculta y queda solo
+  la meta: repetir "40 / 40" no dice nada. Dos topes al colocarla: por la
+  izquierda para que no se salga del canto sin relleno, y por la derecha para
+  que no se monte sobre la cifra de la meta.
   **La del oro va PARTIDA EN TRES TRAMOS** (`_mark_star_steps`), con una muesca
   en el umbral de 1 y de 2 estrellas: así se ve cuánto falta para la SIGUIENTE
   estrella y no solo cuánto llevas del total. Las muescas van por ANCLA

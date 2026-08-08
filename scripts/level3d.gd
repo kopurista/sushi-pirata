@@ -270,6 +270,11 @@ var detail_button: Button = null
 ## Las dos barras del marcador: el oro que llevas y el bote de propinas.
 var money_bar: ProgressBar = null
 var tip_bar: ProgressBar = null
+## Cifras del OBJETIVO de cada barra, clavadas a su extremo derecho. Las que
+## suben (`money_label` / `jar_label`) viajan con el relleno; ver
+## `_place_bar_value`.
+var money_meta: Label = null
+var tip_meta: Label = null
 @onready var score_label: Label = $HUD/ResultsPanel/VBox/ScoreLabel
 @onready var earn_label: Label = $HUD/ResultsPanel/VBox/EarnLabel
 @onready var breakdown_box: VBoxContainer = $HUD/ResultsPanel/VBox/Scroll/Breakdown
@@ -1676,6 +1681,8 @@ func _setup_money_bars() -> void:
 	# textura que la del oro (32) con cuerpo 22.
 	tip_bar = _make_hud_bar("barra_oro", 16, Vector2(178, 32),
 		Color(0.42, 0.68, 1.0), jar_label, 22)
+	money_meta = _make_meta_label(money_bar, 26)
+	tip_meta = _make_meta_label(tip_bar, 22)
 	box.add_child(_with_icon(money_bar, "moneda", 44))
 	box.add_child(_with_icon(tip_bar, "ic_propina", 40))
 	# Las filas viejas (icono + etiqueta) se quedan vacías: fuera.
@@ -1756,16 +1763,64 @@ func _make_hud_bar(tex: String, cap: int, tamano: Vector2, tinte: Color,
 	bar.add_theme_stylebox_override("fill", PrepBoard.make_bar_box(
 		"res://assets/ui/%s_relleno.png" % tex, tinte, cap))
 	etiqueta.get_parent().remove_child(etiqueta)
+	# La cifra que sube es la MÓVIL: va anclada arriba a la izquierda y se
+	# recoloca por fotograma (ver `_place_bar_value`), así que aquí solo se le
+	# quita el ancho completo que traía de la escena.
 	# Anclas Y OFFSETS: las etiquetas vienen de la escena y conservan los suyos.
-	etiqueta.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	etiqueta.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	etiqueta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	etiqueta.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	etiqueta.add_theme_font_size_override("font_size", cuerpo)
-	etiqueta.add_theme_color_override("font_color", Color(1, 0.98, 0.9))
-	etiqueta.add_theme_constant_override("outline_size", 6)
-	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_skin_bar_label(etiqueta, cuerpo)
 	bar.add_child(etiqueta)
 	return bar
+
+
+## La cifra del OBJETIVO, clavada al extremo derecho de la barra. Es la que se
+## queda sola cuando la móvil llega a ella.
+func _make_meta_label(bar: ProgressBar, cuerpo: int) -> Label:
+	var l := Label.new()
+	l.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	l.offset_right = -12.0
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_skin_bar_label(l, cuerpo)
+	bar.add_child(l)
+	return l
+
+
+func _skin_bar_label(l: Label, cuerpo: int) -> void:
+	l.add_theme_font_size_override("font_size", cuerpo)
+	l.add_theme_color_override("font_color", Color(1, 0.98, 0.9))
+	l.add_theme_color_override("font_outline_color", Color.BLACK)
+	l.add_theme_constant_override("outline_size", 6)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+## LA CIFRA QUE SUBE VIAJA SOBRE LA BARRA: arranca pegada al principio y se
+## queda en la PUNTA DEL RELLENO, que es justo donde el jugador está mirando.
+## Al alcanzar el objetivo desaparece y deja sola la cifra de la meta: repetir
+## "40 / 40" no aporta nada, y así se lee de un vistazo que ya está.
+##
+## El tope de la izquierda evita que la cifra se salga por el canto cuando aún
+## no hay relleno; el de la derecha, que se monte encima de la meta.
+func _place_bar_value(bar: ProgressBar, movil: Label, meta_l: Label,
+		valor: int, meta: int) -> void:
+	if movil == null or meta_l == null:
+		return
+	meta_l.text = str(meta)
+	var lleno: bool = meta > 0 and valor >= meta
+	movil.visible = not lleno
+	if lleno:
+		return
+	movil.text = str(valor)
+	var ancho := bar.size.x
+	if ancho <= 0.0:
+		return
+	movil.size = Vector2(movil.get_minimum_size().x + 10.0, bar.size.y)
+	var punta := clampf(float(valor) / float(maxi(meta, 1)), 0.0, 1.0) * ancho
+	var tope := ancho - movil.size.x - meta_l.get_minimum_size().x - 30.0
+	movil.position = Vector2(
+		clampf(punta - movil.size.x - 2.0, 6.0, maxf(tope, 6.0)), 0.0)
 
 
 # ---------------------------------------------------------- paneles y chef
@@ -3316,13 +3371,14 @@ func _update_hud() -> void:
 		# con "10/10" el oro tiene que quedarse en el mismo sitio.
 		time_gap.custom_minimum_size.x = clients_label.get_parent().size.x
 	var meta := int(star_money.back())
-	money_label.text = "%d / %d" % [_score_money(), meta]
-	jar_label.text = "%d / %d" % [tips_total, _tip_threshold(powerups_claimed)]
+	var umbral := _tip_threshold(powerups_claimed)
 	if money_bar != null:
 		money_bar.max_value = maxf(meta, 1)
 		money_bar.value = clampf(_score_money(), 0, meta)
-		tip_bar.max_value = maxf(_tip_threshold(powerups_claimed), 1)
+		tip_bar.max_value = maxf(umbral, 1)
 		tip_bar.value = clampf(tips_total, 0, tip_bar.max_value)
+		_place_bar_value(money_bar, money_label, money_meta, _score_money(), meta)
+		_place_bar_value(tip_bar, jar_label, tip_meta, tips_total, umbral)
 	# Cuenta los que YA HAN VENIDO, no los que se han ido: con los idos el
 	# marcador se quedaba en 0 con la barra llena, que es justo cuando el
 	# jugador quiere saber cuánta clientela le queda por llegar. En los
