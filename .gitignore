@@ -2,6 +2,9 @@
 .godot/
 /android/
 
+# Cache de Python de las herramientas de tools/ (se regenera sola)
+__pycache__/
+
 # Secreto local del puente GodotIQ (NO subir)
 .godotiq/bridge_token
 

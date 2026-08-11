@@ -70,8 +70,10 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   satiety_eaten`. `level.gd` NO vuelve a sumar estos totales (evita el doble
   conteo): solo los usa para el desglose de resultados. `penalty` SÍ lo cobra
   el nivel al recibirlo (ver castigo por irse de vacío en el balance).
-- `level.gd` accede a `prep_board.instant_recipes / skip_next_cooldown /
-  easy_next / double_next / stack_max / cooldown_mult` para aplicar potenciadores.
+- `level3d.gd` accede a `prep_board.instant_recipes / double_next / stack_max /
+  cooldown_mult / add_storage_slot()` para aplicar potenciadores. (`skip_next_cooldown`
+  y `easy_next` se fueron con los potenciadores manuales que los encendían, y
+  con ellos `_simplify_steps` y `recycle_recipe`.)
 
 ## Guiones narrados (tutorial y primeros niveles)
 
@@ -244,9 +246,36 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   `stages` tiene un id de sprite por paso ("" = ninguno); el último stage
   no-vacío se descarta al emplatar (el plato final es el mismo voxel que el
   emplatado).
-- `scripts/powerup_data.gd` — catálogo de potenciadores DE PARTIDA (`manual` =
-  el jugador elige cuándo; si no, automático). Salen del bote de propinas
-  dentro del nivel.
+- `scripts/powerup_data.gd` — catálogo de potenciadores DE PARTIDA: salen del
+  bote de propinas dentro del nivel. **TODOS son AUTOMÁTICOS** y son **13**
+  (una, "Horas extra", solo se sortea donde hay reloj; las dos últimas,
+  "Variedad para todos" —+1 de variedad a todos los sentados— y "Sobremesa
+  dulce" —el próximo postre cobra el doble, `level3d.dessert_boost`, que solo
+  se consume si había multiplicador que cobrar—, tocan el sistema de hastío). Llegó a haber 20, la
+  mitad de ellos `manual` (se guardaban como botón bajo el chef para gastarlos
+  cuando conviniera). Se quitaron las dos cosas: lo manual obligaba a decidir
+  DOS veces —cuál cojo y cuándo lo gasto— en una partida de 2:30, y de veinte
+  entradas había parejas que hacían lo mismo (dos de enfriamiento, dos de
+  propinas, dos de almacén y TRES de "vienen clientes de más", una por tipo),
+  así que de tres opciones sorteadas lo normal era que dos fueran
+  indistinguibles. La cabecera del archivo lista cuáles se cayeron y por qué:
+  **leerla antes de reintroducir ninguno**.
+  El **cartel de elección SIGUE PAUSANDO EL JUEGO ENTERO** (cinta, reloj,
+  paciencia y bocados): lo que se recortó es lo que hay que LEER, no el tiempo
+  para leerlo. Cada opción es una tarjeta con **DIBUJO + TÍTULO y nada más**
+  (`level3d._make_powerup_card`); antes era "nombre (automático)\ndescripción"
+  con ajuste de línea, o sea tres párrafos con el juego parado. Por eso el
+  `name` de cada potenciador tiene que **sostenerse solo**, sin la línea de
+  apoyo — el `desc` sigue en los datos, pero la tarjeta no lo dibuja.
+  Los iconos son `assets/ui/pot_*.png`, generados con Ludo y procesados por
+  `build_powerups()` de `tools/ui2_prep.py`.
+  **Ese `build_powerups` usa `drop_specks`, NO `keep_largest`**: media docena
+  de estos dibujos se explican con una pieza que FLOTA separada del sujeto (los
+  remolinos del aroma, el corazón verde sobre el grumete, las monedas cayendo
+  al bote, el destello de la receta instantánea). Quedarse con la isla de alfa
+  más grande se las comía y dejaba tres nigiris pelados en el cartel; pasó y
+  hubo que rehacer el recorte. `drop_specks` tira solo lo que no llega al 0,3%
+  de la isla mayor, que es lo que de verdad son motas.
 - `scripts/perk_data.gd` — catálogo de potenciadores **PERMANENTES** (`PerkData`,
   no confundir con los anteriores): se ganan haciendo un COMBO en partida, se
   eligen antes de zarpar junto con las recetas, gastan 1 uso por partida y se
@@ -519,11 +548,11 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   enfriamientos de 3-9 s. `PATIENCE_FOOD` recarga
   paciencia según el nivel del plato (L1 9% · L2 22% · L3 32%; el 3★ bajó desde
   el 38% porque con esa recarga el CAPITÁN no llegaba a marcharse nunca —ganaba
-  más paciencia por plato de la que gastaba esperando—) escalada por el
-  "aburrimiento" (`boredom`):
-  repetir el MISMO plato sube el nivel y recarga ×0.4 cada vez
-  (`REPEAT_DECAY`, endurecido desde 0.5); cambiar de plato NO reinicia, solo
-  retrocede un nivel.
+  más paciencia por plato de la que gastaba esperando—), escalada por el
+  sistema de HASTÍO Y VARIEDAD (ver su bloque en la sección de balance): los
+  platos nunca probados alargan la racha del cliente y recargan cada vez más;
+  los repetidos la rompen y suben una escalera monótona que primero recarga
+  poco y de la 4ª repetición en adelante DRENA la barra.
 - `scripts/level.gd` — orquestador 2D ORIGINAL (referencia hasta terminar la
   conversión 3D; el juego ya NO lo usa): cinta (Line2D por tramos), spawner por
   horario (configurado por el nivel de campaña), HUD, propinas/potenciadores,
@@ -531,7 +560,7 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 - `scripts/level3d.gd` + `scenes/level3d.tscn` — **el nivel EN USO** (3D low
   poly, mismo HUD 2D): port 1:1 de la lógica de level.gd sobre un mundo 3D
   construido por código (cámara iso ortogonal pitch −35.264/yaw 45/**size 17**;
-  circuito = cuadrado de 3.6 u; platos 0.9 u/s). **Escenario según el TIPO del
+  circuito = cuadrado de 3.6 u; platos **1.35 u/s**). **Escenario según el TIPO del
   nivel** (`CampaignData.get_kind`): `_scenery_island` (arenal con palmeras),
   `_scenery_port` (muelle con norays/farol) o `_scenery_ship` (abordaje: barco
   VIEJO — tablones desgastados/arrancados con el mar asomando, barandillas
@@ -898,6 +927,44 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   línea del presupuesto en `import_hooks/decimate_import.gd`.
   `import_hooks/` (el post-import de decimado) va en `exclude_filter` del preset
   de export: extiende `EditorScenePostImport`, que no existe fuera del editor.
+
+## Exportar a Android (montado el 9-8-2026)
+
+El `.apk` sale del preset **"Android"** de `export_presets.cfg`, en formato APK
+(`gradle_build/export_format=0`; el 1 es AAB, que solo sirve para Play Store) y
+con las arquitecturas `arm64-v8a` y `armeabi-v7a`. Paquete
+`com.kopurista.sushipirata`, salida en `sushiBeta/android/` (ignorado por git).
+
+    "…/Godot_v4.7.1-stable_win64_console.exe" --headless --path . \
+        --export-debug "Android" "sushiBeta/android/SushiPirata.apk"
+
+Lo que hizo falta instalar, porque NADA de esto venía puesto:
+- **JDK 17** (`C:/Program Files/Eclipse Adoptium/jdk-17.0.20.8-hotspot`). El
+  sistema traía el **8**, y el `apksigner` de las build-tools modernas necesita
+  Java 11 o superior. Va en `export/android/java_sdk_path` de los ajustes DEL
+  EDITOR (`%APPDATA%\Godot\editor_settings-4.7.tres`), no del proyecto.
+- **`cmdline-tools` del SDK** (no estaban; sin ellas no se puede actualizar
+  nada) y después `build-tools;36.0.0` + `platforms;android-36`, porque lo
+  instalado era de 2019 (build-tools 29.0.1 / android-29).
+- **Las plantillas de Android** (`android_debug.apk`, `android_release.apk`,
+  `android_source.zip`, 426 MB). **El juego de plantillas instalado solo traía
+  web y Windows**: hubo que bajar el `.tpz` oficial entero (1,2 GB) de
+  `godot-builds` y extraer las tres.
+- **El keystore de depuración**: Godot apuntaba a
+  `AppData/Roaming/Godot/keystores/debug.keystore`, que NO existe. El bueno es
+  el `~/.android/debug.keystore` de siempre.
+- **`textures/vram_compression/import_etc2_astc=true`** en `project.godot`:
+  Godot se niega a exportar a Android sin él. Es un ajuste GLOBAL, así que
+  afecta también a la web — medido: el `.pck` web pasó de 31,88 a 32,34 MB
+  (+0,46), porque no queda ninguna textura en VRAM comprimida (todas están en
+  Basis o en WebP con pérdida).
+- **CERRAR EL EDITOR ANTES DE TOCAR `editor_settings-*.tres` o
+  `export_presets.cfg`**: Godot los reescribe al guardar y se lleva por delante
+  lo editado a mano. Ya pasó dos veces en la misma sesión.
+
+Instalar en un móvil (no hay caducidad ni cuenta de pago, al contrario que iOS):
+
+    "…/platform-tools/adb.exe" install -r sushiBeta/android/SushiPirata.apk
 
 ## Rendimiento en móvil (medido, no a ojo)
 
@@ -1280,6 +1347,35 @@ que no hay problema.
   mordiscos con dilatación+erosión. **Al subir el alfa hay que arreglar TAMBIÉN
   el RGB** (un píxel casi transparente suele traer el color a cero y sale
   negro): se toma el color del vecino opaco más cercano.
+- **REHACER UN PLATO DESDE SU CONCEPTO**:
+  `python tools/dish_from_source.py [--check] [nombre]`. Los sprites de
+  `assets/dishes/` salieron de recortar el concepto 1024×1024 por INUNDACIÓN,
+  y ahí el blanco del fondo y el blanco del ARROZ son el mismo color: donde el
+  arroz tocaba el fondo sin contorno oscuro por medio, la inundación se metió
+  dentro y se lo comió. El **maki de aguacate tenía el rollo de arriba cortado
+  a cuchillo**. Los conceptos de `assets/models/source/` (28 de los 41 platos)
+  **ya traen alfa de verdad** —son los que se mandaron a imagen→3D—, así que
+  rehacer el sprite desde ahí es solo recortar por la caja del alfa y escalar:
+  ese camino no puede comerse el sujeto.
+  **El detector NO puede ser el alto**: un mordisco es una MUESCA en medio y
+  no mueve la caja (al maki le faltaba medio rollo con 3 px de diferencia).
+  `--check` compara el alfa del concepto contra el del sprite y canta el % que
+  falta; hay un ~3% de ruido de fondo por el remuestreo del borde, así que lo
+  que delata daño es pasar de ahí (el maki estaba en 5.94%). Ojo con los
+  falsos positivos de ENCUADRE: el nigiri de salmón marca 4.59% y está
+  entero — su sprite sencillamente está más ampliado que el concepto.
+- **MOTAS sueltas del recorte**: `python tools/despeckle.py [--check] <png/webp>`.
+  El otro fallo de la inundación, y el contrario del anterior: píxeles casi
+  blancos que sobreviven porque quedaron AISLADOS, sin camino de píxeles claros
+  hasta el borde. Se ven como un reguero de puntitos sobre fondo oscuro — el
+  maki de aguacate tenía **54 motas (81 px) en un arco sobre el rollo**, que es
+  la mancha blanca que se veía en la ficha y en el bocadillo. El corte es
+  DOBLE y conservador (isla de ≤60 px Y <0.02% del sujeto) porque muchos
+  sprites llevan piezas sueltas A PROPÓSITO: el vapor del té verde, la harina
+  de la gamba enharinada, los remolinos de los iconos de potenciador. **Pasar
+  siempre `--check` primero** y mirar qué se va a tirar; en la auditoría de
+  toda la carpeta salieron también `te_verde` (1 mota), `gamba_harina` (23) y
+  `bol_miso` (7), y esas NO se han tocado por si son arte.
 - **Cinta 2D (level.tscn, referencia)**: cuatro **tramos rectos** independientes (`Line2D` con shader
   `belt_scroll.gdshader` que desplaza la UV) + **placas romboidales metálicas**
   estáticas en las esquinas. Una `Line2D` cerrada con juntas parpadea porque la
@@ -1302,8 +1398,28 @@ que no hay problema.
   fila de iconos sin decir nada nuevo.
 - **Guardado**: al soltar cerca de las cajas (con margen amplio) se guarda solo
   en la primera caja válida (misma receta con hueco → primera vacía). Servir a
-  la cinta exige soltar sobre su franja. Desde una caja se sirve solo con
-  arrastre real (>24 px), nunca con un toque.
+  la cinta exige soltar sobre su franja. Desde una caja se sirve con arrastre
+  real (>24 px); un TOQUE en la caja con la tabla LIBRE **restaura el plato de
+  arriba a la tabla** (ver abajo) y con la tabla ocupada no hace nada.
+- **LOS PLATOS GUARDADOS CONSERVAN SUS EXTRAS** (`stacks[i].units`, un array
+  de extras POR UNIDAD en paralelo con `count`; el último es el de arriba, el
+  próximo en salir). La caja enseña en miniatura los extras del plato de
+  arriba (`_refresh_stack_extras`). Los extras marcados NO gastan despensa
+  hasta que el plato se sirve de verdad (mismo contrato que desde la tabla):
+  servir desde la caja los cobra en ese momento y viajan con el plato. **Los
+  CUATRO sitios que mutan pilas deben mantener `units` en sincronía con
+  `count`**: guardar (añade), servir desde caja (saca), `_consume_stored`
+  (barco/combos: absorben el plato de arriba, la marca se pierde sin coste) y
+  la devolución al cancelar el barco (vuelven como unidades limpias).
+- **TOQUE EN CAJA CON LA TABLA LIBRE = restaurar** (`_restore_from_stack`):
+  el plato de arriba vuelve a la tabla como plato TERMINADO, con sus extras ya
+  MARCADOS en los botones, para poder añadirle o quitarle antes de servirlo.
+  Solo con `state == IDLE`; con algo en la tabla el toque no hace nada (el
+  arrastre directo sigue igual). El plato restaurado lleva
+  `ready_from_storage` y al irse de la tabla **NO aplica cooldown** — su
+  receta ya lo pagó al elaborarse (sin la bandera, restaurar+servir enfriaba
+  la receta dos veces). Tampoco pasa por `DISH_ARM`: la restauración es un
+  gesto deliberado lejos del centro de la tabla.
 - **Mano de gestos**: `HAND_TIP` ancla la mano **por encima** del objetivo.
   Los pasos sobre la tabla apuntan al **centro del sprite de etapa**, sin
   desplazamientos fijos. Los deslizamientos llevan además una `flecha.png`.
@@ -1335,9 +1451,16 @@ que no hay problema.
   abajo hacia arriba pegado al borde inferior del móvil cierra la app.
 - **Maestría (`free_uses`)**: al hacer manualmente una receta con `free_uses`
   (makis/futomaki/tamago), las N siguientes salen instantáneas — se muestra "xN"
-  en el botón. El potenciador "Reciclaje" añade +1 uso cuando un plato se desecha.
+  en el botón. Cada una de esas N **sigue pasando por el cooldown** de la
+  receta, así que la maestría no es un lote que sale de golpe: es un descuento
+  de gestos. Aun así pesa mucho en lo que rinde una receta, y hay que revisarla
+  cada vez que se le cambien los pasos (ver el recorte del dragon roll).
 - **Botones de receta (in-game)**: fondo de **pergamino** (`panel.png`, no madera),
   plato grande y uniforme mirando abajo-derecha, estrellas en la franja inferior.
+  **Ordenados por PAPEL** (`prep_board._recipe_group`): los PICOTEOS delante
+  (se sirven de reflejo), los POSTRES al final del todo sea cual sea su precio
+  (son la cuenta: cuando decides despedir a un cliente, el postre está siempre
+  en la misma esquina), y los principales en medio por estrellas y precio.
 - **Cancelar**: disponible **en todo momento** durante la elaboración
   (`_can_cancel()` = `state == CRAFTING`), no solo en el primer paso.
 - **Sprites de plato**: todos comparten encuadre compacto (~1.2–1.4:1) sobre una
@@ -1380,6 +1503,66 @@ que no hay problema.
   punto: ahí está el **cubo de basura 3D** (`level3d._add_trash_bin`) y el
   plato se vuelca dentro con una caída corta en vez de desaparecer de golpe.
   El castigo por tirarlo es el **20%** de su precio (`WASTE_PENALTY`).
+- **La cinta va a `PLATE_SPEED` 1.25 u/s, no a 0.9**: el circuito mide 14.4 u,
+  así que a 0.9 una vuelta duraba **16 s** de los 150 del nivel y, con unos 30
+  platos por partida, la cinta enseñaba **3 de media** — una cinta kaiten con
+  tres platos no parece una cinta. A 1.25 la vuelta baja a ~11.5 s (se probó a
+  1.35 y va justo por encima de lo cómodo para decidir). **NO toca
+  el equilibrio**: el dado de coger un plato se tira UNA sola vez, al entrar en
+  el radio del cliente (`client3d._scan_belt` mete el plato en `declined` si
+  falla), así que la velocidad cambia el RITMO, nunca las probabilidades. Es
+  una perilla libre. La misma constante empuja el shader de la banda, así que
+  el dibujo y los platos van siempre acompasados.
+- **Un plato terminado se manda a la cinta con un TOQUE; el ARRASTRE es para
+  las cajas** (`prep_board._continue_dish_drag`, umbral de 24 px como el resto
+  de arrastres del juego). Antes había que arrastrarlo SIEMPRE, y eso eran
+  ~0,8 s por plato × ~30 platos = **unos 24 s de los 150 haciendo de camarero**,
+  con la tabla BLOQUEADA mientras tanto (`_start_prep` exige `state == IDLE` y
+  solo se vuelve a IDLE cuando la tabla se queda vacía). Ahora el plato sale de
+  `dishes` en el mismo fotograma del toque y se va volando solo
+  (`_fly_dish_to_belt`, decoración pura: el plato de verdad ya ha nacido en la
+  cinta 3D), así que se puede empezar la receta siguiente con el anterior
+  todavía en el aire. La guía de la mano en estado READY marca un TOQUE sobre
+  el plato, no un arrastre hasta la cinta; el destino lo canta el cartel del
+  gesto ("¡A la cinta!"). **Desde una CAJA se sigue sirviendo con arrastre**
+  (un toque suelto no la vacía), y el montaje del barco también.
+- **El plato de una receta que ACABA PULSANDO no acepta el toque hasta pasados
+  0.4 s** (`prep_board.DISH_ARM` / `_dishes_armed`, armado desde `_advance_step`
+  mirando el tipo del ÚLTIMO paso). Las que terminan con un arrastre, un corte o
+  el soplete se sirven desde el primer fotograma, y tampoco se arma cuando la
+  receta la termina el ayudante, la maestría o un potenciador: ahí no ha habido
+  gesto y el dedo no está sobre la tabla.
+  No es un adorno: MUCHAS recetas
+  terminan en un paso de PULSAR (el maki de aguacate acaba con `tap_board` x2),
+  los golpes se cuentan **al APRETAR**, y el plato nace justo en el CENTRO de
+  la tabla, o sea debajo del dedo que venía dando golpes — así que el golpe de
+  más que se le escapa a cualquiera lo mandaba a la cinta sin querer, con los
+  extras aún sin poner. Y la ventana **se alarga con cada golpe frenado**,
+  porque con una ventana fija una ráfaga se escapa por el final: medido
+  inyectando toques, con golpes cada 180 ms el tercero caía a los 410 ms y
+  servía el plato. El alargue lleva **tope duro** (`DISH_ARM_MAX`, 1 s desde
+  que nace el plato) para no caer en lo contrario: sin él, quien insistiera
+  tocando cada poco no serviría nunca. Solo frena al TOQUE — arrastrarlo a una
+  caja funciona desde el primer fotograma, que un arrastre nunca es un golpe
+  accidental.
+  Esto se comprueba **inyectando `InputEventScreenTouch` con
+  `Input.parse_input_event`** desde una sonda temporal, como el resto del input
+  táctil de este proyecto: a ojo no se distingue "lo he tocado yo" de "se ha
+  ido solo".
+- **NINGUNA receta pasa de SEIS pasos** (antes: dragon roll 11, chirashi 9,
+  tsuke don 9, California 8, y cinco más con 7). Las recetas largas eran
+  trampas dobles: ocupaban el ÚNICO hueco de elaboración 15 s con la cinta
+  vaciándose, y rendían menos doblones por segundo de atención que un sashimi
+  de dos pasos. Al recortar hay dos reglas que no se pueden saltar: `stages`
+  lleva **un sprite por paso** (descuadrarlo rompe la receta), y el paso que
+  define el plato se queda SIEMPRE — el corte lento del tsuke don y su reposo
+  en la soja (es la única receta con `from`), el rebozado en sésamo del
+  California, el soplete, la fritura. Lo que se cae es el relleno: los pasos
+  cuyo `stages` repetía el sprite anterior, y las guarniciones que pedían tres
+  pasos para acabar dentro de un cuenco (el pepino del chirashi y del tsuke
+  don). **Al recortar una receta hay que mirarle la maestría**: el dragon roll
+  pasó de 11 pasos a 6 y con sus `free_uses` 4 intactos habría quedado como la
+  receta más rentable del juego con diferencia, así que bajaron a 2.
 - **DOS CIFRAS DE DINERO, y la asimetría es a propósito** (`_score_money` /
   `_star_money`): el **dinero BASE** (solo el precio de los platos) es lo que
   marca el contador del HUD y lo ÚNICO que puede cerrar el turno antes de
@@ -1430,18 +1613,45 @@ que no hay problema.
 
 ## Balance actual (para no re-litigar)
 
-- **Precios (doblones)**: edamame 1, gari 1, te_verde 1, maki_aguacate 2,
-  nigiri_salmon 3, gunkan_wakame 3, onigiri 4, sopa_miso 4, maki_atun 5,
-  udon 6, nigiri_atun/inari 6, sashimi_tamago 6, gunkan_tartar 7 (L2),
-  temaki 7, gunkan_ikura 8, futomaki 10, sashimi_atun_rojo 11, nigiri_ebi 11,
-  fugu 11, hana_maki 12, aburi 12, chirashi 16; moriawase dinámico (~26-90).
-  salmon_tsuke_don 14 (regalo de David en el nivel 5).
-  Postres: mochi 3, dorayaki 5, taiyaki 10 (baratos a propósito: su valor es
-  vaciar la silla y la propina asegurada). Tanda nueva: caldo_dashi 4,
-  nigiri_pulpo 7, uramaki_california 8 (+2 gratis), nigiri_anguila 9,
-  sashimi_variado 14, dragon_roll 15 (+4 gratis); yaki_onigiri y nigiri_wagyu
-  NO tienen precio fijo, lo pone el cronómetro (2-10 y 11-30);
-  udon_tempura 16 (calculado: 6 + 7 + 3 de prima del combo).
+- **LA CARTA ESTÁ CALIBRADA POR DOBLONES POR SEGUNDO DE ATENCIÓN, no por
+  precio.** El recurso escaso del juego es el ÚNICO hueco de elaboración: la
+  demanda de la barra (8 asientos, un bocado cada ~10 s) es unas CUATRO VECES
+  lo que puede producir la cocina, así que ni los asientos ni la retención del
+  cliente son escasos — lo único que lo es son los segundos del cocinero. El
+  precio de una receta sale por tanto de **cuánta atención cuesta hacerla**.
+  Objetivo: **L1 1.5 · L2 2.0 · L3 2.5 $/s**. La pendiente entre niveles es
+  suave y a propósito (un plato de 3★ es más difícil de COLOCAR: solo lo cogen
+  los capitanes al 95%); lo que NO puede haber es diferencia dentro de un mismo
+  nivel, que es donde estaban las trampas. Se pasó de una dispersión de **×18,7
+  a ×1,9**.
+  **La maestría (`free_uses`) era la causa principal**, no el precio: un plato
+  de maestría cuesta ~0,7 s (tocar el pergamino y tocar el plato) y paga
+  entero, así que multiplica el rendimiento — los cinco peores infractores eran
+  los cinco con maestría (hana maki 6.45 $/s y dragon roll 6.39 frente a una
+  mediana de 1.98). Por eso **el precio de una receta con maestría es POR
+  PIEZA**: el dragon roll vale 6 pero salen 3 piezas, o sea 18 por rollo, igual
+  que el maki de aguacate siempre valió 2 la pieza. Consecuencia que hay que
+  aceptar al leer el recetario: el precio ya NO indica lo lujoso que es el
+  plato, indica lo que paga UNA pieza.
+- **Precios (doblones)**, por nivel y de menor a mayor. Los `(xN)` son las
+  piezas que suelta una elaboración con maestría:
+  **L1** edamame 1, te_verde 1, mochi 3, maki_aguacate 3 (x3),
+  nigiri_salmon 4, gunkan_wakame 4, onigiri 4 (x2), nigiri_ebi 6,
+  caldo_dashi 6, sopa_miso 7, yaki_onigiri 8.
+  **L2** uramaki_california 4 (x3), maki_atun 5 (x3), sashimi_tamago 5 (x3),
+  gunkan_tartar 5 (x2), nigiri_atun 5, nigiri_inari 5, dorayaki 5,
+  gunkan_ikura 7, nigiri_pulpo 8, udon 10, nigiri_anguila 10, tempura 12.
+  **L3** futomaki_salmon 6 (x3), hana_maki 6 (x3), dragon_roll 6 (x3),
+  sashimi_atun_rojo 8, fugu 9, taiyaki 10, chirashi 12, sashimi_variado 12,
+  temaki 13, aburi 13, salmon_tsuke_don 14, nigiri_wagyu 16.
+  Fuera del calibrado, cada uno por su motivo: el **picoteo** (edamame,
+  te_verde) vale 1 porque su valor es alargar el bocado y limpiar el paladar, y
+  los **postres** (mochi, dorayaki, taiyaki) son baratos a propósito porque lo
+  que dan es vaciar la silla y la propina asegurada.
+  yaki_onigiri, tempura y nigiri_wagyu **no cobran su campo `price`**: lo pone
+  el cronómetro (3/8/14 · 7/12/20 · 12/16/30), y el campo solo guarda el "buen
+  punto" para que el recetario no mienta. moriawase y udon_tempura se calculan
+  al vuelo (suma de las partes + prima).
 - **Recetas de mecánica especial** (las 8 últimas):
   *temaki* (enrollado en CONO: `swipe_board` con `direction: "diag"`),
   *aburi* (soplete como `prop` de un `hold_board`),
@@ -1449,16 +1659,24 @@ que no hay problema.
   *udon* (`eat_mult` 1.8 y `patience_mult` 0.7: ocupa mucho al cliente pero le
   retiene poco — sirve para aparcar a un pesado),
   *gari* (picoteo que casi no alarga el bocado pero da +6% de propina),
-  *te_verde* (picoteo con `clears_boredom`: resetea el aburrimiento, así que
-  vuelves a poder repetirle su plato favorito),
+  *te_verde* (picoteo con `clears_boredom`: REINICIA el arco de variedad —
+  historial limpio, todos los platos vuelven a contar como nuevos, pero el
+  multiplicador cae a cero: reconstruir, no continuar),
   *fugu* (corte con `fail_penalty` 5: cada corte rápido cuesta 5 doblones —el
   plato NO se pierde—; `tip_amount_mult` 1.15, la propina es más GORDA cuando
   cae, frente al atún rojo que la hace más PROBABLE),
   *tempura* (paso `fry_board`: contador con milésimas a la vista; al soltar se
-  mira en qué franja de `FRY_WINDOWS` cayó — antes de 1.8 s cruda y a la
-  basura, 1.8-2.5 poco hecha $5, 2.6-3.24 bien $7, **exactamente 3.00 s $15**,
-  3.25-4.5 pasada $5, más allá quemada y a la basura; las variantes cruda y
-  quemada son recetas `hidden` con su propio modelo),
+  mira en qué franja de `FRY_WINDOWS` cayó — antes de 1.2 s cruda y a la
+  basura, 1.2-1.67 poco hecha $7, 1.67-2.16 bien $12, **exactamente 2.00 s
+  $20**, 2.16-3.0 pasada $7, más allá quemada y a la basura; las variantes
+  cruda y quemada son recetas `hidden` con su propio modelo).
+  **El punto bueno se movió de 3.00 s a 2.00**: tres segundos con el dedo
+  pegado a la sartén eran tres segundos del turno con el único hueco de cocina
+  ocupado sin hacer nada, y por eso la tempura era la receta con PEOR
+  rendimiento de toda la carta. Las franjas se reescalaron enteras a 2/3. Por
+  lo mismo, el `hold_board` de la sopa de miso y del udon bajó de 2.0 a 1.2 s;
+  el del aburi se queda en 2.0 porque ahí el dedo está soplando, que es la
+  mecánica, no esperando,
   *onigiri* (1★ pero `take_chance` 0.5 para todos los tipos y `patience_mult`
   1.4: llena mucho para lo que cuesta),
   *moriawase* (`hidden`: no se elige en el selector).
@@ -1489,9 +1707,15 @@ que no hay problema.
 - **Castigo por cliente que se va DE VACÍO** (`client3d.LEAVE_PENALTY`): si se
   marcha sin haber probado NI UN plato cuesta 5 doblones el grumete, 8 el
   pirata y 12 el capitán, **tanto si se le agotó la paciencia como si le pilló
-  el final del nivel**. Viaja en `report.penalty`, el nivel lo descuenta sin
-  bajar de 0, el cliente lo canta con un "-$N" rojo y la ficha del desglose
-  enseña ese número en vez del dinero.
+  el final del nivel**. Y **ESCALA**: cada vacío previo de la partida encarece
+  al siguiente (base × 1+0.5·vacíos, tope ×3 — `EMPTY_LEAVE_STEP`/`CAP`, la
+  cuenta en `level3d.empty_leavers`). Es el contrapeso del "cliente eterno"
+  del sistema de variedad: monopolizar la cocina mimando a uno deja al resto
+  sin probar bocado, y cada abandono cuesta más que el anterior. Un solo plato
+  L1 ya libra del castigo, así que el triaje barato es "que nadie se quede a
+  cero". Viaja en `report.penalty`, el nivel lo descuenta sin bajar de 0, el
+  cliente lo canta con un "-$N" rojo (la cifra creciente comunica la escalada
+  sola) y la ficha del desglose enseña ese número en vez del dinero.
 - **Al acabar el nivel, el que está COMIENDO termina su plato** (`force_leave`
   solo marca `_leave_when_done` si está en EATING): cobra ese último plato y
   entonces se levanta. Ese bocado corre a `END_BITE_SPEED` (×5) porque el
@@ -1506,14 +1730,128 @@ que no hay problema.
   De momento solo hay uno: **udon + tempura → udon con tempura** ($6+$7+3=16),
   que hereda los efectos de los dos y se come aún más despacio (`eat_mult` 2.2).
   Para añadir otro: una línea en `COMBOS` y la receta `hidden` con su sprite.
-- **Postres que LIBERAN EL ASIENTO** (`leaves_seat`): mochi (grumetes, +5% de
-  propina), dorayaki (piratas, +10%) y taiyaki (capitanes, +15%). Al terminarlo
-  el cliente paga, se le suma ese porcentaje a la propina ACUMULADA (va al bote,
-  como el resto) y **se marcha en el acto**, dejando la silla libre: es la única
-  forma de echar a un cliente sin esperar a que se le agote la paciencia. Van
-  con `only_type`, así que **solo los coge su tipo** — el descarte va ANTES de
-  tirar el dado, así que ni con potenciadores los coge otro. La ficha del
-  recetario lo refleja (si no, mentiría).
+- **HASTÍO Y VARIEDAD** (`client3d`, bloque de constantes con el mismo nombre):
+  cada cliente lleva la cuenta de qué platos ha PROBADO (`tried`). Un plato
+  nunca probado alarga su **racha de variedad** (`variety`, el multiplicador
+  x2, x3... que enseña una chapa dorada junto a su barra de paciencia) y
+  recarga cada vez más (×1.2 el x2, ×1.3 el x3: `1 + 0.1×mult`, el primero
+  normal). Un REPETIDO rompe la racha a CERO y sube la **escalera del hastío**,
+  monótona por cliente: 1ª repetición recarga ×0.2, 2ª ×0.1, 3ª nada, y de la
+  4ª en adelante **drena** la barra (−5%, −10%... del MÁXIMO, tope −20%; es
+  fracción de la barra y no del plato porque multiplicar la recarga de un L1
+  por un factor negativo daba drenajes del 1%, imperceptibles). Reglas clave:
+  1) "nuevo" = **nunca comido por ESE cliente**, no "distinto del anterior"
+  (con lo segundo, alternar dos platos sería combo infinito); 2) tras una
+  rotura, los platos AÚN NO PROBADOS siempre reconstruyen — cuando ya probó
+  todo, las únicas salidas son el té (reinicia el arco) y los EXTRAS, que
+  hacen que ese plato cuente como nuevo; 3) el PICOTEO y el POSTRE ni suman
+  ni rompen;
+  4) el barco combinado vale DOBLE (`variety_worth` 2 en su receta);
+  5) el multiplicador tiene TOPE DURO en x5 (`VARIETY_MAX`): recarga máxima
+  ×1.5, bono de oro máximo +5 y postre máximo 15 al bote (30 con Sobremesa
+  dulce) — encadenar jengibres más allá del quinto no rinde nada más; y el té
+  REINICIA el multiplicador en vez de continuarlo (si continuara, la recarga
+  crecería ciclando la carta y volvería el capitán inmortal).
+  Con la carta de 4 huecos esto le da a cada cliente un ARCO FINITO y la
+  ROTACIÓN emerge sola: agotada la variedad, o se le despide con postre o se
+  desangra repitiendo. La elección de carta se vuelve equipo (3 principales +
+  postre = arco x3 con cobro; 3 + té = ciclos sin cobro; los EXTRAS, que no
+  ocupan hueco de carta, son la forma de superar su techo: un duplicado con
+  wasabi o soja da el x4 antes de cobrar).
+  **EL MULTIPLICADOR TAMBIÉN PAGA ORO EN CADA PLATO**: un plato NUEVO cobra su
+  precio + 1 doblón por punto del multiplicador VIGENTE (con un x4 puesto, un
+  plato de $3 deja $7; el bono usa la chapa de ANTES de contar el plato, que
+  es la cuenta que el jugador hace mirándola). Los repetidos no cobran extra y
+  el postre cobra por su canal (la propina × mult). Va por `current_price`,
+  así que entra en el dinero BASE (estrellas y cierre por objetivo). Es lo que
+  hace que el multiplicador valga también sin postre — y lo que acabó subiendo
+  los EXTRAS a 10 doblones el uso, porque son la llave para seguir cobrándolo
+  cuando ya no quedan platos por probar.
+  **UI**: bocadillo de CÓMIC **SIEMPRE PRESENTE** desde el primer plato,
+  **HORIZONTAL y colgando POR DEBAJO de la cabeza, con la COLA ARRIBA**,
+  hacia el lado EXTERIOR del cliente (a la izquierda si su silla cae en la
+  mitad izquierda de la pantalla; el lado se decide UNA vez al crearlo).
+  **CUELGA HACIA ABAJO A PROPÓSITO**: por encima de la cabeza está la franja
+  de las barras, y con el bocadillo ahí arriba tapaba las barras del cliente
+  de AL LADO — y la barra del vecino tapaba a su vez la chapa. Debajo no hay
+  nada que estorbar (medido: barra 214-227, bocadillo 228-290, cero solapes
+  con ninguna barra de la mesa).
+  `bocadillo.png` es el del lado derecho (cola arriba-izquierda; el arte se
+  genera con la cola abajo y `build_bubble` lo VOLTEA con `ImageOps.flip`) y
+  `bocadillo_esp.png` su ESPEJO horizontal, como las manos ic_mano_izq/der;
+  9-slice de 62 px de alto dibujado 1:1 que solo estira su banda central
+  blanca a lo ancho, con la cola protegida en el margen SUPERIOR (ocupa las
+  filas y 0-9, medidas sobre el PNG).
+  **DOS COSAS QUE HAY QUE ACERTAR PARA QUE LA COLA SEÑALE A LA CABEZA**, las
+  dos vividas como "el bocadillo no apunta a nadie":
+  1) **La punta de la cola NO está en el canto**: cae a `BUBBLE_TAIL_X` (15 px)
+  hacia dentro, así que el bocadillo se coloca RESTANDO esa distancia, no
+  pegando el canto a la cabeza.
+  2) **`_head_screen()` NO es donde está la cabeza**, es un punto a
+  `_height + 0.22` sobre la RAÍZ. Para las barras vale (tienen que flotar por
+  encima), pero un cliente SENTADO lleva el cuerpo bajado por `_sit_on_stool`
+  y encogido por la pose: medido, su cabeza real está **23-34 px MÁS ABAJO**.
+  Para el bocadillo está `_head_anchor()`, que le pregunta al ESQUELETO por el
+  hueso "Head" y solo cae a `_head_screen()` si no hay rig. Con las dos
+  puestas, el desvío punta-cabeza baja a ~3 px (lo que se mueve la cabeza al
+  respirar entre que se coloca el bocadillo y se mide).
+  **Y las BARRAS van en `z_index` 2, por encima de los bocadillos**: con ocho
+  clientes alrededor de una barra isométrica hay vecinos que se pisan sí o sí
+  (dos asientos opuestos del rombo caen en la MISMA x de pantalla, solo
+  cambia la y), y de las dos cosas la que no puede quedar tapada es la barra
+  — el bocadillo es memoria, la barra es urgencia. Los últimos 4 platos van
+  SOLAPADOS: el recién comido entra por la DERECHA entero y encima, de cada
+  anterior asoma una franja (`BUBBLE_SLIVER` 14) por su izquierda, y lleno,
+  el más viejo se despide por la izquierda. El ancho mínimo (un plato) es 52,
+  JUSTO la suma de los márgenes del 9-slice: por debajo las esquinas se pisan.
+  **Los deslizamientos de los iconos van con destino ABSOLUTO por
+  antigüedad, no relativo**: dos empujones muy seguidos creaban dos tweens
+  sobre la misma propiedad y el segundo leía la posición vieja — dos iconos
+  acababan montados en la misma casilla. Los platos con extra lucen UNA
+  estrella, en la esquina superior IZQUIERDA a propósito: es la franja que
+  sigue asomando cuando el plato siguiente se solapa encima (con dos, una por
+  esquina, el solape tapaba a veces la derecha y parecían tener unas veces una
+  y otras dos).
+  **ATENUACIÓN**: los bocadillos viven a media luz (`BUBBLE_DIM` 0.5) y solo
+  el del cliente que ACABA de coger plato luce a plena luz `BUBBLE_HOT` s —
+  ocho bocadillos permanentes a plena luz eran ocho manchas blancas.
+  El multiplicador es una chapa gráfica (`mult_x2..mult_x5`) que cabalga la
+  esquina INFERIOR EXTERIOR del bocadillo (abajo, lo más lejos posible de la
+  franja de barras), entra con golpe y giro al subir y se encoge al romperse
+  la racha. **Las chapas se DIBUJAN en `build_mult_badges` de ui2_prep**
+  (moneda de oro con borde marrón y la Exo 2 Bold real, supermuestreada 8x,
+  paleta del set): la tanda generada con Ludo salía con estallidos de cómic
+  que no casaban con la madera y el pergamino, y cada chapa de su padre.
+  **La chapa es HIJA del bocadillo**: se dibuja siempre por encima de él
+  (nació aparte en world_ui y el bocadillo, añadido después, la tapaba) y
+  hereda su atenuación gratis.
+  **DOS TRAMPAS de la chapa, las dos vividas como "el multiplicador no
+  sube":** 1) el tween de encogido al ROMPERSE la racha acaba poniendo
+  `visible = false`, así que si la racha vuelve a subir dentro de esos 0.24 s
+  ese tween seguía vivo y apagaba la chapa con el multiplicador ya alto —
+  ahora se guarda en `_badge_tween` y se MATA al entrar en `_set_variety`
+  (pasa constantemente desde que los extras hacen "nuevo" a un repetido:
+  romper y volver a subir es la secuencia normal). 2) La chapa nace DENTRO
+  del bocadillo, que se crea con el primer plato, o sea DESPUÉS de que
+  `_apply_meal_patience` haya llamado a `_set_variety` — que sale por la
+  puerta de atrás si la chapa aún no existe. Por eso `_push_bubble_icon`
+  vuelve a llamar a `_set_variety(variety, false)` tras crearla: sin eso, un
+  primer plato que ya valga x2 (el BARCO, que suma 2 de golpe) dejaba la
+  chapa invisible hasta el plato siguiente.
+  OJO al leer capturas: la fila de CABEZAS del HUD enseña "xN" de texto bajo
+  cada cara (cuenta por tipo) — no confundirla con la chapa, ya pasó dos
+  veces.
+- **Postres que LIBERAN EL ASIENTO** (`leaves_seat`): mochi (grumetes),
+  dorayaki (piratas) y taiyaki (capitanes). Al terminarlo el cliente paga,
+  **cobra el multiplicador de variedad** (`VARIETY_TIP_PER_STEP` 3 doblones por
+  punto, al bote — el VIGENTE, no el más alto alcanzado: el postre es un
+  aliciente, no un premio decisivo) y **se marcha en el acto**, dejando la
+  silla libre: es la única forma de echar a un cliente sin esperar a que se le
+  agote la paciencia. (El antiguo `leave_tip_bonus`, un % de la propina
+  acumulada, se fue: con ~$3-6 de propinas por cliente pagaba ~$0-1 y no se
+  notaba.) Van con `only_type`, así que **solo los coge su tipo** — el
+  descarte va ANTES de tirar el dado, así que ni con potenciadores los coge
+  otro. La ficha del recetario lo refleja (si no, mentiría).
 - **`patience_freeze`** (unagi glaseado): al terminarlo, la barra de paciencia
   se queda **congelada N segundos** (5) y se tiñe de azul. Como además se come
   en menos de la mitad de tiempo (`eat_mult` 0.45), sirve para encadenar dos
@@ -1530,13 +1868,17 @@ que no hay problema.
   vez de las de la tempura. El **yaki onigiri** (a la plancha) y el **nigiri de
   wagyu** (soplete cronometrado, con `prop: "soplete"`) usan tablas mucho más
   indulgentes: pasarse o quedarse corto NO tira el plato, solo lo deja en el
-  precio bajo. Clavar los 2.00 s dobla o triplica el precio bueno (yaki 2/5/10,
-  wagyu 11/15/30). El logro del punto perfecto compara con el techo de ESAS
+  precio bajo. Clavar los 2.00 s dobla o triplica el precio bueno (yaki 3/8/14,
+  wagyu 12/16/30). El logro del punto perfecto compara con el techo de ESAS
   franjas, no con el de la tempura.
-- **Los rollos rinden por MAESTRÍA, no por lote**: el uramaki California
-  (`free_uses` 2) y el dragon roll (`free_uses` 4) sacan UNA pieza y las
-  siguientes salen ya hechas, igual que los makis. Se intentó con un campo
-  `yield` que emplataba 3 y 5 piezas de golpe y NO es lo que se quiere.
+- **Los rollos rinden por MAESTRÍA, no por lote**: el uramaki California y el
+  dragon roll (`free_uses` 2) sacan UNA pieza y las siguientes salen ya hechas,
+  igual que los makis. Se intentó con un campo `yield` que emplataba 3 y 5
+  piezas de golpe y NO es lo que se quiere.
+  **`free_uses` no pasa de 2 en ninguna receta** (el sashimi de tamago tenía 4
+  y el hana maki 3): cada punto de maestría multiplica el rendimiento de la
+  receta casi entero, así que es la perilla más peligrosa de la carta. Al
+  tocarla hay que rehacer el precio POR PIEZA (ver el calibrado, arriba).
 - **En un paso de tiempo (`fry_board`), el utensilio tiene que ser la etapa del
   paso ANTERIOR**: `stages[i]` es lo que se ve DESPUÉS del paso i, así que la
   sartén del yaki onigiri iba una casilla tarde y durante la fritura se veía la
@@ -1570,9 +1912,22 @@ que no hay problema.
   cuando se pueden usar. Al pulsarlos dan un **bote** (`_bump_extra`: encoge y
   rebota), porque en 64 px el check solo se perdía. Se gastan **por plato
   servido**, no por partida
-  (`GameState.consume_extra`), cuestan 2 doblones y el tendero los tiene
-  siempre. Jengibre = el plato no cuenta como repetido; wasabi = +15% de
-  PROBABILIDAD de propina; soja = +15% de CUANTÍA. Viajan con el plato:
+  (`GameState.consume_extra`) y el tendero los tiene siempre.
+  **LOS TRES hacen que el plato cuente como NUEVO** aunque el cliente ya lo
+  haya probado: no rompen la racha de variedad, la ALARGAN, esquivan la
+  escalera del hastío y cobran el bono de oro del multiplicador. Eso rompe el
+  techo de la carta, así que **los tres traen contrapartida** y **cuestan 10
+  doblones** el uso (2 → 5 → 10 según fueron ganando poder):
+  · **jengibre** → reinicia el PALADAR entero (`tried.clear()`: todos los
+    platos vuelven a contar como nuevos, ESE INCLUIDO — el mismo plato se le
+    puede repetir acto seguido y contará como nuevo), pero BAJA un punto de
+    multiplicador. Es un té verde de pago que conserva casi toda la racha.
+  · **wasabi** → +15% de PROBABILIDAD de propina, pero en vez de recargar
+    paciencia **DRENA** exactamente lo que habría recargado.
+  · **soja** → +15% de CUANTÍA de la propina, pero el bocado corre a
+    `SOJA_BITE_SPEED` (1.6) y, como la paciencia NO baja mientras se come,
+    acortar el bocado devuelve al cliente a la cola antes de tiempo.
+  Viajan con el plato:
   `dish_served(id, precio, extras, nivel)` → `plate3d.extras` → `client3d`.
 - **Aburi con elección**: `get_ingredients` incluye las `options` de los pasos
   de elección, así que llevar el aburi a un nivel consume usos de LOS DOS
@@ -1624,8 +1979,15 @@ que no hay problema.
   (gunkan_tartar +3%, sashimi_atun_rojo +4%, la 1ª vez, y la mitad por cada
   repetición del mismo plato). Los makis con penalización son maki_aguacate y
   maki_atun (el hana_maki es la excepción: recarga MÁS).
-- **Escala por nivel** (esfuerzo y cooldown suben con el nivel): golpes de arroz
-  L1=3 · L2=4 · L3=5 (gunkan L1 usa 4 por su base alta); cooldowns aprox.
+- **NINGÚN `tap_board` pasa de 3 golpes**, sea del nivel que sea. El esfuerzo de
+  una receta lo marca ahora **de cuántos PASOS es y de qué tipo**, no de cuántas
+  veces repites el mismo. Antes la escala subía por golpes (L1=3 · L2=4 · L3=5,
+  con un `cutting` de 6 en el sashimi de tamago) y eso no hacía la receta más
+  interesante, solo más larga: dar cinco toques seguidos donde antes dabas tres
+  es la misma decisión repetida más veces. Se recortaron 19 pasos de 17 recetas.
+  **Efecto secundario asumido**: las recetas de L2 y L3 se hacen algo más
+  rápido que antes en relación con las de L1, que ya estaban en 3.
+- **Escala por nivel** (el cooldown sí sube con el nivel): cooldowns aprox.
   L1 3–4 s · L2 4.5–5.5 s · L3 6.5–7.5 s. Al añadir/ajustar recetas, seguir esta
   escala.
 - **APROBAR es sacar 2 ESTRELLAS** (`goal_stars` = 2 en todos los puertos):
@@ -1645,12 +2007,17 @@ que no hay problema.
   `star_money` alcanzado da 1 estrella. El techo lo marca la
   PRODUCCIÓN (partida de 2:30 solo L1 ≈ $50-70; sube con piratas/capitanes que
   comen L2-L3). Umbrales por nivel en `campaign_data.gd`.
-  **Los ABORDAJES se calibran por la COCINA, no por la clientela**, porque
-  nunca se acaban los clientes. La medida no es a ojo: sale del guardado real
-  (62 platos elaborados en una partida; el nivel 2, de 3 min y carta de $2-4,
-  con 3★ en 100 y superado) y da **~30 platos COMIDOS por 150 s** jugando bien.
-  Fórmula: 3★ ≈ 30 × precio medio de la carta llevable × 0.65, y 1★/2★ al 35% y
-  al 62%, que es la forma que ya tenía la campaña (n6 era 40/70/115 = 35/61/100%).
+  **Cada tipo de nivel se calibra contra lo que DE VERDAD lo limita** (la
+  cabecera de `campaign_data.gd` lo detalla): los ABORDAJES contra el reloj
+  (150 s × los $/s de atención que rinde la carta), y las ISLAS y PUERTOS
+  contra la clientela (clientes × platos × PRECIO medio de la carta). Confundir
+  los dos da cifras imposibles: reescalando el nivel 2 por $/s pedía 127
+  doblones cuando su techo real ronda los 75.
+  Umbrales vigentes: n1 22/37/49 · n2 57/95/127 · n3 38/63/94 · n4 45/74/96 ·
+  n5 38/64/99 · n6 41/73/118 · n7 45/79/128 · n8 59/105/171 · n9 51/90/145.
+  **Son de MODELO, no de partida jugada**: salen de reescalar la calibración
+  anterior por lo que cambió la carta, así que quieren una pasada de juego real
+  antes de darlos por buenos.
   **Y el aluvión de clientes se limita SOLO**: los abordajes tardíos programan
   más llegadas que asientos (el 9 llega a 31 para 8 taburetes), pero un cliente
   no aparece hasta que se libera un sitio y uno sin comer aguanta ~50-60 s

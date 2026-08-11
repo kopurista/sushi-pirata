@@ -29,7 +29,7 @@ const SECTIONS: Array = [
 	{
 		"title": "Las cajas",
 		"icon": "res://assets/ui/cofre.png",
-		"body": "Un plato terminado puede ir a la cinta o guardarse en una **caja**. Cada caja apila varios platos **iguales**.\n\nGuardar sirve para dos cosas: soltar **varios platos de golpe** cuando se te junta la clientela, y llegar a los clientes de más atrás en vez de solo al primero.\n\nDesde una caja se sirve **arrastrando**; un toque suelto no la vacía.",
+		"body": "Un plato terminado va a la cinta con un **toque**, y a una **caja** arrastrándolo hasta ella. Cada caja apila varios platos **iguales**.\n\nEn cuanto el plato sale de la tabla puedes empezar la receta siguiente: no hace falta esperar a que llegue.\n\nGuardar sirve para dos cosas: soltar **varios platos de golpe** cuando se te junta la clientela, y llegar a los clientes de más atrás en vez de solo al primero.\n\nDesde una caja se sirve **arrastrando** a la cinta. Y con la tabla **libre**, un toque en la caja devuelve el plato a la tabla: así puedes ponerle un **extra** antes de servirlo.\n\nLos platos guardados **conservan sus extras** — la caja enseña en miniatura los del plato de arriba.",
 	},
 	{
 		"title": "Los clientes",
@@ -42,9 +42,9 @@ const SECTIONS: Array = [
 		"body": "Cada cliente sentado tiene dos barras.\n\nLa de **paciencia** baja sola cuando NO está comiendo, y cambia de color según lo que le quede: **verde**, **ámbar** y **roja**. Si llega al fondo se levanta y se va.\n\nLa **azul** es su **bocado**: lo que le queda del plato que tiene entre manos. Mientras baja no coge nada más de la cinta... y su paciencia tampoco cae. Un plato que se come despacio es tiempo regalado.\n\nCada plato le rellena la paciencia, y cuanto mejor es el plato, más se la llena.",
 	},
 	{
-		"title": "El hastío",
+		"title": "Variedad y hastío",
 		"icon": "res://assets/dishes/te_verde.webp",
-		"body": "Repetirle el **mismo plato** a un cliente lo harta: cada repetición le llena menos la paciencia.\n\nCambiar de plato no borra el hastío, solo lo baja un escalón. Lo que sí lo limpia del todo es el **té verde**.\n\nEl **jengibre** hace lo mismo para un plato concreto: con él, ese plato no le cuenta como repetido.",
+		"body": "A cada cliente le pierde la **variedad**: cada plato que prueba por **primera vez** alarga su racha —el **multiplicador** x2, x3, x4 de la chapa dorada junto a su bocadillo— y le recarga más paciencia que el anterior.\n\nY el multiplicador es ORO: cada plato nuevo paga su precio **más 1 doblón por punto** de la chapa. Con un x3 puesto, un nigiri de 4 deja 7.\n\nRepetirle un plato **rompe la racha**: la primera repetición recarga una miseria, la tercera nada, y de la cuarta en adelante hasta le **quita** paciencia.\n\nLos **extras** hacen que un plato repetido cuente como nuevo: no rompen la racha, la alargan (cada uno con su pega, ver Extras). El **té verde** limpia el paladar del todo: todos los platos vuelven a ser nuevos, pero el multiplicador empieza de cero.\n\nSi se marcha con un **postre**, deja 3 doblones de propina por cada punto del multiplicador.\n\nEl **bocadillo** sobre cada cliente enseña sus últimos platos, el más reciente arriba: de un vistazo sabes qué le rompería la racha.",
 	},
 	{
 		"title": "Picoteo",
@@ -54,12 +54,12 @@ const SECTIONS: Array = [
 	{
 		"title": "Postres",
 		"icon": "res://assets/dishes/mochi.webp",
-		"body": "Los postres son la única forma de **echar a un cliente** sin esperar a que se le agote la paciencia: al terminarlo paga, deja propina segura y se marcha.\n\nCada postre es de su tipo: **mochi** para grumetes, **dorayaki** para piratas y **taiyaki** para capitanes. Nadie más los coge.\n\nUna silla libre es una silla que puedes volver a llenar, así que echar a alguien a tiempo suele rentar más que aguantarlo.",
+		"body": "Los postres son la única forma de **echar a un cliente** sin esperar a que se le agote la paciencia: al terminarlo paga, deja propina segura y se marcha.\n\nY COBRAN la **variedad**: 3 doblones de propina por cada punto del multiplicador que tenga el cliente al irse. Un cliente bien variado despedido con dulce es la jugada redonda.\n\nCada postre es de su tipo: **mochi** para grumetes, **dorayaki** para piratas y **taiyaki** para capitanes. Nadie más los coge.\n\nUna silla libre es una silla que puedes volver a llenar, así que echar a alguien a tiempo suele rentar más que aguantarlo.",
 	},
 	{
 		"title": "Extras",
 		"icon": "res://assets/ui/ic_tienda.png",
-		"body": "Los **extras** no son platos: se marcan sobre un plato **ya terminado**, justo antes de mandarlo a la cinta.\n\n**Jengibre**: ese plato no le cuenta al cliente como repetido.\n**Wasabi**: la propina es más **probable**.\n**Soja**: la propina es más **gorda**.\n\nSe gastan por plato servido y se compran en la tienda.",
+		"body": "Los **extras** no son platos: se marcan sobre un plato **ya terminado**, justo antes de mandarlo a la cinta.\n\nLos **tres** hacen que ese plato cuente como **nuevo** aunque el cliente ya lo haya comido: alargan la racha y cobran el bono del multiplicador. Por eso cuestan **10 doblones** el uso... y por eso los tres tienen su pega.\n\n**Jengibre**: le limpia el **paladar entero** — a partir de ahí TODO le vuelve a saber a nuevo. A cambio, ese plato **baja** un punto el multiplicador.\n**Wasabi**: propina más **probable**. A cambio, en vez de recargarle paciencia, se la **quita**.\n**Soja**: propina más **gorda**. A cambio, mastica **más deprisa**, y mientras mastica es cuando no pierde paciencia.\n\nSe gastan por plato servido y se compran en la tienda.",
 	},
 	{
 		"title": "Barco y combinados",
@@ -69,7 +69,7 @@ const SECTIONS: Array = [
 	{
 		"title": "Propinas",
 		"icon": "res://assets/ui/ic_propina.png",
-		"body": "Las propinas NO son dinero de plato: van al **bote**, la barra azul del marcador.\n\nCada vez que el bote se llena, la clientela te regala un **potenciador** para esa partida: acelerar la cinta, cocinar sin esperas, sacar dos platos de golpe...\n\nNo los guardes: al acabar el turno, lo que no gastas no vale nada.",
+		"body": "Las propinas NO son dinero de plato: van al **bote**, la barra azul del marcador.\n\nCada vez que el bote se llena, el juego se para y la clientela te deja elegir entre tres **potenciadores** para esa partida: acelerar la cinta, cocinar sin esperas, sacar dos platos de golpe...\n\nSe aplican **solos** en cuanto los eliges, así que no hay nada que guardar ni que acordarse de gastar.",
 	},
 	{
 		"title": "Dinero y estrellas",

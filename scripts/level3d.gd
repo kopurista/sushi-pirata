@@ -10,7 +10,8 @@ extends Node3D
 ## - La cinta 2D era un rombo de 436x256 px = un CUADRADO de lado 3.6 u en
 ##   verdadera isometria (el juego 2D ya dibujaba iso real: 256/436 = 0.587 =
 ##   sin(35.264)). El circuito es un cuadrado centrado en el origen, ejes X/Z.
-## - Velocidad de platos convertida: 75 px/s -> 0.9 u/s. Los clientes andan a
+## - Velocidad de platos: 0.9 u/s en la conversion del 2D (75 px/s), subida
+##   despues a 1.35 por ritmo (ver PLATE_SPEED). Los clientes andan a
 ##   la velocidad natural de su ciclo de marcha (~1.2 u/s, mas lenta que los
 ##   2.2 del 2D: decision tomada para que los pies no patinen).
 
@@ -73,7 +74,15 @@ const DOCK_TEX := "res://assets/props/madera_muelle.webp"
 const CRATE_TEX := "res://assets/props/madera_caja.webp"
 ## Tinte de las cajas de modelo: apaga el naranja de fabrica a madera vieja.
 const CRATE_TINT := Color(0.58, 0.50, 0.44)
-const PLATE_SPEED := 0.9      ## u/s (75 px/s en el juego 2D)
+## Velocidad de los platos por la cinta, en u/s. Subida desde 0.9: el circuito
+## mide 14.4 u (4 lados de BELT_SIDE), así que a 0.9 una vuelta duraba 16 s de
+## los 150 del nivel y con ~30 platos por partida la cinta enseñaba 3 de media
+## — una cinta kaiten con tres platos no parece una cinta. A 1.25 la vuelta
+## baja a ~11.5 s. NO toca el equilibrio: el dado de coger un plato se tira UNA
+## vez al entrar en el radio del cliente (ver client3d._scan_belt y `declined`),
+## así que la velocidad solo cambia el ritmo, no las probabilidades.
+## Se probó a 1.35 y va justo por encima de lo cómodo para decidir.
+const PLATE_SPEED := 1.25     ## u/s (0.9 hasta la revisión del ritmo)
 ## Los platos salen por la esquina inferior de pantalla (+X+Z), la mas cercana
 ## a la tabla del jugador: dos lados desde el inicio del Path3D.
 const SPAWN_PROGRESS := BELT_SIDE * 2.0
@@ -110,6 +119,12 @@ var elapsed := 0.0
 var money_earned := 0
 var clients_spawned := 0
 var clients_finished := 0
+## Clientes que se han ido DE VACÍO en esta partida: cada uno encarece el
+## castigo del siguiente (ver client3d.EMPTY_LEAVE_STEP).
+var empty_leavers := 0
+## Potenciador "Sobremesa dulce": el próximo postre cobra el doble. Lo consume
+## el cliente al cobrarlo (client3d._finish_plate), solo si había multiplicador.
+var dessert_boost := false
 var client_reports: Array = []
 var seat_clients: Array = []
 var arrival_queue: Array[float] = []
@@ -168,12 +183,10 @@ const TIME_BONUS_BLOCK := 10.0
 var powerups_claimed := 0
 var pending_powerups := 0
 var aroma_active := false
-var recycle_active := false
 var tip_chance_bonus := 0.0
 var tip_amount_mult := 1.0
 var belt_mult := 1.0
 var patience_mult := 1.0
-var next_client_pay_mult := 1.0
 var belt_timer := 0.0
 var tip_chance_timer := 0.0
 var tip_amount_timer := 0.0
@@ -250,7 +263,6 @@ var _t := 0.0
 var time_gap: Control = null
 @onready var phase_label: Label = $HUD/PhaseLabel
 @onready var prep_board: Control = $HUD/PrepBoard
-@onready var manual_box: HBoxContainer = $HUD/ManualPowerups
 @onready var powerup_panel: Panel = $HUD/PowerupPanel
 @onready var powerup_options: VBoxContainer = $HUD/PowerupPanel/VBox/Options
 @onready var results_panel: Panel = $HUD/ResultsPanel
@@ -355,7 +367,12 @@ func _ready() -> void:
 		# cuanto se agota, las llegadas siguen sorteándose con esas mismas
 		# proporciones (si el puerto no trae pesos propios).
 		var mix: Dictionary = port.get("client_mix", {})
-		if unlimited and client_weights.is_empty():
+		# Los pesos se rellenan SIEMPRE con la mezcla, no solo en los abordajes:
+		# en un nivel de cupo cerrado no deciden las llegadas (para eso está
+		# `type_queue`), pero sí de qué tipo es la clientela de regalo del
+		# potenciador "Más clientela", que sin esto salía con la mezcla genérica
+		# y podía plantar un capitán en un puerto de solo grumetes.
+		if client_weights.is_empty():
 			client_weights = mix
 		if mix.is_empty():
 			total_clients = int(port.get("total_clients", TOTAL_CLIENTS))
@@ -2155,8 +2172,6 @@ func _try_spawn_client() -> bool:
 		head_who[c.client_type] = CharacterData.who_for_type(c.client_type) \
 				if c.who_override == "" else c.who_override
 	c.patience_scale = patience_mult
-	c.pay_mult = next_client_pay_mult
-	next_client_pay_mult = 1.0
 	# Entra andando por la borda mas cercana a su asiento, rodea el mostrador
 	# y llega a su taburete; al marcharse saldra por esa misma borda.
 	var entry: Vector3 = seats[idx]["entry"]
@@ -2230,6 +2245,14 @@ func _ring_param(p: Vector3) -> float:
 func _pick_client_type() -> String:
 	if not type_queue.is_empty():
 		return type_queue.pop_front()
+	return _weighted_client_type()
+
+
+## Tipo SORTEADO por los pesos del puerto, SIN tocar la cola exacta. Es lo que
+## necesita la clientela de regalo del potenciador "Más clientela": son clientes
+## DE MÁS, así que no pueden gastarse un hueco de la cola del nivel — con
+## `_pick_client_type` se lo robaban y la mezcla del puerto salía descuadrada.
+func _weighted_client_type() -> String:
 	if client_weights.is_empty():
 		var r := randf()
 		if r < 0.6:
@@ -2263,6 +2286,9 @@ func _on_client_finished(report: Dictionary, seat_idx: int) -> void:
 	var penalty := int(report.get("penalty", 0))
 	if penalty > 0:
 		money_earned = maxi(money_earned - penalty, 0)
+		# El cliente calculó su castigo con el contador de ANTES de irse; el
+		# siguiente que se marche de vacío pagará un escalón más.
+		empty_leavers += 1
 	clients_finished += 1
 	_update_client_heads()
 	_update_hud()
@@ -2351,6 +2377,19 @@ func _try_open_powerup_choice() -> void:
 	_open_powerup_choice()
 
 
+## Alto de cada tarjeta y tamaño del dibujo que la encabeza.
+const POWERUP_CARD_H := 148.0
+const POWERUP_ICON := 104.0
+
+
+## Tres tarjetas: DIBUJO + TÍTULO, y nada más. Antes cada opción era un párrafo
+## ("nombre (automático)\ndescripción" con ajuste de línea), o sea tres párrafos
+## que leer con el juego parado para poder seguir jugando. El dibujo se
+## reconoce de un vistazo y el título de powerup_data está escrito para
+## sostenerse solo, sin la línea de apoyo.
+##
+## El cartel SIGUE PARANDO EL JUEGO ENTERO —cinta, reloj, paciencia y bocados—:
+## lo que se ha recortado es lo que hay que leer, no el tiempo para leerlo.
 func _open_powerup_choice() -> void:
 	for child in powerup_options.get_children():
 		child.queue_free()
@@ -2359,21 +2398,43 @@ func _open_powerup_choice() -> void:
 	if not timed:
 		ids.erase("horas_extra")
 	ids.shuffle()
-	for i in 3:
-		var id: String = ids[i]
-		var data := PowerupData.get_powerup(id)
-		var b := Button.new()
-		b.custom_minimum_size = Vector2(0, 140)
-		b.add_theme_font_size_override("font_size", 24)
-		var kind := "(elige cuándo usarlo)" if data.get("manual", false) else "(automático)"
-		b.text = "%s %s\n%s" % [data.name, kind, data.desc]
-		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		prep_board.skin_button(b)
-		b.pressed.connect(_on_powerup_chosen.bind(id))
-		powerup_options.add_child(b)
+	for i in mini(3, ids.size()):
+		powerup_options.add_child(_make_powerup_card(str(ids[i])))
 	powerup_panel.visible = true
 	get_tree().paused = true
 	_animate_powerup_panel()
+
+
+func _make_powerup_card(id: String) -> Button:
+	var data := PowerupData.get_powerup(id)
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(0, POWERUP_CARD_H)
+	prep_board.skin_button(b)
+	b.pressed.connect(_on_powerup_chosen.bind(id))
+	var margen := (POWERUP_CARD_H - POWERUP_ICON) * 0.5
+	var icono := TextureRect.new()
+	# EXPAND_IGNORE_SIZE antes de asignar la textura, o el mínimo salta al
+	# tamaño nativo del dibujo y deforma la tarjeta.
+	icono.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icono.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var ruta: String = str(data.get("icon", ""))
+	if ResourceLoader.exists(ruta):
+		icono.texture = load(ruta)
+	icono.position = Vector2(margen, margen)
+	icono.size = Vector2(POWERUP_ICON, POWERUP_ICON)
+	icono.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(icono)
+	var titulo := Label.new()
+	titulo.text = str(data.get("name", id))
+	titulo.add_theme_font_size_override("font_size", 30)
+	titulo.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	titulo.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	titulo.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	titulo.offset_left = margen * 2.0 + POWERUP_ICON
+	titulo.offset_right = -margen
+	titulo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(titulo)
+	return b
 
 
 ## Entrada del cartel de potenciador: aparece de golpe desde pequeño con
@@ -2409,11 +2470,13 @@ func _on_powerup_chosen(id: String) -> void:
 		get_tree().paused = false
 
 
+## Todos los potenciadores son AUTOMÁTICOS: se aplican aquí mismo al elegirlos
+## (ver la cabecera de powerup_data.gd para por qué desapareció la mitad manual).
 func _apply_powerup(id: String) -> void:
-	if PowerupData.get_powerup(id).get("manual", false):
-		_add_manual_icon(id)
-		return
 	match id:
+		"cinta_rapida":
+			belt_mult = 3.0
+			belt_timer = 20.0
 		"aroma":
 			aroma_active = true
 		"receta_instantanea":
@@ -2423,32 +2486,35 @@ func _apply_powerup(id: String) -> void:
 			for c in seat_clients:
 				if c != null:
 					c.boost_patience(0.2)
+		# Absorbe al antiguo "sin cooldown": si va a ser el único potenciador de
+		# enfriamiento, que se note (0.6 durante 20 s apenas se percibía).
 		"menos_cooldown":
-			prep_board.cooldown_mult = 0.6
-			prep_board.cooldown_mult_timer = 20.0
+			prep_board.cooldown_mult = 0.4
+			prep_board.cooldown_mult_timer = 25.0
+		# Las dos mitades de propina van juntas: por separado eran dos opciones
+		# del sorteo que el jugador no sabía distinguir.
 		"mas_propinas":
 			tip_chance_bonus = 0.1
 			tip_chance_timer = 30.0
-		"mejores_propinas":
 			tip_amount_mult = 1.2
 			tip_amount_timer = 30.0
-		"cliente_satisfecho":
-			next_client_pay_mult = 1.2
-		"hora_feliz":
-			_add_extra_clients("E")
-		"cena_empresa":
-			_add_extra_clients("A")
-		"noche_gourmet":
-			_add_extra_clients("G")
+		"clientes_extra":
+			_add_extra_clients()
 		"horas_extra":
 			time_limit += 60.0
-		"reciclaje":
-			recycle_active = true
-		"guardar_extra":
-			prep_board.add_storage_slot()
 		"doble_plato":
 			prep_board.double_next = true
+		# +1 de variedad a todos los que están en el barco (también a los que
+		# vienen andando: llegan ya con el regalo puesto).
+		"variedad_extra":
+			for c in seat_clients:
+				if c != null:
+					c._set_variety(c.variety + 1, true)
+		"sobremesa":
+			dessert_boost = true
+		# Absorbe al antiguo "guardar un plato más": una caja más Y pilas de 5.
 		"mas_almacen":
+			prep_board.add_storage_slot()
 			prep_board.stack_max = 5
 		"tiempo_extra_prep":
 			frozen = true
@@ -2458,42 +2524,20 @@ func _apply_powerup(id: String) -> void:
 ## Los 3 clientes de regalo son clientela DE MÁS: suben el cupo del turno, o en
 ## un nivel sin reloj (donde el cupo es lo que lo cierra) el nivel podía darse
 ## por acabado antes de que llegaran a entrar.
-func _add_extra_clients(type: String) -> void:
+##
+## El TIPO ya no lo elige el potenciador (había uno por tipo, tres entradas de
+## catálogo para el mismo efecto): se sortea con los pesos del puerto, así que
+## la clientela extra sabe al nivel en el que aparece.
+func _add_extra_clients() -> void:
 	for i in 3:
-		forced_types.append(type)
+		forced_types.append(_weighted_client_type())
 		arrival_queue.append(elapsed + 1.0 + i * 6.0)
+		# OJO: uno por cliente y ya está. Antes se sumaba aquí dentro Y otro +3
+		# después, así que el cupo del turno subía de 6 en 6 y el contador de
+		# clientes del HUD se quedaba con un total que no llegaba nunca.
 		total_clients += 1
 	arrival_queue.sort()
 	_update_hud()
-	total_clients += 3
-
-
-func _add_manual_icon(id: String) -> void:
-	var data := PowerupData.get_powerup(id)
-	var b := Button.new()
-	b.custom_minimum_size = Vector2(70, 46)
-	b.add_theme_font_size_override("font_size", 15)
-	b.text = data.get("icon", "?")
-	b.tooltip_text = data.get("desc", "")
-	b.pressed.connect(_use_manual_powerup.bind(id, b))
-	manual_box.add_child(b)
-
-
-func _use_manual_powerup(id: String, button: Button) -> void:
-	button.queue_free()
-	match id:
-		"cinta_rapida":
-			belt_mult = 3.0
-			belt_timer = 20.0
-		"comida_segura":
-			for c in seat_clients:
-				if c != null and c.is_waiting():
-					c.guaranteed_next = true
-					break
-		"sin_cooldown":
-			prep_board.skip_next_cooldown = true
-		"manos_rapidas":
-			prep_board.easy_next = true
 
 
 # ------------------------------------------------------------------ platos
@@ -2526,14 +2570,11 @@ func _on_player_dish_served(recipe_id: String, price_override: int = 0,
 	_on_dish_served(recipe_id, price_override, extras, level_override, eat_mult_override)
 
 
-## Un plato desechado (2 vueltas sin cogerse) cuesta el 30% de su precio.
-## Con "Reciclaje de platos" vuelve a la receta como uso instantaneo.
+## Un plato desechado (una vuelta entera sin que nadie lo coja) cuesta una parte
+## de su precio (WASTE_PENALTY).
 func _on_plate_discarded(recipe_id: String, plate: Node3D = null) -> void:
 	# Logro "aquí no se tira nada": la partida deja de ser limpia.
 	plates_wasted += 1
-	if recycle_active:
-		prep_board.recycle_recipe(recipe_id)
-		return
 	var price: int = RecipeData.get_recipe(recipe_id).get("price", 0)
 	# Siempre cuesta algo: hasta el plato más barato se cobra un doblón.
 	var castigo: int = maxi(int(round(price * WASTE_PENALTY)), 1)

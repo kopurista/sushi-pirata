@@ -267,14 +267,6 @@ text = "¡Tiempo de preparación!"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="ManualPowerups" type="HBoxContainer" parent="HUD"]
-offset_left = 200.0
-offset_top = 732.0
-offset_right = 520.0
-offset_bottom = 780.0
-theme_override_constants/separation = 8
-alignment = 1
-
 [node name="PowerupPanel" type="Panel" parent="HUD"]
 process_mode = 3
 visible = false

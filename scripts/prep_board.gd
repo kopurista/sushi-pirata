@@ -98,6 +98,10 @@ var drag_moved := false
 ## Receta ELEGIDA por el jugador, para el cooldown (el plato puede acabar
 ## siendo otra: tempura poco hecha, aburi de atún...).
 var ready_base: String = ""
+## El plato terminado que hay en la tabla VOLVIÓ de una caja (toque en la
+## caja con la tabla libre): al irse no aplica cooldown, que su receta ya lo
+## pagó cuando se elaboró.
+var ready_from_storage := false
 ## Tiempo de comida propio del plato listo (0 = el de su receta). Solo lo usa
 ## el barco combinado, que tarda según los platos que lleve.
 var ready_eat_mult: float = 0.0
@@ -131,6 +135,45 @@ var dishes: Array = []
 var ready_recipe: String = ""
 var dragging_dish: Control = null
 var drag_offset := Vector2.ZERO
+## Punto donde empezó el toque sobre el plato terminado y si llegó a moverse.
+## Un TOQUE limpio lo manda a la cinta (que es lo que se hace con casi todos
+## los platos); el ARRASTRE se reserva para llevarlo a una caja. Antes había
+## que arrastrarlo SIEMPRE, y con ~30 platos por partida eso eran unos 24 s de
+## los 150 haciendo de camarero, con la tabla bloqueada mientras tanto.
+var dish_press_at := Vector2.ZERO
+var dish_moved := false
+
+## Lo que tarda un plato recién hecho en aparecer sobre la tabla (el bote de
+## escala con el que entra).
+const DISH_POP := 0.3
+## Y lo que tarda en aceptar el TOQUE que lo manda a la cinta. Es algo MÁS que
+## el bote a propósito (ver abajo).
+const DISH_ARM := 0.4
+## Tope duro: por muchos golpes que sigan cayendo, el plato queda armado como
+## mucho 1 s después de nacer.
+const DISH_ARM_MAX := 1.0
+## Momento (ms) a partir del cual el toque sobre un plato terminado lo sirve.
+## Solo se arma cuando la receta ACABA PULSANDO (ver _advance_step): en las
+## demás el plato se sirve desde el primer fotograma.
+##
+## HACE FALTA porque MUCHAS recetas terminan en un paso de PULSAR (el maki de
+## aguacate acaba con `tap_board` x2), los golpes se cuentan al APRETAR, y el
+## plato nace justo en el centro de la tabla — o sea DEBAJO del dedo que venía
+## dando golpes. Sin esta ventana, el golpe de más que se le escapa a
+## cualquiera mandaba el plato a la cinta sin querer, y con él los extras que
+## todavía no habías puesto.
+## Los 0.4 s salen de eso: quien pulsa rápido encadena un golpe cada 125-200 ms,
+## así que la ventana tiene que tragarse dos o tres. Y no se nota al servir a
+## posta, porque ver el plato aparecer y decidir cinta o caja ya cuesta más.
+##
+## Cada golpe FRENADO vuelve a empujar la ventana, porque una ráfaga larga se
+## escapaba por el final: medido, con golpes cada 180 ms el tercero caía a los
+## 410 ms y servía el plato. Y se empuja CON TOPE (`DISH_ARM_MAX`) para no caer
+## en lo contrario: sin él, quien insista tocando cada poco no serviría nunca.
+## Solo frena al TOQUE: arrastrar el plato a una caja funciona desde el primer
+## fotograma, porque un arrastre nunca es un golpe accidental.
+var dish_arm_ms := 0
+var dish_arm_max_ms := 0
 
 ## Cajas de guardado: índice de caja → { "id", "count", "node", "count_label" }.
 var stacks: Dictionary = {}
@@ -147,8 +190,6 @@ var stack_drag_moved := false
 
 # --- Efectos de potenciadores ---
 var instant_recipes: int = 0
-var skip_next_cooldown: bool = false
-var easy_next: bool = false
 ## "Doble plato": la siguiente receta produce 2 platos.
 var double_next: bool = false
 var cooldown_mult: float = 1.0
@@ -803,11 +844,19 @@ func _ready() -> void:
 		# Fallback para poder probar level.tscn directamente sin pasar por la selección.
 		var fallback: Array[String] = ["maki_aguacate", "nigiri_salmon", "maki_atun", "futomaki_salmon"]
 		GameState.selected_recipes = fallback
-	# Recetas ordenadas de menor a mayor: primero por estrellas, luego precio.
+	# Recetas ordenadas por PAPEL, no solo por precio: los PICOTEOS delante (se
+	# sirven a demanda, casi de reflejo), los POSTRES al final del todo (son la
+	# cuenta: se busca el postre cuando se decide despedir a un cliente, así
+	# que siempre está en la misma esquina), y los principales en medio por
+	# estrellas y precio.
 	var sorted_ids := GameState.selected_recipes.duplicate()
 	sorted_ids.sort_custom(func(a: String, b: String) -> bool:
 		var da := RecipeData.get_recipe(a)
 		var db := RecipeData.get_recipe(b)
+		var ga := _recipe_group(da)
+		var gb := _recipe_group(db)
+		if ga != gb:
+			return ga < gb
 		if da.level != db.level:
 			return da.level < db.level
 		return da.price < db.price)
@@ -1009,6 +1058,16 @@ func _process(delta: float) -> void:
 
 ## Botón de receta: sprite grande del plato + estrellas de nivel.
 ## El cooldown aparece en grande ENCIMA del plato.
+## Grupo de ordenación de una receta en la fila: 0 picoteo, 1 principal,
+## 2 postre (leaves_seat).
+static func _recipe_group(data: Dictionary) -> int:
+	if data.get("snack", false):
+		return 0
+	if data.get("leaves_seat", false):
+		return 2
+	return 1
+
+
 func _build_recipe_button(id: String) -> void:
 	var data := RecipeData.get_recipe(id)
 	var b := Button.new()
@@ -1125,12 +1184,6 @@ func add_recipe(id: String) -> void:
 	_update_ui()
 
 
-func recycle_recipe(recipe_id: String) -> void:
-	if recipe_id in cooldowns:
-		free_uses[recipe_id] = free_uses.get(recipe_id, 0) + 1
-
-
-
 func _current_step() -> Dictionary:
 	if step_index >= 0 and step_index < steps.size():
 		return steps[step_index]
@@ -1167,9 +1220,6 @@ func _start_prep(id: String) -> void:
 		return
 	state = State.CRAFTING
 	steps = RecipeData.get_recipe(id).steps
-	if easy_next:
-		easy_next = false
-		steps = _simplify_steps(steps)
 	step_index = 0
 	_reset_guide(GUIDE_DELAY_FIRST)
 	_reset_step_progress()
@@ -1469,6 +1519,10 @@ func _return_boat_parts() -> void:
 			if stacks.has(slot):
 				stacks[slot].count += 1
 				stacks[slot].count_label.text = "x%d" % stacks[slot].count
+				# Vuelven SIN extras: la marca se quedó por el camino al
+				# cogerlos para el barco (nunca llegó a gastar despensa).
+				stacks[slot].units.append([])
+				_refresh_stack_extras(slot)
 			else:
 				_create_stack(slot, id)
 	boat_pending.clear()
@@ -1683,8 +1737,10 @@ func _finish_boat() -> void:
 	d.position = _dish_rest_position(0)
 	d.pivot_offset = DISH_SIZE / 2.0
 	d.scale = Vector2(0.5, 0.5)
-	create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT) 		.tween_property(d, "scale", Vector2.ONE, 0.3)
+	create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT) 		.tween_property(d, "scale", Vector2.ONE, DISH_POP)
 	dishes.append(d)
+	# El barco se cierra arrastrando el último plato a la bandeja, no pulsando.
+	_disarm_dishes()
 	_flash_message("¡Barco!  $%d" % ready_price)
 	craft_event.emit("done", "")
 	_update_ui()
@@ -1695,12 +1751,17 @@ func _consume_stored(id: String) -> void:
 	for i in stacks:
 		if stacks[i].id != id:
 			continue
+		# El barco y los combos absorben el plato de arriba, extras incluidos
+		# (los extras marcados aún no habían gastado despensa, así que no se
+		# pierde nada más que la marca).
+		_pop_stack_unit(i)
 		stacks[i].count -= 1
 		if stacks[i].count <= 0:
 			stacks[i].node.queue_free()
 			stacks.erase(i)
 		else:
 			stacks[i].count_label.text = "x%d" % stacks[i].count
+			_refresh_stack_extras(i)
 		_emit_storage()
 		return
 
@@ -1796,23 +1857,13 @@ func _make_combo() -> void:
 	d.pivot_offset = DISH_SIZE / 2.0
 	d.scale = Vector2(0.5, 0.5)
 	create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT) \
-		.tween_property(d, "scale", Vector2.ONE, 0.3)
+		.tween_property(d, "scale", Vector2.ONE, DISH_POP)
 	dishes.append(d)
+	# El combinado sale de pulsar SU botón, que está fuera de la tabla.
+	_disarm_dishes()
 	_flash_message("¡%s!  $%d" % [RecipeData.get_recipe(id).get("label", id), total])
 	craft_event.emit("done", "")
 	_update_ui()
-
-
-## "Manos rápidas": deja solo los pasos de ingredientes.
-func _simplify_steps(source: Array) -> Array:
-	var result: Array = []
-	for step in source:
-		var t: String = step.get("type", "")
-		if t == "tap_ingredient" or t == "drag_ingredient":
-			result.append(step)
-	if result.is_empty():
-		result.append(source[0])
-	return result
 
 
 func _reset_step_progress() -> void:
@@ -1929,8 +1980,17 @@ func _advance_step() -> void:
 	# Paso nuevo: la guía se retira y vuelve a contar (menos que la 1ª vez).
 	_reset_guide(GUIDE_DELAY_NEXT)
 	if step_index >= steps.size():
+		var ultimo: Dictionary = steps.back() if not steps.is_empty() else {}
 		# El plato recién hecho es el mismo voxel que el emplatado.
 		_finish_prep(true)
+		# El retardo del toque SOLO hace falta si la receta acaba PULSANDO: ahí
+		# el plato nace debajo del dedo que venía dando golpes. Si termina con
+		# un arrastre, un corte o el soplete, el dedo está en otro sitio (o ni
+		# siquiera es un toque), así que el plato se sirve desde el primer
+		# fotograma. Por lo mismo no se arma cuando la receta la termina el
+		# AYUDANTE, la maestría o un potenciador: ahí no ha habido gesto.
+		if str(ultimo.get("type", "")) in ["tap_board", "tap_ingredient"]:
+			_arm_dishes()
 		return
 	var stages: Array = RecipeData.get_recipe(current_recipe).get("stages", [])
 	var stage_id: String = stages[step_index - 1] if step_index - 1 < stages.size() else ""
@@ -2387,6 +2447,37 @@ func _input(event: InputEvent) -> void:
 
 # --- Arrastre de platos terminados (sobre la tabla) ---
 
+## Un plato acaba de aparecer: no acepta el toque de servir hasta que termina
+## de posarse (ver dish_arm_ms). Se mide con el reloj del sistema a propósito,
+## no con el del árbol: si el cartel de potenciador pausa el juego justo al
+## terminar una receta, el plato debe quedar armado igualmente.
+func _arm_dishes() -> void:
+	var ahora := Time.get_ticks_msec()
+	dish_arm_ms = ahora + int(DISH_ARM * 1000.0)
+	dish_arm_max_ms = ahora + int(DISH_ARM_MAX * 1000.0)
+
+
+## Plato nuevo sobre la tabla que NO necesita retardo. Hay que borrar el sello
+## a mano, no basta con dejarlo estar: si la receta anterior sí lo armó y su
+## plato salió de la tabla ANTES de que venciera (arrastrándolo a una caja, que
+## no pasa por el guardián), el sello seguía vivo y frenaba al plato siguiente
+## sin que a este le tocara.
+func _disarm_dishes() -> void:
+	dish_arm_ms = 0
+	dish_arm_max_ms = 0
+
+
+func _dishes_armed() -> bool:
+	return Time.get_ticks_msec() >= dish_arm_ms
+
+
+## Un golpe que ha llegado demasiado pronto: la ráfaga sigue, así que se alarga
+## la espera (sin pasar del tope) en vez de dejar pasar el siguiente.
+func _delay_arm() -> void:
+	dish_arm_ms = mini(Time.get_ticks_msec() + int(DISH_ARM * 1000.0),
+		dish_arm_max_ms)
+
+
 func _try_start_dish_drag(event: InputEventScreenTouch) -> bool:
 	if state != State.READY:
 		return false
@@ -2395,6 +2486,8 @@ func _try_start_dish_drag(event: InputEventScreenTouch) -> bool:
 		if _touched(d, event.position):
 			dragging_dish = d
 			drag_offset = event.position - d.global_position
+			dish_press_at = event.position
+			dish_moved = false
 			return true
 	return false
 
@@ -2402,6 +2495,8 @@ func _try_start_dish_drag(event: InputEventScreenTouch) -> bool:
 func _continue_dish_drag(event: InputEvent) -> void:
 	if event is InputEventScreenDrag:
 		dragging_dish.global_position = event.position - drag_offset
+		if dish_press_at.distance_to(event.position) > 24.0:
+			dish_moved = true
 	elif event is InputEventScreenTouch and not event.pressed:
 		var d := dragging_dish
 		dragging_dish = null
@@ -2414,6 +2509,18 @@ func _continue_dish_drag(event: InputEvent) -> void:
 				_boat_part_placed(d, idx)
 			else:
 				_layout_boat_parts()
+			return
+		# TOQUE limpio (sin arrastre real) = a la cinta. Es el destino de casi
+		# todos los platos, así que es lo que tiene que costar menos: la tabla
+		# queda libre en el acto y el plato sale volando solo. Eso sí, no hasta
+		# que el plato termina de posarse: el golpe de más de un `tap_board`
+		# final caía justo encima y lo servía sin querer.
+		if not dish_moved:
+			if _dishes_armed():
+				_serve_dish(d)
+			else:
+				_delay_arm()
+				d.position = _dish_rest_position(dishes.find(d))
 			return
 		# Guardado con MUCHO margen (arriba, abajo y a los lados de las cajas):
 		# se comprueba primero, así soltar cerca de las cajas siempre guarda
@@ -2436,7 +2543,7 @@ func _continue_dish_drag(event: InputEvent) -> void:
 
 func _serve_dish(d: Control) -> void:
 	dishes.erase(d)
-	d.queue_free()
+	_fly_dish_to_belt(d)
 	# Los extras se gastan de la despensa AQUÍ, uno por plato servido; si al
 	# final no quedaba, ese extra simplemente no viaja con el plato.
 	var extras: Array = []
@@ -2450,9 +2557,28 @@ func _serve_dish(d: Control) -> void:
 	_after_dish_consumed()
 
 
+## El plato que se acaba de servir sale volando hacia la franja de la cinta y
+## se apaga ahí. Ya está FUERA de `dishes`, así que la tabla se da por libre en
+## el mismo fotograma: el jugador puede elegir la receta siguiente mientras el
+## plato todavía está en el aire. Es decoración pura — el plato de verdad ya ha
+## nacido en la cinta 3D con el `dish_served` de _serve_dish.
+func _fly_dish_to_belt(d: Control) -> void:
+	d.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var destino: Vector2 = serve_slot.position + (serve_slot.size - DISH_SIZE) / 2.0
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(d, "position", destino, 0.22) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(d, "scale", Vector2(0.45, 0.45), 0.22)
+	tw.tween_property(d, "modulate:a", 0.0, 0.22).set_delay(0.06)
+	tw.chain().tween_callback(d.queue_free)
+
+
 func _after_dish_consumed() -> void:
 	if dishes.is_empty():
-		_apply_cooldown(ready_base if ready_base != "" else ready_recipe)
+		# Un plato RESTAURADO de una caja no vuelve a enfriar su receta.
+		if not ready_from_storage:
+			_apply_cooldown(ready_base if ready_base != "" else ready_recipe)
+		ready_from_storage = false
 		ready_base = ""
 		ready_recipe = ""
 		state = State.IDLE
@@ -2480,11 +2606,19 @@ func _auto_store_index() -> int:
 func _store_dish(d: Control, panel_index: int) -> void:
 	dishes.erase(d)
 	d.queue_free()
+	# Los EXTRAS marcados viajan CON el plato a la caja (todavía sin gastar de
+	# la despensa: se cobran al servir de verdad). El siguiente plato de la
+	# tabla empieza limpio.
+	var unit: Array = extras_chosen.keys()
+	extras_chosen.clear()
+	_update_extra_buttons()
 	if stacks.has(panel_index):
 		stacks[panel_index].count += 1
 		stacks[panel_index].count_label.text = "x%d" % stacks[panel_index].count
+		stacks[panel_index].units.append(unit)
+		_refresh_stack_extras(panel_index)
 	else:
-		_create_stack(panel_index, ready_recipe)
+		_create_stack(panel_index, ready_recipe, unit)
 	_emit_storage()
 	_after_dish_consumed()
 
@@ -2501,7 +2635,7 @@ func _emit_storage() -> void:
 	_update_combo_button()
 
 
-func _create_stack(panel_index: int, recipe_id: String) -> void:
+func _create_stack(panel_index: int, recipe_id: String, extras: Array = []) -> void:
 	var p: Control = storage_panels[panel_index]
 	var node := Control.new()
 	node.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -2530,8 +2664,40 @@ func _create_stack(panel_index: int, recipe_id: String) -> void:
 	cl.add_theme_color_override("font_outline_color", Color.BLACK)
 	cl.add_theme_constant_override("outline_size", 6)
 	node.add_child(cl)
+	# Los EXTRAS del plato de arriba de la pila, en miniatura en la esquina
+	# superior izquierda de la caja: así se ve qué lleva el próximo en salir.
+	var ex := HBoxContainer.new()
+	ex.add_theme_constant_override("separation", 1)
+	ex.position = Vector2(3.0, 3.0)
+	ex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	node.add_child(ex)
 	p.add_child(node)
-	stacks[panel_index] = { "id": recipe_id, "count": 1, "node": node, "count_label": cl }
+	# "units": los extras de CADA plato de la pila, en orden de guardado (el
+	# último es el de arriba, el próximo en salir). Va en paralelo con "count".
+	stacks[panel_index] = { "id": recipe_id, "count": 1, "node": node,
+		"count_label": cl, "units": [extras], "extras_box": ex }
+	_refresh_stack_extras(panel_index)
+
+
+## Redibuja las miniaturas de extras de una caja según el plato de ARRIBA.
+func _refresh_stack_extras(i: int) -> void:
+	if not stacks.has(i):
+		return
+	var box: HBoxContainer = stacks[i].get("extras_box")
+	if box == null or not is_instance_valid(box):
+		return
+	for c in box.get_children():
+		c.queue_free()
+	var units: Array = stacks[i].get("units", [])
+	var top: Array = units.back() if not units.is_empty() else []
+	for e in top:
+		var ic := TextureRect.new()
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.texture = RecipeData.get_ingredient_texture(e)
+		ic.custom_minimum_size = Vector2(20, 20)
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(ic)
 
 
 ## Arrastrar DESDE una caja: saca un solo plato de la pila.
@@ -2564,14 +2730,78 @@ func _continue_stack_drag(event: InputEvent) -> void:
 		stack_ghost.queue_free()
 		stack_ghost = null
 		if served:
-			dish_served.emit(stacks[i].id, 0, [], 0, 0.0)
+			# El plato sale con SUS extras: se cobran de la despensa aquí, en
+			# el momento de servir, igual que desde la tabla. Si no quedan
+			# usos, ese extra simplemente no viaja.
+			var unit := _pop_stack_unit(i)
+			var extras: Array = []
+			for e in unit:
+				if GameState.consume_extra(e):
+					extras.append(e)
+			dish_served.emit(stacks[i].id, 0, extras, 0, 0.0)
 			stacks[i].count -= 1
 			if stacks[i].count <= 0:
 				stacks[i].node.queue_free()
 				stacks.erase(i)
 			else:
 				stacks[i].count_label.text = "x%d" % stacks[i].count
+				_refresh_stack_extras(i)
 			_emit_storage()
+		elif not stack_drag_moved:
+			# TOQUE limpio en la caja: con la tabla LIBRE, el plato de arriba
+			# vuelve a la tabla para poder ponerle extras (los que ya llevara
+			# aparecen marcados). Con algo en la tabla, el toque no hace nada
+			# — el arrastre directo a la cinta sigue funcionando igual.
+			_restore_from_stack(i)
+
+
+## Saca los extras del plato de ARRIBA de una pila (el próximo en salir).
+func _pop_stack_unit(i: int) -> Array:
+	if not stacks.has(i):
+		return []
+	var units: Array = stacks[i].get("units", [])
+	if units.is_empty():
+		return []
+	return units.pop_back()
+
+
+## Un TOQUE en una caja con la tabla libre devuelve el plato de arriba a la
+## tabla como plato TERMINADO: sirve para añadirle (o quitarle) extras antes
+## de mandarlo a la cinta. No aplica cooldown al servirse después —esa receta
+## ya pagó el suyo cuando se elaboró— ni da maestría.
+func _restore_from_stack(i: int) -> void:
+	if state != State.IDLE or not stacks.has(i):
+		return
+	var id: String = stacks[i].id
+	var unit := _pop_stack_unit(i)
+	stacks[i].count -= 1
+	if stacks[i].count <= 0:
+		stacks[i].node.queue_free()
+		stacks.erase(i)
+	else:
+		stacks[i].count_label.text = "x%d" % stacks[i].count
+		_refresh_stack_extras(i)
+	_emit_storage()
+	state = State.READY
+	ready_recipe = id
+	ready_base = ""
+	ready_price = 0
+	ready_level = 0
+	ready_eat_mult = 0.0
+	ready_from_storage = true
+	extras_chosen.clear()
+	for e in unit:
+		extras_chosen[e] = true
+	var d := _make_dish_node(id)
+	add_child(d)
+	d.position = _dish_rest_position(0)
+	d.pivot_offset = DISH_SIZE / 2.0
+	d.scale = Vector2(0.5, 0.5)
+	create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT) \
+		.tween_property(d, "scale", Vector2.ONE, DISH_POP)
+	dishes.append(d)
+	craft_event.emit("select", "")
+	_update_ui()
 
 
 
@@ -3021,6 +3251,9 @@ func _make_dish_node(recipe_id: String) -> Control:
 
 func _finish_prep(grant_mastery: bool) -> void:
 	state = State.READY
+	# Por defecto el plato sale servible en el acto. Solo `_advance_step` lo
+	# arma con retardo, y únicamente si la receta ACABA pulsando.
+	_disarm_dishes()
 	ready_recipe = current_recipe
 	# El cooldown siempre es el de la receta ELEGIDA, aunque el plato salga
 	# con otra identidad (tempura poco hecha, aburi de atún...).
@@ -3055,7 +3288,7 @@ func _finish_prep(grant_mastery: bool) -> void:
 		d.pivot_offset = DISH_SIZE / 2.0
 		d.scale = Vector2(0.5, 0.5)
 		var tw := create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		tw.tween_property(d, "scale", Vector2.ONE, 0.3)
+		tw.tween_property(d, "scale", Vector2.ONE, DISH_POP)
 		dishes.append(d)
 	craft_event.emit("done", "")
 	_update_ui()
@@ -3076,9 +3309,6 @@ func _dish_rest_position(index: int = 0, total: int = 0) -> Vector2:
 func _apply_cooldown(recipe_id: String) -> void:
 	var cd: float = RecipeData.get_recipe(recipe_id).cooldown * cooldown_mult \
 			* cooldown_perm_mult
-	if skip_next_cooldown:
-		skip_next_cooldown = false
-		cd = 0.0
 	cooldowns[recipe_id] = cd
 
 
@@ -3364,15 +3594,14 @@ func _refresh_indicator() -> void:
 
 
 ## Plato listo: la mano arrastra un fantasma del plato hasta la cinta.
+## El plato terminado se manda a la cinta con un TOQUE, así que la guía marca
+## el toque sobre el propio plato (antes dibujaba el arrastre hasta la cinta).
+## El destino lo dice el cartel del gesto, que en READY pone "¡A la cinta!".
 func _refresh_indicator_ready() -> void:
 	if state != State.READY or dishes.is_empty():
 		return
 	_hide_indicator()
-	ghost_hint.texture = RecipeData.get_dish_texture(ready_recipe)
-	ghost_hint.size = DISH_SIZE
-	var a: Vector2 = dishes[0].position + DISH_SIZE / 2.0
-	var b: Vector2 = serve_slot.position + serve_slot.size / 2.0
-	_hand_drag(a, b)
+	_hand_tap_at(dishes[0].position + DISH_SIZE / 2.0, false)
 
 
 ## Pulsación: la mano baja el dedo sobre el punto (rápida si es repetida).

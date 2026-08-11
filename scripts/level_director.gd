@@ -172,7 +172,8 @@ func _nivel_2() -> void:
 	# TIENDA queda abierta, y de paso deja los extras de regalo.
 	await _say([
 		{ "text": "¡Buen turno! Mi puesto está aquí al lado: pásate a ver el género cuando quieras.", "who": "saverio", "mood": "feliz" },
-		{ "text": "Y llévate mis **extras**: **jengibre** (el plato no cuenta como repetido), **wasabi** (propina más probable) y **soja** (más gorda).", "who": "saverio", "mood": "explicando" },
+		{ "text": "Y llévate mis **extras**. Con cualquiera de los tres, un plato repetido le sabe a **nuevo** al cliente.", "who": "saverio", "mood": "explicando" },
+		{ "text": "Pero ojo, que todo se paga: el **jengibre** le limpia el paladar y te cuesta multiplicador; el **wasabi** da propina y le quita paciencia; la **soja** paga mejor y le hace masticar deprisa.", "who": "saverio", "mood": "hablando" },
 		{ "text": "Cinco usos de cada uno. Van sobre un plato ya terminado, antes de mandarlo a la cinta.", "who": "saverio", "mood": "hablando" },
 		{ "text": "¡Eso es hacer amigos! Ya tienes **tienda**, %s." % GameState.player_title(), "mood": "riendo" },
 	])
@@ -253,8 +254,8 @@ func _nivel_3() -> void:
 	var regalados := _reponer_extras()
 	await _focus_extras()
 	var consejo: Array = [
-		{ "text": "Hoy solo llevas **un plato de 2 estrellas**, así que se lo vas a repetir: échale **jengibre** y le sabrá a nuevo.", "mood": "serio" },
-		{ "text": "Con **wasabi** o **soja** encima, la propina sube. Ahí se hace el dinero de verdad.", "mood": "feliz" },
+		{ "text": "Hoy solo llevas **un plato de 2 estrellas**, así que se lo vas a repetir: échale un **extra** y le sabrá a nuevo.", "mood": "serio" },
+		{ "text": "El **jengibre** le limpia el paladar entero. El **wasabi** y la **soja** engordan la propina. Ninguno es gratis, pero un plato repetido sin nada encima no vale nada.", "mood": "feliz" },
 	]
 	if regalados:
 		consejo.append({ "text": "¿Andas corto de extras? Toma de mi despensa. ¡Pero no te acostumbres!", "mood": "riendo" })

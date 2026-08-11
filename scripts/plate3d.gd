@@ -33,7 +33,7 @@ var eat_mult_override: float = 0.0
 ## el tsuke don que David regala en el nivel 5: mientras corre el guion es de
 ## Pablo el Rubio y nadie más lo toca.
 var only_who: String = ""
-var speed: float = 0.9
+var speed: float = 1.25   ## por defecto; el nivel lo fija con level3d.PLATE_SPEED
 var taken: bool = false
 var traveled: float = 0.0
 var belt_length: float = 0.0

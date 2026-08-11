@@ -21,14 +21,25 @@ class_name CampaignData
 ##  - goal_stars: estrellas mínimas para superar el nivel y avanzar.
 ##  - star_money: [dinero para 1★, 2★, 3★] — SOLO precio de platos (sin propinas),
 ##    calibrado al techo de producción de cada nivel.
-##    CÓMO SE CALIBRAN LOS ABORDAJES (los de cupo cerrado los marca su
-##    clientela, que es un número exacto): el techo lo pone LA COCINA, no la
-##    clientela, porque siempre hay a quien servir. La medida de referencia sale
-##    del propio guardado — 62 platos elaborados en una partida y el nivel 2
-##    (3 min, carta de $2-4, 3★ en 100) superado — y da unos **30 platos
-##    COMIDOS por 150 s** en manos buenas. De ahí: 3★ ≈ 30 × precio medio de la
-##    carta que se puede llevar × 0.65 (nadie sirve perfecto), y 1★/2★ al 35% y
-##    al 62% de esa cifra, que es la forma que ya tenía la campaña.
+##    CADA TIPO DE NIVEL SE CALIBRA CONTRA LO QUE DE VERDAD LO LIMITA, y son
+##    cosas distintas:
+##     · Los ABORDAJES los limita el RELOJ (siempre hay a quien servir), así que
+##       su techo es 150 s × los doblones por segundo de atención que rinde la
+##       carta que se puede llevar. Al tocar precios, se reescalan por el
+##       cambio de ese $/s.
+##     · Las ISLAS y los PUERTOS los limita la CLIENTELA (cupo cerrado): su
+##       techo es clientes × platos por cliente × PRECIO medio de la carta. Al
+##       tocar precios, se reescalan por el cambio de precio medio, NO de $/s —
+##       con el $/s salían cifras imposibles (el nivel 2 pedía 127 doblones con
+##       un techo real de ~75).
+##    En los dos casos 1★/2★ quedan al 35% y al 62% del 3★, que es la forma que
+##    ya tenía la campaña.
+##    OJO al recalibrar: la carta dejó de mejorar mucho con el avance (todas las
+##    recetas rinden parecido por segundo desde que se aplanó, ver CLAUDE.md),
+##    así que del nivel 6 en adelante el dinero alcanzable apenas sube. Lo que
+##    escala en los últimos abordajes es el PORCENTAJE de ese techo que se pide,
+##    no el techo: por eso el 7 y el 9 llevan las cifras levantadas a mano sobre
+##    lo que daba el reescalado puro (que dejaba el 9 por debajo del 6).
 ##  - fixed_recipes: carta CERRADA (las islas). El jugador no elige: se juega
 ##    con esas recetas y punto, también al repetir el puerto.
 ##    `fixed_recipes_replay` es la lista para cuando ya está superado (en el
@@ -80,7 +91,7 @@ const PORTS: Array = [
 		"arrival_scale": 1.0,
 		"goal_stars": 2,
 		# 4 grumetes con platos de $1-3 y el maki rindiendo 3 piezas.
-		"star_money": [18, 30, 40],
+		"star_money": [22, 37, 49],
 		"reward_recipes": ["gunkan_wakame"],
 		"reward_recipes_3": ["edamame"],
 		# Primer nivel de verdad: carta CERRADA (las del tutorial) y sin extras,
@@ -99,7 +110,7 @@ const PORTS: Array = [
 		"arrival_scale": 0.65,
 		"goal_stars": 2,
 		# 10 clientes es MUCHA rotación aunque solo sean grumetes.
-		"star_money": [45, 75, 100],
+		"star_money": [57, 95, 127],
 		# Con 2★ se abre la TIENDA (y con ella la escena de Saverio); el onigiri
 		# es el premio de las 3★.
 		"reward_recipes": [],
@@ -119,7 +130,7 @@ const PORTS: Array = [
 		"goal_stars": 2,
 		# Pocos clientes pero uno come L2, y a media partida se suma el nigiri
 		# de atún que regala David.
-		"star_money": [30, 50, 75],
+		"star_money": [38, 63, 94],
 		"reward_recipes": ["maki_atun"],
 		"reward_recipes_3": ["dorayaki"],
 		# Isla: carta cerrada. La CUARTA la regala David en plena partida, y al
@@ -144,7 +155,7 @@ const PORTS: Array = [
 		"patience_mult": 0.9,
 		"arrival_scale": 0.8,
 		"goal_stars": 2,
-		"star_money": [42, 70, 90],
+		"star_money": [45, 74, 96],
 		"reward_recipes": ["caldo_dashi"],
 		"reward_recipes_3": ["sopa_miso"],
 		# Isla: carta cerrada con los dos escalones de la carta, salmón y atún.
@@ -169,7 +180,7 @@ const PORTS: Array = [
 		# recetas de 3★ desbloqueadas, la carta buena es nigiri de atún $6, maki
 		# de atún $5 (con maestría, 3 piezas) y onigiri $4 → media $5.
 		# 30 platos × $5 × 0.65 ≈ 100.
-		"star_money": [38, 65, 100],
+		"star_money": [38, 64, 99],
 		"boat": true,
 		# Carta LIBRE, pero solo tres huecos LA PRIMERA VEZ: al repetir el
 		# puerto se juega con los cuatro de siempre (ver prep_screen).
@@ -203,7 +214,7 @@ const PORTS: Array = [
 		# Se estrenan las recetas de 3★ (aburi $12, sashimi de atún rojo $11) y
 		# entran ~16 clientes, dos de ellos capitanes que las cogen al 95%:
 		# media $6. 30 platos × $6 × 0.65 ≈ 120.
-		"star_money": [42, 74, 120],
+		"star_money": [41, 73, 118],
 		"boat": true,
 		"reward_recipes": ["yaki_onigiri", "futomaki_salmon", "sashimi_tamago",
 			"nigiri_inari"],
@@ -224,7 +235,7 @@ const PORTS: Array = [
 		# Misma carta que el 6 (media $6) pero con el doble de llegadas: ~21
 		# clientes para 8 taburetes, así que la barra está SIEMPRE llena y no se
 		# pierde ni un segundo de asiento. 30 platos × $6 × 0.68 ≈ 125.
-		"star_money": [45, 78, 125],
+		"star_money": [45, 79, 128],
 		"boat": true,
 		"reward_recipes": ["nigiri_anguila", "udon"],
 		"reward_recipes_3": ["temaki", "tempura"],
@@ -240,7 +251,7 @@ const PORTS: Array = [
 		"arrival_scale": 0.6,
 		"goal_stars": 2,
 		# Más clientes que asientos (8): rotación constante.
-		"star_money": [45, 80, 130],
+		"star_money": [59, 105, 171],
 		"boat": true,
 		"reward_recipes": ["nigiri_ebi", "taiyaki", "gunkan_tartar"],
 		"reward_recipes_3": ["hana_maki", "gunkan_ikura"],
@@ -258,7 +269,7 @@ const PORTS: Array = [
 		# Final: la carta entera en juego (hasta $12-14, con la maestría del hana
 		# maki dando 4 piezas) y tres capitanes en la mezcla → media $8.
 		# 30 platos × $8 × 0.65 ≈ 155.
-		"star_money": [55, 96, 155],
+		"star_money": [51, 90, 145],
 		"boat": true,
 		"reward_recipes": ["fugu", "dragon_roll", "sashimi_variado"],
 		"reward_recipes_3": ["chirashi", "nigiri_wagyu"],

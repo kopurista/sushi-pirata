@@ -12,7 +12,7 @@ por espejo o por tinte en vez de volver a generarlas.
 from collections import deque
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 RAW = Path("_gen/ui2")
 OUT = Path("assets/ui")
@@ -100,6 +100,51 @@ def keep_largest(img: Image.Image) -> Image.Image:
     for y in range(h):
         for x in range(w):
             if a[x, y] >= ALPHA_CROP and lab[y * w + x] != best:
+                px[x, y] = (0, 0, 0, 0)
+    return out
+
+
+def drop_specks(img: Image.Image, min_frac: float = 0.003) -> Image.Image:
+    """Quita las islas de alfa MINUSCULAS, pero conserva las demas.
+
+    Es el hermano tolerante de keep_largest, y hace falta para los dibujos con
+    piezas sueltas A PROPOSITO: los remolinos del aroma, el corazon verde sobre
+    la cabeza del grumete o las monedas cayendo sobre el bote. Con keep_largest
+    esos iconos perdian justo lo que los distinguia y quedaban tres nigiris
+    identicos en el cartel. Se descarta lo que no llegue a `min_frac` de la
+    isla mayor, que es lo que de verdad son motas del recorte.
+    """
+    w, h = img.size
+    a = img.split()[3].load()
+    lab = [0] * (w * h)
+    sizes = [0]
+    tag = 0
+    for sy in range(h):
+        for sx in range(w):
+            if lab[sy * w + sx] or a[sx, sy] < ALPHA_CROP:
+                continue
+            tag += 1
+            n = 0
+            q = deque([(sx, sy)])
+            lab[sy * w + sx] = tag
+            while q:
+                x, y = q.popleft()
+                n += 1
+                for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                    if 0 <= nx < w and 0 <= ny < h \
+                            and not lab[ny * w + nx] and a[nx, ny] >= ALPHA_CROP:
+                        lab[ny * w + nx] = tag
+                        q.append((nx, ny))
+            sizes.append(n)
+    if tag == 0:
+        return img
+    floor = max(sizes) * min_frac
+    out = img.copy()
+    px = out.load()
+    for y in range(h):
+        for x in range(w):
+            t = lab[y * w + x]
+            if t and sizes[t] < floor:
                 px[x, y] = (0, 0, 0, 0)
     return out
 
@@ -405,6 +450,122 @@ def build_packs() -> None:
     save(solidify(fit_width(crop_alpha(load("ptienda_2")), 660)), "panel_tienda")
 
 
+# --------------------------------------------- iconos de los potenciadores
+
+# Lado al que se exportan. El cartel los dibuja a 104 px con
+# STRETCH_KEEP_ASPECT_CENTERED, asi que lo que importa es el LADO LARGO: se
+# ajusta ese y el corto cae donde caiga (los tres piratas de "Mas clientela"
+# son mucho mas anchos que altos y con fit_width salian enanos de alto).
+POWERUP_ICON_SIDE = 128
+
+# Variante elegida de cada tanda de Ludo (se generaron dos de cada). Las
+# descartadas se quedan en _gen/ui2/pot por si hay que volver sobre ellas.
+POWERUPS = [
+    ("pot_cinta_a", "pot_cinta"),
+    ("pot_aroma_b", "pot_aroma"),
+    ("pot_instantanea_a", "pot_instantanea"),
+    ("pot_paciencia_a", "pot_paciencia"),
+    ("pot_sin_esperas_a", "pot_sin_esperas"),
+    ("pot_propinas_a", "pot_propinas"),
+    ("pot_clientela_a", "pot_clientela"),
+    ("pot_tiempo_muerto_a", "pot_tiempo_muerto"),
+    ("pot_almacen_b", "pot_almacen"),
+    ("pot_doble_a", "pot_doble"),
+    ("pot_reloj_a", "pot_reloj"),
+    # Potenciadores de hastío/variedad.
+    ("pot_variedad_a", "pot_variedad"),
+    ("pot_sobremesa_a", "pot_sobremesa"),
+]
+
+
+def fit_max(img: Image.Image, side: int) -> Image.Image:
+    if img.width >= img.height:
+        return fit_width(img, side)
+    return fit_height(img, side)
+
+
+def build_powerups() -> None:
+    """Los 11 iconos del cartel de potenciadores.
+
+    NO llevan `solidify`: no son 9-slice, se dibujan a tamano fijo dentro de la
+    tarjeta, asi que el antialias del borde ayuda en vez de estorbar (la franja
+    translucida que obliga a solidificar solo aparece al ESTIRAR una banda).
+
+    Y van con `drop_specks`, NO con `keep_largest`: media docena de estos
+    iconos se explican con una pieza que flota separada del sujeto (los
+    remolinos del aroma, el corazon verde, las monedas cayendo, el destello de
+    la receta instantanea). Quedarse con la isla mayor los dejaba en un nigiri
+    pelado, tres veces el mismo dibujo en el cartel.
+    """
+    for src, dst in POWERUPS:
+        img = drop_white(Image.open(RAW / "pot" / f"{src}.webp").convert("RGBA"))
+        save(fit_max(crop_alpha(drop_specks(img), 2), POWERUP_ICON_SIDE), dst)
+
+
+# --------------------------------- bocadillo del cliente y chapas de variedad
+
+def build_bubble() -> None:
+    """El bocadillo de cómic del cliente (HORIZONTAL) y su versión en espejo.
+
+    Es un 9-slice que se estira A LO ANCHO: se exporta al ALTO al que se
+    dibuja (62 px, los márgenes 9-slice son téxeles 1:1) y la banda central
+    blanca hace el resto.
+
+    La COLA se VOLTEA a la parte de ARRIBA (`ImageOps.flip`): el bocadillo
+    cuelga por DEBAJO de la cabeza del cliente, que es la única franja libre.
+    Con la cola abajo el bocadillo salía por encima y tapaba las barras del
+    cliente de al lado — y la barra del vecino tapaba a su vez la chapa del
+    multiplicador.
+
+    `bocadillo.png` tiene la cola arriba-IZQUIERDA (para el bocadillo que sale
+    a la DERECHA de la cabeza) y `bocadillo_esp.png` es su espejo horizontal,
+    para el que sale a la izquierda — el mismo patrón que las manos
+    ic_mano_izq/der. Lleva `solidify` porque el canto estirado con alfa a
+    medias deja franja translúcida.
+    """
+    img = solidify(fit_height(crop_alpha(drop_white(
+        Image.open(RAW / "pot" / "bocadillo_h_a.webp").convert("RGBA")), 1), 62))
+    img = ImageOps.flip(img)
+    save(img, "bocadillo")
+    save(ImageOps.mirror(img), "bocadillo_esp")
+
+
+# Paleta del set (madera oscura de contorno, oro de acento, crema).
+BADGE_BORDE = (74, 46, 20, 255)
+BADGE_ORO = (242, 193, 78, 255)
+BADGE_BRILLO = (255, 226, 145, 255)
+BADGE_TEXTO = (74, 46, 20, 255)
+
+
+def build_mult_badges() -> None:
+    """Chapas x2..x5 del multiplicador de variedad, DIBUJADAS (como la barra),
+    no generadas: la tanda de Ludo salía con estallidos de cómic que no
+    casaban con el set (madera cálida + pergamino + oro de acento) y cada
+    chapa de su padre. Moneda de oro con borde marrón, brillo superior y el
+    número en la Exo 2 Bold REAL del juego, supermuestreada a 8x.
+    """
+    S = 8
+    D = 88
+    for n in range(2, 6):
+        img = Image.new("RGBA", (D * S, D * S), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        c = D * S // 2
+        r = c - 2 * S
+        d.ellipse([c - r, c - r, c + r, c + r], fill=BADGE_BORDE)
+        r2 = r - 4 * S
+        d.ellipse([c - r2, c - r2, c + r2, c + r2], fill=BADGE_ORO)
+        # Brillo: un arco claro pegado al borde superior, como en la moneda.
+        r3 = r2 - 3 * S
+        d.arc([c - r3, c - r3, c + r3, c + r3], start=200, end=340,
+              fill=BADGE_BRILLO, width=3 * S)
+        font = ImageFont.truetype("fonts/static/Exo2-Bold.ttf", 38 * S)
+        text = "x%d" % n
+        bb = d.textbbox((0, 0), text, font=font)
+        d.text((c - (bb[0] + bb[2]) / 2, c - (bb[1] + bb[3]) / 2), text,
+               font=font, fill=BADGE_TEXTO)
+        save(img.resize((D, D), Image.LANCZOS), "mult_x%d" % n)
+
+
 if __name__ == "__main__":
     build_panel()
     build_button()
@@ -425,3 +586,6 @@ if __name__ == "__main__":
     build_nameplate()
     build_board()
     build_packs()
+    build_powerups()
+    build_bubble()
+    build_mult_badges()
