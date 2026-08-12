@@ -149,8 +149,10 @@ func _setup_ui() -> void:
 	tabs.offset_bottom = 168.0
 	tabs.add_theme_constant_override("separation", 8)
 	root.add_child(tabs)
-	for def in [["recetario", "Recetario"], ["despensa", "Despensa"],
-			["potenciadores", "Mejoras"]]:
+	# Las MEJORAS ya no viven aquí: se mudaron a su propia pantalla
+	# (perks_screen, el botón "Bonificadores" del submenú del menú principal).
+	# El inventario se queda con lo que se lleva encima.
+	for def in [["recetario", "Recetario"], ["despensa", "Despensa"]]:
 		var b := Button.new()
 		b.text = def[1]
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -203,8 +205,6 @@ func _show_tab(tab: String) -> void:
 			content.add_child(_build_recipe_book())
 		"despensa":
 			content.add_child(_build_pantry_book())
-		"potenciadores":
-			content.add_child(_build_perks_panel())
 
 
 ## Libro abierto: la textura de fondo y el hueco útil de sus dos páginas.
@@ -571,111 +571,6 @@ func _build_pantry_entry(ing: String) -> Control:
 	col.add_child(uses_l)
 	row.add_child(col)
 	return row
-
-
-# ----------------------------------------------------------- potenciadores
-
-func _build_perks_panel() -> Control:
-	var root := Control.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	var scroll := ScrollContainer.new()
-	TouchScroll.attach(scroll)
-	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	root.add_child(scroll)
-	var list := VBoxContainer.new()
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_theme_constant_override("separation", 14)
-	scroll.add_child(list)
-
-	var hint := Label.new()
-	hint.text = "Elígelos antes de zarpar; cada partida gasta un uso."
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.add_theme_font_size_override("font_size", 21)
-	hint.add_theme_color_override("font_color", Color(0.95, 0.88, 0.7))
-	hint.add_theme_color_override("font_outline_color", Color.BLACK)
-	hint.add_theme_constant_override("outline_size", 7)
-	list.add_child(hint)
-
-	for id in PerkData.ids():
-		list.add_child(_build_perk_row(str(id)))
-	return root
-
-
-func _build_perk_row(id: String) -> Control:
-	var data := PerkData.get_perk(id)
-	var known := GameState.is_perk_unlocked(id)
-	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
-
-	var row := HBoxContainer.new()
-	row.custom_minimum_size = Vector2(0, 190)
-	row.add_theme_constant_override("separation", 10)
-	panel.add_child(row)
-	var pad := Control.new()
-	pad.custom_minimum_size = Vector2(30, 0)
-	row.add_child(pad)
-
-	var icon := TextureRect.new()
-	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icon.texture = load(str(data.get("icon", "")))
-	icon.custom_minimum_size = Vector2(96, 96)
-	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	if not known:
-		icon.modulate = Color(0.15, 0.12, 0.1, 0.7)
-	row.add_child(icon)
-
-	var col := VBoxContainer.new()
-	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col.alignment = BoxContainer.ALIGNMENT_CENTER
-	col.add_theme_constant_override("separation", 4)
-	var name_l := Label.new()
-	name_l.text = str(data.get("name", id)) if known else "Potenciador por descubrir"
-	name_l.add_theme_font_size_override("font_size", 24)
-	name_l.add_theme_color_override("font_color", DARK)
-	col.add_child(name_l)
-	var desc := Label.new()
-	desc.text = str(data.get("desc", "")) if known \
-			else "Cómo conseguirlo: %s" % str(data.get("unlock", ""))
-	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc.custom_minimum_size = Vector2(240, 0)
-	desc.add_theme_font_size_override("font_size", 16)
-	desc.add_theme_color_override("font_color", FADED)
-	col.add_child(desc)
-	if known:
-		var uses := Label.new()
-		uses.text = "Usos: %d" % GameState.get_perk_uses(id)
-		uses.add_theme_font_size_override("font_size", 19)
-		uses.add_theme_color_override("font_color", Color(0.2, 0.45, 0.12))
-		col.add_child(uses)
-	row.add_child(col)
-
-	if known:
-		var cost := int(data.get("cost", 0))
-		var buy := Button.new()
-		buy.custom_minimum_size = Vector2(190, 78)
-		buy.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		PrepBoard.skin_button(buy)
-		buy.add_theme_font_size_override("font_size", 20)
-		buy.text = "+1 uso\n$%d" % cost
-		buy.disabled = GameState.money < cost
-		buy.pressed.connect(func() -> void:
-			if GameState.money < cost:
-				return
-			GameState.money -= cost
-			GameState.bump_stat("money_spent", cost)
-			GameState.add_perk_uses(id, 1)
-			GameState.save_game()
-			money_label.text = "%d" % GameState.money
-			_show_tab("potenciadores"))
-		row.add_child(buy)
-	var pad_r := Control.new()
-	pad_r.custom_minimum_size = Vector2(36, 0)
-	row.add_child(pad_r)
-	return panel
 
 
 # --------------------------------------------------------- ficha de receta

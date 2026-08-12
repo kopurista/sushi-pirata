@@ -108,7 +108,15 @@ func _process(delta: float) -> void:
 	progress += step
 	traveled += step
 	if belt_length > 0.0 and traveled >= MAX_LAPS * belt_length:
-		_tirar_a_la_basura()
+		# "Nada se tira" (potenciador): en vez de caer al cubo, el plato empieza
+		# otra vuelta Y se le OLVIDA a todo el mundo que lo dejó pasar, o daría
+		# vueltas eternas sin que nadie pudiera cogerlo.
+		if level_ref != null and "no_waste_timer" in level_ref \
+				and level_ref.no_waste_timer > 0.0:
+			traveled = 0.0
+			level_ref._forget_declined(get_instance_id())
+		else:
+			_tirar_a_la_basura()
 
 
 ## El plato cae al cubo de la esquina en vez de desaparecer de golpe: se para,

@@ -475,6 +475,13 @@ POWERUPS = [
     # Potenciadores de hastío/variedad.
     ("pot_variedad_a", "pot_variedad"),
     ("pot_sobremesa_a", "pot_sobremesa"),
+    ("pot_picoteo_a", "pot_picoteo"),
+    ("pot_sin_basura_a", "pot_sin_basura"),
+    ("pot_doble_mult_a", "pot_doble_mult"),
+    # Bonificadores PERMANENTES (perk_data), que hasta ahora reusaban iconos
+    # de menu como provisionales.
+    ("perk_limite_b", "perk_limite"),
+    ("perk_barco_a", "perk_barco"),
 ]
 
 
@@ -538,7 +545,7 @@ BADGE_TEXTO = (74, 46, 20, 255)
 
 
 def build_mult_badges() -> None:
-    """Chapas x2..x5 del multiplicador de variedad, DIBUJADAS (como la barra),
+    """Chapas x2..x20 del multiplicador de variedad, DIBUJADAS (como la barra),
     no generadas: la tanda de Ludo salía con estallidos de cómic que no
     casaban con el set (madera cálida + pergamino + oro de acento) y cada
     chapa de su padre. Moneda de oro con borde marrón, brillo superior y el
@@ -546,7 +553,11 @@ def build_mult_badges() -> None:
     """
     S = 8
     D = 88
-    for n in range(2, 6):
+    # Hasta x20: el tope normal es x5, el bonificador "Paladar de capitan" lo
+    # sube a x10, y el potenciador "Doble variedad" DUPLICA el tope mientras
+    # dura. 20 es el techo real del juego y son chapas dibujadas, asi que
+    # generarlas todas no cuesta trabajo manual.
+    for n in range(2, 21):
         img = Image.new("RGBA", (D * S, D * S), (0, 0, 0, 0))
         d = ImageDraw.Draw(img)
         c = D * S // 2
@@ -564,6 +575,148 @@ def build_mult_badges() -> None:
         d.text((c - (bb[0] + bb[2]) / 2, c - (bb[1] + bb[3]) / 2), text,
                font=font, fill=BADGE_TEXTO)
         save(img.resize((D, D), Image.LANCZOS), "mult_x%d" % n)
+
+
+# ------------------------------------------------------------ bonus diario
+
+## Lado del cofre exportado. Sobre el mapa se dibuja a ~96 px, asi que 160 deja
+## margen para el bote de la animacion sin que se vea borroso.
+DAILY_CHEST = 160
+
+## Ancho del mapa exportado. Dentro del panel se dibuja a 520.
+DAILY_MAP_W = 560
+
+## Tinta con la que se redibujan los cofres del mapa: el marron del trazo del
+## propio pergamino, no un gris.
+DAILY_INK = (94, 62, 36)
+
+
+def inkify(img: Image.Image, oscuro: int = 70, corte: int = 150,
+           gamma: float = 0.8) -> Image.Image:
+    """Un sprite a COLOR -> el mismo dibujo A PLUMA, para el mapa del tesoro.
+
+    Los cofres de los otros dias tienen que leerse como parte del mapa ("sin
+    color realmente"), pero NO pueden ser un dibujo distinto: si el cofre de
+    hoy tuviera otra silueta que los de al lado, encenderse pareceria cambiar
+    de objeto. Por eso se derivan del cofre de color en vez de generarse
+    aparte, igual que ic_mano_der sale de espejar ic_mano_izq.
+
+    La rampa es de DOS PUNTOS y no proporcional a la luminosidad: mas oscuro
+    que `oscuro` es trazo a plena tinta, mas claro que `corte` no existe, y en
+    medio se degrada. Con una rampa proporcional (el primer intento) la madera
+    de en medio se quedaba como una mancha semitransparente y el cofre salia
+    gris lavado en vez de dibujado a pluma: hay que TIRAR los tonos medios,
+    no atenuarlos.
+    """
+    r, g, b, a = img.split()
+    lum = Image.merge("RGB", (r, g, b)).convert("L")
+    tabla = []
+    for v in range(256):
+        if v <= oscuro:
+            t = 1.0
+        elif v >= corte:
+            t = 0.0
+        else:
+            t = (corte - v) / float(corte - oscuro)
+        tabla.append(max(0, min(255, int((t ** gamma) * 255))))
+    tinta = ImageChops.multiply(lum.point(tabla), a)
+    hoja = Image.new("RGBA", img.size, DAILY_INK + (255,))
+    hoja.putalpha(tinta)
+    return hoja
+
+
+def build_daily() -> None:
+    """Mapa del tesoro y los cuatro estados del cofre del BONUS DIARIO.
+
+    El mapa sale SIN ruta ni cofres a proposito: la linea de puntos y los siete
+    sitios los dibuja `main_menu` por codigo, que es la unica forma de que los
+    cofres caigan CLAVADOS sobre la ruta (con la ruta pintada en la textura,
+    cualquier retoque del encuadre la descoloca). Mismo criterio que la barra
+    de progreso y las chapas del multiplicador.
+    """
+    mapa = crop_alpha(drop_white(load("daily/mapa")))
+    save(fit_width(mapa, DAILY_MAP_W), "daily_mapa")
+
+    for src, dst in (("cofre", "daily_cofre"),
+                     ("cofre_abierto", "daily_cofre_abierto")):
+        img = crop_alpha(keep_largest(drop_white(load("daily/" + src))), 2)
+        img = fit_max(img, DAILY_CHEST)
+        save(img, dst)
+        save(inkify(img), dst.replace("daily_cofre", "daily_cofre_mapa"))
+
+
+# ------------------------------------------------- cartel de recompensa
+
+## Ancho al que se exporta el cartel. Dentro del panel se dibuja a ~592.
+WANTED_W = 600
+
+
+def build_wanted() -> None:
+    """La hoja del CARTEL DE RECOMPENSA (perfil del jugador) y la moneda a
+    tinta que lleva dibujada.
+
+    La hoja viene de Ludo YA RECORTADA (trae alfa), asi que aqui no hay
+    `drop_white` que valga: convertirla a 'L' para medirla pintaba de negro el
+    fondo transparente y el barrido daba el marco donde no estaba.
+
+    El hueco de la FOTO (donde va el modelo 3D del personaje) se mide sobre
+    esta imagen y vive como fracciones en `wanted_poster.gd`; si se regenera la
+    hoja hay que volver a medirlo.
+
+    La moneda NO se genera: es la `moneda.png` del juego pasada por `inkify`,
+    que es literalmente lo que pide el diseno ("el mismo icono pero como si
+    estuviera dibujado en el cartel").
+    """
+    hoja = crop_alpha(load("perfil/wanted"))
+    save(fit_width(hoja, WANTED_W), "wanted_hoja")
+
+    moneda = Image.open(OUT / "moneda.png").convert("RGBA")
+    save(inkify(fit_max(moneda, 96)), "wanted_moneda")
+
+    # Flecha IZQUIERDA del selector de personaje: el ESPEJO exacto de la que la
+    # caja de dialogo usa para "toca para seguir", igual que ic_mano_der sale de
+    # espejar ic_mano_izq. Asi las dos flechas son el mismo dibujo.
+    flecha = Image.open(OUT / "ic_siguiente.png").convert("RGBA")
+    save(ImageOps.mirror(flecha), "ic_siguiente_esp")
+
+
+# ------------------------------------------------- submenu del menu principal
+
+## Alto al que se DIBUJA la barra del submenu (regla de los botones con icono:
+## la textura se exporta a la altura exacta de dibujo y va con margen vertical
+## CERO, porque los margenes 9-slice son texeles 1:1).
+SUBMENU_BAR_H = 148
+
+
+def build_submenu() -> None:
+    """La barra del SUBMENU inferior del menu principal (madera oscura con
+    cuerda en el canto) y los dos iconos que le faltaban al juego: el cartel
+    del Perfil y el brazo de los Bonificadores. Los otros tres botones usan
+    iconos que ya existian (ic_logros, ic_inventario, ic_opciones)."""
+    bar = solidify(crop_alpha(drop_white(load("sub/barra"))))
+    save(fit_height(bar, SUBMENU_BAR_H), "submenu_barra")
+    for src, dst in (("sub/ic_perfil", "ic_perfil"), ("sub/ic_perks", "ic_perks")):
+        img = drop_white(load(src))
+        save(fit_max(crop_alpha(drop_specks(img), 2), 96), dst)
+
+
+# ---------------------------------------------- panel del menu y su timon
+
+def build_menu_panel() -> None:
+    """El tablon del MENU principal (banner tallado arriba, interior calido,
+    cuerdas colgando) y el TIMON interactivo que asoma por detras. El panel es
+    un SPRITE FIJO, no un 9-slice: su marco es irregular (banner, cuerdas) y
+    estirarlo lo deformaria. Tambien los tres iconos del submenu que se
+    quedaron viejos, rehechos al estilo de ic_perfil (y como ic_inventario es
+    ademas el icono del perk del ayudante y de una seccion de la guia, el
+    restyle les llega solo)."""
+    save(fit_width(crop_alpha(drop_white(load("menu/panel"))), 520),
+         "menu_panel")
+    timon = crop_alpha(keep_largest(drop_white(load("menu/timon"))), 2)
+    save(fit_max(timon, 300), "timon")
+    for n in ("ic_logros", "ic_inventario", "ic_opciones"):
+        img = drop_white(load("menu/" + n))
+        save(fit_max(crop_alpha(drop_specks(img), 2), 96), n)
 
 
 if __name__ == "__main__":
@@ -589,3 +742,7 @@ if __name__ == "__main__":
     build_powerups()
     build_bubble()
     build_mult_badges()
+    build_daily()
+    build_wanted()
+    build_submenu()
+    build_menu_panel()

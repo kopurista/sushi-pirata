@@ -326,7 +326,18 @@ func _nivel_4() -> void:
 		{ "text": "**Arrecife del Ron**. Dos piratas hoy, y vienen por el **atún**.", "mood": "hablando" },
 	])
 	# El barco se presenta de entrada, con el foco en su botón: es la novedad
-	# del nivel y hay que verla ANTES de ponerse a cocinar.
+	# del nivel y hay que verla ANTES de ponerse a cocinar. PERO el barco pide
+	# su bonificador (ver PerkData "barco"), así que sin él no hay botón que
+	# enfocar: David cuenta entonces CÓMO ganárselo, que es lo útil.
+	if lv.prep_board.hide_boat:
+		await _say([
+			{ "text": "Aquí se estrena el **barco combinado**: una bandeja de platos variados que casi nadie deja pasar.", "mood": "feliz" },
+			{ "text": "Pero eso hay que ganárselo. Llena **dos cajas con tres platos** cada una en una partida y el barco será tuyo para siempre.", "mood": "serio" },
+			{ "text": "Luego lo llevas puesto antes de zarpar, como el resto de mejoras.", "mood": "hablando" },
+			{ "text": "¡CAJAS! ¡LLENA LAS CAJAS! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+		])
+		_play()
+		return
 	await _focus_boat()
 	await _say_raised([
 		{ "text": "Ese icono redondo es el **barco combinado**, y hoy lo estrenas.", "mood": "feliz" },

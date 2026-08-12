@@ -104,6 +104,21 @@ const POWERUPS: Dictionary = {
 		"desc": "El próximo postre cobra el doble.",
 		"icon": "res://assets/ui/pot_sobremesa.png",
 	},
+	"todo_picoteo": {
+		"name": "Manos libres",
+		"desc": "Durante 30 s cogen un plato de más sin soltar el que comen.",
+		"icon": "res://assets/ui/pot_picoteo.png",
+	},
+	"sin_basura": {
+		"name": "Nada se tira",
+		"desc": "Durante 1 min ningún plato cae al cubo: dan otra vuelta.",
+		"icon": "res://assets/ui/pot_sin_basura.png",
+	},
+	"doble_variedad": {
+		"name": "Doble variedad",
+		"desc": "Durante 15 s todos los multiplicadores valen el doble.",
+		"icon": "res://assets/ui/pot_doble_mult.png",
+	},
 }
 
 

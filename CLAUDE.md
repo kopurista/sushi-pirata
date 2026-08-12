@@ -247,11 +247,19 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   no-vacío se descarta al emplatar (el plato final es el mismo voxel que el
   emplatado).
 - `scripts/powerup_data.gd` — catálogo de potenciadores DE PARTIDA: salen del
-  bote de propinas dentro del nivel. **TODOS son AUTOMÁTICOS** y son **13**
-  (una, "Horas extra", solo se sortea donde hay reloj; las dos últimas,
-  "Variedad para todos" —+1 de variedad a todos los sentados— y "Sobremesa
-  dulce" —el próximo postre cobra el doble, `level3d.dessert_boost`, que solo
-  se consume si había multiplicador que cobrar—, tocan el sistema de hastío). Llegó a haber 20, la
+  bote de propinas dentro del nivel. **TODOS son AUTOMÁTICOS** y son **16**
+  (una, "Horas extra", solo se sortea donde hay reloj). Cinco tocan el sistema
+  de hastío y variedad: "Variedad para todos" (+1 a los sentados), "Sobremesa
+  dulce" (el próximo postre cobra el doble, `dessert_boost`, que solo se
+  consume si había multiplicador que cobrar), **"Manos libres"** (30 s en los
+  que CUALQUIER plato se puede picar sin soltar el que se come, no solo los
+  `snack`), **"Nada se tira"** (1 min sin cubo: el plato empieza otra vuelta
+  y `_forget_declined` le borra la marca de RECHAZADO en todos los clientes —
+  sin ese olvido daría vueltas eternas sin que nadie pudiera cogerlo, porque
+  el dado se tira una sola vez por cliente y plato) y **"Doble variedad"**
+  (15 s con los multiplicadores y su TOPE al doble; al expirar cada cliente
+  vuelve a la mitad redondeando HACIA ARRIBA, para no castigar al que subió
+  durante el doblete). Llegó a haber 20, la
   mitad de ellos `manual` (se guardaban como botón bajo el chef para gastarlos
   cuando conviniera). Se quitaron las dos cosas: lo manual obligaba a decidir
   DOS veces —cuál cojo y cuándo lo gasto— en una partida de 2:30, y de veinte
@@ -290,7 +298,78 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   ingredientes: el plato aparece hecho de golpe), con `HELPER_COOLDOWN`=30 s de
   descanso. Avisa por la señal `helper_used` para que el ayudante 3D amase un
   momento y dé un saltito. Se gana sirviendo 18 platos en una partida).
+  Y dos más, de la tanda de variedad: `paladar` ("Paladar de capitán": sube el
+  TOPE del multiplicador de x5 a **x10** toda la partida; se gana cuando 4
+  clientes llegan a x5 en una misma partida — la cuenta la lleva
+  `level3d.clients_maxed`, que mide contra el tope BASE y no contra el
+  vigente, o llevarlo ya puesto haría casi imposible volver a ganarlo) y
+  `barco` (ver abajo).
+  **`PerkData.UNLOCKS_ENABLED` pasó a `true`**: estuvo apagado mientras no
+  estaba decidido el sitio de los permanentes en la progresión, y se abrió al
+  entrar el BARCO como bonificador — con él apagado, el barco sería
+  inalcanzable y desaparecería del juego.
   Solo funcionan en aventura: Arcade no toca el progreso.
+- **EL BARCO PIDE DOS LLAVES**: que el puerto lo permita (`boat` en
+  `CampaignData`, que es lo que hace que sea la novedad del nivel 4) **Y** que
+  el jugador lleve puesto el bonificador `barco`. Si falta cualquiera de las
+  dos, su botón ni aparece (`prep_board.hide_boat`). Se gana teniendo **3
+  platos guardados en 2 cajas distintas** a la vez (lo vigila
+  `level3d._on_storage_changed` con la señal `storage_changed`, y basta con
+  que ocurra una vez en la partida).
+  **El guion del nivel 4 se adapta**: si el jugador no lleva el bonificador no
+  hay botón que enfocar, así que David explica CÓMO ganárselo en vez de
+  presentar una mecánica que no está (`level_director._nivel_4` mira
+  `prep_board.hide_boat`).
+- `scripts/daily_data.gd` — **BONUS DIARIO** (`DailyData`): siete escalones por
+  días CONSECUTIVOS. La racha sube solo si el último cobro fue AYER (con un
+  hueco vuelve a 1: premia venir a diario, no acumular días sueltos) y pasado
+  el 7 vuelve a empezar, así que el ciclo se repite. Va contra el reloj del
+  aparato, como los sacos de arroz: adelantarlo regala días, asumido.
+  El **día 7 es el ÚNICO sitio donde se consigue el DRAGON ROLL** — se quitó
+  de las recompensas del nivel 9 para que la racha tenga un premio que no se
+  pueda ganar de otra forma, así que la campaña cubre 33 de las 34 recetas
+  visibles. **Completado el 7 la racha se reinicia al 1 y hay que desbloquearlo
+  todo otra vez**; en esa segunda vuelta la casilla del 7 ya no da la receta
+  sino `RECIPE_FALLBACK` (**200**) doblones ADEMÁS del resto de su premio, o
+  sea 300 de oro. Solo sale en el menú de verdad, con el tutorial ya hecho y
+  después del anuncio de recetas, para no apilar carteles.
+- **El cartel del bonus diario es un MAPA DEL TESORO** (`main_menu._show_daily`
+  y compañía). Las siete paradas llevan un cofre y el estado se lee del dibujo:
+  los días PASADOS con el cofre ABIERTO y los que FALTAN cerrado, los dos a
+  tinta como parte del mapa; el de HOY es el único A COLOR y se mece esperando.
+  · **Los cofres de tinta son el MISMO dibujo que el de color**, pasado por
+    `inkify()` de `tools/ui2_prep.py` (rampa de DOS puntos: más oscuro que
+    `oscuro` es trazo pleno, más claro que `corte` no existe). Se derivan y no
+    se generan aparte porque con otra silueta encenderse parecería cambiar de
+    objeto. La primera versión usaba una rampa proporcional a la luminosidad y
+    dejaba la madera como una mancha semitransparente: el cofre salía gris
+    lavado. Hay que TIRAR los tonos medios, no atenuarlos.
+  · **La ruta de puntos y las paradas se pintan POR CÓDIGO** (`DAILY_ROUTE`, en
+    fracciones del mapa), no en la textura: es la única forma de que los cofres
+    caigan clavados sobre la línea. Mismo criterio que la barra de progreso.
+    El mapa generado va SIN ruta ni cofres y con el centro vacío a propósito.
+    Las siete alturas van repartidas a PARTES IGUALES (0.845 -> 0.135); la
+    primera versión las amontonaba abajo y dejaba media hoja vacía. Con ese
+    reparto quedan ~78 px entre filas y el hueco del cofre mide 96 de alto, así
+    que **dos cofres seguidos se solapan SIEMPRE en vertical y lo único que los
+    separa es la horizontal**: el zigzag tiene que saltar más que el ancho del
+    hueco (104 px) en CADA paso, no es una decisión estética. Dentro de eso,
+    cada fila elige columna esquivando lo que el pergamino ya trae dibujado
+    (rosa de los vientos, voluta, barco, palmeras y peñasco).
+  · **El premio NO se cobra al abrir el cartel, se cobra al TOCAR el cofre**
+    (`_open_daily_chest` → `claim_daily`), y hasta entonces el cartel no se
+    puede cerrar: no hay X ni toque fuera, solo el cofre. Con el cobro
+    automático de antes, cerrar mal era perder el día. El botón "Continuar"
+    aparece solo DESPUÉS, en `_daily_done`.
+  · El cartel del botín (`_show_daily_reward`) **crece con lo que haya caído**
+    (`ceili(fichas / DAILY_CHIPS_ROW)` filas): el día 3 son dos fichas y el 7
+    son siete, y con alto fijo los días flojos salían medio vacíos. Va más
+    estrecho que el panel del mapa y atenúa el mapa mientras está puesto.
+  · `daily_mapa.png` es la ÚNICA textura de `assets/ui` en WebP con pérdida
+    (`compress/mode=1`): la regla de dejar el set en Lossless es por el alfa de
+    los bordes que ESTIRA el 9-slice, y el mapa es un sprite plano. 600 -> 66 KB.
+    Nadie lo referencia por UID (se carga por ruta), así que cambiar el modo no
+    deja avisos de `invalid UID`.
 - **CÓMO TERMINA UN NIVEL, POR TIPO** (`CampaignData.is_timed` /
   `unlimited_clients` / `time_limit_for`): los **ABORDAJES** son los ÚNICOS con
   reloj —`SHIP_TIME`, 2:30 para todos— y **no tienen cupo de clientes**: sigue
@@ -368,23 +447,114 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   `GROUP_TABS` son los rótulos CORTOS de las pestañas: cinco tablones de madera
   en 720 px solo dejan ~84 px de texto entre las esquinas doradas.
 - `scripts/options_screen.gd` — Opciones (raíz **Node3D**, fondo `SceneBackdrop`)
-  en CUATRO pestañas (los rótulos van a cuerpo 22: cuatro tablones en 720 px no
-  dan para más), la tercera de ellas la **Guía** (ver `guide_data.gd`):
-  **Perfil** (nombre y género —se elige TOCANDO AL PERSONAJE,
-  no un botón con su nombre—, con "Aplicar cambios"),
-  **Gráficos** (bloques Alta / Media / Baja / Personalizado, también con
-  "Aplicar cambios") y **Progreso** (horas jugadas y borrado). Los cambios
+  en TRES pestañas (el Perfil se mudó a `profile_screen`, y con tres tablones
+  los rótulos recuperaron el cuerpo 26): **Gráficos** (bloques Alta / Media /
+  Baja / Personalizado, con "Aplicar cambios"), la **Guía** (ver
+  `guide_data.gd`) y **Progreso** (horas jugadas y borrado). Los cambios
   viven en `draft_*` y NO tocan `GameState` hasta pulsar aplicar: así se puede
   probar una combinación y arrepentirse. Tocar un ajuste suelto pasa el bloque
   a "Personalizado" (`current_preset()` lo deduce comparando, así que el cartel
   nunca miente). **Borrar progreso va en dos pasos**: confirmación y después
   MANTENER pulsado 5 s con una barra roja que se vacía si se suelta antes;
   al llenarse borra y vuelve al menú desde negro.
-- **Los tres géneros del jugador** (`CharacterData.PLAYER_GENDERS`): masculino
-  `chef_rig.glb`, femenino `chef_fem_rig.glb` y neutro `chef_neutro_rig.glb`
-  (personaje andrógino propio, generado y rigueado para esto). `model()` cae al
-  masculino si falta el archivo. El ayudante es del género contrario; con el
-  jugador neutro es el femenino.
+- **La PORTADA ("Pulsa para zarpar") es un TERCER ESTADO de la escena del
+  menú**, no una escena aparte (`main_menu._show_start`; el `start_screen.tscn`
+  que existió un día se borró). El barco está atracado en un puerto
+  (`scripts/start_port.gd`) construido alrededor de un ancla del mapa a
+  `PORT_OFF` (-1500 px) del fondeadero; el paneo va por `cam_side`, el mismo
+  desplazamiento lateral que usa la transición a la tienda. Al tocar, el
+  logotipo se va por arriba y el barco navega hasta el fondeadero SIN fundido,
+  como el viaje a Aventura; sin tutorial, el barco arranca y a mitad de camino
+  cae el telón hacia la bienvenida de David. `GameState.booted` (de sesión, no
+  se guarda) evita repetir la portada al volver de otras pantallas.
+  · **El LOGOTIPO ya solo existe en la portada**: `_set_menu_ui_visible`,
+    `_ui_in/_ui_out` y `_play_menu_intro` no lo tocan. En el menú su hueco lo
+    ocupa el BARCO (`MENU_BAND_OFF` pasó de -70 a **190**: positivo = barco por
+    encima del centro) y los botones subieron 60 px (offsets del VBox y
+    `home_box_y` se mueven JUNTOS o la entrada aterriza en otro sitio).
+  · Los carteles del menú (bonus diario, recetas) viven en `_menu_popups()`:
+    en la portada no salen, se enseñan al LLEGAR al fondeadero.
+  · **El puerto está medido contra el barco DEL MENÚ** (huella 2.3 x escala
+    2.3 ≈ 5.3 u), no contra el de ficha del mapa: con las medidas del primer
+    intento las farolas salían más altas que el mástil. Todo va en fracciones
+    de `SHIP_W`.
+  · **El muelle tiene FINAL por la DERECHA** (machón de piedra con noray y
+    farola): al zarpar la cámara acompaña al barco y ese extremo entra en
+    cuadro — sin él, el muelle se cortaba a cuchillo en mitad del mar.
+  · **Lo que sube del entarimado se coloca CONTRA LA PANTALLA, no contra el
+    muelle**: el logotipo ocupa x 150..570, y las dos farolas del primer
+    intento cayeron justo detrás y "no existían". Farola a la izquierda del
+    logo, género a su derecha.
+  · El entarimado va ATENUADO (tinte 0.80/0.75/0.68): la madera clara del
+    muelle a plena luz del menú salía como una banda blanca plana.
+  · `farola.glb` entró por la cadena completa (concepto → imagen→3D →
+    `glb_prepare` → presupuesto 900 en `decimate_import`).
+- **CARTEL DE RECOMPENSA** (`scripts/wanted_poster.gd`, `WantedPoster`): la
+  ficha del jugador y el único sitio donde se elige quién es. Lo usan la
+  bienvenida de David (con el nombre escribible) y **Opciones → Perfil** (sin
+  nombre, con selector de título). La "foto" es el MODELO 3D vivo en un
+  SubViewport con `own_world_3d`, y las flechas cambian de personaje.
+  Nada toca `GameState` hasta `aplicar()`.
+  Cosas que ya se pagaron ahí:
+  · **Los chefs vienen NORMALIZADOS Y CENTRADOS EN EL ORIGEN** (1.0 de alto, de
+    y=-0.5 a y=+0.5), no de pie sobre el suelo. Con la cámara puesta a ojo "a la
+    altura del pecho" apuntaba por encima de la cabeza y la foto salía VACÍA:
+    el encuadre se calcula del AABB (`_frame_camera`).
+  · **`CharacterAnim._rotate_bone` ACUMULA** y da por hecho que cada fotograma
+    empieza con `reset()`. Sin llamarlo, la pose se retuerce sola: la chef salía
+    ladeada y con un brazo en alto al cabo de un segundo.
+  · Los modelos miran a **+Z**, que es de donde mira la cámara: NO hay que
+    girarlos 180º (con el giro salen de espaldas).
+  · Luz FLOJA (0.62 + 0.26), la lección de `chef_portraits.gd`: con la del nivel
+    las caras claras se queman y el personaje sale sin rasgos.
+  · La moneda del cartel es la `moneda.png` del juego pasada por el mismo
+    `inkify` que los cofres del mapa diario, no un dibujo nuevo.
+  · Las flechas de cambiar personaje son la MISMA punta de flecha que la caja
+    de diálogo (`ic_siguiente.png`) y su espejo `ic_siguiente_esp.png`, no
+    botones de madera; llevan `add_press_feedback`. El cambio es un CARRUSEL:
+    el modelo que estaba sale por un lado y el nuevo entra por el otro. El
+    recorte sale gratis, porque el SubViewport solo dibuja lo que cae dentro
+    del marco de la foto.
+  · **Se monta CON tablón o SIN él** (`show_board`): en la bienvenida de David
+    lleva su pergamino de madera, y en Opciones NO, porque esa pantalla ya pone
+    el suyo y dos marcos uno dentro de otro solo comían sitio. Sin tablón la
+    hoja pasa de 520 a 640 de ancho. El hueco se reserva con
+    `WantedPoster.panel_size(con_tablon)`, nunca con un número a mano.
+- **`tools/face_paint.py`: la cara de la chef está PINTADA POR CÓDIGO.**
+  `chef_fem_rig.glb` se modeló sin rasgos —un óvalo de piel liso— y en el
+  cartel de recompensa, que la enseña grande, cantaba. No se puede arreglar
+  abriendo el atlas en un editor: estos modelos vienen de imagen→3D y su UV
+  está TROCEADO por triángulos (los vértices de la cara se reparten por todo el
+  atlas, medido u 0.001..0.996), así que no hay ningún rectángulo "la cara".
+  Lo que sí funciona es el camino inverso: recorrer los triángulos delanteros
+  de la cabeza y, para CADA TÉXEL, deshacer la interpolación baricéntrica para
+  saber a qué punto del modelo corresponde; si cae dentro de un rasgo, se pinta.
+  **Y los rasgos van en PROPORCIONES DE LA CARA, que la herramienta MIDE sola.**
+  Dos intentos fallaron por no hacerlo: anclando en "la punta de la nariz", lo
+  que se detectaba como nariz era la FRENTE (en una cabeza low poly sobresale
+  igual), y con distancias absolutas las cejas acabaron pintadas EN EL GORRO.
+  La cara se localiza por COLOR DE PIEL y se recorta por ANCHO: el cuello mide
+  0.047 y la cara 0.107, así que quedarse con las franjas anchas la deja sola.
+  Medida real: va de y=0.338 a y=0.404 sobre un personaje de 1.0 de alto.
+- **`scripts/title_data.gd`** (`TitleData`): el renglón bajo el nombre. El de
+  salida (`MANO`) es especial —su texto sale de la mano dominante y del género,
+  así que cambia solo—, y los demás hay que desbloquearlos
+  (`GameState.unlocked_titles`); de momento no se gana ninguno.
+  La RECOMPENSA del cartel es `GameState.bounty()` = la estadística
+  `money_total`, que ya se sumaba en `level3d._finalize_results` en aventura Y
+  en arcade. Los guardados sin ella la siembran con monedero + `money_spent`.
+- **Los DOS géneros del jugador** (`CharacterData.PLAYER_GENDERS`): masculino
+  `chef_rig.glb` y femenino `chef_fem_rig.glb`. `model()` cae al masculino si
+  falta el archivo. El ayudante es del género contrario.
+  **El NEUTRO se retiró** al entrar el cartel de recompensa: allí el género es
+  el modelo que se ve en la foto y se pasa con flechas, así que una tercera
+  opción "sin especificar" no tenía nada que enseñar. `CharacterData.NEUTRAL`
+  sigue existiendo SOLO para reconocer guardados viejos (`load_game` los pasa a
+  masculino); `chef_neutro_rig.glb` y `chef_x.png` quedan sin usar.
+  **OJO: `chef_fem_rig.glb` NO TIENE CARA** —un óvalo de piel liso, sin ojos ni
+  boca—; el retrato pre-renderizado `chef_f.png` tiene el mismo problema, o sea
+  que viene del modelo y es anterior al cartel. Antes se veía pequeña y pasaba
+  desapercibido; en el cartel de recompensa sale a tamaño grande y canta.
   **Los seis personajes tienen ya su pareja rigueada** (chef, ayudante,
   grumete, pirata, capitán y VIP × masculino/femenino, más el chef neutro): 13
   modelos, todos verificados miembro a miembro. Los ICONOS DE CABEZA
@@ -591,24 +761,31 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 - `scripts/plate3d.gd` — plato en cinta: PathFollow3D por el Path3D del
   circuito, modelo normalizado por huella (0.62 u), 2 vueltas → descarte.
 - `scripts/main_menu.gd` — menú inicial (ESCENA PRINCIPAL, raíz **Node3D**):
-  cinco botones con icono propio: **Aventura** (campaña), **Arcade** (partida
-  libre con todas las recetas, sin tocar el progreso), **Tienda**,
-  **Inventario** y **Tutorial** (más bajito, con la cara de David de
-  `ic_tutorial.png`: repite el nivel guiado DIRECTO, sin la bienvenida de
-  nombre/género, y no toca el progreso), más dos **botones REDONDOS de esquina**
-  sin tablón de madera
-  (el dibujo es el botón, con su mancha de sombra y el rótulo dentro del alto):
-  la **medalla de Logros** arriba a la izquierda y la **rueda de Opciones**
-  arriba a la derecha. El rótulo va DENTRO del alto del botón: colgándolo por
-  debajo se salía de la pantalla. **El menú NO enseña el monedero**: el dinero
-  solo sale donde se puede ganar o gastar (mapa de aventura, tienda e
-  inventario), y su hueco de la esquina lo ocupa la rueda; se probó a poner la
-  rueda abajo a la derecha y se montaba encima de "Inventario".
+  TRES botones de modo con icono propio — **Aventura** (campaña), **Arcade**
+  (partida libre, sin tocar el progreso) y **Tienda** — apoyados sobre el
+  **SUBMENÚ inferior**: una barra de madera oscura con cuerda en el canto
+  (`submenu_barra.png`, estilo propio, exportada al alto exacto de dibujo con
+  margen vertical CERO como los botones con icono) con los CINCO accesos del
+  jugador: **Logros, Inventario, Perfil, Bonificadores y Opciones** (iconos
+  `ic_logros/ic_inventario/ic_perfil/ic_perks/ic_opciones`; los dos últimos
+  nuevos, generados con Ludo). El submenú sustituyó a los dos botones redondos
+  de esquina que hubo antes.
+  · **Perfil** abre `profile_screen` (el cartel de recompensa en pantalla
+    propia; ya NO es pestaña de Opciones, que se quedó con Gráficos/Guía/
+    Progreso a cuerpo 26).
+  · **Bonificadores** abre `perks_screen` (los permanentes de `PerkData`; ya
+    NO son la pestaña "Mejoras" del Inventario, que se quedó con Recetario y
+    Despensa). Tarjetas con `CARD_TEX` (pergamino liso) y recompra de usos.
+  · Las gaviotas y las nubes ENTRAN planeando desde arriba (`_sky_in` +
+    `sky_drop`): `_process` las coloca cada fotograma, así que un tween de
+    posición pelearía con él — se anima un DESVÍO vertical que `_process` suma
+    y el tween funde a cero (el gemelo de `sky_leaving`, al revés).
   El fondo es una **escena 3D animada**: el barco del jugador
   (`map_barco.glb`) cabecea y se balancea en mar abierto (mismo
-  `water_map_3d.gdshader` del mapa). El logotipo
-  (`assets/ui/logo_sushi_pirata.webp`, generado con Ludo y recortado con
-  `tools/logo_prep.gd`) flota y se balancea en el CanvasLayer 2D.
+  `water_map_3d.gdshader` del mapa), ARRIBA, ocupando el hueco que dejó el
+  logotipo cuando este se mudó a la PORTADA (ver ese bloque: en el menú ya no
+  hay logo). `logo_sushi_pirata.webp` se generó con Ludo y se recortó con
+  `tools/logo_prep.gd`.
   En el mar van el barco, unas **gaviotas** y **nubes translúcidas** que cruzan
   por delante (en 3D, así que el logotipo y los botones siempre quedan encima).
   **Decisiones ya tomadas:** el casco NO proyecta sombra real —al cabecear, la
@@ -716,9 +893,10 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   ingredientes, qué clientes la cogerán —leyendo `client3d.TAKE_CHANCES`, para
   que la ficha nunca mienta— y una DEMOSTRACIÓN que recorre sus pasos en bucle
   mostrando la etapa y el gesto),
-  **Despensa** (otro libro, 8 ingredientes por doble página con sus usos) y
-  **Mejoras** (potenciadores permanentes de `PerkData`: los no conseguidos
-  muestran cómo se ganan; los conseguidos, sus usos y un botón para comprar más).
+  y **Despensa** (otro libro, 8 ingredientes por doble página con sus usos).
+  La antigua pestaña "Mejoras" es hoy `scripts/perks_screen.gd` (el botón
+  **Bonificadores** del submenú): los permanentes de `PerkData`, los no
+  conseguidos con su condición y los conseguidos con sus usos y recompra.
 - `scripts/scene_backdrop.gd` — `SceneBackdrop.build()`: fondo 3D reutilizable
   (mar animado + el modelo del tipo de nivel) que usan prep_screen, la tienda y
   el inventario. La UI va en un CanvasLayer con un velo oscuro por delante.
@@ -1747,9 +1925,12 @@ que no hay problema.
   hacen que ese plato cuente como nuevo; 3) el PICOTEO y el POSTRE ni suman
   ni rompen;
   4) el barco combinado vale DOBLE (`variety_worth` 2 en su receta);
-  5) el multiplicador tiene TOPE DURO en x5 (`VARIETY_MAX`): recarga máxima
-  ×1.5, bono de oro máximo +5 y postre máximo 15 al bote (30 con Sobremesa
-  dulce) — encadenar jengibres más allá del quinto no rinde nada más; y el té
+  5) el multiplicador tiene TOPE (`client3d.variety_cap()`): **x5** de base,
+  **x10** con el bonificador "Paladar de capitán" y el DOBLE de lo que toque
+  mientras corre el potenciador "Doble variedad" — de ahí que haya chapas
+  dibujadas hasta **x20**, que es el techo real del juego. Con el tope base:
+  recarga máxima ×1.5, bono de oro +5 y postre de 15 al bote (30 con Sobremesa
+  dulce), y encadenar jengibres más allá del quinto no rinde nada más; y el té
   REINICIA el multiplicador en vez de continuarlo (si continuara, la recarga
   crecería ciclando la carta y volvería el capitán inmortal).
   Con la carta de 4 huecos esto le da a cada cliente un ARCO FINITO y la
@@ -1815,7 +1996,8 @@ que no hay problema.
   **ATENUACIÓN**: los bocadillos viven a media luz (`BUBBLE_DIM` 0.5) y solo
   el del cliente que ACABA de coger plato luce a plena luz `BUBBLE_HOT` s —
   ocho bocadillos permanentes a plena luz eran ocho manchas blancas.
-  El multiplicador es una chapa gráfica (`mult_x2..mult_x5`) que cabalga la
+  El multiplicador es una chapa gráfica (`mult_x2..mult_x20`, una por valor;
+  se generan todas de golpe porque están DIBUJADAS y no cuestan trabajo) que cabalga la
   esquina INFERIOR EXTERIOR del bocadillo (abajo, lo más lejos posible de la
   franja de barras), entra con golpe y giro al subir y se encoge al romperse
   la racha. **Las chapas se DIBUJAN en `build_mult_badges` de ui2_prep**

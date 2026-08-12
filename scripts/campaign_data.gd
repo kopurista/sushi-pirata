@@ -50,14 +50,16 @@ class_name CampaignData
 ##    al sacar las 3 estrellas. Las 3★ piden bastante más dinero que las 2★, así
 ##    que son un reto aparte y no un trámite; se pueden conseguir volviendo al
 ##    puerto más adelante, con mejor carta.
-##    (Los potenciadores NO se desbloquean por campaña de momento.)
+##    (Los potenciadores NO se desbloquean por campaña: los PERMANENTES se
+##    ganan con combos dentro de una partida, ver PerkData.)
 ##    El reparto sigue a la CLIENTELA del puerto: donde solo hay
 ##    grumetes se sueltan recetas de nivel 1, los piratas traen las de
 ##    nivel 2 y los capitanes las de nivel 3. Los postres caen en el
 ##    puerto donde ya se sientan clientes de su tipo (`only_type`).
-##    Entre las iniciales y las recompensas quedan cubiertas las 34
-##    recetas visibles; las `hidden` (barco, combinados, variantes de
-##    fritura) no se desbloquean, salen de sus mecánicas.
+##    Entre las iniciales y las recompensas quedan cubiertas 33 de las 34
+##    recetas visibles: la que falta es el DRAGON ROLL, que solo se consigue
+##    con el día 7 del bonus diario. Las `hidden` (barco, combinados,
+##    variantes de fritura) no se desbloquean, salen de sus mecánicas.
 ##
 ## CÓMO TERMINA UN NIVEL (depende del TIPO, ver KINDS):
 ##  - "abordaje": es el único que lleva RELOJ, y son SHIP_TIME (3 min) para
@@ -271,7 +273,11 @@ const PORTS: Array = [
 		# 30 platos × $8 × 0.65 ≈ 155.
 		"star_money": [51, 90, 145],
 		"boat": true,
-		"reward_recipes": ["fugu", "dragon_roll", "sashimi_variado"],
+		# El DRAGON ROLL sale de la campaña: es el premio del día 7 del BONUS
+		# DIARIO, la única receta que no se gana jugando niveles. Por eso este
+		# puerto reparte una receta menos que antes y las visibles que cubre la
+		# campaña bajan de 34 a 33.
+		"reward_recipes": ["fugu", "sashimi_variado"],
 		"reward_recipes_3": ["chirashi", "nigiri_wagyu"],
 		"reward_ingots_3": 2,
 	},

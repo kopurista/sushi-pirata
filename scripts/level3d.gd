@@ -125,6 +125,19 @@ var empty_leavers := 0
 ## Potenciador "Sobremesa dulce": el próximo postre cobra el doble. Lo consume
 ## el cliente al cobrarlo (client3d._finish_plate), solo si había multiplicador.
 var dessert_boost := false
+## Potenciador "Manos libres": mientras corre, CUALQUIER plato se puede coger
+## sin soltar el que se está comiendo, como si todos fueran de picoteo.
+var snack_all_timer := 0.0
+## Potenciador "Nada se tira": los platos no caen al cubo — dan otra vuelta y
+## todo el mundo vuelve a tener ocasión de cogerlos (ver _forget_declined).
+var no_waste_timer := 0.0
+## Potenciador "Doble variedad": los multiplicadores, y su tope, valen el doble.
+var variety_x2_timer := 0.0
+## Clientes que han llegado al tope base del multiplicador en esta partida, y si
+## ha habido dos cajas con la pila llena a la vez. Son las condiciones de los
+## bonificadores "Paladar de capitán" y "Barco" (ver PerkData).
+var clients_maxed := 0
+var boxes_stacked := false
 var client_reports: Array = []
 var seat_clients: Array = []
 var arrival_queue: Array[float] = []
@@ -335,6 +348,7 @@ func _ready() -> void:
 	prep_board.dish_served.connect(_on_player_dish_served)
 	prep_board.craft_event.connect(_on_craft_event)
 	prep_board.money_penalty.connect(_on_money_penalty)
+	prep_board.storage_changed.connect(_on_storage_changed)
 	prep_board.helper_used.connect(helper_cheer)
 	retry_button.pressed.connect(_on_retry_pressed)
 	menu_button.pressed.connect(_on_menu_pressed)
@@ -405,7 +419,11 @@ func _ready() -> void:
 		prep_board.hide_extras = bool(port.get("no_extras", false))
 		# El barco se estrena en el nivel 4 y desde ahí sale siempre; los
 		# combinados todavía no se presentan en ningún puerto.
-		prep_board.hide_boat = not bool(port.get("boat", false))
+		# El barco pide DOS llaves: que el puerto lo permita (es la novedad del
+		# nivel 4 y antes no pinta nada) y que el jugador lleve puesto su
+		# bonificador. Si falta cualquiera de las dos, su botón ni aparece.
+		prep_board.hide_boat = not (bool(port.get("boat", false)) \
+				and GameState.has_perk("barco"))
 		prep_board.hide_combo = not bool(port.get("combo", false))
 		# Los botones ya se construyeron en el _ready de la tabla, así que hay
 		# que repasarlos SIEMPRE: haciéndolo solo cuando se ocultaban los
@@ -538,7 +556,35 @@ func _check_perk_unlocks() -> Array:
 	if dishes_served >= PerkData.UNLOCK_PLATES_TOTAL \
 			and GameState.unlock_perk("ayudante"):
 		newly.append("ayudante")
+	if clients_maxed >= PerkData.UNLOCK_VARIETY_CLIENTS \
+			and GameState.unlock_perk("paladar"):
+		newly.append("paladar")
+	if boxes_stacked and GameState.unlock_perk("barco"):
+		newly.append("barco")
 	return newly
+
+
+## Un cliente ha llegado al tope BASE del multiplicador. Lo cuenta el propio
+## cliente (una vez por cliente) y es la condición del bonificador "Paladar de
+## capitán". Se mide contra el tope base y no contra el vigente: si contara el
+## vigente, llevar ya el bonificador puesto haría casi imposible volver a
+## ganarlo, porque habría que llegar a x10.
+func note_variety_maxed() -> void:
+	clients_maxed += 1
+
+
+## Cajas con la pila llena a la vez: condición del bonificador "Barco". Lo
+## avisa prep_board con cada cambio de almacén, y basta con que haya ocurrido
+## UNA vez en la partida.
+func _on_storage_changed(slots: Array) -> void:
+	if boxes_stacked:
+		return
+	var llenas := 0
+	for s in slots:
+		if s != null and int(s.get("count", 0)) >= PerkData.UNLOCK_BOAT_STACK:
+			llenas += 1
+	if llenas >= PerkData.UNLOCK_BOAT_BOXES:
+		boxes_stacked = true
 
 
 ## El ayudante se pone manos a la obra (lo llama prep_board al pulsar su
@@ -2127,6 +2173,20 @@ func _process(delta: float) -> void:
 		tip_amount_timer -= delta
 		if tip_amount_timer <= 0.0:
 			tip_amount_mult = 1.0
+	if snack_all_timer > 0.0:
+		snack_all_timer -= delta
+	if no_waste_timer > 0.0:
+		no_waste_timer -= delta
+	if variety_x2_timer > 0.0:
+		variety_x2_timer -= delta
+		if variety_x2_timer <= 0.0:
+			# Al expirar, cada cliente vuelve a su multiplicador de verdad. Se
+			# redondea HACIA ARRIBA para no castigar al que subió durante el
+			# doblete: un x5 que llegó a x10 vuelve a x5, y un x9 impar vuelve
+			# a x5 y no a x4.
+			for c in seat_clients:
+				if c != null and c.variety > 0:
+					c._set_variety(int(ceil(c.variety / 2.0)), false)
 
 	if not arrival_queue.is_empty() and elapsed >= arrival_queue[0]:
 		# Si no hay asiento libre lo reintenta cada frame hasta que lo haya.
@@ -2512,6 +2572,17 @@ func _apply_powerup(id: String) -> void:
 					c._set_variety(c.variety + 1, true)
 		"sobremesa":
 			dessert_boost = true
+		"todo_picoteo":
+			snack_all_timer = 30.0
+		"sin_basura":
+			no_waste_timer = 60.0
+		# Dobla lo que ya tienen los sentados Y el tope, para que un x4 pueda
+		# llegar de verdad a x8 (ver client3d.variety_cap).
+		"doble_variedad":
+			variety_x2_timer = 15.0
+			for c in seat_clients:
+				if c != null and c.variety > 0:
+					c._set_variety(c.variety * 2, true)
 		# Absorbe al antiguo "guardar un plato más": una caja más Y pilas de 5.
 		"mas_almacen":
 			prep_board.add_storage_slot()
@@ -2568,6 +2639,17 @@ func _on_player_dish_served(recipe_id: String, price_override: int = 0,
 	GameState.bump_stat("dishes_made")
 	GameState.bump_stat("dish_%s" % recipe_id)
 	_on_dish_served(recipe_id, price_override, extras, level_override, eat_mult_override)
+
+
+## Borra un plato de la lista de RECHAZADOS de todos los clientes, para que
+## vuelva a tener una oportunidad con cada uno. Lo usa "Nada se tira" cuando le
+## regala otra vuelta: sin este olvido el plato daría vueltas eternas sin que
+## nadie pudiera cogerlo, porque el dado se tira UNA vez por cliente y plato y
+## los que fallaron lo tienen en `declined` para siempre.
+func _forget_declined(plate_id: int) -> void:
+	for c in seat_clients:
+		if c != null:
+			c.declined.erase(plate_id)
 
 
 ## Un plato desechado (una vuelta entera sin que nadie lo coja) cuesta una parte
@@ -3578,6 +3660,7 @@ func _apply_hud_layout() -> void:
 	if timed:
 		if time_gap != null:
 			time_gap.visible = false
+		_fit_top_row.call_deferred()
 		return
 	if time_gap == null:
 		time_gap = Control.new()
@@ -3590,7 +3673,7 @@ func _apply_hud_layout() -> void:
 	# no han colocado a nadie y todo mide 0. Y si el nivel arranca con un guion
 	# hablando, el árbol está en pausa y `_update_hud` no corre, así que el hueco
 	# se quedaría a cero toda la presentación.
-	_medir_hueco.call_deferred()
+	_fit_top_row.call_deferred()
 
 
 ## Ajusta el relleno al ancho real del contador de clientes, un fotograma
@@ -3599,6 +3682,46 @@ func _medir_hueco() -> void:
 	await get_tree().process_frame
 	if time_gap != null and is_instance_valid(time_gap):
 		time_gap.custom_minimum_size.x = clients_label.get_parent().size.x
+
+
+## Cuerpos de letra del contador de clientes, de mayor a menor. El de diseño es
+## 42, pero la fila de arriba NO SIEMPRE CABE: en un nivel sin reloj el relleno
+## `time_gap` copia el ancho del contador, así que cada píxel del contador
+## cuesta DOS. Con dos cifras a cada lado ("10/10", "17/17") la suma de mínimos
+## igualaba JUSTO el ancho disponible, y en cuanto el lienzo es un poco más
+## estrecho el contador sale cortado ("10/1").
+const CLIENTS_FONTS := [42, 38, 34, 30, 26]
+
+
+## Elige el cuerpo más grande con el que la fila entra ENTERA, midiendo el peor
+## texto posible del nivel ("N/N" con toda la clientela). Se decide una sola vez
+## por partida: `total_clients` se sabe al arrancar y el lienzo no cambia.
+func _fit_top_row() -> void:
+	await get_tree().process_frame
+	var top: HBoxContainer = $HUD/TopRow
+	var caja: Control = clients_label.get_parent()
+	var peor := "99" if unlimited else "%d/%d" % [total_clients, total_clients]
+	var fuente := clients_label.get_theme_font("font")
+	# Lo que ocupa TODO lo demás de la fila (sin el contador ni su relleno).
+	var resto := float(top.get_theme_constant("separation")) \
+			* float(maxi(top.get_child_count() - 1, 0))
+	for h in top.get_children():
+		if h is Control and h.visible and h != caja and h != time_gap:
+			resto += h.get_combined_minimum_size().x
+	# El contador cuenta DOBLE cuando hay relleno (lo copia para centrar el oro).
+	var veces := 2.0 if (time_gap != null and time_gap.visible) else 1.0
+	var sep_caja := float(caja.get_theme_constant("separation"))
+	for cuerpo in CLIENTS_FONTS:
+		var ancho: float = fuente.get_string_size(peor,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, cuerpo).x
+		var icono := 58.0 * float(cuerpo) / 42.0
+		var cabe: bool = resto + (icono + sep_caja + ancho) * veces <= top.size.x
+		if cabe or cuerpo == int(CLIENTS_FONTS[CLIENTS_FONTS.size() - 1]):
+			clients_label.add_theme_font_size_override("font_size", cuerpo)
+			var ic: Control = caja.get_child(0)
+			ic.custom_minimum_size = Vector2(icono, icono)
+			break
+	_medir_hueco()
 
 
 func _update_hud() -> void:

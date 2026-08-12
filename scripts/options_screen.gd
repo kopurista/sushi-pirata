@@ -1,7 +1,9 @@
 extends Node3D
 ## OPCIONES, en tres pestañas:
 ##
-## - PERFIL: nombre y género del cocinero. El género decide QUÉ MODELO 3D sale
+## - PERFIL: el CARTEL DE RECOMPENSA del jugador (`wanted_poster.gd`), el mismo
+##   de la bienvenida de David. Aquí se cambian personaje, mano y título; el
+##   nombre NO, que se pone una sola vez. El personaje decide qué modelo 3D sale
 ##   en el nivel (ver CharacterData) y cómo se dirige el juego al jugador.
 ## - GRÁFICOS: bloques alta / media / baja, o "personalizado" para tocar los
 ##   cuatro ajustes por separado.
@@ -26,16 +28,12 @@ const CARD_LABEL := 40.0
 var ui: CanvasLayer = null
 var content: Control = null
 var tab_buttons: Dictionary = {}
-var current_tab := "perfil"
+var current_tab := "graficos"
 var backdrop: Node3D = null
 var _t := 0.0
 
 # --- Cambios pendientes de aplicar (no tocan GameState hasta el botón) ---
-var draft_name := ""
-var draft_gender := ""
-var draft_hand := "L"
 var draft_graphics: Dictionary = {}
-var apply_profile: Button = null
 var apply_graphics_btn: Button = null
 
 # --- Borrado del progreso: barra que se llena mientras se mantiene pulsado ---
@@ -54,9 +52,6 @@ func _ready() -> void:
 
 
 func _reset_drafts() -> void:
-	draft_name = GameState.player_name
-	draft_gender = GameState.player_gender
-	draft_hand = GameState.player_hand
 	draft_graphics = {
 		"preset": GameState.current_preset(),
 		"quality": int(GameState.get_setting("quality")),
@@ -133,14 +128,17 @@ func _setup_ui() -> void:
 	root.add_child(tabs)
 	# CUATRO tablones en 720 px: los rótulos van cortos y a cuerpo 22, que es lo
 	# que deja el marco dorado del botón sin comerse las letras.
-	for def in [["perfil", "Perfil"], ["graficos", "Gráficos"],
-			["guia", "Guía"], ["progreso", "Progreso"]]:
+	# El PERFIL ya no es una pestaña: es su propia pantalla (profile_screen,
+	# botón "Perfil" del submenú del menú principal). Tres tablones respiran
+	# mejor que cuatro, así que los rótulos recuperan el cuerpo 26.
+	for def in [["graficos", "Gráficos"], ["guia", "Guía"],
+			["progreso", "Progreso"]]:
 		var b := Button.new()
 		b.text = def[1]
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.custom_minimum_size = Vector2(0, 72)
 		PrepBoard.skin_button(b)
-		b.add_theme_font_size_override("font_size", 22)
+		b.add_theme_font_size_override("font_size", 26)
 		b.pressed.connect(_show_tab.bind(def[0]))
 		tabs.add_child(b)
 		tab_buttons[def[0]] = b
@@ -182,8 +180,6 @@ func _show_tab(tab: String) -> void:
 	box.add_theme_constant_override("separation", 14)
 	content.add_child(box)
 	match tab:
-		"perfil":
-			_build_profile(box)
 		"graficos":
 			_build_graphics(box)
 		"guia":
@@ -300,175 +296,6 @@ func _guide_bodies() -> Array:
 
 
 # -------------------------------------------------------------- PERFIL
-
-func _build_profile(box: VBoxContainer) -> void:
-	_header(box, "El cocinero")
-	_note(box, "Así te llama el juego y así sale el chef en la cocina.")
-
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	row.custom_minimum_size = Vector2(0, 70)
-	row.add_child(_row_label("Nombre"))
-	var edit := LineEdit.new()
-	edit.text = draft_name
-	edit.placeholder_text = "Sin nombre"
-	edit.max_length = 14
-	edit.custom_minimum_size = Vector2(300, 62)
-	edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	edit.add_theme_font_size_override("font_size", 26)
-	# El recuadro gris del tema por defecto sobre el pergamino parecía una
-	# mancha: se le pone su propia caja de papel con borde de tinta.
-	var paper := StyleBoxFlat.new()
-	paper.bg_color = Color(0.99, 0.93, 0.78)
-	paper.border_color = Color(0.44, 0.31, 0.16)
-	paper.set_border_width_all(3)
-	paper.set_corner_radius_all(10)
-	paper.set_content_margin_all(8)
-	edit.add_theme_stylebox_override("normal", paper)
-	edit.add_theme_stylebox_override("focus", paper)
-	edit.add_theme_color_override("font_color", DARK)
-	edit.add_theme_color_override("font_placeholder_color", Color(0.55, 0.45, 0.32))
-	edit.add_theme_color_override("caret_color", DARK)
-	edit.text_changed.connect(func(t: String) -> void:
-		draft_name = t
-		_refresh_apply())
-	PrepBoard.enable_mobile_keyboard(edit)
-	row.add_child(edit)
-	box.add_child(row)
-
-	_header(box, "Género")
-	# Se elige TOCANDO AL PERSONAJE, no un botón con su nombre: el retrato es el
-	# propio modelo 3D del chef (tools/chef_portraits.gd lo rinde a PNG; tres
-	# SubViewports vivos en un menú serían tres escenas 3D de más).
-	var choices := HBoxContainer.new()
-	choices.alignment = BoxContainer.ALIGNMENT_CENTER
-	choices.add_theme_constant_override("separation", 8)
-	box.add_child(choices)
-	var cards: Dictionary = {}
-	for g in CharacterData.PLAYER_GENDERS:
-		var card := _gender_card(g, func() -> void:
-			draft_gender = g
-			for id in cards:
-				_paint_gender_card(cards[id], id == draft_gender)
-			_refresh_apply())
-		choices.add_child(card)
-		cards[g] = card
-		_paint_gender_card(card, g == draft_gender)
-
-	# Mano dominante: con la derecha, la mesa de cocinar entera se voltea en
-	# espejo (tabla a la derecha, cerca del pulgar; cajas y botones a la
-	# izquierda, donde el pulgar no los tapa).
-	_header(box, "Mano dominante")
-	var hand_row := HBoxContainer.new()
-	hand_row.add_theme_constant_override("separation", 10)
-	box.add_child(hand_row)
-	hand_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	hand_row.add_theme_constant_override("separation", 30)
-	var hand_buttons: Dictionary = {}
-	# La misma pareja de manos con cuchillo que en la bienvenida de David: se
-	# toca la mano, no un botón con la palabra.
-	for def in [["L", "Izquierda", "ic_mano_izq"], ["R", "Derecha", "ic_mano_der"]]:
-		var hb := Button.new()
-		hb.custom_minimum_size = Vector2(150, 170)
-		for st in ["normal", "hover", "pressed", "disabled", "focus"]:
-			hb.add_theme_stylebox_override(st, StyleBoxEmpty.new())
-		var pic := TextureRect.new()
-		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		pic.texture = load("res://assets/ui/%s.png" % def[2])
-		pic.set_anchors_preset(Control.PRESET_FULL_RECT)
-		pic.offset_bottom = -30.0
-		pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		hb.add_child(pic)
-		var hl := Label.new()
-		hl.text = def[1]
-		hl.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-		hl.offset_top = -28.0
-		hl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		hl.add_theme_font_size_override("font_size", 20)
-		hl.add_theme_color_override("font_color", DARK)
-		hl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		hb.add_child(hl)
-		PrepBoard.add_press_feedback(hb, 0.92)
-		hb.pressed.connect(func() -> void:
-			draft_hand = def[0]
-			for id in hand_buttons:
-				hand_buttons[id].modulate = Color.WHITE if id == draft_hand \
-						else Color(1, 1, 1, 0.42)
-			_refresh_apply())
-		hand_row.add_child(hb)
-		hand_buttons[def[0]] = hb
-		hb.modulate = Color.WHITE if def[0] == draft_hand else Color(1, 1, 1, 0.42)
-	_note(box, "Con la derecha, la mesa de cocinar se voltea: la tabla queda "
-		+ "a la derecha y las cajas a la izquierda.")
-
-	apply_profile = _apply_button(box, func() -> void:
-		GameState.player_name = draft_name.strip_edges()
-		GameState.player_gender = draft_gender
-		GameState.player_hand = draft_hand
-		GameState.save_game()
-		_refresh_apply()
-		_flash("Perfil guardado"))
-	_refresh_apply()
-
-
-## Tarjeta de un género: el retrato del chef, su nombre debajo y un marco que
-## se enciende al elegirlo.
-func _gender_card(gender: String, action: Callable) -> Control:
-	var card := Control.new()
-	card.custom_minimum_size = Vector2(CARD_W, CARD_H)
-	card.name = "card_%s" % gender
-
-	var frame := Panel.new()
-	frame.name = "Frame"
-	frame.set_anchors_preset(Control.PRESET_FULL_RECT)
-	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var box := StyleBoxFlat.new()
-	box.bg_color = Color(0.30, 0.19, 0.09, 0.35)
-	box.border_color = Color(0.95, 0.76, 0.28)
-	box.set_border_width_all(4)
-	box.set_corner_radius_all(14)
-	frame.add_theme_stylebox_override("panel", box)
-	card.add_child(frame)
-
-	var b := TextureButton.new()
-	b.name = "Pic"
-	b.texture_normal = load("res://assets/ui/chef_%s.png" % gender)
-	b.ignore_texture_size = true
-	b.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	b.set_anchors_preset(Control.PRESET_FULL_RECT)
-	b.offset_top = 6.0
-	b.offset_bottom = -CARD_LABEL
-	b.pressed.connect(action)
-	PrepBoard.add_press_feedback(b, 0.94)
-	card.add_child(b)
-
-	var l := Label.new()
-	l.name = "Name"
-	l.text = str(CharacterData.GENDER_NAMES[gender])
-	l.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	l.offset_top = -CARD_LABEL
-	l.offset_bottom = -4.0
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_font_size_override("font_size", 17)
-	l.add_theme_color_override("font_color", DARK)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.add_child(l)
-	return card
-
-
-## El elegido va a plena luz con su marco; los otros, apagados y sin marco.
-func _paint_gender_card(card: Control, chosen: bool) -> void:
-	card.get_node("Frame").visible = chosen
-	card.get_node("Pic").modulate = Color.WHITE if chosen \
-			else Color(1, 1, 1, 0.45)
-	card.get_node("Name").add_theme_color_override("font_color",
-		DARK if chosen else FADED)
-
-
-# ------------------------------------------------------------- GRÁFICOS
 
 func _build_graphics(box: VBoxContainer) -> void:
 	_header(box, "Calidad general")
@@ -883,14 +710,9 @@ func _apply_button(box: Control, action: Callable) -> Button:
 	return b
 
 
-## Enciende o apaga los dos botones de aplicar según si queda algo pendiente.
+## Enciende o apaga el botón de aplicar de gráficos según si queda algo
+## pendiente. (El del perfil se fue con su pantalla: ver profile_screen.)
 func _refresh_apply() -> void:
-	if apply_profile != null and is_instance_valid(apply_profile):
-		var dirty := draft_name.strip_edges() != GameState.player_name \
-				or draft_gender != GameState.player_gender \
-				or draft_hand != GameState.player_hand
-		apply_profile.disabled = not dirty
-		apply_profile.modulate = Color.WHITE if dirty else Color(0.68, 0.64, 0.58)
 	if apply_graphics_btn != null and is_instance_valid(apply_graphics_btn):
 		var dirty2 := false
 		for k in ["quality", "fps", "shadows", "anim"]:

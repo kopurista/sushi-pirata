@@ -42,6 +42,14 @@ var ingots: int = INGOTS_START
 ## contraste, qué ayudante: el ayudante es del género contrario (con el jugador
 ## neutro le toca uno al azar). Se elige en Opciones, pestaña Perfil.
 var player_gender: String = CharacterData.MALE
+## true desde que se zarpa de la PORTADA. Es DE SESIÓN (no se guarda): al
+## volver al menú desde cualquier pantalla ya no se pasa otra vez por el
+## puerto, pero al abrir el juego de nuevo sí.
+var booted := false
+## Título del cartel de recompensa (el renglón bajo el nombre) y los que se han
+## desbloqueado. Ver `title_data.gd`: de salida solo está el de la mano.
+var player_title_id: String = TitleData.MANO
+var unlocked_titles: Array[String] = [TitleData.MANO]
 ## Nombre del jugador (de esa misma pestaña).
 var player_name: String = ""
 ## Mano dominante ("L"/"R"). Con la IZQUIERDA la mesa queda como siempre
@@ -128,6 +136,11 @@ var perk_uses: Dictionary = {}
 ## `shop_day` guarda el día del surtido actual para saber cuándo renovarlo.
 var shop_stock: Array[String] = []
 var shop_day: String = ""
+
+## BONUS DIARIO (ver DailyData): día de la racha que toca cobrar (1..7) y fecha
+## del último cobro. Con `daily_day` a 0 no se ha cobrado ninguno todavía.
+var daily_day: int = 0
+var daily_last: String = ""
 ## Contadores de toda la vida del jugador, de los que salen los LOGROS
 ## (ver achievement_data.gd). Clave -> entero. Los que empiezan por "best_"
 ## guardan un máximo, el resto se acumulan.
@@ -494,6 +507,74 @@ func _today() -> String:
 	return "%04d-%02d-%02d" % [d.year, d.month, d.day]
 
 
+## --- Bonus diario ----------------------------------------------------------
+
+## Ayer, en el mismo formato que `_today`.
+func _yesterday() -> String:
+	var t := Time.get_unix_time_from_system() - 86400
+	var d := Time.get_date_dict_from_unix_time(int(t))
+	return "%04d-%02d-%02d" % [d.year, d.month, d.day]
+
+
+## ¿Queda premio por cobrar hoy?
+func daily_available() -> bool:
+	return daily_last != _today()
+
+
+## Día de la racha que se cobraría AHORA (1..7), sin cobrarlo.
+func daily_next_day() -> int:
+	if not daily_available():
+		return daily_day
+	# La racha solo sigue si el último cobro fue AYER. Con un hueco de por
+	# medio se vuelve a empezar: el bonus premia venir a diario, no acumular
+	# días sueltos. Y pasado el 7 el ciclo vuelve a empezar.
+	if daily_last == _yesterday() and daily_day < DailyData.day_count():
+		return daily_day + 1
+	return 1
+
+
+## Cobra el premio de hoy y devuelve lo que se ha dado, para que el cartel lo
+## pueda enseñar: { money, rice, ingots, extras, ingredients, recipe }.
+## Devuelve {} si hoy ya estaba cobrado.
+func claim_daily() -> Dictionary:
+	if not daily_available():
+		return {}
+	var n := daily_next_day()
+	var premio := DailyData.day(n)
+	daily_day = n
+	daily_last = _today()
+	var dado := { "day": n }
+	var oro := int(premio.get("money", 0))
+	if premio.has("recipe"):
+		# La receta del día 7 solo se entrega una vez; quien ya la tenga cobra
+		# doblones en su lugar para que la última casilla no salga vacía.
+		if unlock_recipe(str(premio["recipe"])):
+			dado["recipe"] = str(premio["recipe"])
+			gift_ingredients_for([str(premio["recipe"])], PORT_GIFT)
+		else:
+			oro += DailyData.RECIPE_FALLBACK
+	if oro > 0:
+		money += oro
+		dado["money"] = oro
+	if premio.has("rice"):
+		add_rice(int(premio["rice"]))
+		dado["rice"] = int(premio["rice"])
+	if premio.has("ingots"):
+		ingots += int(premio["ingots"])
+		dado["ingots"] = int(premio["ingots"])
+	if premio.has("extras"):
+		for e in RecipeData.EXTRAS:
+			add_ingredient_uses(e, int(premio["extras"]))
+		dado["extras"] = int(premio["extras"])
+	if premio.has("ingredients"):
+		var ings: Dictionary = premio["ingredients"]
+		for k in ings:
+			add_ingredient_uses(str(k), int(ings[k]))
+		dado["ingredients"] = ings
+	save_game()
+	return dado
+
+
 ## Renueva el surtido si ha cambiado el día (o si el guardado no traía uno).
 ## También rehace un surtido viejo que se hubiera colado con extras dentro.
 func refresh_shop_if_new_day() -> void:
@@ -831,6 +912,23 @@ func current_preset() -> String:
 	return "custom"
 
 
+## El renglón del cartel de recompensa: "el zurdo", "la diestra"...
+func player_subtitle() -> String:
+	return TitleData.text(player_title_id, player_gender, player_hand)
+
+
+## LA RECOMPENSA del cartel: todo el oro que ha ganado el jugador en toda su
+## vida, en aventura Y en arcade (los logros son del jugador, no de la campaña,
+## y esto igual). Se suma en `level3d._finalize_results`, con la jornada
+## cerrada, así que no la mueven ni las compras ni los castigos.
+##
+## Los guardados anteriores a la estadística la SIEMBRAN con lo que tienen en
+## el monedero más lo que ya se han gastado (ver `_seed_bounty`): no es exacto,
+## pero un jugador con treinta horas encima merece algo mejor que un cartel a 0.
+func bounty() -> int:
+	return int(stats.get("money_total", 0))
+
+
 ## Nombre con el que el juego se dirige al jugador.
 func player_title() -> String:
 	var n := player_name.strip_edges()
@@ -903,9 +1001,13 @@ func save_game() -> void:
 		"perk_uses": perk_uses,
 		"shop_stock": shop_stock,
 		"shop_day": shop_day,
+		"daily_day": daily_day,
+		"daily_last": daily_last,
 		"player_gender": player_gender,
 		"player_hand": player_hand,
 		"player_name": player_name,
+		"player_title": player_title_id,
+		"unlocked_titles": unlocked_titles,
 		"tutorial_done": tutorial_done,
 		"shop_intro_done": shop_intro_done,
 		"rice_intro_done": rice_intro_done,
@@ -960,15 +1062,33 @@ func load_game() -> void:
 		perk_uses[str(k)] = int(perk_dict[k])
 	shop_stock = _to_string_array(parsed.get("shop_stock", []))
 	shop_day = str(parsed.get("shop_day", ""))
+	daily_day = int(parsed.get("daily_day", 0))
+	daily_last = str(parsed.get("daily_last", ""))
 	player_gender = str(parsed.get("player_gender", CharacterData.MALE))
+	# El género NEUTRO se retiró con el cartel de recompensa: quien lo tuviera
+	# elegido pasa a masculino, que es al que ya caía `CharacterData.model`.
+	if not CharacterData.PLAYER_GENDERS.has(player_gender):
+		player_gender = CharacterData.MALE
 	player_name = str(parsed.get("player_name", ""))
 	player_hand = str(parsed.get("player_hand", "L"))
+	player_title_id = str(parsed.get("player_title", TitleData.MANO))
+	if not TitleData.exists(player_title_id):
+		player_title_id = TitleData.MANO
+	unlocked_titles = _to_string_array(parsed.get("unlocked_titles",
+		[TitleData.MANO]))
+	if unlocked_titles.is_empty():
+		unlocked_titles = [TitleData.MANO]
 	# Las estadísticas viajan como números sueltos; "last_day" es texto.
 	stats = {}
 	var stat_dict: Dictionary = parsed.get("stats", {})
 	for k in stat_dict.keys():
 		var v: Variant = stat_dict[k]
 		stats[str(k)] = str(v) if str(k) == "last_day" else int(v)
+	# LA RECOMPENSA del cartel es nueva: los guardados que no la traen la
+	# siembran con el monedero más lo ya gastado, que es lo más parecido a "todo
+	# lo que ha ganado" que se puede reconstruir hacia atrás.
+	if not stats.has("money_total"):
+		stats["money_total"] = money + int(stats.get("money_spent", 0))
 	play_seconds = float(parsed.get("play_seconds", 0.0))
 	settings = DEFAULT_SETTINGS.duplicate()
 	var set_dict: Dictionary = parsed.get("settings", {})
@@ -1007,11 +1127,15 @@ func reset_progress() -> void:
 	var keep_name := player_name
 	var keep_gender := player_gender
 	var keep_hand := player_hand
+	var keep_title := player_title_id
+	var keep_titles := unlocked_titles.duplicate()
 	_new_game()
 	settings = keep
 	player_name = keep_name
 	player_gender = keep_gender
 	player_hand = keep_hand
+	player_title_id = keep_title
+	unlocked_titles = keep_titles
 	save_game()
 
 
@@ -1022,6 +1146,8 @@ func _new_game() -> void:
 	player_gender = CharacterData.MALE
 	player_name = ""
 	player_hand = "L"
+	player_title_id = TitleData.MANO
+	unlocked_titles = [TitleData.MANO]
 	# Un pequeño botín de bienvenida para las primeras compras en la tienda.
 	money = 50
 	rice = RICE_START
@@ -1036,6 +1162,8 @@ func _new_game() -> void:
 	perk_uses = {}
 	shop_stock = []
 	shop_day = ""
+	daily_day = 0
+	daily_last = ""
 	# SIN recetas de inicio y con el tutorial pendiente: las 4 primeras las
 	# entrega David al terminar su clase (complete_tutorial). Olvidar poner
 	# tutorial_done a false aquí hacía que borrar la partida NO relanzara la

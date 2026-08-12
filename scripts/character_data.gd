@@ -4,26 +4,30 @@ extends RefCounted
 ## que tocar para cambiar qué modelo sale: ni el nivel ni el cliente saben
 ## nombres de archivo.
 ##
-## Cada personaje tiene hasta tres rutas: "m", "f" y "x" (neutro). Una variante
-## puede NO existir todavía (los modelos están hechos pero sin riguear, y sin
-## esqueleto no se pueden animar): `model()` comprueba el archivo y CAE al
-## masculino si falta. Gracias a eso el juego ya funciona con el género
-## cableado, y el día que aparezca un `*_rig.glb` nuevo entra solo.
+## Cada personaje tiene hasta dos rutas: "m" y "f". Una variante puede NO
+## existir todavía (los modelos están hechos pero sin riguear, y sin esqueleto
+## no se pueden animar): `model()` comprueba el archivo y CAE al masculino si
+## falta. Gracias a eso el juego ya funciona con el género cableado, y el día
+## que aparezca un `*_rig.glb` nuevo entra solo.
 ##
-## El NEUTRO solo existe para el chef y su ayudante (es el género que elige el
-## jugador en Opciones); los clientes se sortean entre masculino y femenino.
+## EL NEUTRO SE RETIRÓ al entrar el cartel de recompensa: ahí el género es el
+## MODELO que se ve en la foto y se pasa con flechas, así que una tercera
+## opción "sin especificar" no tenía nada que enseñar. `NEUTRAL` sigue aquí
+## SOLO para reconocer los guardados viejos (`GameState._load` los pasa a
+## masculino); ni está en `PLAYER_GENDERS` ni tiene modelo.
 
 const MALE := "m"
 const FEMALE := "f"
+## Solo para leer guardados anteriores al cartel de recompensa. No se elige.
 const NEUTRAL := "x"
-## Los tres que puede elegir el jugador, en el orden en que se recorren.
-const PLAYER_GENDERS := [MALE, FEMALE, NEUTRAL]
+## Los que puede elegir el jugador, en el orden en que las flechas los recorren.
+const PLAYER_GENDERS := [MALE, FEMALE]
 const GENDER_NAMES := {
-	MALE: "Masculino", FEMALE: "Femenino", NEUTRAL: "Sin especificar",
+	MALE: "Masculino", FEMALE: "Femenino",
 }
 ## Cómo se dirige el juego al jugador cuando no ha puesto nombre.
 const GENDER_TITLES := {
-	MALE: "Cocinero", FEMALE: "Cocinera", NEUTRAL: "Chef",
+	MALE: "Cocinero", FEMALE: "Cocinera",
 }
 
 ## personaje -> { genero: ruta del modelo RIGUEADO }
@@ -54,12 +58,10 @@ const MODELS := {
 	"chef": {
 		MALE: "res://assets/models/chef_rig.glb",
 		FEMALE: "res://assets/models/chef_fem_rig.glb",
-		NEUTRAL: "res://assets/models/chef_neutro_rig.glb",
 	},
 	"ayudante": {
 		MALE: "res://assets/models/ayudante_rig.glb",
 		FEMALE: "res://assets/models/ayudante_fem_rig.glb",
-		NEUTRAL: "res://assets/models/ayudante_rig.glb",
 	},
 }
 
@@ -93,11 +95,7 @@ static func who_for_type(type: String) -> String:
 
 
 ## El género contrario: el ayudante siempre es del otro (decisión de diseño).
-## Con el jugador NEUTRO no hay contrario, y sortearlo hacía que el ayudante
-## cambiara de una partida a otra sin motivo: se fija en FEMENINO.
 static func opposite(gender: String) -> String:
-	if gender == NEUTRAL:
-		return FEMALE
 	return MALE if gender == FEMALE else FEMALE
 
 

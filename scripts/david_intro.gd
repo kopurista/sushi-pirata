@@ -528,173 +528,50 @@ func _run_intro() -> void:
 	GameState.fade_to_scene("res://scenes/level3d.tscn", 0.35, 0.45)
 
 
-## Pergamino ÚNICO con el nombre y el género: se escribe, se toca al pirata y
-## "¡Ese soy yo!" se enciende cuando están las dos cosas. Devuelve el nombre.
+## CARTEL DE RECOMPENSA: la ficha del jugador (ver `wanted_poster.gd`). Se
+## escribe el nombre en el propio cartel, se pasa de personaje con las flechas
+## de la foto y se elige la mano; "¡Ese soy yo!" se enciende con el nombre
+## puesto. Devuelve el nombre.
 func _ask_identity() -> String:
-	var panel := Control.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.offset_left = -336.0
-	# ALTO MEDIDO, no a ojo: título + campo + título + fila de géneros (224) +
-	# título + fila de manos (196) + botón (86), con sus separaciones y los
-	# márgenes del pergamino, salen ~900 px. Con los 688 de antes, la mano
-	# dominante y el botón se salían por abajo.
-	panel.offset_top = -560.0
-	panel.offset_right = 336.0
-	panel.offset_bottom = 340.0
-	ui.add_child(panel)
-	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
+	var caja := Control.new()
+	caja.set_anchors_preset(Control.PRESET_CENTER)
+	var medida := WantedPoster.panel_size(true)
+	var alto := medida.y + 104.0
+	caja.offset_left = -medida.x * 0.5
+	caja.offset_right = medida.x * 0.5
+	caja.offset_top = -alto * 0.5
+	caja.offset_bottom = alto * 0.5
+	ui.add_child(caja)
 
-	var vb := VBoxContainer.new()
-	vb.set_anchors_preset(Control.PRESET_FULL_RECT)
-	# Márgenes por dentro del marco dibujado del pergamino (los rodillos y las
-	# esquinas comen ~50 px y cortaban el primer título).
-	vb.offset_left = 66.0
-	vb.offset_top = 68.0
-	vb.offset_right = -66.0
-	vb.offset_bottom = -62.0
-	vb.add_theme_constant_override("separation", 12)
-	panel.add_child(vb)
-
-	vb.add_child(_titulo("¿Cómo te llamas?"))
-
-	var edit := LineEdit.new()
-	edit.max_length = 14
-	edit.text = GameState.player_name
-	edit.placeholder_text = "Tu nombre pirata"
-	edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	edit.custom_minimum_size = Vector2(0, 64)
-	edit.add_theme_font_size_override("font_size", 28)
-	edit.add_theme_color_override("font_color", DARK)
-	edit.add_theme_color_override("font_placeholder_color", Color(0.55, 0.44, 0.32))
-	edit.add_theme_color_override("caret_color", DARK)
-	# El estilo por defecto del tema es una caja gris oscura que sobre el
-	# pergamino parece un parche: se le pone marco de madera clara.
-	var caja := StyleBoxFlat.new()
-	caja.bg_color = Color(0.97, 0.92, 0.78)
-	caja.border_color = Color(0.45, 0.31, 0.17)
-	caja.set_border_width_all(3)
-	caja.set_corner_radius_all(8)
-	caja.content_margin_left = 14.0
-	caja.content_margin_right = 14.0
-	for st in ["normal", "focus", "read_only"]:
-		edit.add_theme_stylebox_override(st, caja)
-	vb.add_child(edit)
-	# En el móvil el LineEdit no coge el foco al tocarlo y no sale el teclado.
-	PrepBoard.enable_mobile_keyboard(edit)
-
-	vb.add_child(_titulo("¿Y cómo te dibujo?"))
-
-	var row := HBoxContainer.new()
-	row.custom_minimum_size = Vector2(0, 232)
-	row.add_theme_constant_override("separation", 12)
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	vb.add_child(row)
+	var cartel := WantedPoster.new()
+	cartel.editable_name = true
+	caja.add_child(cartel)
 
 	var ok := Button.new()
 	ok.text = "¡Ese soy yo!"
 	# Ancho de sobra a propósito: con el botón justo, el texto se montaba sobre
 	# las esquinas doradas del 9-slice.
-	ok.custom_minimum_size = Vector2(400, 86)
-	ok.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ok.position = Vector2((medida.x - 400.0) * 0.5, medida.y + 16.0)
+	ok.size = Vector2(400, 82)
 	PrepBoard.skin_button(ok)
-	ok.add_theme_font_size_override("font_size", 26)
+	ok.add_theme_font_size_override("font_size", 30)
+	caja.add_child(ok)
 
-	# Los botones capturan `refrescar` POR VALOR (lambdas de GDScript), así que
-	# tiene que nacer completo: también repinta la fila de la mano dominante.
-	var elegido := { "g": "", "h": "" }
-	var botones: Array[Button] = []
-	var botones_mano: Array[Button] = []
 	var refrescar := func() -> void:
-		for b in botones:
-			b.modulate = Color.WHITE if b.get_meta("g") == elegido["g"] \
-					else Color(0.5, 0.5, 0.52)
-		for bm in botones_mano:
-			bm.modulate = Color.WHITE if bm.get_meta("h") == elegido["h"] \
-					else Color(0.5, 0.5, 0.52)
-		var listo: bool = elegido["g"] != "" and elegido["h"] != "" \
-				and edit.text.strip_edges() != ""
+		var listo := cartel.listo()
 		ok.disabled = not listo
 		ok.modulate = Color.WHITE if listo else Color(0.62, 0.62, 0.62)
-
-	for g in CharacterData.PLAYER_GENDERS:
-		var b := Button.new()
-		b.custom_minimum_size = Vector2(160, 224)
-		b.set_meta("g", g)
-		for st in ["normal", "hover", "pressed", "disabled", "focus"]:
-			b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
-		var pic := TextureRect.new()
-		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		var tex_path := "res://assets/ui/chef_%s.png" % g
-		if ResourceLoader.exists(tex_path):
-			pic.texture = load(tex_path)
-		pic.set_anchors_preset(Control.PRESET_FULL_RECT)
-		pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		b.add_child(pic)
-		b.pressed.connect(func() -> void:
-			elegido["g"] = g
-			refrescar.call()
-			b.pivot_offset = b.size / 2.0
-			var tw := b.create_tween()
-			tw.tween_property(b, "scale", Vector2(1.12, 1.12), 0.1)
-			tw.tween_property(b, "scale", Vector2.ONE, 0.1))
-		botones.append(b)
-		row.add_child(b)
-
-	# Mano dominante: decide de qué lado queda la tabla de cocinar (con la
-	# derecha el panel entero se voltea para que el pulgar no tape nada).
-	vb.add_child(_titulo("¿Con qué mano dominas el cuchillo?"))
-	var manos := HBoxContainer.new()
-	manos.alignment = BoxContainer.ALIGNMENT_CENTER
-	manos.add_theme_constant_override("separation", 26)
-	vb.add_child(manos)
-	# Se elige TOCANDO LA MANO (la misma imagen espejada): más claro que un
-	# botón con la palabra, que obligaba a pensar cuál era cuál.
-	for def in [["L", "Izquierda", "ic_mano_izq"], ["R", "Derecha", "ic_mano_der"]]:
-		var bm := Button.new()
-		bm.custom_minimum_size = Vector2(180, 196)
-		bm.set_meta("h", def[0])
-		for st in ["normal", "hover", "pressed", "disabled", "focus"]:
-			bm.add_theme_stylebox_override(st, StyleBoxEmpty.new())
-		var pic := TextureRect.new()
-		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		pic.texture = load("res://assets/ui/%s.png" % def[2])
-		pic.set_anchors_preset(Control.PRESET_FULL_RECT)
-		pic.offset_bottom = -34.0
-		pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		bm.add_child(pic)
-		var lm := Label.new()
-		lm.text = def[1]
-		lm.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-		lm.offset_top = -32.0
-		lm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lm.add_theme_font_size_override("font_size", 22)
-		lm.add_theme_color_override("font_color", DARK)
-		lm.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		bm.add_child(lm)
-		bm.pressed.connect(func() -> void:
-			elegido["h"] = def[0]
-			refrescar.call()
-			bm.pivot_offset = bm.size / 2.0
-			var tw := bm.create_tween()
-			tw.tween_property(bm, "scale", Vector2(1.12, 1.12), 0.1)
-			tw.tween_property(bm, "scale", Vector2.ONE, 0.1))
-		botones_mano.append(bm)
-		manos.add_child(bm)
-
-	vb.add_child(ok)
-	edit.text_changed.connect(func(_t: String) -> void: refrescar.call())
+	cartel.edited.connect(func() -> void: refrescar.call())
+	# El cartel se construye en su `_ready`, que corre al entrar en el árbol; la
+	# primera comprobación tiene que ir DESPUÉS o `listo()` mira un LineEdit que
+	# todavía no existe.
+	await get_tree().process_frame
 	refrescar.call()
 
 	await ok.pressed
-	var pname := edit.text.strip_edges()
-	if pname == "":
-		pname = "Grumete"
-	GameState.player_name = pname
-	GameState.player_gender = elegido["g"]
-	GameState.player_hand = elegido["h"]
-	panel.queue_free()
+	var pname := cartel.nombre()
+	cartel.aplicar()
+	caja.queue_free()
 	return pname
 
 

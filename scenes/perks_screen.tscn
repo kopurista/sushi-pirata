@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://c0u4p4bqlx5wu"]
+
+[ext_resource type="Script" path="res://scripts/perks_screen.gd" id="1"]
+
+[node name="PerksScreen" type="Node3D"]
+script = ExtResource("1")

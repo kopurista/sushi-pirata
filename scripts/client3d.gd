@@ -173,16 +173,19 @@ const BUBBLE_TAIL_X := 15.0
 ## que ACABA de coger plato luce a plena luz un par de segundos.
 const BUBBLE_DIM := 0.5
 const BUBBLE_HOT := 2.2
-## El multiplicador se CAPA en x5: recarga tope ×1.5, bono de oro máximo +5 y
-## postre máximo 15 al bote (30 con Sobremesa dulce).
+## Tope BASE del multiplicador: recarga ×1.5, bono de oro +5 por plato y postre
+## de 15 al bote. Sube a VARIETY_MAX_PERK con el bonificador "Paladar de
+## capitán", y se DUPLICA mientras corre el potenciador "Doble variedad" — por
+## eso hay chapas dibujadas hasta x20, que es el techo real del juego (los 10
+## del bonificador por el 2 del potenciador).
 const VARIETY_MAX := 5
+const VARIETY_MAX_PERK := 10
 ## Chapas del multiplicador (x2..x5): monedas de oro DIBUJADAS por
 ## `build_mult_badges` con la paleta y la Exo 2 Bold del juego — la tanda
 ## generada con Ludo salía con estallidos que no casaban con el set.
-const MULT_TEXTURES := [
-	"res://assets/ui/mult_x2.png", "res://assets/ui/mult_x3.png",
-	"res://assets/ui/mult_x4.png", "res://assets/ui/mult_x5.png",
-]
+## Hay chapa dibujada para cada valor de x2 a x20 (`build_mult_badges`).
+const MULT_FIRST := 2
+const MULT_LAST := 20
 const MULT_BADGE := 40.0
 ## Cada plato comido acelera el drenaje de paciencia en este factor.
 const PATIENCE_DRAIN_PER_PLATE := 0.025
@@ -254,6 +257,8 @@ var tried: Dictionary = {}
 var variety: int = 0
 ## Repeticiones acumuladas, monótonas: la escalera del hastío no perdona.
 var repeat_count: int = 0
+## Este cliente ya llegó al tope base del multiplicador (se avisa una sola vez).
+var _variety_maxed := false
 var money_earned: int = 0
 var eat_timer: float = 0.0
 var eat_duration: float = 1.0
@@ -714,7 +719,13 @@ func _scan_belt(snack_only: bool = false) -> void:
 			continue
 		# Solo un picoteo por plato en curso: hasta que no termine el que está
 		# comiendo no vuelve a picar (al empezar el siguiente se rearma).
-		if snack_only and (snack_taken or not data.get("snack", false)):
+		# "Manos libres" (potenciador): mientras corre, CUALQUIER plato se puede
+		# picar sin soltar el que se está comiendo, no solo los de picoteo.
+		var todo_picoteo: bool = level_ref != null \
+				and "snack_all_timer" in level_ref \
+				and level_ref.snack_all_timer > 0.0
+		if snack_only and (snack_taken \
+				or not (data.get("snack", false) or todo_picoteo)):
 			continue
 		# El barco se cataloga por lo que lleva dentro, no por su receta.
 		var plate_satiety: int = int(data.get("satiety", 1))
@@ -919,17 +930,33 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 ## moneda del valor (mult_x2..mult_x5) con un golpe y un giro si sube; al
 ## romperse la racha, se encoge y se apaga. La chapa vive DENTRO del bocadillo
 ## (se crea con él): siempre por encima y atenuada a su compás.
+## Tope vigente del multiplicador: el base, el del bonificador "Paladar de
+## capitán" si está puesto, y otro ×2 mientras corra "Doble variedad".
+func variety_cap() -> int:
+	var tope := VARIETY_MAX_PERK if GameState.has_perk("paladar") else VARIETY_MAX
+	if level_ref != null and "variety_x2_timer" in level_ref \
+			and level_ref.variety_x2_timer > 0.0:
+		tope *= 2
+	return tope
+
+
 func _set_variety(n: int, pop: bool) -> void:
 	var prev := variety
-	variety = mini(n, VARIETY_MAX)
+	variety = mini(n, variety_cap())
+	# Aviso al nivel la PRIMERA vez que este cliente toca el tope base: es la
+	# condición del bonificador "Paladar de capitán".
+	if not _variety_maxed and variety >= VARIETY_MAX:
+		_variety_maxed = true
+		if level_ref != null and level_ref.has_method("note_variety_maxed"):
+			level_ref.note_variety_maxed()
 	if _mult_badge == null or not is_instance_valid(_mult_badge):
 		return
 	# Un tween de chapa a medias siempre pierde contra el valor nuevo.
 	if _badge_tween != null and _badge_tween.is_valid():
 		_badge_tween.kill()
 	if variety >= 2:
-		var idx := clampi(variety - 2, 0, MULT_TEXTURES.size() - 1)
-		_mult_badge.texture = load(MULT_TEXTURES[idx])
+		var n_chapa := clampi(variety, MULT_FIRST, MULT_LAST)
+		_mult_badge.texture = load("res://assets/ui/mult_x%d.png" % n_chapa)
 		_mult_badge.visible = true
 		_mult_badge.modulate = Color(1, 1, 1, 1)
 		_place_badge()

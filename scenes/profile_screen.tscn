@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://cfxwytxq3fn1e"]
+
+[ext_resource type="Script" path="res://scripts/profile_screen.gd" id="1"]
+
+[node name="ProfileScreen" type="Node3D"]
+script = ExtResource("1")

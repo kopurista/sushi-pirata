@@ -16,9 +16,24 @@ extends "res://scripts/level_select3d.gd"
 ## ningún nodo del mapa asome. Va atado a `CampaignData.MAP_POS["nivel_1"]`:
 ## al separar los puertos, el nivel 1 bajó 454 px y este ancla bajó lo mismo.
 const MENU_ANCHOR := Vector2(360.0, 3134.0)
-## Cuánto se sube la vista respecto al barco cuando manda el menú: deja hueco
-## al logotipo arriba y a los botones abajo.
-const MENU_BAND_OFF := -70.0
+## Cuánto se sube la vista respecto al barco cuando manda el menú. POSITIVO =
+## el barco queda por ENCIMA del centro de pantalla: desde que el logotipo se
+## quedó en la portada, el barco es quien ocupa su hueco de arriba y los
+## botones suben tras él.
+const MENU_BAND_OFF := 190.0
+
+## LA PORTADA ("pulsa para zarpar") vive en ESTA MISMA ESCENA: es un tercer
+## estado, con el barco atracado en un puerto a la IZQUIERDA del fondeadero.
+## Al zarpar no hay fundido: la cámara viaja con el barco hasta el menú, igual
+## que el viaje a Aventura. `PORT_OFF` va por `cam_side`, que ya es el
+## desplazamiento lateral del encuadre (lo usa la transición a la tienda).
+const PORT_OFF := -1500.0
+const PORT_PX := MENU_ANCHOR + Vector2(PORT_OFF, 0.0)
+## En la portada la vista se centra por ENCIMA del barco (px de mapa): arriba
+## manda el logotipo y el barco queda en el tercio de abajo, contra el muelle.
+const START_CAM_LIFT := 380.0
+## Lo que dura el viaje del muelle al fondeadero al zarpar.
+const START_SAIL := 1.9
 const OUT_TIME := 0.55
 ## Distancia (en px de mapa) que recorre el barco al entrar o salir de escena.
 const OFFSCREEN := 1500.0
@@ -33,17 +48,32 @@ const SHOP_DOCK_AT := 7.9
 const SHOP_SAIL := 300.0
 const SHOP_ZOOM_SIDE := 430.0
 const SHOP_ZOOM_SIZE := 9.4
-## Botones redondos de las esquinas: la medalla de Logros arriba a la izquierda
-## y la rueda de Opciones arriba a la derecha, en el hueco que dejó el monedero
-## (el dinero solo se enseña donde se puede ganar o gastar). El rótulo va
-## DENTRO del alto del botón: colgándolo por debajo se salía de la pantalla.
-const ROUND_SIZE := 74.0
-const ROUND_LABEL := 24.0
-const ROUND_MARGIN := 16.0
-## Aire EXTRA por debajo de los botones redondos. `safe_bottom()` vale 0 en la
-## build web (que es como se juega en el iPhone), así que en un móvil de
-## esquinas redondeadas el rótulo se comía la curva. Se sube a mano.
-const ROUND_BOTTOM_LIFT := 46.0
+## SUBMENÚ inferior: la barra de madera oscura con cuerda (`submenu_barra.png`,
+## estilo propio, distinto de los tablones) con los CINCO accesos del jugador:
+## Logros, Inventario, Perfil, Bonificadores y Opciones. Sustituye a los dos
+## botones redondos de esquina que hubo antes.
+## La textura se exporta al alto EXACTO al que se dibuja (148) y va con margen
+## vertical CERO: la regla de los botones con icono (los márgenes 9-slice son
+## téxeles 1:1). Solo estira a lo ancho.
+## Tablón del menú: menu_panel.png se exporta a 520x711 y se dibuja a
+## MENU_PANEL_W. El hueco interior (donde van los botones) está MEDIDO sobre
+## el PNG por barrido de filas; si se regenera el panel hay que volver a
+## medirlo. El timón asoma WHEEL_PEEK por encima del banner.
+const MENU_PANEL_W := 400.0
+const MENU_PANEL_RATIO := 711.0 / 520.0
+const MENU_PANEL_INNER := Rect2(0.10, 0.245, 0.80, 0.60)
+const WHEEL_SIZE := 170.0
+const WHEEL_PEEK := 66.0
+
+const SUB_BAR_H := 148.0
+const SUB_BAR_MARGIN := 56
+const SUB_ICON := 62.0
+const SUB_LABEL := 24.0
+## Margen bajo la barra. `safe_bottom()` vale 0 en la build web (que es como se
+## juega en el iPhone), así que lleva su propio aire.
+const SUB_BOTTOM := 10.0
+## Aire de los contadores de arriba respecto al área segura.
+const RES_TOP := 16.0
 
 var logo: TextureRect
 ## El logotipo vive dentro de este contenedor: el balanceo mueve el logo y las
@@ -55,8 +85,13 @@ var ui_layer: CanvasLayer = null
 var button_box: VBoxContainer = null
 ## Botones redondos de las esquinas: la rueda de ajustes abajo a la derecha y
 ## la medalla de los logros arriba a la izquierda.
-var gear_button: Control = null
-var medal_button: Control = null
+var submenu_bar: Control = null
+## El tablón del menú (los tres modos dentro) y el timón del huevo de pascua.
+var menu_panel: Control = null
+var wheel: TextureRect = null
+var wheel_grab := false
+var wheel_last_ang := 0.0
+var wheel_vel := 0.0
 ## Contadores de arriba (dinero y arroz). Son los MISMOS en el menú y en el
 ## mapa: solo cambian de sitio (ver `_place_resources`).
 var money_box: Control = null
@@ -76,6 +111,12 @@ var birds: Array = []
 var clouds: Array = []
 ## Mientras las gaviotas y las nubes se retiran, `_process` deja de colocarlas.
 var sky_leaving := false
+## Metros de MÁS por encima de su sitio (la entrada del cielo). `_process` lo
+## SUMA al colocarlas cada fotograma y un tween lo funde a cero: así entran
+## planeando desde arriba sin que el tween pelee con la colocación por frame
+## (la misma trampa que obligó a `sky_leaving` en la salida, resuelta al revés:
+## en vez de parar la colocación, se anima el desvío que se le suma).
+var sky_drop := 0.0
 var _mt := 0.0
 ## Tween de entrada/salida de la interfaz del menú (uno solo a la vez).
 var ui_tween: Tween = null
@@ -83,40 +124,56 @@ var ui_tween: Tween = null
 ## construirla: después de una salida, la posición actual ya está desplazada.
 var home_logo_y := 96.0
 var home_box_y := 0.0
-var home_medal_y := 0.0
-var home_gear_y := 0.0
+var home_sub_y := 0.0
 ## 1 = encuadre de menú, 0 = encuadre de mapa. Se interpola durante el viaje
 ## para que la cámara no dé un salto al cambiar de estado.
 var menu_blend := 1.0
+## true mientras se ve la PORTADA (el puerto y "Pulsa para zarpar").
+var start_mode := false
+## El "Pulsa para zarpar", latiendo bajo el logotipo.
+var start_hint: Label = null
 ## Desplazamiento lateral del encuadre (px de mapa). Lo usa la transición a la
 ## tienda para que la cámara siga al barco mientras atraca.
 var cam_side := 0.0
 
 
 func _ready() -> void:
-	# PRIMERA VEZ: antes que el menú, la bienvenida de David Jones (pregunta
-	# nombre y género y lleva al tutorial). La escena se queda vacía un par de
-	# frames: el telón negro del autoload lo tapa.
-	if not GameState.tutorial_done:
+	var trans := GameState.take_transition()
+	# Sin portada por delante, quien vuelva al menú SIN tutorial va a la
+	# bienvenida de David. Solo puede pasar por un camino raro: el arranque
+	# normal de una partida nueva pasa por la portada, que ya manda allí.
+	if not GameState.tutorial_done and GameState.booted:
 		GameState.fade_out(0.0)
 		# DIFERIDO a propósito: cambiar de escena dentro de _ready pilla al árbol
 		# montando nodos y el motor suelta "Parent node is busy adding/removing
-		# children". Se ve solo con una partida nueva, que es justo cuando pasa.
+		# children".
 		_ir_a_la_intro.call_deferred()
 		return
 	# El padre monta el mundo del mapa entero y su interfaz.
 	super._ready()
+	# El puerto de la portada, alrededor de su ancla. Se construye SIEMPRE
+	# (también al volver de otras pantallas): queda fuera del encuadre del
+	# menú y así el estado de portada nunca depende de por dónde se entró.
+	var port := StartPort.build(self, _world(PORT_PX))
+	GeometryBatch.bake(port, "PortBatch")
 	_setup_birds()
 	_setup_clouds()
 	_setup_menu_ui()
 	# Un frame para que el layout resuelva y `home_*` valga algo: las
 	# animaciones de entrada lo necesitan.
 	await get_tree().process_frame
-	# Posición REAL de reposo de los botones de esquina, ya con el layout hecho
-	# (ver el aviso de `_setup_menu_ui`).
-	home_medal_y = medal_button.position.y
-	home_gear_y = gear_button.position.y
-	match GameState.take_transition():
+	# Posición REAL de reposo, ya con el layout hecho (`Control.position` es
+	# relativo a la esquina superior izquierda del padre, no al ancla: guardar
+	# lo que se le PASA al ancla hacía que la salida tirara hacia arriba).
+	home_sub_y = submenu_bar.position.y
+	home_box_y = menu_panel.position.y
+	# ARRANQUE EN FRÍO (sin transición y sin haber zarpado en esta sesión):
+	# la PORTADA. `GameState.booted` es de sesión, no se guarda: al volver de
+	# cualquier pantalla ya no se pasa otra vez por el puerto.
+	if trans == "" and not GameState.booted:
+		_show_start()
+		return
+	match trans:
 		"mapa":
 			# Se vuelve del selector de recetas de aventura: directo al mapa.
 			_enter_map(false)
@@ -125,6 +182,12 @@ func _ready() -> void:
 			_play_menu_intro()
 		_:
 			_show_menu(false)
+	_menu_popups()
+
+
+## Carteles del menú (recetas nuevas y bonus diario). En la PORTADA no salen:
+## se enseñan al LLEGAR al menú, que es cuando el jugador está en casa.
+func _menu_popups() -> void:
 	# Recetas recién ganadas (tutorial o nivel): el menú las anuncia. Se espera
 	# a que termine de entrar la interfaz para no montar dos animaciones juntas.
 	if not GameState.pending_reveal.is_empty():
@@ -132,12 +195,112 @@ func _ready() -> void:
 		GameState.pending_reveal.clear()
 		await get_tree().create_timer(0.9).timeout
 		_show_reveal(nuevas)
-
+	# BONUS DIARIO: después del anuncio de recetas, para no apilar carteles.
+	if GameState.tutorial_done and GameState.daily_available():
+		await get_tree().create_timer(0.9).timeout
+		# El premio NO se cobra aquí: lo cobra el jugador tocando el cofre.
+		_show_daily()
 
 
 ## Salto a la bienvenida de David (partida nueva), fuera del _ready.
 func _ir_a_la_intro() -> void:
 	GameState.fade_to_scene("res://scenes/david_intro.tscn", 0.0, 0.5)
+
+
+## En la PORTADA cualquier toque zarpa; fuera de ella manda el arrastre del
+## mapa del padre.
+func _unhandled_input(event: InputEvent) -> void:
+	if start_mode:
+		if not leaving and event is InputEventScreenTouch \
+				and (event as InputEventScreenTouch).pressed:
+			_zarpar_de_la_portada()
+		return
+	super._unhandled_input(event)
+
+
+## Modo PORTADA: el barco amarrado al muelle, el logotipo y "Pulsa para
+## zarpar". Ni botones, ni contadores, ni mapa.
+func _show_start() -> void:
+	start_mode = true
+	in_menu = true
+	map_visible = false
+	_set_map_ui_visible(false)
+	_set_menu_ui_visible(false)
+	for caja in [ingot_box, money_box, rice_box, rice_timer_label]:
+		if caja != null:
+			caja.visible = false
+	logo_holder.visible = true
+	logo_holder.position.y = home_logo_y
+	start_hint.visible = true
+	menu_blend = 1.0
+	cam_side = PORT_OFF
+	ship_px = PORT_PX
+	# La vista se centra por encima del barco: arriba el logotipo, abajo el
+	# barco contra su muelle.
+	cam_center = MENU_ANCHOR.y - START_CAM_LIFT
+	if ship_pivot != null:
+		ship_pivot.scale = Vector3.ONE * MENU_SHIP_SCALE
+	if ship_blob != null:
+		ship_blob.scale = Vector3.ONE * MENU_SHIP_SCALE
+	_update_camera()
+	_start_logo_idle()
+	GameState.fade_in(0.5)
+
+
+## Zarpe desde la portada: el logotipo se va por arriba y el barco sale del
+## puerto hacia la DERECHA. Con el tutorial hecho, la cámara lo acompaña hasta
+## el fondeadero del menú (misma escena, sin fundido); sin tutorial, el barco
+## se pone en marcha y un fundido a negro lleva a la bienvenida de David.
+func _zarpar_de_la_portada() -> void:
+	if leaving:
+		return
+	leaving = true
+	GameState.booted = true
+	_stop_logo_idle()
+	var tw_ui := create_tween().set_parallel(true) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw_ui.tween_property(logo_holder, "position:y", -640.0, 0.55)
+	tw_ui.tween_property(start_hint, "modulate:a", 0.0, 0.3)
+	if ship_tween != null:
+		ship_tween.kill()
+	if not GameState.tutorial_done:
+		# El barco arranca hacia la derecha y el telón cae a mitad de camino.
+		ship_tween = create_tween().set_trans(Tween.TRANS_SINE) \
+				.set_ease(Tween.EASE_IN)
+		ship_tween.tween_property(self, "ship_px",
+			PORT_PX + Vector2(700.0, 0.0), 1.2)
+		get_tree().create_timer(0.55).timeout.connect(func() -> void:
+			GameState.fade_to_scene("res://scenes/david_intro.tscn", 0.55, 0.5))
+		return
+	# El mismo viaje que el de Aventura: barco y cámara juntos, sin fundido.
+	ship_tween = create_tween().set_trans(Tween.TRANS_SINE) \
+			.set_ease(Tween.EASE_IN_OUT)
+	ship_tween.tween_property(self, "ship_px", MENU_ANCHOR, START_SAIL)
+	ship_tween.parallel().tween_property(self, "cam_side", 0.0, START_SAIL)
+	ship_tween.parallel().tween_property(self, "cam_center", MENU_ANCHOR.y,
+		START_SAIL)
+	ship_tween.parallel().tween_property(self, "ship_roll", 6.0,
+		START_SAIL * 0.4)
+	ship_tween.parallel().tween_property(self, "ship_roll", 0.0,
+		START_SAIL * 0.5).set_delay(START_SAIL * 0.5)
+	ship_tween.tween_callback(_llegar_al_menu)
+
+
+## El barco alcanza el fondeadero: entra la interfaz del menú de siempre (sin
+## logotipo, que se quedó en la portada) y salen los carteles pendientes.
+func _llegar_al_menu() -> void:
+	start_mode = false
+	leaving = false
+	logo_holder.visible = false
+	start_hint.visible = false
+	for caja in [ingot_box, money_box, rice_box, rice_timer_label]:
+		if caja != null:
+			caja.visible = true
+	_place_resources(false, false)
+	_set_menu_ui_visible(true)
+	_sky_in()
+	_ui_in()
+	_menu_popups()
 
 # ------------------------------------------------- estados de la escena
 
@@ -161,6 +324,7 @@ func _show_menu(animate: bool) -> void:
 	if ship_blob != null:
 		ship_blob.scale = Vector3.ONE * MENU_SHIP_SCALE
 	_set_menu_ui_visible(true)
+	_sky_in()
 
 
 ## Modo MAPA: el barco navega hasta el último nivel abierto y entra la
@@ -248,14 +412,20 @@ func _set_map_ui_visible(on: bool) -> void:
 		node_overlays[id]["root"].visible = on
 
 
+## El logotipo NO está en la lista: desde que hay portada vive allí y en el
+## menú no vuelve a aparecer (lo enseña `_show_start` y nadie más).
 func _set_menu_ui_visible(on: bool) -> void:
-	for node in [logo_holder, button_box, gear_button, medal_button]:
+	for node in [menu_panel, submenu_bar]:
 		if node != null:
 			node.visible = on
-	for b in birds:
-		b["node"].visible = on
-	for c in clouds:
-		c["node"].visible = on
+	# El cielo solo se APAGA desde aquí. Encenderlo es trabajo de `_sky_in`,
+	# que recoloca antes: encendido desde este lado, gaviotas y nubes se
+	# renderizaban un fotograma en su posición vieja (el parpadeo).
+	if not on:
+		for b in birds:
+			b["node"].visible = false
+		for c in clouds:
+			c["node"].visible = false
 
 
 # ------------------------------------------------------------ menú: mundo
@@ -349,10 +519,35 @@ func _process(delta: float) -> void:
 	if not in_menu:
 		return
 	_mt += delta
+	# El "Pulsa para zarpar" late mientras espera el toque.
+	if start_mode and start_hint != null and not leaving:
+		start_hint.modulate.a = 0.55 + 0.45 * (0.5 + 0.5 * sin(_mt * 2.4))
+	# La inercia del timón: suelto, sigue girando y se va frenando.
+	if wheel != null and not wheel_grab and absf(wheel_vel) > 0.02:
+		wheel.rotation += wheel_vel * delta
+		wheel_vel = lerpf(wheel_vel, 0.0, minf(delta * 1.6, 1.0))
 	# Mientras se retiran del encuadre las mueve su tween, no esta función.
 	if sky_leaving:
 		return
-	# Gaviotas y nubes viven alrededor del barco, esté donde esté.
+	# Gaviotas y nubes viven alrededor del barco, esté donde esté. Las nubes
+	# avanzan aquí (dependen de delta); la COLOCACIÓN va aparte para que
+	# `_sky_in` pueda recolocar antes de encender la visibilidad.
+	for c in clouds:
+		c["side"] = float(c["side"]) + float(c["speed"]) * delta
+		if float(c["side"]) > 11.0:
+			c["side"] = -11.0
+			c["along"] = randf_range(3.0, 9.0)
+	_place_sky()
+
+
+## Coloca gaviotas y nubes en su sitio de ESTE fotograma (con `sky_drop`
+## sumado). Es función aparte por el PARPADEO: al llegar al menú, la
+## visibilidad se encendía en un callback de tween que corre DESPUÉS del
+## `_process` del fotograma, así que se renderizaban una vez en su posición
+## vieja (sin el desvío puesto) antes de que la colocación los alcanzara.
+## `_sky_in` pone el desvío, RECOLOCA con esta función y solo entonces los
+## hace visibles: ya no hay fotograma con la posición vieja.
+func _place_sky() -> void:
 	var here := _world(ship_px)
 	for b in birds:
 		var ang := _mt * float(b["speed"]) * TAU + float(b["phase"])
@@ -360,20 +555,17 @@ func _process(delta: float) -> void:
 		var r: float = b["radius"]
 		n.position = here + R_HAT * (cos(ang) * r) \
 				+ D_HAT * (sin(ang) * r * 0.55) \
-				+ Vector3(0.0, float(b["y"])
+				+ Vector3(0.0, float(b["y"]) + sky_drop
 					+ sin(_mt * 1.4 + float(b["phase"])) * 0.3, 0.0)
 		n.rotation.y = -ang
 		var flap := 0.32 + sin(_mt * float(b["flap"])) * 0.42
 		b["wings"][0].rotation.z = flap
 		b["wings"][1].rotation.z = -flap
 	for c in clouds:
-		c["side"] = float(c["side"]) + float(c["speed"]) * delta
-		if float(c["side"]) > 11.0:
-			c["side"] = -11.0
-			c["along"] = randf_range(3.0, 9.0)
 		var n2: Node3D = c["node"]
 		n2.position = here + R_HAT * float(c["side"]) \
-				+ D_HAT * float(c["along"]) + Vector3(0.0, float(c["y"]), 0.0)
+				+ D_HAT * float(c["along"]) \
+				+ Vector3(0.0, float(c["y"]) + sky_drop, 0.0)
 
 
 # --------------------------------------------------------------- menú: UI
@@ -404,66 +596,107 @@ func _setup_menu_ui() -> void:
 	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	logo_holder.add_child(logo)
 	logo.pivot_offset = Vector2(334, 170)
-	_start_logo_idle()
+	# El logotipo SOLO sale en la portada: aquí se deja montado y escondido, y
+	# `_show_start` lo enciende. Su balanceo se arranca allí.
+	logo_holder.visible = false
 
-	# Botones de modo, anclados abajo (el alto acoge también el de Tutorial,
-	# más bajito, para repetir la clase de David cuando se quiera).
+	# "Pulsa para zarpar", latiendo en el tercio de abajo de la portada.
+	start_hint = Label.new()
+	start_hint.text = "Pulsa para zarpar"
+	start_hint.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	start_hint.offset_top = -190.0 - GameState.safe_bottom()
+	start_hint.offset_bottom = -130.0 - GameState.safe_bottom()
+	start_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	start_hint.add_theme_font_size_override("font_size", 38)
+	start_hint.add_theme_color_override("font_color", Color(1, 0.96, 0.86))
+	start_hint.add_theme_color_override("font_outline_color",
+		Color(0.16, 0.08, 0.03))
+	start_hint.add_theme_constant_override("outline_size", 11)
+	start_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		start_hint.add_theme_font_override("font", negrita)
+	start_hint.visible = false
+	ui_layer.add_child(start_hint)
+
+	# EL TABLÓN DEL MENÚ: los tres modos van DENTRO de un panel de madera con
+	# banner tallado y cuerdas (menu_panel.png, sprite FIJO — su marco es
+	# irregular y un 9-slice lo deformaría), con el TIMÓN asomando por detrás
+	# del banner. El timón se puede GIRAR con el dedo: no hace nada, es el
+	# huevo de pascua del menú.
+	menu_panel = Control.new()
+	menu_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	menu_panel.offset_left = (720.0 - MENU_PANEL_W) * 0.5
+	menu_panel.offset_right = -(720.0 - MENU_PANEL_W) * 0.5
+	menu_panel.offset_bottom = -SUB_BOTTOM - SUB_BAR_H - 14.0 \
+			- GameState.safe_bottom()
+	menu_panel.offset_top = menu_panel.offset_bottom \
+			- MENU_PANEL_W * MENU_PANEL_RATIO
+	ui_layer.add_child(menu_panel)
+
+	# El timón va ANTES que la textura del panel en el árbol: se dibuja detrás
+	# y solo asoma su mitad de arriba por encima del banner.
+	var wheel_holder := Control.new()
+	wheel_holder.position = Vector2((MENU_PANEL_W - WHEEL_SIZE) * 0.5,
+		-WHEEL_PEEK)
+	wheel_holder.size = Vector2(WHEEL_SIZE, WHEEL_SIZE)
+	wheel_holder.mouse_filter = Control.MOUSE_FILTER_STOP
+	wheel_holder.gui_input.connect(_on_wheel_input)
+	menu_panel.add_child(wheel_holder)
+	wheel = TextureRect.new()
+	wheel.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	wheel.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	wheel.texture = load("res://assets/ui/timon.png")
+	wheel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	wheel.pivot_offset = Vector2(WHEEL_SIZE, WHEEL_SIZE) * 0.5
+	wheel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wheel_holder.add_child(wheel)
+
+	var tabla := TextureRect.new()
+	tabla.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tabla.stretch_mode = TextureRect.STRETCH_SCALE
+	tabla.texture = load("res://assets/ui/menu_panel.png")
+	tabla.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tabla.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu_panel.add_child(tabla)
+
+	# Los botones, en el hueco interior del tablón (medido sobre el PNG:
+	# x 0.10..0.90, y 0.245..0.845 — ver MENU_PANEL_INNER).
+	var alto_panel := MENU_PANEL_W * MENU_PANEL_RATIO
 	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	box.offset_left = 110.0
-	box.offset_right = -110.0
-	box.offset_top = -580.0
-	box.offset_bottom = -54.0
-	box.add_theme_constant_override("separation", 16)
-	ui_layer.add_child(box)
+	box.position = Vector2(MENU_PANEL_W * MENU_PANEL_INNER.position.x,
+		alto_panel * MENU_PANEL_INNER.position.y)
+	box.size = Vector2(MENU_PANEL_W * MENU_PANEL_INNER.size.x,
+		alto_panel * MENU_PANEL_INNER.size.y)
+	box.add_theme_constant_override("separation", 14)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	menu_panel.add_child(box)
 	button_box = box
-	box.add_child(_make_mode_button("Aventura", "ic_aventura", 118, 44,
+	box.add_child(_make_mode_button("Aventura", "ic_aventura", 104, 40,
 		func() -> void: _go_adventure()))
-	var arcade_btn := _make_mode_button("Arcade", "ic_arcade", 96, 36,
+	var arcade_btn := _make_mode_button("Arcade", "ic_arcade", 88, 34,
 		func() -> void: _go_arcade())
 	box.add_child(arcade_btn)
 	# El Arcade se gana superando el nivel 5 de la aventura: hasta entonces el
 	# botón queda apagado (pulsarlo explica cómo abrirlo).
 	if not GameState.arcade_unlocked():
 		arcade_btn.modulate = Color(0.52, 0.52, 0.52)
-	var shop_btn := _make_mode_button("Tienda", "ic_tienda", 96, 36,
+	var shop_btn := _make_mode_button("Tienda", "ic_tienda", 88, 34,
 		func() -> void: _go_shop())
 	box.add_child(shop_btn)
 	# La tienda no existe hasta que David presenta a Saverio, al superar el
 	# puerto que la trae (nivel 2).
 	if not GameState.shop_unlocked():
 		shop_btn.modulate = Color(0.52, 0.52, 0.52)
-	box.add_child(_make_mode_button("Inventario", "ic_inventario", 96, 36,
-		func() -> void: _go_inventory()))
+	# (Inventario ya no está aquí: vive en el SUBMENÚ de abajo. El menú se
+	# queda con los tres MODOS: Aventura, Arcade y Tienda.)
 
-	# Botones redondos, ABAJO en las esquinas. Van SUELTOS (no en el VBox) para
-	# poder anclarlos a su esquina y animarlos por separado. Arriba ya no cabían:
-	# ese hueco lo ocupan ahora los contadores de dinero y arroz.
-	var st := GameState.safe_top()
-	var round_y := -(ROUND_SIZE + ROUND_LABEL) - ROUND_MARGIN \
-			- ROUND_BOTTOM_LIFT - GameState.safe_bottom()
-	medal_button = _make_round_button("ic_logros", "Logros",
-		Control.PRESET_BOTTOM_LEFT, Vector2(ROUND_MARGIN, round_y),
-		func() -> void: _go_achievements())
-	gear_button = _make_round_button("ic_opciones", "Opciones",
-		Control.PRESET_BOTTOM_RIGHT,
-		Vector2(-ROUND_MARGIN - ROUND_SIZE, round_y),
-		func() -> void: _go_options())
+	_setup_submenu()
+	_setup_resource_bar(GameState.safe_top())
 
-	_setup_resource_bar(st)
-
-	# Las posiciones de reposo salen del propio layout (el que las anima no
-	# puede leerlas más tarde: para entonces ya estarían desplazadas).
-	var vp := get_viewport().get_visible_rect().size
 	home_logo_y = 96.0
-	home_box_y = vp.y - 486.0
-	# OJO: `round_y` es lo que se le PASA al botón, pero `Control.position` es
-	# relativo a la esquina SUPERIOR IZQUIERDA del padre, no al ancla. Con las
-	# anclas abajo, la posición real de reposo es ~1068, no -114. Guardar aquí
-	# el -114 hacía que la salida ("home + 260" = 146) tirara de los botones
-	# HACIA ARRIBA. Las de verdad se leen en `_ready`, ya con el layout hecho.
-	home_medal_y = round_y
-	home_gear_y = round_y
+	# `home_box_y` y `home_sub_y` se MIDEN en `_ready` con el layout resuelto,
+	# no se calculan aquí: `Control.position` es relativo al padre, no al ancla.
 
 
 ## Contadores de DINERO y ARROZ en la banda de arriba del menú.
@@ -495,7 +728,7 @@ const RES_PLUS_BLEED := 22.0
 
 
 func _setup_resource_bar(st: float) -> void:
-	res_y = ROUND_MARGIN + st
+	res_y = RES_TOP + st
 	# TRES contadores centrados arriba: lingotes, monedas y arroz. Se quedan
 	# QUIETOS al entrar en Aventura (antes viajaban a los extremos para dejar
 	# sitio al rótulo; ahora el rótulo es el que baja).
@@ -927,56 +1160,85 @@ func _aviso(texto: String) -> void:
 	caja.queue_free()
 
 
-## Botón REDONDO de esquina: el propio dibujo (rueda de timón, medalla) es el
-## botón, con su mancha de sombra detrás y un rótulo pequeño debajo. No lleva
-## tablón de madera: sobre el mar se lee mejor la silueta suelta.
-func _make_round_button(icon: String, label: String, preset: int,
-		offset: Vector2, action: Callable) -> Control:
-	var holder := Control.new()
-	holder.set_anchors_preset(preset)
-	holder.position = offset
-	holder.size = Vector2(ROUND_SIZE, ROUND_SIZE + ROUND_LABEL)
-	holder.custom_minimum_size = holder.size
-	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ui_layer.add_child(holder)
+## EL TIMÓN del menú: se agarra y se gira con el dedo, y al soltarlo sigue
+## girando con la inercia que lleve. No hace NADA — es el huevo de pascua del
+## menú. El giro se mide por el CAMBIO de ángulo respecto al centro
+## (`wrapf` a ±PI, o el salto de -179° a +179° pegaba un latigazo).
+func _on_wheel_input(e: InputEvent) -> void:
+	var c := Vector2(WHEEL_SIZE, WHEEL_SIZE) * 0.5
+	if e is InputEventScreenTouch:
+		var toque := e as InputEventScreenTouch
+		if toque.pressed:
+			wheel_grab = true
+			wheel_last_ang = (toque.position - c).angle()
+			wheel_vel = 0.0
+		else:
+			wheel_grab = false
+	elif e is InputEventScreenDrag and wheel_grab:
+		var a := ((e as InputEventScreenDrag).position - c).angle()
+		var d := wrapf(a - wheel_last_ang, -PI, PI)
+		wheel_last_ang = a
+		wheel.rotation += d
+		var dt := maxf(get_process_delta_time(), 0.001)
+		wheel_vel = lerpf(wheel_vel, d / dt, 0.45)
 
-	var tex: Texture2D = load("res://assets/ui/%s.png" % icon)
-	var shadow := TextureRect.new()
-	shadow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	shadow.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	shadow.texture = tex
-	shadow.set_anchors_preset(Control.PRESET_FULL_RECT)
-	shadow.offset_left = 4.0
-	shadow.offset_top = 6.0
-	shadow.offset_right = 4.0
-	shadow.offset_bottom = 6.0 - ROUND_LABEL
-	shadow.modulate = Color(0, 0, 0, 0.38)
-	shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	holder.add_child(shadow)
 
-	var b := TextureButton.new()
-	b.texture_normal = tex
-	b.ignore_texture_size = true
-	b.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	b.set_anchors_preset(Control.PRESET_FULL_RECT)
-	b.offset_bottom = -ROUND_LABEL
+## El SUBMENÚ inferior: la barra de madera con cuerda y sus cinco accesos.
+func _setup_submenu() -> void:
+	submenu_bar = Control.new()
+	submenu_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	submenu_bar.offset_left = 6.0
+	submenu_bar.offset_right = -6.0
+	submenu_bar.offset_bottom = -SUB_BOTTOM - GameState.safe_bottom()
+	submenu_bar.offset_top = -SUB_BOTTOM - SUB_BAR_H - GameState.safe_bottom()
+	ui_layer.add_child(submenu_bar)
+
+	var np := NinePatchRect.new()
+	np.texture = load("res://assets/ui/submenu_barra.png")
+	np.patch_margin_left = SUB_BAR_MARGIN
+	np.patch_margin_right = SUB_BAR_MARGIN
+	np.set_anchors_preset(Control.PRESET_FULL_RECT)
+	np.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	submenu_bar.add_child(np)
+
+	var row := HBoxContainer.new()
+	row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# Por dentro de la cuerda del canto y de los extremos redondeados.
+	row.offset_left = 24.0
+	row.offset_right = -24.0
+	row.offset_top = 18.0
+	row.offset_bottom = -10.0
+	submenu_bar.add_child(row)
+	# SOLO ICONOS, sin rótulo: con los cinco rehechos al estilo del cartel de
+	# Perfil ya se explican solos, y el texto a cuerpo 15 solo ensuciaba.
+	for def in [
+			["ic_logros", func() -> void: _go_achievements()],
+			["ic_inventario", func() -> void: _go_inventory()],
+			["ic_perfil", func() -> void: _go_profile()],
+			["ic_perks", func() -> void: _go_perks()],
+			["ic_opciones", func() -> void: _go_options()]]:
+		row.add_child(_make_sub_button(str(def[0]), def[1]))
+
+
+## Un acceso del submenú: el icono solo, centrado, sin tablón propio (la barra
+## es el fondo de los cinco).
+func _make_sub_button(icon: String, action: Callable) -> Control:
+	var b := Button.new()
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	var ic := TextureRect.new()
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.texture = load("res://assets/ui/%s.png" % icon)
+	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ic.offset_top = 8.0
+	ic.offset_bottom = -8.0
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(ic)
 	b.pressed.connect(action)
 	PrepBoard.add_press_feedback(b, 0.9)
-	holder.add_child(b)
-
-	var l := Label.new()
-	l.text = label
-	l.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	l.offset_top = -ROUND_LABEL
-	l.offset_bottom = 0.0
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", 19)
-	l.add_theme_color_override("font_color", Color(1, 0.95, 0.84))
-	l.add_theme_color_override("font_outline_color", Color(0.11, 0.06, 0.02))
-	l.add_theme_constant_override("outline_size", 8)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	holder.add_child(l)
-	return holder
+	return b
 
 
 ## Flotación y balanceo del logotipo. Se guardan para poder PARARLOS: si siguen
@@ -1007,7 +1269,9 @@ func _stop_logo_idle() -> void:
 func _make_mode_button(text: String, icon: String, height: int, font_size: int,
 		action: Callable) -> Button:
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(500, height)
+	# SIN ancho mínimo: el ancho lo manda el hueco del tablón del menú (con
+	# los 500 fijos de antes, los botones desbordaban el marco por la derecha).
+	b.custom_minimum_size = Vector2(0, height)
 	PrepBoard.skin_button(b)
 	b.pressed.connect(action)
 
@@ -1063,22 +1327,33 @@ func _make_mode_button(text: String, icon: String, height: int, font_size: int,
 ## (`_place_resources`). Si se los llevaba esta salida, los dos tweens peleaban
 ## por la misma propiedad y las cajas se quedaban a medio camino.
 func _ui_out(con_recursos := true) -> void:
-	_stop_logo_idle()
 	if ui_tween != null and ui_tween.is_valid():
 		ui_tween.kill()
-	# Sin rebote: con TRANS_BACK el logotipo primero baja un poco (la
-	# anticipación del easing) y parece que no llega a irse.
+	# (El logotipo ya no viaja con el menú: se quedó en la portada.)
 	ui_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_QUAD) \
 			.set_ease(Tween.EASE_IN)
-	ui_tween.tween_property(logo_holder, "position:y", -640.0, OUT_TIME)
-	ui_tween.tween_property(button_box, "position:y", home_box_y + 660.0, OUT_TIME)
-	# Los dos botones de esquina viven arriba: se van por el borde superior.
-	ui_tween.tween_property(medal_button, "position:y", home_medal_y + 260.0, OUT_TIME)
-	ui_tween.tween_property(gear_button, "position:y", home_gear_y + 260.0, OUT_TIME)
+	ui_tween.tween_property(menu_panel, "position:y", home_box_y + 660.0, OUT_TIME)
+	ui_tween.tween_property(submenu_bar, "position:y", home_sub_y + 260.0, OUT_TIME)
 	if con_recursos:
 		for caja in [ingot_box, money_box, rice_box]:
 			if caja != null:
 				ui_tween.tween_property(caja, "position:y", res_y - 220.0, OUT_TIME)
+
+
+## Nubes y gaviotas ENTRAN planeando desde arriba (ver `sky_drop`): sin esto
+## aparecían de golpe al llegar al menú.
+func _sky_in() -> void:
+	sky_leaving = false
+	sky_drop = 9.0
+	# RECOLOCAR ANTES DE ENCENDER (ver `_place_sky`): al revés se veían un
+	# fotograma en su posición vieja, el parpadeo.
+	_place_sky()
+	for b in birds:
+		b["node"].visible = true
+	for c in clouds:
+		c["node"].visible = true
+	create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT) \
+			.tween_property(self, "sky_drop", 0.0, 1.3)
 
 
 ## Nubes y gaviotas se van hacia arriba, fuera del encuadre.
@@ -1163,9 +1438,9 @@ func _back_to_menu() -> void:
 	get_tree().create_timer(dur * 0.55).timeout.connect(func() -> void:
 		leaving = false
 		# Gaviotas y nubes vuelven a colgar del barco (se habían apartado).
-		sky_leaving = false
 		_set_map_ui_visible(false)
 		_set_menu_ui_visible(true)
+		_sky_in()
 		# Los contadores DESANDAN el viaje: de los extremos del mapa al centro.
 		# Sin esto se quedaban donde los dejó Aventura.
 		_ui_in(false)
@@ -1230,6 +1505,414 @@ func _show_locked_notice(text: String) -> void:
 	tw.tween_interval(2.2)
 	tw.tween_property(panel, "modulate:a", 0.0, 0.4)
 	tw.tween_callback(panel.queue_free)
+
+
+## Icono y cifra de cada cosa que puede caer en un premio diario.
+const DAILY_ICONS: Dictionary = {
+	"money": "res://assets/ui/moneda.png",
+	"rice": "res://assets/ui/ic_arroz.png",
+	"ingots": "res://assets/ui/ic_lingote.png",
+	"extras": "res://assets/ingredients/jengibre.png",
+}
+
+## Los CUATRO estados del cofre. Los dos de "mapa" son el MISMO dibujo pasado a
+## tinta por `inkify` de tools/ui2_prep.py, no otro cofre: si el de hoy tuviera
+## otra silueta que sus vecinos, encenderse parecería cambiar de objeto.
+const DAILY_CHEST_TEX: Dictionary = {
+	"cerrado": "res://assets/ui/daily_cofre.png",
+	"abierto": "res://assets/ui/daily_cofre_abierto.png",
+	"mapa": "res://assets/ui/daily_cofre_mapa.png",
+	"mapa_abierto": "res://assets/ui/daily_cofre_mapa_abierto.png",
+}
+const DAILY_MAP_TEX := "res://assets/ui/daily_mapa.png"
+
+## El alto sale de sumar: 66 de aire + el mapa + el pie + el botón "Continuar".
+## Con 840 el pie caía ENCIMA del mapa, que no cabía por 20 px.
+const DAILY_PANEL := Vector2(640, 900)
+const DAILY_MAP := Vector2(500, 665)
+
+## Cartel del botín. Es más estrecho que el panel del mapa A PROPÓSITO: con 600
+## sobre 640 parecía un pergamino pegado sobre otro en vez de un cartel encima.
+const DAILY_REWARD_W := 560.0
+## Fichas por fila y alto de cada fila. `_daily_chip` mide DAILY_CHIP de ancho,
+## así que cuatro más sus separaciones (430) entran justas en el interior del
+## pergamino (560 - 2 x 54 = 452).
+const DAILY_CHIP := 100
+const DAILY_CHIPS_ROW := 4
+const DAILY_ROW_H := 142.0
+## Hueco de cada parada: el cofre se dibuja dentro con KEEP_ASPECT_CENTERED, así
+## que el cerrado (160x136) y el abierto (160x147) caben los dos sin saltar de
+## tamaño al abrirse.
+const DAILY_SPOT := Vector2(104, 96)
+
+## Los siete sitios de la ruta, en FRACCIONES del mapa. Suben desde abajo
+## repartidos a PARTES IGUALES por todo el alto (0.845 -> 0.135, un escalón de
+## 0.118 cada uno): la primera versión los amontonaba en el tercio de abajo y
+## dejaba la mitad de arriba vacía.
+##
+## El zigzag es AMPLIO por obligación, no por gusto. Con las siete alturas
+## repartidas quedan ~78 px entre filas y el hueco del cofre mide 96 de alto,
+## así que dos cofres seguidos SIEMPRE se solapan en vertical: lo único que los
+## separa es la horizontal, y ahí tienen que distanciarse más que el ancho del
+## hueco (104 px) o las cajas se pisan. Todos los saltos van de 110 px arriba.
+##
+## Dentro de eso, la columna de cada fila esquiva lo que el pergamino ya trae
+## dibujado: la rosa de los vientos arriba a la izquierda, la voluta de la
+## esquina superior derecha, el barco a media altura por la derecha, la isla de
+## la palmera por la izquierda, y la palmera y el peñasco de abajo.
+const DAILY_ROUTE: Array = [
+	Vector2(0.630, 0.845),
+	Vector2(0.390, 0.727),
+	Vector2(0.610, 0.608),
+	Vector2(0.370, 0.490),
+	Vector2(0.620, 0.372),
+	Vector2(0.320, 0.253),
+	Vector2(0.540, 0.135),
+]
+
+## La tinta del propio pergamino, para que la ruta se lea como parte del mapa.
+const DAILY_INK := Color(0.37, 0.24, 0.14)
+const DAILY_DOT := 3.0
+const DAILY_DOT_STEP := 15.0
+## La raya se recorta por los dos extremos: sin esto los primeros puntos se
+## meten debajo del cofre y la ruta parece salir de su tapa.
+const DAILY_ROUTE_GAP := 44.0
+
+
+## Ruta de puntos entre las siete paradas, pintada por código y no en la
+## textura: es la única forma de que los cofres caigan CLAVADOS sobre la línea
+## (con la ruta dibujada en el mapa, cualquier retoque del encuadre la
+## descoloca). Mismo criterio que la barra de progreso o las chapas.
+func _draw_daily_route(c: Control) -> void:
+	var puntos: Array[Vector2] = []
+	for f in DAILY_ROUTE:
+		puntos.append((f as Vector2) * DAILY_MAP)
+	for i in range(puntos.size() - 1):
+		var a: Vector2 = puntos[i]
+		var b: Vector2 = puntos[i + 1]
+		var largo := a.distance_to(b)
+		if largo <= DAILY_ROUTE_GAP * 2.0:
+			continue
+		var dir := (b - a) / largo
+		var d := DAILY_ROUTE_GAP
+		while d < largo - DAILY_ROUTE_GAP:
+			c.draw_circle(a + dir * d, DAILY_DOT, DAILY_INK)
+			d += DAILY_DOT_STEP
+
+
+## Cartel del BONUS DIARIO: un mapa del tesoro con los siete días. Los días
+## pasados salen con el cofre ABIERTO y los que faltan CERRADO, los dos
+## dibujados a tinta como parte del mapa; el de hoy es el único a COLOR y se
+## mece esperando que lo abran.
+##
+## A diferencia de la versión anterior, el premio NO se cobra al abrir el
+## cartel: se cobra al TOCAR el cofre. Por eso el cartel no se puede cerrar
+## hasta entonces (no hay X ni toque fuera), o sería posible saltárselo sin
+## querer y perder el día.
+func _show_daily() -> void:
+	var dia := GameState.daily_next_day()
+
+	# Velo a pantalla completa: oscurece el menú y, sobre todo, se traga los
+	# toques. Sin él los botones de detrás siguen respondiendo y se puede
+	# navegar fuera con el cofre a medio abrir.
+	var velo := ColorRect.new()
+	velo.color = Color(0, 0, 0, 0.55)
+	velo.size = GameState.canvas_size()
+	velo.mouse_filter = Control.MOUSE_FILTER_STOP
+	ui_layer.add_child(velo)
+
+	var panel := Control.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.offset_left = -DAILY_PANEL.x * 0.5
+	panel.offset_top = -DAILY_PANEL.y * 0.5
+	panel.offset_right = DAILY_PANEL.x * 0.5
+	panel.offset_bottom = DAILY_PANEL.y * 0.5
+	panel.pivot_offset = DAILY_PANEL * 0.5
+	velo.add_child(panel)
+	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
+		PrepBoard.PANEL_MARGIN))
+	# El rótulo sale DESDE UN LAZO: la cinta del juego cabalgando sobre el canto
+	# superior del pergamino, que es justo lo que hace `add_panel_banner`.
+	PrepBoard.add_panel_banner(panel, "Bonus diario", 36, 20.0)
+
+	var mapa := TextureRect.new()
+	mapa.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	mapa.stretch_mode = TextureRect.STRETCH_SCALE
+	mapa.texture = load(DAILY_MAP_TEX)
+	mapa.position = Vector2((DAILY_PANEL.x - DAILY_MAP.x) * 0.5, 66.0)
+	mapa.size = DAILY_MAP
+	mapa.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(mapa)
+
+	var ruta := Control.new()
+	ruta.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ruta.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mapa.add_child(ruta)
+	ruta.draw.connect(_draw_daily_route.bind(ruta))
+
+	var pie := Label.new()
+	pie.text = "Toca el cofre para abrirlo"
+	pie.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	pie.offset_left = 44.0
+	pie.offset_right = -44.0
+	# Sitio FIJO para los dos textos (el de antes de abrir y el de después): si
+	# el pie se moviera al cobrar, el cartel daría un salto justo cuando el
+	# jugador está mirando el botín.
+	pie.offset_top = -150.0
+	pie.offset_bottom = -104.0
+	pie.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pie.add_theme_font_size_override("font_size", 24)
+	pie.add_theme_color_override("font_color", Color(0.42, 0.28, 0.14))
+	panel.add_child(pie)
+
+	for n in range(1, DailyData.day_count() + 1):
+		var caja := Control.new()
+		caja.size = DAILY_SPOT
+		caja.position = (DAILY_ROUTE[n - 1] as Vector2) * DAILY_MAP \
+				- DAILY_SPOT * 0.5
+		# El pivote va en la BASE, no en el centro: así el cofre se mece como
+		# algo apoyado en el suelo en vez de girar sobre su ombligo.
+		caja.pivot_offset = Vector2(DAILY_SPOT.x * 0.5, DAILY_SPOT.y)
+		caja.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mapa.add_child(caja)
+
+		var cofre := TextureRect.new()
+		cofre.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		cofre.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		cofre.set_anchors_preset(Control.PRESET_FULL_RECT)
+		cofre.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var estado := "mapa"
+		if n < dia:
+			estado = "mapa_abierto"
+		elif n == dia:
+			estado = "cerrado"
+		cofre.texture = load(DAILY_CHEST_TEX[estado])
+		caja.add_child(cofre)
+
+		var num := Label.new()
+		num.text = "%d" % n
+		num.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		num.offset_top = -6.0
+		num.offset_bottom = 30.0
+		num.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		num.add_theme_font_size_override("font_size", 22)
+		num.add_theme_color_override("font_color", DAILY_INK)
+		# Contorno CREMA: los números de abajo caen sobre la arena y el peñasco
+		# que el pergamino trae dibujados, y en marrón sobre marrón no se leían.
+		num.add_theme_color_override("font_outline_color", Color(0.98, 0.94, 0.84))
+		num.add_theme_constant_override("outline_size", 6)
+		num.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		caja.add_child(num)
+
+		if n != dia:
+			continue
+		# El cofre de HOY: se mece esperando y es lo único que se puede tocar.
+		caja.mouse_filter = Control.MOUSE_FILTER_STOP
+		var mecer := caja.create_tween().set_loops()
+		mecer.tween_property(caja, "rotation", 0.10, 0.55) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		mecer.tween_property(caja, "rotation", -0.10, 0.55) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		var hecho := { "on": false }
+		caja.gui_input.connect(func(e: InputEvent) -> void:
+			if not (e is InputEventScreenTouch and e.pressed) or hecho["on"]:
+				return
+			hecho["on"] = true
+			mecer.kill()
+			_open_daily_chest(velo, panel, caja, cofre, pie))
+
+	velo.modulate.a = 0.0
+	panel.scale = Vector2(0.7, 0.7)
+	var tw := velo.create_tween()
+	tw.tween_property(velo, "modulate:a", 1.0, 0.22)
+	tw.parallel().tween_property(panel, "scale", Vector2.ONE, 0.34) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+## El cofre de hoy se abre: cobra el premio, cambia al cofre abierto con un
+## bote, suelta unas monedas y saca el cartel del botín.
+func _open_daily_chest(velo: Control, panel: Control, caja: Control,
+		cofre: TextureRect, pie: Label) -> void:
+	caja.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var dado := GameState.claim_daily()
+	# El monedero y el arroz de la cabecera ya no valen: se repintan aquí, con
+	# el premio cobrado, y no al cerrar el cartel.
+	_refresh_resources()
+	pie.text = ""
+
+	var tw := caja.create_tween()
+	tw.tween_property(caja, "rotation", 0.0, 0.10)
+	tw.parallel().tween_property(caja, "scale", Vector2(1.28, 1.28), 0.16) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_callback(func() -> void:
+		cofre.texture = load(DAILY_CHEST_TEX["abierto"])
+		_daily_coin_burst(caja))
+	tw.tween_property(caja, "scale", Vector2.ONE, 0.26) \
+			.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.18)
+	tw.tween_callback(func() -> void: _show_daily_reward(dado, velo, panel, pie))
+
+
+## Puñado de monedas saliendo del cofre al abrirlo.
+func _daily_coin_burst(caja: Control) -> void:
+	var moneda: Texture2D = load("res://assets/ui/moneda.png")
+	for i in range(9):
+		var m := TextureRect.new()
+		m.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		m.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		m.texture = moneda
+		m.size = Vector2(30, 30)
+		m.position = Vector2(DAILY_SPOT.x * 0.5 - 15.0, 22.0)
+		m.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		caja.add_child(m)
+		var lado := (float(i) / 8.0 - 0.5) * 120.0
+		var alto := -70.0 - randf() * 46.0
+		var t := m.create_tween()
+		t.tween_property(m, "position", m.position + Vector2(lado, alto), 0.34) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		t.tween_property(m, "position", m.position + Vector2(lado * 1.35, 40.0),
+				0.42).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		t.parallel().tween_property(m, "modulate:a", 0.0, 0.42)
+		t.tween_callback(m.queue_free)
+
+
+## Segundo cartel: TODO lo que ha soltado el cofre, en fichas de icono + cifra.
+func _show_daily_reward(dado: Dictionary, velo: Control, panel: Control,
+		pie: Label) -> void:
+	var fichas: Array[Control] = []
+	for clave in ["money", "rice", "ingots", "extras"]:
+		if not dado.has(clave):
+			continue
+		fichas.append(_daily_chip(load(DAILY_ICONS[clave]),
+			"x%d" % int(dado[clave])))
+	for k in dado.get("ingredients", {}):
+		fichas.append(_daily_chip(RecipeData.get_ingredient_texture(str(k)),
+			"x%d" % int(dado["ingredients"][k])))
+	if dado.has("recipe"):
+		fichas.append(_daily_chip(RecipeData.get_dish_texture(str(dado["recipe"])),
+			str(RecipeData.get_recipe(str(dado["recipe"])).get("name", ""))))
+
+	# El cartel CRECE con lo que haya caído: el día 3 son dos fichas y el 7 son
+	# siete. Con alto fijo, los días flojos salían con medio pergamino vacío.
+	var filas: int = maxi(1, ceili(float(fichas.size()) / DAILY_CHIPS_ROW))
+	var alto := 96.0 + filas * DAILY_ROW_H + 112.0
+	var caja := Control.new()
+	caja.set_anchors_preset(Control.PRESET_CENTER)
+	caja.offset_left = -DAILY_REWARD_W * 0.5
+	caja.offset_top = -alto * 0.5
+	caja.offset_right = DAILY_REWARD_W * 0.5
+	caja.offset_bottom = alto * 0.5
+	caja.pivot_offset = Vector2(DAILY_REWARD_W * 0.5, alto * 0.5)
+	caja.mouse_filter = Control.MOUSE_FILTER_STOP
+	velo.add_child(caja)
+	caja.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
+		PrepBoard.PANEL_MARGIN))
+	var dia := int(dado.get("day", 1))
+	PrepBoard.add_panel_banner(caja, "¡Día %d seguido!" % dia, 32, 20.0)
+
+	# El mapa se queda atenuado detrás mientras se lee el botín: sin esto los
+	# dos pergaminos pesan igual y no se sabe cuál manda.
+	panel.modulate = Color(0.5, 0.5, 0.5)
+
+	# HFlowContainer y no HBox: el día 7 suelta SIETE fichas y en una sola fila
+	# se salen del pergamino.
+	var fila := HFlowContainer.new()
+	fila.alignment = FlowContainer.ALIGNMENT_CENTER
+	fila.add_theme_constant_override("h_separation", 10)
+	fila.add_theme_constant_override("v_separation", 6)
+	fila.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fila.offset_left = 46.0
+	fila.offset_right = -46.0
+	fila.offset_top = 92.0
+	fila.offset_bottom = -108.0
+	caja.add_child(fila)
+	for f in fichas:
+		fila.add_child(f)
+
+	var seguir := Button.new()
+	seguir.text = "¡Genial!"
+	seguir.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	seguir.offset_left = 150.0
+	seguir.offset_right = -150.0
+	seguir.offset_top = -92.0
+	seguir.offset_bottom = -26.0
+	PrepBoard.skin_button(seguir)
+	seguir.add_theme_font_size_override("font_size", 30)
+	caja.add_child(seguir)
+
+	caja.scale = Vector2(0.6, 0.6)
+	caja.modulate.a = 0.0
+	var tw := caja.create_tween()
+	tw.tween_property(caja, "scale", Vector2.ONE, 0.3) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(caja, "modulate:a", 1.0, 0.2)
+	for f in fichas:
+		f.pivot_offset = Vector2(DAILY_CHIP * 0.5, 60)
+		f.scale = Vector2(0.4, 0.4)
+		f.modulate.a = 0.0
+		tw.tween_property(f, "modulate:a", 1.0, 0.12)
+		tw.parallel().tween_property(f, "scale", Vector2.ONE, 0.26) \
+				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+	seguir.pressed.connect(func() -> void:
+		var out := caja.create_tween().set_parallel(true)
+		out.tween_property(caja, "scale", Vector2(0.72, 0.72), 0.2) \
+				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+		out.tween_property(caja, "modulate:a", 0.0, 0.2)
+		# Al cerrar el botín se vuelve al mapa, con el cofre de hoy ya abierto:
+		# es la foto que se lleva el jugador de por dónde va la racha.
+		out.chain().tween_callback(caja.queue_free)
+		out.chain().tween_callback(func() -> void: _daily_done(velo, panel, pie)))
+
+
+## Cerrado el botín: el mapa se queda con el cofre abierto y aparece el botón
+## de salir, que hasta ahora no existía a propósito.
+func _daily_done(velo: Control, panel: Control, pie: Label) -> void:
+	panel.modulate = Color.WHITE
+	var ultimo := GameState.daily_day >= DailyData.day_count()
+	pie.text = "¡Racha completa! Mañana vuelve a empezar." if ultimo \
+			else "¡Vuelve mañana para seguir la racha!"
+
+	var salir := Button.new()
+	salir.text = "Continuar"
+	salir.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	salir.offset_left = 170.0
+	salir.offset_right = -170.0
+	salir.offset_top = -92.0
+	salir.offset_bottom = -26.0
+	PrepBoard.skin_button(salir)
+	salir.add_theme_font_size_override("font_size", 30)
+	panel.add_child(salir)
+	salir.modulate.a = 0.0
+	salir.create_tween().tween_property(salir, "modulate:a", 1.0, 0.24)
+
+	salir.pressed.connect(func() -> void:
+		salir.disabled = true
+		var out := velo.create_tween().set_parallel(true)
+		out.tween_property(panel, "scale", Vector2(0.76, 0.76), 0.22) \
+				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+		out.tween_property(velo, "modulate:a", 0.0, 0.24)
+		out.chain().tween_callback(velo.queue_free))
+
+
+## Una ficha del cartel diario: dibujo arriba y cantidad debajo.
+func _daily_chip(tex: Texture2D, texto: String) -> Control:
+	var caja := VBoxContainer.new()
+	caja.custom_minimum_size = Vector2(DAILY_CHIP, 0)
+	var ic := TextureRect.new()
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.texture = tex
+	ic.custom_minimum_size = Vector2(DAILY_CHIP - 8, 96)
+	caja.add_child(ic)
+	var l := Label.new()
+	l.text = texto
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.add_theme_font_size_override("font_size", 20)
+	l.add_theme_color_override("font_color", Color(0.26, 0.16, 0.08))
+	caja.add_child(l)
+	return caja
 
 
 ## RECETAS NUEVAS: al volver de un nivel (o del tutorial) el menú las anuncia
@@ -1378,6 +2061,14 @@ func _go_options() -> void:
 	_leave_to("res://scenes/options_screen.tscn")
 
 
+func _go_profile() -> void:
+	_leave_to("res://scenes/profile_screen.tscn")
+
+
+func _go_perks() -> void:
+	_leave_to("res://scenes/perks_screen.tscn")
+
+
 func _leave_to(path: String) -> void:
 	if leaving:
 		return
@@ -1406,38 +2097,29 @@ func _go_inventory() -> void:
 ## `con_recursos` a false deja quietos los contadores: al volver del mapa los
 ## mueve `_place_resources`, y si los tocan los dos pelean por `position`.
 func _ui_in(con_recursos := true) -> void:
-	# El balanceo del logotipo arranca AL FINAL y con un temporizador aparte:
-	# encadenarlo al mismo tween que la entrada (que va en paralelo) hacía que
-	# los dos pelearan por position:y y el logotipo se quedaba a medio camino.
-	_stop_logo_idle()
 	if ui_tween != null and ui_tween.is_valid():
 		ui_tween.kill()
-	logo_holder.position.y = -640.0
-	button_box.position.y = home_box_y + 660.0
-	medal_button.position.y = home_medal_y + 260.0
-	gear_button.position.y = home_gear_y + 260.0
+	menu_panel.position.y = home_box_y + 660.0
+	submenu_bar.position.y = home_sub_y + 260.0
 	if con_recursos:
 		for caja in [ingot_box, money_box, rice_box]:
 			if caja != null:
 				caja.position.y = res_y - 220.0
 	ui_tween = create_tween().set_parallel(true)
-	ui_tween.tween_property(medal_button, "position:y", home_medal_y, 0.55) \
-			.set_delay(0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	ui_tween.tween_property(gear_button, "position:y", home_gear_y, 0.55) \
-			.set_delay(0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	ui_tween.tween_property(logo_holder, "position:y", home_logo_y, 0.6) 			.set_delay(0.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	ui_tween.tween_property(button_box, "position:y", home_box_y, 0.6) 			.set_delay(0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	ui_tween.tween_property(submenu_bar, "position:y", home_sub_y, 0.55) \
+			.set_delay(0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	ui_tween.tween_property(menu_panel, "position:y", home_box_y, 0.6) 			.set_delay(0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	if con_recursos:
 		for caja in [ingot_box, money_box, rice_box]:
 			if caja != null:
 				ui_tween.tween_property(caja, "position:y", res_y, 0.55) 						.set_delay(0.15).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	get_tree().create_timer(1.0).timeout.connect(_start_logo_idle)
 
 
 ## Entrada del menú viniendo de otra pantalla: el barco llega navegando desde
 ## la IZQUIERDA hasta su fondeadero y la interfaz baja detrás.
 func _play_menu_intro() -> void:
 	_set_menu_ui_visible(true)
+	_sky_in()
 	ship_px = MENU_ANCHOR - Vector2(OFFSCREEN, 0.0)
 	create_tween().tween_property(self, "ship_px", MENU_ANCHOR, 0.95) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)

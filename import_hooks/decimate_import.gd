@@ -23,6 +23,7 @@ extends EditorScenePostImport
 const BUDGETS := {
 	# Atrezzo estático, se ve a pocos píxeles desde la cámara isométrica.
 	"caja": 800,
+	"farola": 900,
 	"cofre": 900,
 	# Platos: los otros diez rondan 2.400, estos venían a 29.500.
 	"futomaki_salmon": 2500,
