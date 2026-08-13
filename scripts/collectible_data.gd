@@ -86,17 +86,17 @@ const ITEMS: Array = [
 	},
 	{ "id": "pendientes_espadachin", "name": "Pendientes de espadachín",
 		"desc": "" },
-	{ "id": "naranja", "name": "Naranja", "desc": "" },
-	{ "id": "tirachinas", "name": "Tirachinas", "desc": "" },
-	{ "id": "sarten", "name": "Sartén", "desc": "" },
+	{ "id": "naranja", "name": "Naranja robada", "desc": "" },
+	{ "id": "tirachinas", "name": "Tirachinas de mentira", "desc": "" },
+	{ "id": "sarten", "name": "Sartén de cocina", "desc": "" },
 	# --- Zelda (el triángulo cierra la vitrina) ------------------------------
-	{ "id": "vela", "name": "Vela de barco", "desc": "" },
+	{ "id": "vela", "name": "Vela de mascarón", "desc": "" },
 	{ "id": "semilla_dorada", "name": "Semilla dorada", "desc": "" },
 	{ "id": "reloj_arena", "name": "Reloj de arena", "desc": "" },
-	{ "id": "mascara_zora", "name": "Máscara Zora", "desc": "" },
+	{ "id": "mascara_zora", "name": "Máscara de raza marina", "desc": "" },
 	{
-		"id": "trifuerza", "name": "Triángulo dorado",
-		"desc": "Reúne los %d fragmentos del triángulo dorado." % TRIFORCE_PIECES,
+		"id": "trifuerza", "name": "Tripuerca de Oro",
+		"desc": "Reúne los %d fragmentos de la Tripuerca de Oro." % TRIFORCE_PIECES,
 	},
 ]
 
