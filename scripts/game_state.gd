@@ -802,16 +802,22 @@ func get_stat(id: String) -> int:
 
 
 ## Suma al contador (platos hechos, clientes servidos, doblones gastados...).
+## EN EL TUTORIAL NO SE CUENTA NADA: ni platos, ni clientes, ni propinas suman
+## a las estadísticas ni, por tanto, a los logros. El tutorial es la clase de
+## David, no una partida — y como este es el único embudo por el que entran
+## las estadísticas, el corte aquí cubre todos los orígenes de golpe.
 func bump_stat(id: String, amount := 1) -> void:
-	if amount == 0:
+	if amount == 0 or is_tutorial():
 		return
 	stats[id] = get_stat(id) + amount
 	queue_achievement_check()
 
 
 ## Guarda un RÉCORD: solo se queda si supera al anterior (mejor partida, platos
-## de un mismo cliente...).
+## de un mismo cliente...). En el tutorial tampoco cuenta (ver bump_stat).
 func max_stat(id: String, value: int) -> void:
+	if is_tutorial():
+		return
 	if value > get_stat(id):
 		stats[id] = value
 		queue_achievement_check()
@@ -839,8 +845,13 @@ func play_time_text() -> String:
 	return "%d h %d min" % [h, m]
 
 
-## Marca que hoy se ha jugado (para el logro de días distintos).
+## Marca que hoy se ha jugado (para el logro de días distintos). En el
+## tutorial se sale ANTES de tocar `last_day`: si se apuntara la fecha aquí
+## (escribe el diccionario directo, sin pasar por bump_stat), la primera
+## partida DE VERDAD de ese mismo día ya no sumaría su día jugado.
 func mark_day_played() -> void:
+	if is_tutorial():
+		return
 	var today := _today()
 	if str(stats.get("last_day", "")) == today:
 		return

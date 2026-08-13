@@ -519,7 +519,9 @@ COLLECTIBLES = [
     "sombrero_paja", "bandera", "botella", "mapa_tesoro", "cartel_recompensa",
     "catalejo", "tricornio", "panuelo", "garfio", "parche", "canon", "ancla",
     "pistola", "espada", "brujula", "pluma_loro", "pluma_escribir", "barril",
-    "tentaculo", "vela", "trifuerza",
+    "tentaculo", "vela", "trifuerza", "hueso", "calavera", "pata_palo",
+    "perla_negra", "bala_canon", "moneda_azteca", "naranja", "tirachinas",
+    "sarten",
 ]
 
 

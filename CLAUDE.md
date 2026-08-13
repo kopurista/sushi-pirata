@@ -452,6 +452,11 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   bebe de `derived:coleccion` y **su meta de ORO tiene que ser el tamaño del
   catálogo de coleccionables**: al añadir uno, subirla con él.
 - **LOGROS: aviso, globo y reclamo** (montado con los coleccionables):
+  · **EL TUTORIAL NO CUENTA**: `bump_stat`/`max_stat` (y `mark_day_played`)
+    salen sin apuntar nada con `is_tutorial()` — la clase de David no suma
+    platos, clientes ni días a las estadísticas ni a los logros. Es el ÚNICO
+    embudo por el que entran las estadísticas, así que el corte ahí cubre
+    level3d, prep_board, extras y todo lo demás de golpe.
   · La DETECCIÓN vive en `GameState._run_achievement_check`, que programa
     `queue_achievement_check()` en DIFERIDO tras cada `bump_stat`/`max_stat`
     (una ráfaga de platos en el mismo fotograma cuesta UNA pasada). Compara lo
@@ -471,7 +476,7 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     conseguido (nada de un aluvión de toasts al arrancar), pero `claimed`
     queda vacío → todo lo ganado hasta hoy se puede reclamar del tirón.
     Asumido: es el mismo criterio retroactivo de los logros.
-- `scripts/collectible_data.gd` — catálogo de COLECCIONABLES (23, solo datos:
+- `scripts/collectible_data.gd` — catálogo de COLECCIONABLES (32, solo datos:
   id, nombre, `desc` = cómo se consigue, que SOLO se enseña ya conseguido).
   No dan ni hacen nada: son para coleccionar (y para el logro "coleccion").
   El desbloqueo va SIEMPRE por `GameState.unlock_collectible(id)`, que anuncia
@@ -488,8 +493,10 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     se comprueban al principio de `_run_achievement_check`.
   · **Sin disparador todavía**: botella (minijuego de pesca futuro), catalejo,
     tricornio, pañuelo, garfio, parche, cañón, ancla, pistola, espada,
-    brújula, cofre, plumas, barril, tentáculo y vela — quedan bloqueados y su
-    `desc` genérica hasta que se decida su mecánica.
+    brújula, cofre, plumas, barril, tentáculo, vela, hueso, calavera, pata de
+    palo, perla negra (guiño a Piratas del Caribe), bala de cañón, moneda
+    azteca (el oro maldito), naranja, tirachinas y sartén — quedan bloqueados
+    y su `desc` genérica hasta que se decida su mecánica.
   · **Triángulo dorado**: 8 fragmentos (`GameState.add_triforce_piece`, sin
     fuente todavía); al octavo se junta en UN coleccionable y regala 3
     doblones. La vitrina enseña "n/8" sobre su silueta si hay alguno.
@@ -499,9 +506,12 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     separados por grietas). `timon` y `cofre` REUTILIZAN `timon.png` y
     `daily_cofre.png`, que ya son ese mismo objeto en el juego. **La VELA es
     la referencia a Wind Waker**: pedir "triangular sail" a Ludo da velas de
-    CUATRO esquinas; lo que funcionó fue describirla como banderín de TRES
-    vértices ("borde horizontal arriba, dos lados convergiendo a UN punto
-    abajo").
+    CUATRO esquinas. Lo que acabó clavando la referencia fue describir la
+    SILUETA pieza a pieza (pico arriba con parche rojo y ojal, costura
+    horizontal cerca del pico con su parche en el extremo, esquina roja
+    abajo-izquierda y punta LARGA saliendo por abajo-derecha) y el emblema
+    como DOS formas verdes separadas (medialuna arriba + ola que se enrosca
+    en espiral debajo), con el círculo crema pálido detrás.
   · La pestaña **Colección** del inventario es la vitrina: rejilla de 4, los
     bloqueados en SILUETA oscura con "???" y sin ninguna pista, los
     conseguidos abren su ficha al tocarlos.
