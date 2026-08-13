@@ -491,10 +491,23 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     `glb_prepare` → presupuesto 900 en `decimate_import`).
 - **CARTEL DE RECOMPENSA** (`scripts/wanted_poster.gd`, `WantedPoster`): la
   ficha del jugador y el único sitio donde se elige quién es. Lo usan la
-  bienvenida de David (con el nombre escribible) y **Opciones → Perfil** (sin
-  nombre, con selector de título). La "foto" es el MODELO 3D vivo en un
-  SubViewport con `own_world_3d`, y las flechas cambian de personaje.
-  Nada toca `GameState` hasta `aplicar()`.
+  bienvenida de David (con el nombre escribible, anclada ARRIBA) y la pantalla
+  **Perfil** del submenú (`profile_screen`, nombre bloqueado). La "foto" es el
+  MODELO 3D vivo en un SubViewport con `own_world_3d`, y las flechas cambian
+  de personaje. Nada toca `GameState` hasta `aplicar()`.
+  El SUBTÍTULO y su selector se RETIRARON (los títulos de `title_data.gd`
+  siguen en datos, sin interfaz); el nombre va CENTRADO a cuerpo 50 en
+  Exo2-Bold sobre una LÍNEA DE ESCRITURA a tinta con una pluma latiendo en la
+  punta — la señal de "aquí se escribe", solo con el nombre editable. El campo
+  lleva `select_all_on_focus`: llega prerrelleno y sin eso el toque dejaba el
+  cursor EN MEDIO y lo tecleado se incrustaba ("Kopu" -> "KoAnapu") hasta el
+  tope de 14 letras — se vivía como "no me deja escribir otro nombre". Y
+  `panel_size` suma el marco del tablón TAMBIÉN POR ABAJO, o las empuñaduras
+  de las manos caían encima del canto dibujado.
+  **OJO al parchear este repo con Python**: `CLAUDE.md` y varios scripts
+  guardan CRLF y un `replace` multilínea con `\n` a secas FALLA EN SILENCIO
+  (pasó varias veces en una misma sesión); los cambios multilínea van con la
+  herramienta Edit, que compara con el archivo real.
   Cosas que ya se pagaron ahí:
   · **Los chefs vienen NORMALIZADOS Y CENTRADOS EN EL ORIGEN** (1.0 de alto, de
     y=-0.5 a y=+0.5), no de pie sobre el suelo. Con la cámara puesta a ojo "a la
