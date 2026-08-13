@@ -141,6 +141,14 @@ var shop_day: String = ""
 ## del último cobro. Con `daily_day` a 0 no se ha cobrado ninguno todavía.
 var daily_day: int = 0
 var daily_last: String = ""
+## COLECCIONABLES conseguidos (ids de CollectibleData) y fragmentos sueltos del
+## triángulo dorado (a CollectibleData.TRIFORCE_PIECES se juntan en uno).
+var collectibles: Array[String] = []
+var triforce_pieces: int = 0
+## LOGROS: medallas ya RECLAMADAS (id -> 0..3) y ya ANUNCIADAS con su toast
+## (id -> 0..3). Lo CONSEGUIDO no se guarda: se deduce siempre de `stats`.
+var claimed_medals: Dictionary = {}
+var seen_medals: Dictionary = {}
 ## Contadores de toda la vida del jugador, de los que salen los LOGROS
 ## (ver achievement_data.gd). Clave -> entero. Los que empiezan por "best_"
 ## guardan un máximo, el resto se acumulan.
@@ -572,6 +580,9 @@ func claim_daily() -> Dictionary:
 			add_ingredient_uses(str(k), int(ings[k]))
 		dado["ingredients"] = ings
 	save_game()
+	# COLECCIONABLE "mapa del tesoro": completar los 7 días de la racha.
+	if n >= DailyData.day_count():
+		unlock_collectible("mapa_tesoro")
 	return dado
 
 
@@ -760,6 +771,9 @@ func complete_port(port_id: String, stars: int) -> Array:
 	# Premio de las TRES estrellas, aparte y solo la primera vez que se sacan.
 	# Va por separado del anterior a propósito: se puede aprobar hoy con 2 y
 	# volver mañana, con mejor carta, a por las 3.
+	# COLECCIONABLE "bandera pirata": un ABORDAJE superado con las 3 estrellas.
+	if stars >= 3 and CampaignData.get_kind(port_id) == "abordaje":
+		unlock_collectible("bandera")
 	if stars >= 3 and prev_best < 3:
 		for r in port.get("reward_recipes_3", []):
 			if unlock_recipe(r):
@@ -792,6 +806,7 @@ func bump_stat(id: String, amount := 1) -> void:
 	if amount == 0:
 		return
 	stats[id] = get_stat(id) + amount
+	queue_achievement_check()
 
 
 ## Guarda un RÉCORD: solo se queda si supera al anterior (mejor partida, platos
@@ -799,6 +814,7 @@ func bump_stat(id: String, amount := 1) -> void:
 func max_stat(id: String, value: int) -> void:
 	if value > get_stat(id):
 		stats[id] = value
+		queue_achievement_check()
 
 
 ## Segundos JUGADOS: los suma `level3d` mientras hay partida (aventura y
@@ -857,7 +873,132 @@ func achievement_value(a: Dictionary) -> int:
 			return done
 		"derived:recetas":
 			return unlocked_recipes.size()
+		"derived:coleccion":
+			return collectibles.size()
 	return get_stat(key)
+
+
+# --- Notificaciones, coleccionables y reclamo de logros ---------------------
+
+## Doblones por medalla reclamada: bronce, plata, oro.
+const MEDAL_REWARDS := [25, 50, 100]
+## El coleccionable "cartel de recompensa" cae al llegar a este botín de vida.
+const CARTEL_BOUNTY := 1000000
+## Vueltas al timón del menú que piden el coleccionable "timón".
+const HELM_TURNS_GOAL := 5
+
+## La capa de avisos (toasts de logro y ventanas de coleccionable) cuelga del
+## autoload, como el velo de los fundidos: sobrevive a los cambios de escena.
+var _notices: NoticeLayer = null
+var _ach_check_queued := false
+
+
+func _ensure_notices() -> NoticeLayer:
+	if _notices == null or not is_instance_valid(_notices):
+		_notices = NoticeLayer.new()
+		add_child(_notices)
+	return _notices
+
+
+func has_collectible(id: String) -> bool:
+	return id in collectibles
+
+
+## Desbloquea un coleccionable, lo ANUNCIA con su ventana y guarda. Devuelve
+## true si era nuevo. `extra` añade un renglón al anuncio (el regalo del
+## triángulo dorado).
+func unlock_collectible(id: String, extra := "") -> bool:
+	if id in collectibles or CollectibleData.get_item(id).is_empty():
+		return false
+	collectibles.append(id)
+	save_game()
+	_ensure_notices().announce_collectible(id, extra)
+	# El logro de coleccionista bebe de aquí ("derived:coleccion").
+	queue_achievement_check()
+	return true
+
+
+## Un fragmento del TRIÁNGULO DORADO. Los 8 se juntan en UN coleccionable y
+## regalan CollectibleData.TRIFORCE_REWARD doblones.
+func add_triforce_piece(n := 1) -> void:
+	if has_collectible("trifuerza"):
+		return
+	triforce_pieces = mini(triforce_pieces + n, CollectibleData.TRIFORCE_PIECES)
+	if triforce_pieces >= CollectibleData.TRIFORCE_PIECES:
+		money += CollectibleData.TRIFORCE_REWARD
+		unlock_collectible("trifuerza", "¡Los %d fragmentos se unen! +%d doblones"
+			% [CollectibleData.TRIFORCE_PIECES, CollectibleData.TRIFORCE_REWARD])
+	else:
+		save_game()
+
+
+## Programa una pasada de detección para el final del fotograma. Se llama tras
+## cada bump/max de estadística: así una ráfaga de platos cobrados en el mismo
+## fotograma solo cuesta UNA revisión del catálogo.
+func queue_achievement_check() -> void:
+	if _ach_check_queued:
+		return
+	_ach_check_queued = true
+	call_deferred("_run_achievement_check")
+
+
+func _run_achievement_check() -> void:
+	_ach_check_queued = false
+	# Coleccionables que dependen de una ESTADÍSTICA.
+	if get_stat("helm_turns") >= HELM_TURNS_GOAL:
+		unlock_collectible("timon")
+	if get_stat("fed_sombrero") >= 20:
+		unlock_collectible("sombrero_paja")
+	if bounty() >= CARTEL_BOUNTY:
+		unlock_collectible("cartel_recompensa")
+	# Medallas nuevas desde la última pasada: un toast por medalla. NO se
+	# guarda aquí a propósito (`seen_medals` viaja con el siguiente save
+	# natural): guardar a disco en mitad de una partida daría un tirón.
+	for a in AchievementData.all():
+		var id := str(a["id"])
+		var earned := AchievementData.medal_for(a, achievement_value(a))
+		var seen := int(seen_medals.get(id, 0))
+		if earned <= seen:
+			continue
+		seen_medals[id] = earned
+		for tier in range(seen + 1, earned + 1):
+			_ensure_notices().toast_achievement(load("res://assets/ui/moneda.png"),
+				AchievementData.MEDAL_COLORS[tier - 1],
+				"¡Logro: medalla de %s!" % AchievementData.MEDAL_NAMES[tier - 1].to_lower(),
+				str(a["name"]))
+
+
+## Medallas conseguidas y aún sin reclamar: el número del globo rojo del menú.
+func unclaimed_medals() -> int:
+	var n := 0
+	for a in AchievementData.all():
+		var earned := AchievementData.medal_for(a, achievement_value(a))
+		n += maxi(earned - int(claimed_medals.get(str(a["id"]), 0)), 0)
+	return n
+
+
+## Cobra TODAS las medallas pendientes (MEDAL_REWARDS por metal). Si de un
+## mismo logro hay bronce y plata sin reclamar, caen las dos de golpe.
+## Devuelve { total, bronce, plata, oro }; total 0 si no había nada.
+func claim_achievement_rewards() -> Dictionary:
+	var out := { "total": 0, "bronce": 0, "plata": 0, "oro": 0 }
+	for a in AchievementData.all():
+		var id := str(a["id"])
+		var earned := AchievementData.medal_for(a, achievement_value(a))
+		var claimed := int(claimed_medals.get(id, 0))
+		if earned <= claimed:
+			continue
+		for tier in range(claimed + 1, earned + 1):
+			out["total"] = int(out["total"]) + int(MEDAL_REWARDS[tier - 1])
+			var metal := str(AchievementData.MEDALS[tier - 1])
+			out[metal] = int(out[metal]) + 1
+		claimed_medals[id] = earned
+		# Reclamado implica visto: que el toast no anuncie lo ya cobrado.
+		seen_medals[id] = maxi(int(seen_medals.get(id, 0)), earned)
+	if int(out["total"]) > 0:
+		money += int(out["total"])
+		save_game()
+	return out
 
 
 ## Recuento de medallas de todo el catálogo, para la cabecera de la pantalla.
@@ -1003,6 +1144,10 @@ func save_game() -> void:
 		"shop_day": shop_day,
 		"daily_day": daily_day,
 		"daily_last": daily_last,
+		"collectibles": collectibles,
+		"triforce_pieces": triforce_pieces,
+		"claimed_medals": claimed_medals,
+		"seen_medals": seen_medals,
 		"player_gender": player_gender,
 		"player_hand": player_hand,
 		"player_name": player_name,
@@ -1089,6 +1234,23 @@ func load_game() -> void:
 	# lo que ha ganado" que se puede reconstruir hacia atrás.
 	if not stats.has("money_total"):
 		stats["money_total"] = money + int(stats.get("money_spent", 0))
+	collectibles = _to_string_array(parsed.get("collectibles", []))
+	triforce_pieces = int(parsed.get("triforce_pieces", 0))
+	claimed_medals = {}
+	var claimed_dict: Dictionary = parsed.get("claimed_medals", {})
+	for k in claimed_dict.keys():
+		claimed_medals[str(k)] = int(claimed_dict[k])
+	seen_medals = {}
+	var seen_dict: Dictionary = parsed.get("seen_medals", {})
+	for k in seen_dict.keys():
+		seen_medals[str(k)] = int(seen_dict[k])
+	# Guardado de ANTES de las notificaciones: lo ya conseguido se da por VISTO
+	# (nada de un aluvión de toasts retroactivos al arrancar), pero NO por
+	# reclamado — esas recompensas quedan pendientes en el botón "Reclamar".
+	if not parsed.has("seen_medals"):
+		for a in AchievementData.all():
+			seen_medals[str(a["id"])] = AchievementData.medal_for(a,
+				achievement_value(a))
 	play_seconds = float(parsed.get("play_seconds", 0.0))
 	settings = DEFAULT_SETTINGS.duplicate()
 	var set_dict: Dictionary = parsed.get("settings", {})
@@ -1164,6 +1326,10 @@ func _new_game() -> void:
 	shop_day = ""
 	daily_day = 0
 	daily_last = ""
+	collectibles = []
+	triforce_pieces = 0
+	claimed_medals = {}
+	seen_medals = {}
 	# SIN recetas de inicio y con el tutorial pendiente: las 4 primeras las
 	# entrega David al terminar su clase (complete_tutorial). Olvidar poner
 	# tutorial_done a false aquí hacía que borrar la partida NO relanzara la

@@ -152,7 +152,8 @@ func _setup_ui() -> void:
 	# Las MEJORAS ya no viven aquí: se mudaron a su propia pantalla
 	# (perks_screen, el botón "Bonificadores" del submenú del menú principal).
 	# El inventario se queda con lo que se lleva encima.
-	for def in [["recetario", "Recetario"], ["despensa", "Despensa"]]:
+	for def in [["recetario", "Recetario"], ["despensa", "Despensa"],
+			["coleccion", "Colección"]]:
 		var b := Button.new()
 		b.text = def[1]
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -205,6 +206,8 @@ func _show_tab(tab: String) -> void:
 			content.add_child(_build_recipe_book())
 		"despensa":
 			content.add_child(_build_pantry_book())
+		"coleccion":
+			content.add_child(_build_collection())
 
 
 ## Libro abierto: la textura de fondo y el hueco útil de sus dos páginas.
@@ -576,6 +579,183 @@ func _build_pantry_entry(ing: String) -> Control:
 # --------------------------------------------------------- ficha de receta
 
 ## Ficha de una receta: qué es, qué lleva, quién se la come y cómo se hace.
+# --------------------------------------------------------------- colección
+
+## La vitrina de COLECCIONABLES: rejilla sobre pergamino con el recuento
+## arriba. Los bloqueados van en SILUETA y con "???", sin ninguna pista de cómo
+## conseguirlos; los conseguidos abren su ficha al tocarlos. El triángulo
+## dorado enseña además cuántos fragmentos hay reunidos (si hay alguno).
+func _build_collection() -> Control:
+	var host := Control.new()
+	host.set_anchors_preset(Control.PRESET_FULL_RECT)
+	host.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
+		PrepBoard.PANEL_MARGIN))
+
+	var header := Label.new()
+	header.text = "Coleccionables: %d / %d" % [GameState.collectibles.size(),
+		CollectibleData.total()]
+	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	header.add_theme_font_size_override("font_size", 24)
+	header.add_theme_color_override("font_color", Color(0.42, 0.26, 0.10))
+	header.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	header.offset_top = 30.0
+	header.offset_bottom = 64.0
+	host.add_child(header)
+
+	var scroll := ScrollContainer.new()
+	TouchScroll.attach(scroll)
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.offset_left = 30.0
+	scroll.offset_top = 72.0
+	scroll.offset_right = -30.0
+	scroll.offset_bottom = -30.0
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	host.add_child(scroll)
+
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 10)
+	scroll.add_child(grid)
+	for it in CollectibleData.ITEMS:
+		grid.add_child(_collection_card(it))
+	return host
+
+
+func _collection_card(it: Dictionary) -> Control:
+	var id := str(it["id"])
+	var owned := GameState.has_collectible(id)
+	var card := Button.new()
+	card.custom_minimum_size = Vector2(152, 176)
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		card.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	var skin := PrepBoard.make_nine_patch(PrepBoard.CARD_TEX, PrepBoard.CARD_MARGIN)
+	skin.modulate = Color.WHITE if owned else Color(1, 1, 1, 0.55)
+	card.add_child(skin)
+
+	var ic := TextureRect.new()
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.texture = CollectibleData.get_icon(id)
+	ic.position = Vector2(26, 16)
+	ic.size = Vector2(100, 100)
+	# La silueta OSCURA es la única pista que dan los bloqueados.
+	ic.modulate = Color.WHITE if owned else Color(0.12, 0.09, 0.07, 0.85)
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(ic)
+
+	# Fragmentos del triángulo reunidos: se enseñan solo si ya hay alguno.
+	if id == "trifuerza" and not owned and GameState.triforce_pieces > 0:
+		var frag := Label.new()
+		frag.text = "%d/%d" % [GameState.triforce_pieces,
+			CollectibleData.TRIFORCE_PIECES]
+		frag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		frag.add_theme_font_size_override("font_size", 24)
+		frag.add_theme_color_override("font_color", Color(1, 0.86, 0.4))
+		frag.add_theme_color_override("font_outline_color", Color(0.13, 0.07, 0.02))
+		frag.add_theme_constant_override("outline_size", 8)
+		frag.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		frag.offset_top = 48.0
+		frag.offset_bottom = 84.0
+		frag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.add_child(frag)
+
+	var name_l := Label.new()
+	name_l.text = str(it["name"]) if owned else "???"
+	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_l.add_theme_font_size_override("font_size", 15)
+	name_l.add_theme_color_override("font_color",
+		Color(0.42, 0.26, 0.10) if owned else Color(0.55, 0.47, 0.36))
+	name_l.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	name_l.offset_left = 10.0
+	name_l.offset_right = -10.0
+	name_l.offset_top = -58.0
+	name_l.offset_bottom = -12.0
+	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(name_l)
+
+	if owned:
+		card.pressed.connect(_open_collectible_sheet.bind(id))
+		PrepBoard.add_press_feedback(card, 0.92)
+	return card
+
+
+## Ficha de un coleccionable YA conseguido: dibujo grande, nombre y cómo se
+## consiguió. Se cierra con su botón o tocando el velo.
+func _open_collectible_sheet(id: String) -> void:
+	var overlay := Control.new()
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 150
+	ui.add_child(overlay)
+	var veil := Button.new()
+	veil.set_anchors_preset(Control.PRESET_FULL_RECT)
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		veil.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	var shade := ColorRect.new()
+	shade.color = Color(0, 0, 0, 0.55)
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	veil.add_child(shade)
+	veil.pressed.connect(overlay.queue_free)
+	overlay.add_child(veil)
+
+	var pw := 500.0
+	var ph := 560.0
+	var cs := GameState.canvas_size()
+	var panel := Control.new()
+	panel.position = Vector2((cs.x - pw) * 0.5, (cs.y - ph) * 0.5)
+	panel.size = Vector2(pw, ph)
+	overlay.add_child(panel)
+	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
+		PrepBoard.PANEL_MARGIN))
+
+	var ic := TextureRect.new()
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.texture = CollectibleData.get_icon(id)
+	ic.position = Vector2((pw - 220.0) * 0.5, 52.0)
+	ic.size = Vector2(220, 220)
+	panel.add_child(ic)
+
+	var name_l := Label.new()
+	name_l.text = CollectibleData.item_name(id)
+	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_l.add_theme_font_size_override("font_size", 32)
+	name_l.add_theme_color_override("font_color", Color(0.42, 0.26, 0.10))
+	name_l.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	name_l.offset_top = 290.0
+	name_l.offset_bottom = 334.0
+	panel.add_child(name_l)
+
+	var desc := Label.new()
+	desc.text = CollectibleData.describe(id)
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc.add_theme_font_size_override("font_size", 21)
+	desc.add_theme_color_override("font_color", Color(0.30, 0.20, 0.10))
+	desc.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	desc.offset_left = 54.0
+	desc.offset_right = -54.0
+	desc.offset_top = 342.0
+	desc.offset_bottom = 448.0
+	panel.add_child(desc)
+
+	var cerrar := Button.new()
+	cerrar.text = "Cerrar"
+	PrepBoard.skin_button(cerrar)
+	cerrar.add_theme_font_size_override("font_size", 24)
+	cerrar.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	cerrar.offset_left = 150.0
+	cerrar.offset_right = -150.0
+	cerrar.offset_top = 460.0
+	cerrar.offset_bottom = 522.0
+	cerrar.pressed.connect(overlay.queue_free)
+	panel.add_child(cerrar)
+
+
 func _open_recipe_sheet(id: String) -> void:
 	var data: Dictionary = RecipeData.RECIPES[id]
 	var known := GameState.is_recipe_unlocked(id)

@@ -96,6 +96,10 @@ var wheel: TextureRect = null
 var wheel_grab := false
 var wheel_last_ang := 0.0
 var wheel_vel := 0.0
+## Radianes girados acumulados (da igual el sentido): cada vuelta completa se
+## abona a la estadística "helm_turns", de la que sale el COLECCIONABLE del
+## timón (5 vueltas, cuentan también las de la inercia y las de otros días).
+var wheel_turn_acc := 0.0
 ## Contadores de arriba (dinero y arroz). Son los MISMOS en el menú y en el
 ## mapa: solo cambian de sitio (ver `_place_resources`).
 var money_box: Control = null
@@ -529,6 +533,7 @@ func _process(delta: float) -> void:
 	# La inercia del timón: suelto, sigue girando y se va frenando.
 	if wheel != null and not wheel_grab and absf(wheel_vel) > 0.02:
 		wheel.rotation += wheel_vel * delta
+		_bank_wheel_turns(absf(wheel_vel) * delta)
 		wheel_vel = lerpf(wheel_vel, 0.0, minf(delta * 1.6, 1.0))
 	# Mientras se retiran del encuadre las mueve su tween, no esta función.
 	if sky_leaving:
@@ -1198,8 +1203,18 @@ func _on_wheel_input(e: InputEvent) -> void:
 		var d := wrapf(a - wheel_last_ang, -PI, PI)
 		wheel_last_ang = a
 		wheel.rotation += d
+		_bank_wheel_turns(absf(d))
 		var dt := maxf(get_process_delta_time(), 0.001)
 		wheel_vel = lerpf(wheel_vel, d / dt, 0.45)
+
+
+## Abona a la estadística cada VUELTA COMPLETA del timón. A las 5,
+## `GameState._run_achievement_check` suelta el coleccionable "timón".
+func _bank_wheel_turns(rad: float) -> void:
+	wheel_turn_acc += rad
+	while wheel_turn_acc >= TAU:
+		wheel_turn_acc -= TAU
+		GameState.bump_stat("helm_turns")
 
 
 ## El SUBMENÚ inferior: la barra de madera con cuerda y sus cinco accesos.
@@ -1236,7 +1251,43 @@ func _setup_submenu() -> void:
 			["ic_perfil", func() -> void: _go_profile()],
 			["ic_perks", func() -> void: _go_perks()],
 			["ic_opciones", func() -> void: _go_options()]]:
-		row.add_child(_make_sub_button(str(def[0]), def[1]))
+		var sub := _make_sub_button(str(def[0]), def[1])
+		row.add_child(sub)
+		# GLOBO ROJO sobre Logros: medallas conseguidas y aún sin reclamar.
+		if str(def[0]) == "ic_logros":
+			_attach_badge(sub, GameState.unclaimed_medals())
+
+
+## Globo rojo con número (medallas por reclamar) cabalgando la esquina superior
+## derecha del icono. Con 0 no se monta nada.
+func _attach_badge(host: Control, count: int) -> void:
+	if count <= 0:
+		return
+	var badge := Panel.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.82, 0.14, 0.10)
+	style.set_corner_radius_all(17)
+	style.border_color = Color(0.35, 0.04, 0.02)
+	style.set_border_width_all(3)
+	badge.add_theme_stylebox_override("panel", style)
+	# Ensancha con dos cifras para que el número no toque el borde.
+	var w := 34.0 if count < 10 else 44.0
+	badge.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	badge.offset_left = -w + 6.0
+	badge.offset_right = 6.0
+	badge.offset_top = -4.0
+	badge.offset_bottom = 30.0
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.add_child(badge)
+	var n := Label.new()
+	n.text = str(mini(count, 99))
+	n.set_anchors_preset(Control.PRESET_FULL_RECT)
+	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	n.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	n.add_theme_font_size_override("font_size", 19)
+	n.add_theme_color_override("font_color", Color(1, 0.97, 0.92))
+	n.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.add_child(n)
 
 
 ## Un acceso del submenú: el icono solo, centrado, sin tablón propio (la barra

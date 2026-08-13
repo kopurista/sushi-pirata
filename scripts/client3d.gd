@@ -1131,6 +1131,10 @@ func _finish_plate() -> void:
 	satiety_eaten += current_satiety
 	money_earned += current_price
 	eaten_ids.append(current_id)
+	# COLECCIONABLE "sombrero de paja": los platos que come el grumete del
+	# sombrero se cuentan de por vida; a 20, GameState suelta el coleccionable.
+	if who_override == "grumete_sombrero":
+		GameState.bump_stat("fed_sombrero")
 	var tip := _roll_plate_tip()
 	tips_earned += tip
 	plate_served.emit(current_price, tip)

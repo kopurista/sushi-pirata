@@ -172,6 +172,14 @@ const ACHIEVEMENTS: Array = [
 		"desc": "Juega en %d días distintos.",
 		"stat": "days_played", "tiers": [5, 30, 100],
 	},
+	{
+		# La meta del ORO tiene que ser CollectibleData.ITEMS.size(): el logro
+		# se remata teniendo TODOS los coleccionables. Al añadir uno al catálogo
+		# hay que subir esta cifra con él, o el logro mentiría.
+		"id": "coleccion", "group": "travesia", "name": "Camarote de tesoros",
+		"desc": "Reúne %d coleccionables.",
+		"stat": "derived:coleccion", "tiers": [6, 12, 23],
+	},
 ]
 
 

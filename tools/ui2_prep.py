@@ -509,6 +509,42 @@ def build_powerups() -> None:
         save(fit_max(crop_alpha(drop_specks(img), 2), POWERUP_ICON_SIDE), dst)
 
 
+# ------------------------------------------------- iconos de coleccionable
+
+# Se dibujan a 200 px como mucho: 100 en la vitrina y ~220 en la ficha y el
+# anuncio (ahi un pelin ampliados, asumido: son dibujos limpios de Ludo).
+COLLECTIBLE_ICON_SIDE = 200
+
+COLLECTIBLES = [
+    "sombrero_paja", "bandera", "botella", "mapa_tesoro", "cartel_recompensa",
+    "catalejo", "tricornio", "panuelo", "garfio", "parche", "canon", "ancla",
+    "pistola", "espada", "brujula", "pluma_loro", "pluma_escribir", "barril",
+    "tentaculo", "vela", "trifuerza",
+]
+
+
+def build_collectibles() -> None:
+    """Los iconos de la vitrina de coleccionables (col_*.png).
+
+    El timon y el cofre NO estan aqui: reutilizan timon.png y daily_cofre.png,
+    que ya son el mismo dibujo en el juego.
+
+    Mismo criterio que build_powerups: sin `solidify` (no son 9-slice) y con
+    `drop_specks` en vez de `keep_largest` (la trifuerza son 8 fragmentos
+    SEPARADOS por grietas y el mapa lleva la X suelta: quedarse con la isla
+    mayor se los comeria). Si la fuente ya trae alfa (removeBackground de
+    Ludo), la inundacion de blancos no toca nada y es inocua.
+    """
+    for name in COLLECTIBLES:
+        src = RAW / "col" / f"{name}.webp"
+        if not src.exists():
+            print(f"col_{name:18s} FALTA {src}")
+            continue
+        img = drop_white(Image.open(src).convert("RGBA"))
+        save(fit_max(crop_alpha(drop_specks(img), 2), COLLECTIBLE_ICON_SIDE),
+             f"col_{name}")
+
+
 # --------------------------------- bocadillo del cliente y chapas de variedad
 
 def build_bubble() -> None:

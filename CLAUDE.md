@@ -446,6 +446,79 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   receta no oculta; las ocultas —barco, combinados— tienen el suyo a mano).
   `GROUP_TABS` son los rótulos CORTOS de las pestañas: cinco tablones de madera
   en 720 px solo dejan ~84 px de texto entre las esquinas doradas.
+  **Un logro de receta SIN DESBLOQUEAR sale OCULTO** en la pantalla
+  (`_build_hidden_card`): silueta del plato EN NEGRO, "???" y sin barra, para
+  no desvelar la carta del juego. El logro "coleccion" (Camarote de tesoros)
+  bebe de `derived:coleccion` y **su meta de ORO tiene que ser el tamaño del
+  catálogo de coleccionables**: al añadir uno, subirla con él.
+- **LOGROS: aviso, globo y reclamo** (montado con los coleccionables):
+  · La DETECCIÓN vive en `GameState._run_achievement_check`, que programa
+    `queue_achievement_check()` en DIFERIDO tras cada `bump_stat`/`max_stat`
+    (una ráfaga de platos en el mismo fotograma cuesta UNA pasada). Compara lo
+    conseguido con `seen_medals` y saca un TOAST por medalla nueva. NO guarda a
+    disco a propósito (`seen_medals` viaja con el siguiente save natural).
+  · El TOAST es la banda de `notice_layer.gd`: baja de arriba, se va sola y es
+    `MOUSE_FILTER_IGNORE` en todo — notificación, no cartel.
+  · **Reclamo**: `claimed_medals` (id → 0..3) y `MEDAL_REWARDS` 25/50/100 por
+    bronce/plata/oro. Si de un logro hay bronce Y plata sin reclamar, caen las
+    dos de golpe. El botón "Reclamar" de `achievements_screen` (en el hueco
+    que equilibraba el título) abre el cartel del COFRE (las texturas del
+    diario: cerrado → meneo → abierto) con el total y el desglose por metales;
+    con 0 pendientes va apagado. El GLOBO ROJO del menú
+    (`main_menu._attach_badge` sobre ic_logros) enseña
+    `GameState.unclaimed_medals()`.
+  · **Guardados viejos**: al cargar sin `seen_medals` se siembra con lo YA
+    conseguido (nada de un aluvión de toasts al arrancar), pero `claimed`
+    queda vacío → todo lo ganado hasta hoy se puede reclamar del tirón.
+    Asumido: es el mismo criterio retroactivo de los logros.
+- `scripts/collectible_data.gd` — catálogo de COLECCIONABLES (23, solo datos:
+  id, nombre, `desc` = cómo se consigue, que SOLO se enseña ya conseguido).
+  No dan ni hacen nada: son para coleccionar (y para el logro "coleccion").
+  El desbloqueo va SIEMPRE por `GameState.unlock_collectible(id)`, que anuncia
+  con la ventana modal, guarda y repasa logros. Estado en
+  `GameState.collectibles` + `triforce_pieces`.
+  · **Disparadores vivos**: timón (5 vueltas al timón del menú; el arrastre y
+    la inercia acumulan radianes en `main_menu._bank_wheel_turns` → stat
+    `helm_turns`), bandera pirata (ABORDAJE con 3★ en `complete_port`, también
+    repitiendo un puerto ya superado), mapa del tesoro (día 7 del bonus diario
+    en `claim_daily`), cartel de recompensa (`bounty()` ≥ `CARTEL_BOUNTY`, 1M)
+    y sombrero de paja (20 platos comidos por un cliente con
+    `who_override == "grumete_sombrero"` — stat `fed_sombrero`; el personaje
+    con sombrero AÚN NO EXISTE, queda para niveles futuros). Los tres de stats
+    se comprueban al principio de `_run_achievement_check`.
+  · **Sin disparador todavía**: botella (minijuego de pesca futuro), catalejo,
+    tricornio, pañuelo, garfio, parche, cañón, ancla, pistola, espada,
+    brújula, cofre, plumas, barril, tentáculo y vela — quedan bloqueados y su
+    `desc` genérica hasta que se decida su mecánica.
+  · **Triángulo dorado**: 8 fragmentos (`GameState.add_triforce_piece`, sin
+    fuente todavía); al octavo se junta en UN coleccionable y regala 3
+    doblones. La vitrina enseña "n/8" sobre su silueta si hay alguno.
+  · **Iconos** `assets/ui/col_*.png`: Ludo (item-icon, Western Cartoon) →
+    `_gen/ui2/col/` → `build_collectibles()` de `tools/ui2_prep.py` (con
+    `drop_specks`, NUNCA `keep_largest`: la trifuerza son 8 fragmentos
+    separados por grietas). `timon` y `cofre` REUTILIZAN `timon.png` y
+    `daily_cofre.png`, que ya son ese mismo objeto en el juego. **La VELA es
+    la referencia a Wind Waker**: pedir "triangular sail" a Ludo da velas de
+    CUATRO esquinas; lo que funcionó fue describirla como banderín de TRES
+    vértices ("borde horizontal arriba, dos lados convergiendo a UN punto
+    abajo").
+  · La pestaña **Colección** del inventario es la vitrina: rejilla de 4, los
+    bloqueados en SILUETA oscura con "???" y sin ninguna pista, los
+    conseguidos abren su ficha al tocarlos.
+- `scripts/notice_layer.gd` — `NoticeLayer`, capa GLOBAL de avisos colgada del
+  autoload GameState (capa 126, bajo el velo de fundido): sobrevive a los
+  cambios de escena, así que un coleccionable ganado en mitad de un nivel o en
+  el menú se anuncia igual. Toast de logro (no interactivo) y ventana modal de
+  coleccionable (pausa el árbol mientras está puesta y RESPETA la pausa previa
+  del cartel de resultados o de un guion). Todo EN COLA: varios avisos salen
+  de uno en uno.
+- **OJO con los HELPERS de verificación y el guardado**:
+  `unlock_collectible`, `claim_achievement_rewards` y compañía GUARDAN A
+  DISCO. Un helper que fuerce estado pisa `user://savegame.json` del usuario
+  (pasó: hubo que reconstruirlo desde los backups `savegame.json.antes_de_*`).
+  Antes de una pasada de helpers, COPIAR el savegame y restaurarlo después —
+  y con rutas que existan de verdad en las DOS herramientas (el `/tmp` de Git
+  Bash no lo ve Python, y un `cp` con `|| true` falla en silencio).
 - `scripts/options_screen.gd` — Opciones (raíz **Node3D**, fondo `SceneBackdrop`)
   en TRES pestañas (el Perfil se mudó a `profile_screen`, y con tres tablones
   los rótulos recuperaron el cuerpo 26): **Gráficos** (bloques Alta / Media /
