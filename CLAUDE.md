@@ -476,8 +476,16 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     conseguido (nada de un aluvión de toasts al arrancar), pero `claimed`
     queda vacío → todo lo ganado hasta hoy se puede reclamar del tirón.
     Asumido: es el mismo criterio retroactivo de los logros.
-- `scripts/collectible_data.gd` — catálogo de COLECCIONABLES (32, solo datos:
+- `scripts/collectible_data.gd` — catálogo de COLECCIONABLES (40, solo datos:
   id, nombre, `desc` = cómo se consigue, que SOLO se enseña ya conseguido).
+  **El ORDEN de `ITEMS` es el de la vitrina y agrupa por REFERENCIA**: tesoros
+  pirata genéricos → Piratas del Caribe (perla negra, moneda azteca) → Monkey
+  Island (grog, mono de tres cabezas, lista de insultos) → One Piece (la banda
+  del sombrero de paja en orden de tripulación: sombrero/Luffy, pendientes de
+  espadachín/Zoro, naranja/Nami, tirachinas/Usopp, sartén/Sanji) → Zelda
+  (vela de Wind Waker, semilla dorada/kolog, reloj de arena/Phantom Hourglass,
+  máscara Zora/Majora y el triángulo dorado cerrando la vitrina). Un
+  coleccionable nuevo entra en SU grupo, no al final.
   No dan ni hacen nada: son para coleccionar (y para el logro "coleccion").
   El desbloqueo va SIEMPRE por `GameState.unlock_collectible(id)`, que anuncia
   con la ventana modal, guarda y repasa logros. Estado en
@@ -491,12 +499,11 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     `who_override == "grumete_sombrero"` — stat `fed_sombrero`; el personaje
     con sombrero AÚN NO EXISTE, queda para niveles futuros). Los tres de stats
     se comprueban al principio de `_run_achievement_check`.
-  · **Sin disparador todavía**: botella (minijuego de pesca futuro), catalejo,
-    tricornio, pañuelo, garfio, parche, cañón, ancla, pistola, espada,
-    brújula, cofre, plumas, barril, tentáculo, vela, hueso, calavera, pata de
-    palo, perla negra (guiño a Piratas del Caribe), bala de cañón, moneda
-    azteca (el oro maldito), naranja, tirachinas y sartén — quedan bloqueados
-    y su `desc` genérica hasta que se decida su mecánica.
+  · **Sin disparador todavía**: todo lo que no esté en la lista de arriba
+    (botella = minijuego de pesca futuro; el resto de genéricos pirata y todas
+    las referencias de Piratas del Caribe, Monkey Island, One Piece y Zelda
+    salvo la trifuerza) — quedan bloqueados y con `desc` genérica hasta que se
+    decida su mecánica.
   · **Triángulo dorado**: 8 fragmentos (`GameState.add_triforce_piece`, sin
     fuente todavía); al octavo se junta en UN coleccionable y regala 3
     doblones. La vitrina enseña "n/8" sobre su silueta si hay alguno.

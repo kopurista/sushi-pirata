@@ -521,7 +521,9 @@ COLLECTIBLES = [
     "pistola", "espada", "brujula", "pluma_loro", "pluma_escribir", "barril",
     "tentaculo", "vela", "trifuerza", "hueso", "calavera", "pata_palo",
     "perla_negra", "bala_canon", "moneda_azteca", "naranja", "tirachinas",
-    "sarten",
+    "sarten", "pendientes_espadachin", "grog", "mono_tres_cabezas",
+    "lista_insultos", "semilla_dorada", "reloj_arena", "mascara_zora",
+    "saco_cafe",
 ]
 
 

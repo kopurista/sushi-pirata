@@ -23,23 +23,19 @@ const TRIFORCE_REWARD := 3
 ## El logro "coleccionista" pide TODOS: sus metas viven en
 ## `achievement_data.gd` y la del oro tiene que ser ITEMS.size(). Al añadir un
 ## coleccionable aquí hay que subir esa meta con él, o el logro mentiría.
+## ORDEN DE LA VITRINA: los que hacen referencia a una misma cosa van JUNTOS
+## (One Piece con One Piece, Zelda con Zelda...). Al añadir un coleccionable,
+## meterlo en su grupo — y si estrena grupo, abrirlo con su comentario.
 const ITEMS: Array = [
+	# --- Tesoros del propio barco (los de mecánica viva, primero) ------------
 	{
 		"id": "timon", "name": "Timón",
 		"desc": "Dale cinco vueltas completas al timón del menú.",
 		"icon": "res://assets/ui/timon.png",
 	},
 	{
-		"id": "sombrero_paja", "name": "Sombrero de paja",
-		"desc": "Regalo del grumete del sombrero de paja: le serviste 20 platos.",
-	},
-	{
 		"id": "bandera", "name": "Bandera pirata",
 		"desc": "Supera un abordaje con 3 estrellas.",
-	},
-	{
-		"id": "botella", "name": "Botella vacía",
-		"desc": "Pescada en alta mar.",
 	},
 	{
 		"id": "mapa_tesoro", "name": "Mapa del tesoro",
@@ -49,12 +45,17 @@ const ITEMS: Array = [
 		"id": "cartel_recompensa", "name": "Cartel de recompensa",
 		"desc": "Acumula 1.000.000 de doblones de recompensa.",
 	},
+	{
+		"id": "botella", "name": "Botella vacía",
+		"desc": "Pescada en alta mar.",
+	},
 	{ "id": "catalejo", "name": "Catalejo", "desc": "" },
 	{ "id": "tricornio", "name": "Sombrero tricornio", "desc": "" },
 	{ "id": "panuelo", "name": "Pañuelo pirata", "desc": "" },
 	{ "id": "garfio", "name": "Garfio", "desc": "" },
 	{ "id": "parche", "name": "Parche pirata", "desc": "" },
 	{ "id": "canon", "name": "Cañón pirata", "desc": "" },
+	{ "id": "bala_canon", "name": "Bala de cañón", "desc": "" },
 	{ "id": "ancla", "name": "Ancla", "desc": "" },
 	{ "id": "pistola", "name": "Pistola pirata", "desc": "" },
 	{ "id": "espada", "name": "Espada pirata", "desc": "" },
@@ -66,17 +67,33 @@ const ITEMS: Array = [
 	{ "id": "pluma_loro", "name": "Pluma de loro", "desc": "" },
 	{ "id": "pluma_escribir", "name": "Pluma de escribir", "desc": "" },
 	{ "id": "barril", "name": "Barril", "desc": "" },
+	{ "id": "saco_cafe", "name": "Saco de café", "desc": "" },
 	{ "id": "tentaculo", "name": "Tentáculo de kraken", "desc": "" },
-	{ "id": "vela", "name": "Vela de barco", "desc": "" },
 	{ "id": "hueso", "name": "Hueso", "desc": "" },
 	{ "id": "calavera", "name": "Calavera", "desc": "" },
 	{ "id": "pata_palo", "name": "Pata de palo", "desc": "" },
+	# --- Piratas del Caribe --------------------------------------------------
 	{ "id": "perla_negra", "name": "Perla negra", "desc": "" },
-	{ "id": "bala_canon", "name": "Bala de cañón", "desc": "" },
 	{ "id": "moneda_azteca", "name": "Moneda azteca", "desc": "" },
+	# --- Monkey Island -------------------------------------------------------
+	{ "id": "grog", "name": "Botella de grog", "desc": "" },
+	{ "id": "mono_tres_cabezas", "name": "Mono de tres cabezas", "desc": "" },
+	{ "id": "lista_insultos", "name": "Lista de insultos", "desc": "" },
+	# --- One Piece (la banda del sombrero de paja, en orden de tripulación) --
+	{
+		"id": "sombrero_paja", "name": "Sombrero de paja",
+		"desc": "Regalo del grumete del sombrero de paja: le serviste 20 platos.",
+	},
+	{ "id": "pendientes_espadachin", "name": "Pendientes de espadachín",
+		"desc": "" },
 	{ "id": "naranja", "name": "Naranja", "desc": "" },
 	{ "id": "tirachinas", "name": "Tirachinas", "desc": "" },
 	{ "id": "sarten", "name": "Sartén", "desc": "" },
+	# --- Zelda (el triángulo cierra la vitrina) ------------------------------
+	{ "id": "vela", "name": "Vela de barco", "desc": "" },
+	{ "id": "semilla_dorada", "name": "Semilla dorada", "desc": "" },
+	{ "id": "reloj_arena", "name": "Reloj de arena", "desc": "" },
+	{ "id": "mascara_zora", "name": "Máscara Zora", "desc": "" },
 	{
 		"id": "trifuerza", "name": "Triángulo dorado",
 		"desc": "Reúne los %d fragmentos del triángulo dorado." % TRIFORCE_PIECES,
