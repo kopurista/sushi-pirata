@@ -533,14 +533,16 @@ func _run_intro() -> void:
 ## de la foto y se elige la mano; "¡Ese soy yo!" se enciende con el nombre
 ## puesto. Devuelve el nombre.
 func _ask_identity() -> String:
+	# ARRIBA, no centrado: centrado, el cartel (ya alto de por sí) empujaba el
+	# botón hacia el borde y quedaba una franja muerta sobre el WANTED.
 	var caja := Control.new()
-	caja.set_anchors_preset(Control.PRESET_CENTER)
+	caja.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	var medida := WantedPoster.panel_size(true)
 	var alto := medida.y + 104.0
 	caja.offset_left = -medida.x * 0.5
 	caja.offset_right = medida.x * 0.5
-	caja.offset_top = -alto * 0.5
-	caja.offset_bottom = alto * 0.5
+	caja.offset_top = 30.0 + GameState.safe_top()
+	caja.offset_bottom = caja.offset_top + alto
 	ui.add_child(caja)
 
 	var cartel := WantedPoster.new()

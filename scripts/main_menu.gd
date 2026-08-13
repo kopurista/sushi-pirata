@@ -1330,10 +1330,12 @@ func _make_mode_button(text: String, icon: String, _height: int,
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", font_size)
-	# TINTA sobre papel: oscuro con una sombra cálida corta que le da bulto,
-	# no el crema con contorno de los tablones de madera.
-	label.add_theme_color_override("font_color", Color(0.30, 0.17, 0.07))
-	label.add_theme_color_override("font_shadow_color", Color(0.72, 0.55, 0.34, 0.85))
+	# Letra CLARA con el trazo OSCURO (se probó al revés — tinta oscura con
+	# sombra clara — y pesaba poco sobre el papel).
+	label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.84))
+	label.add_theme_color_override("font_outline_color", Color(0.30, 0.17, 0.07))
+	label.add_theme_constant_override("outline_size", 8)
+	label.add_theme_color_override("font_shadow_color", Color(0.42, 0.27, 0.12, 0.5))
 	label.add_theme_constant_override("shadow_offset_x", 0)
 	label.add_theme_constant_override("shadow_offset_y", 3)
 	var negrita := load("res://fonts/static/Exo2-Bold.ttf")

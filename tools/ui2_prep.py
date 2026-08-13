@@ -673,6 +673,11 @@ def build_wanted() -> None:
     moneda = Image.open(OUT / "moneda.png").convert("RGBA")
     save(inkify(fit_max(moneda, 96)), "wanted_moneda")
 
+    # La PLUMA que late junto a la linea de escritura del nombre: la senal de
+    # "aqui se escribe" del cartel de identidad.
+    pluma = drop_white(load("perfil/pluma_a"))
+    save(fit_max(crop_alpha(drop_specks(pluma), 2), 72), "wanted_pluma")
+
     # Flecha IZQUIERDA del selector de personaje: el ESPEJO exacto de la que la
     # caja de dialogo usa para "toca para seguir", igual que ic_mano_der sale de
     # espejar ic_mano_izq. Asi las dos flechas son el mismo dibujo.

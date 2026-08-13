@@ -4,8 +4,8 @@ extends Control
 ## quién es. Lo usan dos pantallas:
 ##   · la bienvenida de David (`david_intro`), donde se rellena por primera vez
 ##     y el nombre SÍ se puede escribir;
-##   · la pantalla PERFIL del submenú (`profile_screen`), donde se cambia todo
-##     MENOS el nombre y además se elige el título entre los desbloqueados.
+##   · la pantalla PERFIL del submenú (`profile_screen`), donde se cambia
+##     todo MENOS el nombre.
 ##
 ## La "foto" del cartel no es un retrato pintado: es el MODELO 3D del chef
 ## metido en un SubViewport, y las flechas de los lados cambian de género
@@ -23,6 +23,7 @@ const PrepBoard := preload("res://scripts/prep_board.gd")
 
 const SHEET_TEX := "res://assets/ui/wanted_hoja.png"
 const COIN_TEX := "res://assets/ui/wanted_moneda.png"
+const QUILL_TEX := "res://assets/ui/wanted_pluma.png"
 ## La MISMA punta de flecha que la caja de diálogo usa para "toca para seguir",
 ## y su espejo exacto (lo genera `build_wanted` de tools/ui2_prep.py, igual que
 ## ic_mano_der sale de ic_mano_izq).
@@ -49,10 +50,14 @@ const HANDS_H := 152.0
 
 ## Lo que mide el cartel montado de una manera o de la otra. Las pantallas que
 ## lo usan reservan el hueco con esto, no con un número a mano.
+## CON TABLÓN se suma el pad también POR ABAJO: el marco dibujado del pergamino
+## come ~54 px de canto, y sin ese aire las empuñaduras de las manos caían
+## ENCIMA del marco y parecían salirse del panel.
 static func panel_size(con_tablon := true) -> Vector2:
 	var ancho: float = SHEET_W_BOARD if con_tablon else SHEET_W_PLAIN
 	var pad: Vector2 = BOARD_PAD if con_tablon else Vector2.ZERO
-	return Vector2(ancho + pad.x * 2.0, pad.y + ancho * SHEET_RATIO + HANDS_H)
+	return Vector2(ancho + pad.x * 2.0,
+		pad.y * 2.0 + ancho * SHEET_RATIO + HANDS_H)
 
 ## Hueco de la FOTO dentro de la hoja, en FRACCIONES de la hoja. Medido sobre
 ## el PNG generado (x 104..546, y 216..505 de 648x864) con el barrido de
@@ -87,13 +92,11 @@ const MODEL_YAW := 0.0
 const BOUNTY_DIGITS := 10
 
 @export var editable_name := true
-@export var show_titles := false
 ## ¿Se dibuja el tablón de madera detrás de la hoja? (ver BOARD_PAD).
 @export var show_board := true
 
 var g_draft: String = CharacterData.MALE
 var hand_draft: String = "R"
-var title_draft: String = TitleData.MANO
 
 var _sheet: TextureRect = null
 var _viewport: SubViewport = null
@@ -105,9 +108,8 @@ var _t := 0.0
 var _frame_w := 1.0
 var _sliding := false
 var _name_edit: LineEdit = null
-var _subtitle: Label = null
 var _hands: Array[Button] = []
-var _title_arrows: Array[Button] = []
+var _quill: TextureRect = null
 
 ## Salta cuando cambia algo (Opciones lo usa para encender "Aplicar cambios").
 signal edited
@@ -116,7 +118,6 @@ signal edited
 func _ready() -> void:
 	g_draft = GameState.player_gender
 	hand_draft = GameState.player_hand
-	title_draft = GameState.player_title_id
 	custom_minimum_size = panel_size(show_board)
 	size = panel_size(show_board)
 	_build()
@@ -133,6 +134,10 @@ func _process(delta: float) -> void:
 	# ladeada y con un brazo en alto al cabo de un segundo.
 	_anim.reset()
 	_anim.idle(_t)
+	# La pluma de la línea de escritura late, invitando a tocar.
+	if _quill != null:
+		_quill.modulate.a = 0.62 + 0.38 * (0.5 + 0.5 * sin(_t * 2.6))
+		_quill.rotation = sin(_t * 2.6) * 0.05
 
 
 func _build() -> void:
@@ -345,9 +350,20 @@ func _build_name() -> void:
 	_name_edit.placeholder_text = "Tu nombre"
 	_name_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_name_edit.editable = editable_name
-	_name_edit.position = _sheet.position + Vector2(56.0, _sheet.size.y * 0.665)
-	_name_edit.size = Vector2(_sheet.size.x - 112.0, 58.0)
-	_name_edit.add_theme_font_size_override("font_size", 40)
+	# Al COGER EL FOCO se selecciona todo: el campo llega prerrelleno con el
+	# nombre guardado, y sin esto el toque dejaba el cursor EN MEDIO y lo
+	# escrito se incrustaba dentro ("Kopu" -> "KoAnapu") hasta chocar con el
+	# tope de 14 letras — que es lo que se vivía como "no me deja escribir
+	# otro nombre". Así, la primera tecla SUSTITUYE el nombre entero.
+	_name_edit.select_all_on_focus = true
+	# CENTRADO en la banda entre el "DEAD OR ALIVE" y la recompensa (el
+	# subtítulo que había debajo se retiró, así que la banda entera es suya).
+	_name_edit.position = _sheet.position + Vector2(56.0, _sheet.size.y * 0.685)
+	_name_edit.size = Vector2(_sheet.size.x - 112.0, 66.0)
+	_name_edit.add_theme_font_size_override("font_size", 50)
+	var gorda := load("res://fonts/static/Exo2-Bold.ttf")
+	if gorda != null:
+		_name_edit.add_theme_font_override("font", gorda)
 	_name_edit.add_theme_color_override("font_color", TINTA)
 	_name_edit.add_theme_color_override("font_uneditable_color", TINTA)
 	_name_edit.add_theme_color_override("font_placeholder_color",
@@ -358,56 +374,35 @@ func _build_name() -> void:
 	for st in ["normal", "focus", "read_only"]:
 		_name_edit.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 	add_child(_name_edit)
-	if editable_name:
-		# En el móvil el LineEdit no coge el foco al tocarlo y no sale el
-		# teclado: hay que pedirlo a mano.
-		PrepBoard.enable_mobile_keyboard(_name_edit)
-		_name_edit.text_changed.connect(func(_t: String) -> void:
-			edited.emit())
-
-	_subtitle = Label.new()
-	_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_subtitle.position = _sheet.position + Vector2(96.0, _sheet.size.y * 0.735)
-	_subtitle.size = Vector2(_sheet.size.x - 192.0, 40.0)
-	_subtitle.add_theme_font_size_override("font_size", 26)
-	_subtitle.add_theme_color_override("font_color", TINTA)
-	_subtitle.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_subtitle)
-
-	if not show_titles:
+	if not editable_name:
 		return
-	# Selector de TÍTULO, solo en el perfil: flechitas pegadas al renglón. De
-	# momento solo hay uno desbloqueado, así que salen apagadas.
-	for der in [false, true]:
-		var b := Button.new()
-		b.custom_minimum_size = Vector2(42, 42)
-		b.size = Vector2(42, 42)
-		b.position = Vector2(
-			_subtitle.position.x - 46.0 if not der
-			else _subtitle.position.x + _subtitle.size.x + 4.0,
-			_subtitle.position.y - 2.0)
-		for st in ["normal", "hover", "pressed", "disabled", "focus"]:
-			b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
-		var ic := TextureRect.new()
-		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		ic.texture = load(ARROW_R if der else ARROW_L)
-		ic.set_anchors_preset(Control.PRESET_FULL_RECT)
-		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		b.add_child(ic)
-		b.pressed.connect(func() -> void: _cycle_title(1 if der else -1))
-		_title_arrows.append(b)
-		add_child(b)
+	# En el móvil el LineEdit no coge el foco al tocarlo y no sale el
+	# teclado: hay que pedirlo a mano.
+	PrepBoard.enable_mobile_keyboard(_name_edit)
+	_name_edit.text_changed.connect(func(_t: String) -> void:
+		edited.emit())
 
-
-func _cycle_title(paso: int) -> void:
-	var lista := GameState.unlocked_titles
-	if lista.size() < 2:
-		return
-	var i := lista.find(title_draft)
-	title_draft = lista[posmod(i + paso, lista.size())]
-	_refresh()
-	edited.emit()
+	# LA SEÑAL DE "AQUÍ SE ESCRIBE": una línea de escritura a tinta bajo el
+	# nombre y una pluma latiendo a su lado. Sin ellas, el nombre parecía
+	# impreso en el cartel y nadie adivinaba que se podía tocar. Solo cuando
+	# el nombre es editable (en el Perfil va bloqueado y sobraban).
+	var linea := ColorRect.new()
+	linea.color = Color(TINTA.r, TINTA.g, TINTA.b, 0.32)
+	linea.position = _name_edit.position + Vector2(58.0, 60.0)
+	linea.size = Vector2(_name_edit.size.x - 116.0, 3.0)
+	linea.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(linea)
+	_quill = TextureRect.new()
+	_quill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_quill.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_quill.texture = load(QUILL_TEX)
+	# La punta de la pluma apunta abajo-izquierda: se planta con el plumín
+	# tocando el FINAL de la línea, como a punto de escribir.
+	_quill.position = linea.position + Vector2(linea.size.x - 8.0, -46.0)
+	_quill.size = Vector2(44.0, 50.0)
+	_quill.pivot_offset = Vector2(6.0, 46.0)
+	_quill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_quill)
 
 
 ## La recompensa: la moneda DIBUJADA en el cartel (la del juego pasada a tinta)
@@ -504,11 +499,6 @@ func _refresh() -> void:
 	for b in _hands:
 		b.modulate = Color.WHITE if b.get_meta("h") == hand_draft \
 				else Color(0.5, 0.5, 0.52)
-	if _subtitle != null:
-		_subtitle.text = TitleData.text(title_draft, g_draft, hand_draft)
-	for a in _title_arrows:
-		a.modulate = Color.WHITE if GameState.unlocked_titles.size() > 1 \
-				else Color(0.45, 0.45, 0.45)
 
 
 ## ¿Está el cartel relleno? (el nombre es lo único que puede faltar).
@@ -527,12 +517,10 @@ func aplicar() -> void:
 		GameState.player_name = nombre()
 	GameState.player_gender = g_draft
 	GameState.player_hand = hand_draft
-	GameState.player_title_id = title_draft
 
 
 ## ¿Hay algo distinto de lo que ya está guardado? (Opciones lo usa para saber
 ## si "Aplicar cambios" tiene que estar encendido.)
 func hay_cambios() -> bool:
 	return g_draft != GameState.player_gender \
-			or hand_draft != GameState.player_hand \
-			or title_draft != GameState.player_title_id
+			or hand_draft != GameState.player_hand

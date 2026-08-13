@@ -77,7 +77,6 @@ func _setup_ui() -> void:
 	root.add_child(hueco)
 	cartel = WantedPoster.new()
 	cartel.editable_name = false
-	cartel.show_titles = true
 	cartel.scale = Vector2(k, k)
 	hueco.add_child(cartel)
 	cartel.edited.connect(_refresh_apply)
