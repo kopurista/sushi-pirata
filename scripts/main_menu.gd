@@ -20,7 +20,7 @@ const MENU_ANCHOR := Vector2(360.0, 3134.0)
 ## el barco queda por ENCIMA del centro de pantalla: desde que el logotipo se
 ## quedó en la portada, el barco es quien ocupa su hueco de arriba y los
 ## botones suben tras él.
-const MENU_BAND_OFF := 190.0
+const MENU_BAND_OFF := 130.0
 
 ## LA PORTADA ("pulsa para zarpar") vive en ESTA MISMA ESCENA: es un tercer
 ## estado, con el barco atracado en un puerto a la IZQUIERDA del fondeadero.
@@ -39,7 +39,7 @@ const OUT_TIME := 0.55
 const OFFSCREEN := 1500.0
 ## En el menú el barco es el protagonista y se ve mucho más grande que como
 ## ficha del mapa.
-const MENU_SHIP_SCALE := 2.3
+const MENU_SHIP_SCALE := 2.75
 ## Tienda: dónde acaba el muelle (u), lo que navega el barco a su encuentro y
 ## dónde queda el encuadre al cerrar el zoom (px de mapa; 85.3 px = 1 u).
 ## Calibrado para que en el zoom quepan el barco entero Y el muelle: el barco
@@ -60,10 +60,14 @@ const SHOP_ZOOM_SIZE := 9.4
 ## el PNG por barrido de filas; si se regenera el panel hay que volver a
 ## medirlo. El timón asoma WHEEL_PEEK por encima del banner.
 const MENU_PANEL_W := 400.0
-const MENU_PANEL_RATIO := 711.0 / 520.0
-const MENU_PANEL_INNER := Rect2(0.10, 0.245, 0.80, 0.60)
-const WHEEL_SIZE := 170.0
-const WHEEL_PEEK := 66.0
+const MENU_PANEL_RATIO := 748.0 / 520.0
+const MENU_PANEL_INNER := Rect2(0.085, 0.10, 0.83, 0.66)
+const WHEEL_SIZE := 172.0
+## Alto y rollos del pergamino de los botones de modo (boton_pergamino.png,
+## exportado a 96 con los rollos midiendo ~46 en el PNG).
+const MODE_BTN_H := 96.0
+const MODE_BTN_ROLL := 46
+const WHEEL_PEEK := 86.0
 
 const SUB_BAR_H := 148.0
 const SUB_BAR_MARGIN := 56
@@ -634,8 +638,16 @@ func _setup_menu_ui() -> void:
 			- MENU_PANEL_W * MENU_PANEL_RATIO
 	ui_layer.add_child(menu_panel)
 
-	# El timón va ANTES que la textura del panel en el árbol: se dibuja detrás
-	# y solo asoma su mitad de arriba por encima del banner.
+	var tabla := TextureRect.new()
+	tabla.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tabla.stretch_mode = TextureRect.STRETCH_SCALE
+	tabla.texture = load("res://assets/ui/menu_panel.png")
+	tabla.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tabla.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu_panel.add_child(tabla)
+
+	# El timón va DESPUÉS de la textura del panel en el árbol: se dibuja POR
+	# DELANTE, superpuesto al tablón, cabalgando su canto superior.
 	var wheel_holder := Control.new()
 	wheel_holder.position = Vector2((MENU_PANEL_W - WHEEL_SIZE) * 0.5,
 		-WHEEL_PEEK)
@@ -652,14 +664,6 @@ func _setup_menu_ui() -> void:
 	wheel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wheel_holder.add_child(wheel)
 
-	var tabla := TextureRect.new()
-	tabla.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	tabla.stretch_mode = TextureRect.STRETCH_SCALE
-	tabla.texture = load("res://assets/ui/menu_panel.png")
-	tabla.set_anchors_preset(Control.PRESET_FULL_RECT)
-	tabla.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	menu_panel.add_child(tabla)
-
 	# Los botones, en el hueco interior del tablón (medido sobre el PNG:
 	# x 0.10..0.90, y 0.245..0.845 — ver MENU_PANEL_INNER).
 	var alto_panel := MENU_PANEL_W * MENU_PANEL_RATIO
@@ -672,16 +676,31 @@ func _setup_menu_ui() -> void:
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	menu_panel.add_child(box)
 	button_box = box
-	box.add_child(_make_mode_button("Aventura", "ic_aventura", 104, 40,
+
+	# El ANCLA pintada al pie del tablón: la franja de abajo quedaba vacía.
+	# Medio apagada a propósito: es un adorno del mueble, no un botón.
+	var ancla := TextureRect.new()
+	ancla.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ancla.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ancla.texture = load("res://assets/ui/menu_ancla.png")
+	# En la franja libre entre los pergaminos y el marco de abajo (~55 px):
+	# más grande o más abajo, pisaba el marco.
+	ancla.position = Vector2(MENU_PANEL_W * 0.5 - 26.0, alto_panel * 0.757)
+	ancla.size = Vector2(52.0, 56.0)
+	ancla.modulate = Color(1, 1, 1, 0.55)
+	ancla.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu_panel.add_child(ancla)
+
+	box.add_child(_make_mode_button("Aventura", "ic_aventura", 96, 42,
 		func() -> void: _go_adventure()))
-	var arcade_btn := _make_mode_button("Arcade", "ic_arcade", 88, 34,
+	var arcade_btn := _make_mode_button("Arcade", "ic_arcade", 96, 42,
 		func() -> void: _go_arcade())
 	box.add_child(arcade_btn)
 	# El Arcade se gana superando el nivel 5 de la aventura: hasta entonces el
 	# botón queda apagado (pulsarlo explica cómo abrirlo).
 	if not GameState.arcade_unlocked():
 		arcade_btn.modulate = Color(0.52, 0.52, 0.52)
-	var shop_btn := _make_mode_button("Tienda", "ic_tienda", 88, 34,
+	var shop_btn := _make_mode_button("Tienda", "ic_tienda", 96, 42,
 		func() -> void: _go_shop())
 	box.add_child(shop_btn)
 	# La tienda no existe hasta que David presenta a Saverio, al superar el
@@ -1266,49 +1285,60 @@ func _stop_logo_idle() -> void:
 
 ## Botón del menú: tabla de madera con marco dorado, icono a la izquierda y
 ## rótulo centrado sobre el conjunto.
-func _make_mode_button(text: String, icon: String, height: int, font_size: int,
-		action: Callable) -> Button:
+## Botón de modo = un PERGAMINO (`boton_pergamino.png`, 9-slice SOLO
+## horizontal: los rollos de los extremos van en el margen y la banda de papel
+## es lo único que se estira; la textura se exporta al alto EXACTO de dibujo,
+## MODE_BTN_H, con margen vertical CERO — la regla de los botones con icono).
+## El icono va PINTADO en el papel (versión a tinta, pequeña) y el rótulo en
+## tinta oscura con sombra, como escrito a pincel.
+func _make_mode_button(text: String, icon: String, _height: int,
+		font_size: int, action: Callable) -> Button:
 	var b := Button.new()
-	# SIN ancho mínimo: el ancho lo manda el hueco del tablón del menú (con
-	# los 500 fijos de antes, los botones desbordaban el marco por la derecha).
-	b.custom_minimum_size = Vector2(0, height)
-	PrepBoard.skin_button(b)
+	b.custom_minimum_size = Vector2(0, MODE_BTN_H)
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	PrepBoard.add_press_feedback(b, 0.94)
 	b.pressed.connect(action)
+
+	var papel := NinePatchRect.new()
+	papel.texture = load("res://assets/ui/boton_pergamino.png")
+	papel.patch_margin_left = MODE_BTN_ROLL
+	papel.patch_margin_right = MODE_BTN_ROLL
+	papel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	papel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(papel)
 
 	var icon_rect := TextureRect.new()
 	icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon_rect.texture = load("res://assets/ui/%s.png" % icon)
-	# El icono va MÁS A LA DERECHA, MÁS GRANDE y SOBRESALIENDO del tablón por
-	# arriba y por abajo (márgenes verticales NEGATIVOS), superpuesto en vez de
-	# encajado dentro: metido y recortado parecía un adorno del botón, y suelto
-	# se lee como el emblema del modo. Un Control no recorta a sus hijos
-	# (`clip_contents` va a false), así que el desborde se ve tal cual; y como
-	# el icono se añade DESPUÉS que el tablón, queda por delante.
-	# El desborde va en PÍXELES FIJOS, no en proporción de la altura: los
-	# botones se separan 16 px SIEMPRE, así que un porcentaje hacía que el de
-	# Aventura (más alto) asomara mucho más que los demás y se montara encima
-	# del de abajo. Con 6 px por lado el icono respira y nunca invade al vecino.
-	const ICON_BLEED := 0.0
+	# Dentro del papel, pasado el rollo izquierdo, y CONTENIDO: pintado en el
+	# pergamino, no cabalgando el botón como el emblema de antes.
 	icon_rect.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	icon_rect.offset_left = 40.0
-	icon_rect.offset_right = 40.0 + height * 1.05
-	icon_rect.offset_top = -ICON_BLEED
-	icon_rect.offset_bottom = ICON_BLEED
+	icon_rect.offset_left = MODE_BTN_ROLL + 6.0
+	icon_rect.offset_right = MODE_BTN_ROLL + 6.0 + 54.0
+	icon_rect.offset_top = 17.0
+	icon_rect.offset_bottom = -17.0
 	icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(icon_rect)
 
 	var label := Label.new()
 	label.text = text
 	label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	label.offset_left = 20.0 + height * 1.16
-	label.offset_right = -20.0
+	label.offset_left = MODE_BTN_ROLL + 58.0
+	label.offset_right = -MODE_BTN_ROLL - 8.0
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", Color(1, 0.96, 0.86))
-	label.add_theme_color_override("font_outline_color", Color(0.13, 0.07, 0.02))
-	label.add_theme_constant_override("outline_size", 9)
+	# TINTA sobre papel: oscuro con una sombra cálida corta que le da bulto,
+	# no el crema con contorno de los tablones de madera.
+	label.add_theme_color_override("font_color", Color(0.30, 0.17, 0.07))
+	label.add_theme_color_override("font_shadow_color", Color(0.72, 0.55, 0.34, 0.85))
+	label.add_theme_constant_override("shadow_offset_x", 0)
+	label.add_theme_constant_override("shadow_offset_y", 3)
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		label.add_theme_font_override("font", negrita)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(label)
 	return b

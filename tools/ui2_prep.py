@@ -702,16 +702,48 @@ def build_submenu() -> None:
 
 # ---------------------------------------------- panel del menu y su timon
 
+def drop_color(img, cond):
+    """Borra los pixeles que cumplan `cond(r, g, b)`. Para basura de la
+    generacion que la inundacion de blanco no toca (la raya AZUL que salio
+    bajo el pergamino del boton)."""
+    img = img.copy()
+    px = img.load()
+    for y in range(img.height):
+        for x in range(img.width):
+            r, g, b, a = px[x, y]
+            if a > 0 and cond(r, g, b):
+                px[x, y] = (0, 0, 0, 0)
+    return img
+
+
+## Alto al que se DIBUJAN los botones de modo (los pergaminos): la textura se
+## exporta a este alto exacto y va con margen vertical CERO, la regla de los
+## botones con icono.
+MODE_BTN_H = 96
+
+
 def build_menu_panel() -> None:
-    """El tablon del MENU principal (banner tallado arriba, interior calido,
-    cuerdas colgando) y el TIMON interactivo que asoma por detras. El panel es
-    un SPRITE FIJO, no un 9-slice: su marco es irregular (banner, cuerdas) y
-    estirarlo lo deformaria. Tambien los tres iconos del submenu que se
-    quedaron viejos, rehechos al estilo de ic_perfil (y como ic_inventario es
-    ademas el icono del perk del ayudante y de una seccion de la guia, el
-    restyle les llega solo)."""
-    save(fit_width(crop_alpha(drop_white(load("menu/panel"))), 520),
+    """El tablon del MENU principal (SIN banner: quedaba vacio y sobraba — el
+    remate de arriba lo pone el timon), sus BOTONES DE PERGAMINO y los iconos
+    de modo PINTADOS, como tinta sobre el papel. El panel es un SPRITE FIJO,
+    no un 9-slice: su marco es irregular (cuerdas) y estirarlo lo deformaria.
+    Tambien los tres iconos del submenu, rehechos al estilo de ic_perfil."""
+    save(fit_width(crop_alpha(drop_white(load("menu/panel2"))), 520),
          "menu_panel")
+    # El pergamino de los botones de modo: 9-slice SOLO horizontal (los
+    # rollos de los extremos van en el margen y la banda de papel se estira).
+    scroll = drop_white(load("menu/scroll"))
+    scroll = drop_color(scroll, lambda r, g, b: b > 120 and b > r + 40 and b > g + 40)
+    save(fit_height(solidify(crop_alpha(keep_largest(scroll))), MODE_BTN_H),
+         "boton_pergamino")
+    # Iconos de modo "pintados en el papel", mas contenidos que los antiguos.
+    for n in ("ic_aventura", "ic_arcade", "ic_tienda"):
+        img = drop_white(load("menu/" + n))
+        save(fit_max(crop_alpha(drop_specks(img), 2), 96), n)
+    # El ancla pintada del pie del tablon: adorno para que la franja de abajo
+    # del menu no quede vacia.
+    ancla = drop_white(load("menu/ancla_b"))
+    save(fit_max(crop_alpha(drop_specks(ancla), 2), 96), "menu_ancla")
     timon = crop_alpha(keep_largest(drop_white(load("menu/timon"))), 2)
     save(fit_max(timon, 300), "timon")
     for n in ("ic_logros", "ic_inventario", "ic_opciones"):

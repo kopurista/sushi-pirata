@@ -20,8 +20,8 @@ const D_HAT := SceneBackdrop.D_HAT
 
 const WOOD := "res://assets/props/madera_muelle.webp"
 
-## Huella del barco del MENÚ: SHIP_FOOT (2.3) x MENU_SHIP_SCALE (2.3).
-const SHIP_W := 5.3
+## Huella del barco del MENÚ: SHIP_FOOT (2.3) x MENU_SHIP_SCALE (2.75).
+const SHIP_W := 6.3
 
 ## Muelle: corre a lo ANCHO de la pantalla (eje R_HAT), detrás del barco.
 ## El barco queda amarrado por delante, en el agua.
