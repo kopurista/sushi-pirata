@@ -303,13 +303,13 @@ func shop_unlocked() -> bool:
 	return true
 
 
-## La PESCA se abre con el puerto que lleva `unlocks_fishing` (el nivel 4):
-## a mitad de campaña ya hay monedero para apostar 50 doblones por intento.
+## La PESCA está ABIERTA DESDE EL INICIO (decidido para poder probarla sin
+## trabas). El candado de antes —superar el puerto con `unlocks_fishing`, el
+## nivel 4— queda aquí apuntado por si algún día se quiere reponer:
+##   for p in CampaignData.PORTS:
+##       if p.get("unlocks_fishing", false):
+##           return int(level_stars.get(p["id"], 0)) >= int(p.get("goal_stars", 1))
 func fishing_unlocked() -> bool:
-	for p in CampaignData.PORTS:
-		if not p.get("unlocks_fishing", false):
-			continue
-		return int(level_stars.get(p["id"], 0)) >= int(p.get("goal_stars", 1))
 	return true
 
 

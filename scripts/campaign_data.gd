@@ -166,8 +166,8 @@ const PORTS: Array = [
 		# El BARCO combinado se estrena aquí y a partir de ahora sale siempre.
 		"boat": true,
 		"director": "nivel_4",
-		# Superarlo abre la PESCA del menú (GameState.fishing_unlocked):
-		# a mitad de campaña ya hay monedero para apostar 50 por intento.
+		# El candado ORIGINAL de la PESCA (hoy abierta desde el inicio: ver
+		# GameState.fishing_unlocked). Se deja puesto por si se repone.
 		"unlocks_fishing": true,
 	},
 	{

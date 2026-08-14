@@ -51,9 +51,11 @@ const SHADOW_MARGIN := 70.0
 const VISION_R := 120.0
 const CAST_TIME := 0.38
 const BITE_WINDOW := 1.0
-## Fintas: cuántas (2..5) y sus tiempos.
+## Fintas: cuántas (2..5) y sus tiempos. El pez espera RETIRADO unos píxeles
+## del anzuelo y en cada intento AVANZA hasta tocarlo con la BOCA y vuelve.
 const FEINT_DIP := 7.0
-const FEINT_ANIM := 0.22
+const FEINT_ANIM := 0.3
+const FEINT_RETREAT := 26.0
 const BITE_SINK := 24.0
 ## La sombra NADA entre rumbos al azar (hay que apuntar adelantándose) y el
 ## sedal se RECOGE manteniendo la pantalla.
@@ -71,14 +73,20 @@ const TENSION_RELIEF := 0.85
 const DRAIN_HOLD := 0.16
 const REGAIN_BASE := 0.045
 const REGAIN_TIER := 0.02
-const ENERGY_START_BASE := 0.5
+const ENERGY_START_BASE := 0.6
 const ENERGY_START_TIER := 0.1
-const SPEED_REGAIN_BASE := 0.12
-const SPEED_REGAIN_TIER := 0.03
+## En la fase de velocidad la presa SIEMPRE intenta subir a este ritmo; cada
+## toque NO la baja: le abre una ventana de TAP_RELIEF s en la que el subidón
+## queda FRENADO y solo entonces cae un poquito (SPEED_DRAIN_TAPPING).
+## Pulsando más rápido que la ventana, la barra baja despacito; pulsando
+## lento, sube entre toque y toque.
+const SPEED_REGAIN_BASE := 0.22
+const SPEED_REGAIN_TIER := 0.05
 const SPEED_TIME_BASE := 1.1
 const SPEED_TIME_TIER := 0.35
 const SPEED_TENSION_DECAY := 0.25
-const TAP_CHUNK := 0.055
+const TAP_RELIEF := 0.3
+const SPEED_DRAIN_TAPPING := 0.03
 const TAP_TENSION := 0.045
 
 var state: int = State.READY
@@ -105,6 +113,9 @@ var bobber_out := false
 var feints_left := 0
 var feint_timer := 0.0
 var feint_anim := 0.0
+## Intentos de picada YA HECHOS en este intento: la medida de seguridad — un
+## toque durante el acercamiento o antes de la PRIMERA finta no espanta.
+var feints_done := 0
 var bite_t := 0.0
 var bite_sink := 0.0
 
@@ -115,6 +126,9 @@ var energy := 1.0
 var phases_left := 0
 var speed_left := 0.0
 var speed_next := 0.0
+## Ventana abierta por el ÚLTIMO toque de la fase de velocidad: mientras dura,
+## la subida de la presa está frenada.
+var speed_relief := 0.0
 
 var zone: Control = null
 var cast_btn: Button = null
@@ -376,6 +390,7 @@ func _start_attempt() -> void:
 	bobber_out = false
 	casting = false
 	retrieving = false
+	feints_done = 0
 	instruction.text = "Toca el agua para lanzar el sedal"
 	_set_state(State.SHADOW)
 
@@ -431,32 +446,52 @@ func _tick_precast(delta: float) -> void:
 		return
 	match state:
 		State.APPROACH:
-			# La sombra nada hasta ponerse bajo el anzuelo, mirándolo.
-			var destino := bobber + Vector2(0, 8.0)
-			heading = lerp_angle(heading, (destino - shadow_pos).angle(),
+			# La sombra nada hasta quedarse con la BOCA a un palmo del
+			# anzuelo (el cuerpo queda DETRÁS, retirado FEINT_RETREAT).
+			heading = lerp_angle(heading, (bobber - shadow_pos).angle(),
 				minf(delta * 5.0, 1.0))
+			var destino := _feint_rest()
 			shadow_pos = shadow_pos.lerp(destino, minf(delta * 2.4, 1.0))
 			if shadow_pos.distance_to(destino) < 6.0:
 				feints_left = randi_range(2, 5)
 				feint_timer = randf_range(0.55, 1.1)
 				_set_state(State.FEINT)
 		State.FEINT:
-			shadow_pos = bobber + Vector2(sin(_t * 1.1) * 5.0, 8.0)
-			heading = lerp_angle(heading,
-				(bobber - shadow_pos - Vector2(0, 30)).angle() \
-				+ sin(_t * 1.3) * 0.2, minf(delta * 4.0, 1.0))
+			# Mirando al anzuelo desde su puesto retirado; en cada intento
+			# EMBISTE hacia delante (la boca llega al anzuelo justo cuando el
+			# flotador se hunde) y vuelve a retroceder.
+			heading = lerp_angle(heading, (bobber - shadow_pos).angle(),
+				minf(delta * 4.0, 1.0))
+			var avance := 0.0
 			if feint_anim > 0.0:
 				feint_anim = maxf(feint_anim - delta, 0.0)
+				avance = sin(feint_anim / FEINT_ANIM * PI) \
+					* (FEINT_RETREAT + 3.0)
+			shadow_pos = _feint_rest() \
+				+ Vector2.from_angle(heading) * avance \
+				+ Vector2.from_angle(heading + PI * 0.5) * sin(_t * 1.4) * 3.0
+			if feint_anim > 0.0:
 				return
 			feint_timer -= delta
 			if feint_timer <= 0.0:
 				if feints_left > 0:
-					# Finta: mordisquea sin tragar. Tocar AHORA la espanta.
+					# Finta: embiste y mordisquea sin tragar. Tocar desde
+					# AHORA (ya ha habido un intento) espanta al pez.
 					feints_left -= 1
+					feints_done += 1
 					feint_anim = FEINT_ANIM
 					feint_timer = randf_range(0.55, 1.1)
 				else:
 					_enter_bite()
+
+
+## El puesto del pez frente al anzuelo: el CENTRO del cuerpo queda de forma
+## que la BOCA (el morro de la silueta, a ~1.35 radios del centro) apunte al
+## flotador desde FEINT_RETREAT píxeles de distancia.
+func _feint_rest() -> Vector2:
+	var nariz := (26.0 + 7.0 * tier) * 1.35 + 4.0
+	return bobber - Vector2.from_angle(heading) * (nariz + FEINT_RETREAT) \
+		+ Vector2(0, 6.0)
 
 
 ## El pez NADA de rumbo en rumbo (no se queda clavado: hay que apuntar
@@ -480,6 +515,10 @@ func _start_approach() -> void:
 func _enter_bite() -> void:
 	bite_t = BITE_WINDOW
 	bite_sink = 0.0
+	# La picada de verdad: el pez se queda ADELANTADO, con la boca en el
+	# anzuelo (sin el retiro de las fintas).
+	var nariz := (26.0 + 7.0 * tier) * 1.35
+	shadow_pos = bobber - Vector2.from_angle(heading) * nariz + Vector2(0, 6.0)
 	instruction.text = "¡Ha picado!"
 	_set_state(State.BITE)
 
@@ -487,7 +526,8 @@ func _enter_bite() -> void:
 func _start_fight() -> void:
 	holding = true
 	tension = 0.0
-	# La presa empieza entre el 50% (tier 0) y el 80% (tier 3): cuanto mejor
+	speed_relief = 0.0
+	# La presa empieza entre el 60% (tier 0) y el 90% (tier 3): cuanto mejor
 	# el premio, menos margen hasta el 100% que la deja escapar.
 	energy = ENERGY_START_BASE + ENERGY_START_TIER * tier
 	# Fases de velocidad: más y más largas cuanto mejor es el premio.
@@ -506,10 +546,15 @@ func _tick_fight(delta: float) -> void:
 	var en_velocidad := speed_left > 0.0
 	if en_velocidad:
 		speed_left -= delta
-		# La presa tira con fuerza: recupera deprisa y solo la frenan los
-		# toques rápidos (cada uno resta TAP_CHUNK en _on_zone_input, pero
-		# también TENSA el sedal: el ritmo hay que dosificarlo).
-		energy += (SPEED_REGAIN_BASE + SPEED_REGAIN_TIER * tier) * delta
+		speed_relief = maxf(speed_relief - delta, 0.0)
+		# La presa SIEMPRE intenta subir todo lo posible; cada toque no la
+		# baja, le FRENA la subida durante TAP_RELIEF s (y tensa el sedal en
+		# _on_zone_input). Solo pulsando más rápido que la ventana la barra
+		# baja, y muy poco.
+		if speed_relief > 0.0:
+			energy -= SPEED_DRAIN_TAPPING * delta
+		else:
+			energy += (SPEED_REGAIN_BASE + SPEED_REGAIN_TIER * tier) * delta
 		tension = maxf(tension - SPEED_TENSION_DECAY * delta, 0.0)
 		if speed_left <= 0.0:
 			instruction.text = "¡Mantén para recoger!\nSuelta si el sedal sufre"
@@ -589,15 +634,20 @@ func _on_zone_input(ev: InputEvent) -> void:
 					retrieving = true
 			State.APPROACH, State.FEINT:
 				# Tirar antes de tiempo espanta al pez: intento perdido.
-				_escaped("¡Se ha asustado!")
+				# MEDIDA DE SEGURIDAD: solo cuenta si YA ha intentado picar
+				# al menos una vez — un toque nada más lanzar (o mientras se
+				# acerca) se ignora y no cuesta el intento.
+				if feints_done > 0:
+					_escaped("¡Se ha asustado!")
 			State.BITE:
 				_start_fight()
 			State.FIGHT:
 				holding = true
 				if speed_left > 0.0:
-					energy = maxf(energy - TAP_CHUNK, 0.0)
-					# El tirón del jugador también TENSA el sedal: pulsar a
-					# lo loco con la barra roja alta lo rompe igual.
+					# El toque FRENA la subida (no baja la barra)...
+					speed_relief = TAP_RELIEF
+					# ...y también TENSA el sedal: pulsar a lo loco con la
+					# barra roja alta lo rompe igual.
 					tension = minf(tension + TAP_TENSION, 1.0)
 	else:
 		retrieving = false

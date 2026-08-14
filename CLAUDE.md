@@ -382,8 +382,10 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     deja avisos de `invalid UID`.
 - **MINIJUEGO DE PESCA** (`scripts/fish_data.gd` + `scripts/fishing_game.gd`):
   el pergamino **"Pesca"** del menú, entre Arcade y Tienda (`ic_pesca`),
-  abierto al superar el **nivel 4** (`unlocks_fishing` en CampaignData →
-  `GameState.fishing_unlocked()`). **NO cambia de escena**: como Aventura, se
+  **ABIERTO DESDE EL INICIO** (decidido para probarlo sin trabas;
+  `GameState.fishing_unlocked()` devuelve true y el candado original —superar
+  el nivel 4, `unlocks_fishing`— queda apuntado ahí por si se repone).
+  **NO cambia de escena**: como Aventura, se
   juega SOBRE el propio menú — `_go_fishing` aparta la interfaz con
   `_ui_out(false)` (las cajas de recursos SE QUEDAN, que el intento cuesta
   dinero), **esconde `menu_panel` y `submenu_bar` del todo** (bajados 660 px
@@ -402,24 +404,31 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     (`RETRIEVE_SPEED`) hasta recogerlo y volver a lanzar (gratis dentro del
     intento). El **campo de visión** (`VISION_R` 120 px) se mira CADA
     fotograma — el pez puede nadar él solo hasta el anzuelo — y al entrar la
-    sombra se acerca y **FINTA de 2 a 5 veces** (mordisco corto, el flotador
-    se hunde 7 px). La picada REAL hunde el flotador con "¡Ha picado!" y
-    ondas, con `BITE_WINDOW` (**1 s**) para tocar. **Tocar durante una finta
-    (o el acercamiento) ESPANTA al pez y pierde el intento**, igual que
-    dejar pasar la picada.
+    sombra se acerca y se planta con la **BOCA a FEINT_RETREAT del anzuelo**
+    (`_feint_rest`: el centro del cuerpo queda detrás, a ~1.35 radios).
+    **FINTA de 2 a 5 veces**: en cada intento EMBISTE hacia delante —la boca
+    toca el anzuelo justo cuando el flotador se hunde 7 px— y vuelve a
+    retroceder. La picada REAL lo deja adelantado con la boca en el anzuelo,
+    hunde el flotador con "¡Ha picado!" y ondas, y da `BITE_WINDOW` (**1 s**)
+    para tocar. **Tocar durante una finta ESPANTA al pez y pierde el
+    intento** — pero SOLO si ya ha intentado picar al menos una vez
+    (`feints_done`): un toque nada más lanzar o durante el acercamiento se
+    ignora, la medida de seguridad contra el toque accidental. Dejar pasar
+    la picada también lo pierde.
   · **PELEA con caña y barras VERTICALES** (a la derecha: `pesca_cana.png`,
     la misma caña del icono exportada a 400 px, con las barras giradas -90° —
     el 9-slice se dibuja en horizontal y la rotación lo pone de pie sin
     deformar los topes): el **SEDAL** (roja) sube al MANTENER y a tope se
-    rompe; la **PRESA** (ámbar) empieza al **50–80%** según el tier
-    (`ENERGY_START_BASE` + 0.1/tier) — mantener la drena, soltar la deja
+    rompe; la **PRESA** (ámbar) empieza al **60–90%** según el tier
+    (`ENERGY_START_BASE` 0.6 + 0.1/tier) — mantener la drena, soltar la deja
     recuperarse, y **si llega al 100% ESCAPA**. En las **FASES DE VELOCIDAD**
-    (aleatorias) la presa tira con fuerza: recupera deprisa (`SPEED_REGAIN`,
-    rebajado a 0.12+0.03/tier justamente porque el 100% ahora es fuga), la
-    barra parpadea, y hay que PULSAR RÁPIDO Y REPETIDAMENTE — cada toque le
-    resta `TAP_CHUNK` **pero también TENSA el sedal `TAP_TENSION`**: pulsar a
-    lo loco con la barra roja alta lo rompe igual (el sedal solo se relaja
-    despacio, `SPEED_TENSION_DECAY`). En plena faena el "Atrás" se esconde
+    (aleatorias) la presa SIEMPRE intenta subir con fuerza (`SPEED_REGAIN`
+    0.22+0.05/tier) y **cada toque NO la baja: le FRENA la subida** durante
+    `TAP_RELIEF` (0.3 s) — solo pulsando más rápido que esa ventana la barra
+    baja, y muy poco (`SPEED_DRAIN_TAPPING` 0.03). Cada toque **también
+    TENSA el sedal `TAP_TENSION`**: pulsar a lo loco con la barra roja alta
+    lo rompe igual (el sedal solo se relaja despacio,
+    `SPEED_TENSION_DECAY`). En plena faena el "Atrás" se esconde
     (los 50 ya están apostados). El **ÁLBUM** es un botón de icono propio
     (`ic_album.png`, el libro del pez dorado) ARRIBA A LA DERECHA, y la
     pantalla va SIN lazo de título (el tablón del botón ya dice dónde
@@ -963,7 +972,7 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 - `scripts/main_menu.gd` — menú inicial (ESCENA PRINCIPAL, raíz **Node3D**):
   CUATRO botones de modo con icono propio — **Aventura** (campaña), **Arcade**
   (partida libre, sin tocar el progreso), **Pesca** (el minijuego, ver su
-  bloque; apagado hasta superar el nivel 4, con aviso al pulsarlo) y
+  bloque; abierta desde el inicio) y
   **Tienda** — apoyados sobre el
   **SUBMENÚ inferior**: una barra de madera oscura con cuerda en el canto
   (`submenu_barra.png`, estilo propio, exportada al alto exacto de dibujo con
