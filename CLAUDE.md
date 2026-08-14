@@ -448,6 +448,16 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     más deprisa** (`REGAIN_RAMP` por `idle_time`, hasta ×2.6), y mirar sale
     caro. Medido: 40 toques rápidos suben la barra de 0.60 a 1.00 (el pez
     ESCAPA), mientras que mantener de verdad la baja.
+    **Y OJO CON `REGAIN_*`: LO QUE RECUPERA LA PRESA EN EL DESCANSO DECIDE SI
+    LA CAPTURA ES POSIBLE.** Hay que soltar para que el sedal no reviente, así
+    que si el pez recupera en ese descanso más de lo que se le drena
+    recogiendo, la barra sube ciclo a ciclo y NO HAY FORMA de pescarlo por
+    bien que se juegue. Pasó con 0.10+0.03/tier: un épico grande y TODOS los
+    legendarios eran imposibles. Al tocar estos números hay que **SIMULAR EL
+    CICLO ENTERO** con un jugador óptimo (mantener hasta 0.85 de tensión,
+    soltar hasta 0.10), que a ojo no se ve. Con los vigentes la pelea dura de
+    ~4 s (común pequeño) a ~17 s (legendario grande), medido con el bucle
+    real del juego.
     En las
     **FASES DE VELOCIDAD** (aleatorias) la presa sube con fuerza de verdad y
     **mucho más cuanto mejor es el premio** (`SPEED_REGAIN`
@@ -529,9 +539,14 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     captura contra el encuadre DEL MENÚ; `WATER` es el rectángulo útil de
     agua. Entrada solo por `InputEventScreenTouch` (el ratón llega como toque
     sintetizado), con press = picar/lanzar/mantener/tap y release = soltar.
-  · Stats: `fish_caught` y `chests_fished` (sin logros aún, pero contando ya
-    para que un logro futuro funcione hacia atrás). El gasto suma a
-    `money_spent`.
+  · **LOGROS de pesca** (cinco, en el apartado "travesia" — cinco pestañas
+    ya llenan los 720 px y una sexta no cabría): capturas (`fish_caught`),
+    álbum (`derived:pesca_album`, que cuenta por `FishData.caught_count` y
+    cuya meta de ORO es el catálogo entero: **al añadir un pez hay que
+    subirla**), legendarios (`fish_legendary`), cofres (`chests_fished`) y
+    peces con lapa (`fish_lapa`). Las estadísticas se suben desde
+    `GameState.fishing_apply`, que es donde ocurre el suceso. El gasto de los
+    intentos suma a `money_spent`.
   · Iconos `assets/ui/fish_*.png` + `ic_pesca.png` + `pesca_cana.png`: Ludo
     (item-icon, Western Cartoon, como los coleccionables) → `_gen/ui2/fish/`
     (y `menu/ic_pesca`) → `build_fishing()` de `tools/ui2_prep.py` (con

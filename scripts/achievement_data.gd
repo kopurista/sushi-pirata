@@ -180,6 +180,37 @@ const ACHIEVEMENTS: Array = [
 		"desc": "Reúne %d coleccionables.",
 		"stat": "derived:coleccion", "tiers": [10, 20, 40],
 	},
+
+	# --- Pesca ---------------------------------------------------------------
+	# Van en "travesia" y no en un apartado propio: cinco pestañas ya llenan
+	# los 720 px de ancho (ver GROUP_TABS) y una sexta no cabría.
+	{
+		"id": "pesca_capturas", "group": "travesia", "name": "Buena mano con la caña",
+		"desc": "Saca %d capturas del mar.",
+		"stat": "fish_caught", "tiers": [10, 100, 500],
+	},
+	{
+		# La meta del ORO es FishData.total(): se remata con el álbum LLENO.
+		# Al añadir un pez al catálogo hay que subirla con él.
+		"id": "pesca_album", "group": "travesia", "name": "Álbum del océano",
+		"desc": "Descubre %d especies distintas.",
+		"stat": "derived:pesca_album", "tiers": [15, 50, 100],
+	},
+	{
+		"id": "pesca_legendarios", "group": "travesia", "name": "Leyendas de las profundidades",
+		"desc": "Pesca %d ejemplares legendarios.",
+		"stat": "fish_legendary", "tiers": [1, 5, 20],
+	},
+	{
+		"id": "pesca_cofres", "group": "travesia", "name": "Rastreador de cofres",
+		"desc": "Abre %d cofres pescados en alta mar.",
+		"stat": "chests_fished", "tiers": [5, 40, 150],
+	},
+	{
+		"id": "pesca_lapa", "group": "travesia", "name": "Dos por el precio de uno",
+		"desc": "Pesca %d peces con un pez lapa pegado.",
+		"stat": "fish_lapa", "tiers": [1, 10, 40],
+	},
 ]
 
 

@@ -901,6 +901,10 @@ func achievement_value(a: Dictionary) -> int:
 			return unlocked_recipes.size()
 		"derived:coleccion":
 			return collectibles.size()
+		"derived:pesca_album":
+			# Especies DEL CATÁLOGO, no claves del guardado (un id renombrado
+			# dejaría una entrada huérfana y el logro contaría de más).
+			return FishData.caught_count(fish_album)
 	return get_stat(key)
 
 
@@ -1040,6 +1044,10 @@ func fishing_apply(roll: Dictionary) -> Dictionary:
 		fish_album[fid] = veces
 		fish_best[fid] = maxf(float(fish_best.get(fid, 0.0)), size)
 		bump_stat("fish_caught")
+		# Las estadísticas de los LOGROS de pesca se suben desde aquí, que es
+		# donde ocurre el suceso (el criterio de todo el juego).
+		if str(FishData.get_fish(fid).get("rarity", "")) == "legendario":
+			bump_stat("fish_legendary")
 		var out := { "type": "fish", "fish_id": fid, "veces": veces,
 			"size": size }
 		# Los peces-ingrediente dan sus usos EN CADA captura (la pesca es la
@@ -1063,6 +1071,7 @@ func fishing_apply(roll: Dictionary) -> Dictionary:
 			fish_album["pez_lapa"] = int(fish_album.get("pez_lapa", 0)) + 1
 			fish_best["pez_lapa"] = maxf(float(fish_best.get("pez_lapa", 0.0)), ls)
 			bump_stat("fish_caught")
+			bump_stat("fish_lapa")
 			var lapa_coins := FishData.coins_for("pez_lapa", ls)
 			money += lapa_coins
 			out["lapa_coins"] = lapa_coins

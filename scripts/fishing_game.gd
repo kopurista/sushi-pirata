@@ -70,7 +70,7 @@ const RETRIEVE_SPEED := 620.0
 const TENSION_BASE := 0.30
 const TENSION_TIER := 0.28
 const TENSION_RELIEF := 0.85
-const DRAIN_HOLD := 0.16
+const DRAIN_HOLD := 0.20
 ## --- CONTRA EL SPAM DE PULSACIONES (era el agujero que rompía la pesca:
 ## dando toquecitos se recogía al pez sin que el sedal llegara a tensarse).
 ## Tres reglas juntas: 1) el sedal recibe un PICO en cada pulsación, así que
@@ -79,12 +79,21 @@ const DRAIN_HOLD := 0.16
 ## recoge nada; 3) suelto, el pez recupera CADA VEZ MÁS DEPRISA (rampa por
 ## `idle_time`), y quedarse mirando sale caro. ---
 const TAP_TENSION_KICK := 0.07
-const HOLD_MIN := 0.35
-const REGAIN_BASE := 0.10
-const REGAIN_TIER := 0.03
+const HOLD_MIN := 0.20
+## LO QUE RECUPERA LA PRESA CON EL SEDAL EN DESCANSO. Está CALIBRADO, no
+## puesto a ojo: hay que soltar para que el sedal no reviente, así que si el
+## pez recupera en ese descanso más de lo que se le drena mientras se recoge,
+## la barra sube en cada ciclo y la captura es IMPOSIBLE por mucho que se
+## juegue bien. Pasó: con 0.10+0.03/tier, un épico grande y TODOS los
+## legendarios no se podían pescar (simulado ciclo a ciclo con el jugador
+## óptimo). Con estos números la pelea dura de 4 s (común pequeño) a 17 s
+## (legendario grande). Al tocarlos, VOLVER A SIMULAR el ciclo entero, que a
+## ojo no se ve: solo se nota jugando veinte veces.
+const REGAIN_BASE := 0.055
+const REGAIN_TIER := 0.015
 ## Cuánto acelera la recuperación por segundo sin mantener, y su tope.
-const REGAIN_RAMP := 0.7
-const REGAIN_RAMP_MAX := 2.6
+const REGAIN_RAMP := 0.55
+const REGAIN_RAMP_MAX := 2.2
 const ENERGY_START_BASE := 0.6
 const ENERGY_START_TIER := 0.1
 ## En la fase de velocidad la presa SIEMPRE intenta subir a este ritmo
