@@ -805,25 +805,28 @@ def build_menu_panel() -> None:
 # un flotador colgando que la isla mayor podria comerse).
 FISH_ICON_SIDE = 200
 
+# Los 100 del catalogo, en el MISMO orden que FishData.FISH.
 FISH = [
     "sardina", "anchoa", "boqueron", "arenque", "caballa", "jurel",
     "salmonete", "palometa", "sargo", "lisa", "gallo", "bacaladilla",
-    "ayu", "barbo", "pejesapo", "remora", "pez_cirujano", "pez_mariposa",
-    "pez_payaso", "medusa", "lata_basura", "bota",
+    "bacalao", "abadejo", "platija", "ayu", "pejesapo", "remora",
+    "pez_cirujano", "pez_mariposa", "pez_payaso", "cangrejo", "estrella_mar",
+    "caracola", "erizo_mar", "medusa", "lata_basura", "rueda", "bota",
     "mata_wakame", "gamba_real", "salmon", "atun",
     "dorada", "lubina", "besugo", "lenguado", "rodaballo", "merluza",
-    "rape", "congrio", "morena", "calamar", "pirana", "carpa_koi",
-    "lampuga", "pargo_rojo", "pez_volador", "pez_balon", "pez_erizo",
-    "caballito_mar", "bogavante", "tortuga", "amia_calva", "barbo_oloroso",
-    "pez_rana_pintado", "pez_ojo_celestial", "jikin", "oranda", "pez_lapa",
-    "pulpo", "anguila",
+    "rape", "congrio", "morena", "calamar", "sepia", "pulpo",
+    "pirana", "carpa_koi", "lampuga", "pargo_rojo", "pez_volador",
+    "pez_balon", "pez_erizo", "pez_loro", "pez_ballesta", "pez_angel",
+    "pez_cofre", "raya", "caballito_mar", "bogavante", "langosta",
+    "tortuga", "amia_calva", "barbo_oloroso", "pez_rana_pintado",
+    "pez_ojo_celestial", "jikin", "oranda", "pez_lapa", "anguila",
     "pez_espada", "mero", "corvina", "tiburon", "tiburon_martillo",
-    "pez_luna", "mantarraya",
-    "pez_leon", "pez_napoleon", "pez_sierra", "pez_cabeza_transparente",
-    "arowana", "siluro", "bata_bata", "froggy",
-    "atun_rojo", "fugu", "salmon_real",
-    "pez_lanza", "pez_remo", "celacanto", "tiburon_ballena",
-    "caballito_dorado", "koi_dorado",
+    "tiburon_tigre", "barracuda", "pez_luna", "mantarraya", "pez_leon",
+    "pez_napoleon", "pez_sierra", "pez_cabeza_transparente", "pez_vibora",
+    "nautilus", "arowana", "siluro", "bata_bata", "froggy",
+    "atun_rojo", "atun_amarillo", "fugu", "salmon_real",
+    "pez_lanza", "pez_vela", "pez_remo", "calamar_gigante", "celacanto",
+    "tiburon_ballena", "caballito_dorado", "koi_dorado",
 ]
 
 

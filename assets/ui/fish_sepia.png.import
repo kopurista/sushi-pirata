@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b5wcvbif1o100"
-path="res://.godot/imported/fish_barbo.png-54f8cd2f8ece2cfd509c040f5cd4bb99.ctex"
+uid="uid://cdcbbb40thw6d"
+path="res://.godot/imported/fish_sepia.png-64de0475316e8533642cc6c13883c819.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ui/fish_barbo.png"
-dest_files=["res://.godot/imported/fish_barbo.png-54f8cd2f8ece2cfd509c040f5cd4bb99.ctex"]
+source_file="res://assets/ui/fish_sepia.png"
+dest_files=["res://.godot/imported/fish_sepia.png-64de0475316e8533642cc6c13883c819.ctex"]
 
 [params]
 

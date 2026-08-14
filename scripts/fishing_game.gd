@@ -71,8 +71,20 @@ const TENSION_BASE := 0.30
 const TENSION_TIER := 0.28
 const TENSION_RELIEF := 0.85
 const DRAIN_HOLD := 0.16
-const REGAIN_BASE := 0.045
-const REGAIN_TIER := 0.02
+## --- CONTRA EL SPAM DE PULSACIONES (era el agujero que rompía la pesca:
+## dando toquecitos se recogía al pez sin que el sedal llegara a tensarse).
+## Tres reglas juntas: 1) el sedal recibe un PICO en cada pulsación, así que
+## machacar la pantalla lo revienta; 2) la presa NO empieza a ceder hasta
+## llevar HOLD_MIN segundos de dedo apoyado, o sea que el toque suelto no
+## recoge nada; 3) suelto, el pez recupera CADA VEZ MÁS DEPRISA (rampa por
+## `idle_time`), y quedarse mirando sale caro. ---
+const TAP_TENSION_KICK := 0.07
+const HOLD_MIN := 0.35
+const REGAIN_BASE := 0.10
+const REGAIN_TIER := 0.03
+## Cuánto acelera la recuperación por segundo sin mantener, y su tope.
+const REGAIN_RAMP := 0.7
+const REGAIN_RAMP_MAX := 2.6
 const ENERGY_START_BASE := 0.6
 const ENERGY_START_TIER := 0.1
 ## En la fase de velocidad la presa SIEMPRE intenta subir a este ritmo
@@ -81,8 +93,18 @@ const ENERGY_START_TIER := 0.1
 ## FRENADO y solo entonces cae un poquito (SPEED_DRAIN_TAPPING). Pulsando más
 ## rápido que la ventana, la barra baja despacito; pulsando lento, sube entre
 ## toque y toque.
-const SPEED_REGAIN_BASE := 0.31
-const SPEED_REGAIN_TIER := 0.063
+## En VELOCIDAD la presa tira de verdad, y MUCHO más cuanto mejor es el
+## premio: de 0.34/s (un común) a 0.94/s (un legendario), o sea que ignorar
+## un tirón de una pieza gorda la pierde en poco más de un segundo.
+const SPEED_REGAIN_BASE := 0.34
+const SPEED_REGAIN_TIER := 0.13
+## El tirón NO se dispara con la barra casi llena: con la presa por encima de
+## esto no habría margen para reaccionar (a tier 3 sube 0.73/s, así que un
+## tirón con la barra al 90% la perdería en una décima) y la fase se viviría
+## como una muerte súbita en vez de como una amenaza. Con este techo siempre
+## quedan ~0.4 s de reacción en lo peor, y encima narra mejor: el pez tira
+## con todo justo cuando se ve perdiendo.
+const SPEED_MAX_ENERGY := 0.72
 const SPEED_TIME_BASE := 1.1
 const SPEED_TIME_TIER := 0.35
 const SPEED_TENSION_DECAY := 0.25
@@ -139,6 +161,10 @@ var bite_sink := 0.0
 
 # Pelea.
 var holding := false
+## Segundos con el dedo apoyado SIN soltar (la presa no cede hasta HOLD_MIN)
+## y segundos sin mantener (rampa de recuperación del pez).
+var hold_time := 0.0
+var idle_time := 0.0
 var tension := 0.0
 var energy := 1.0
 var phases_left := 0
@@ -655,6 +681,8 @@ func _enter_bite() -> void:
 
 func _start_fight() -> void:
 	holding = true
+	hold_time = 0.0
+	idle_time = 0.0
 	tension = 0.0
 	speed_relief = 0.0
 	# El tira y afloja arranca donde picó: la boya viajará por ese sedal.
@@ -701,16 +729,28 @@ func _tick_fight(delta: float) -> void:
 	else:
 		if phases_left > 0:
 			speed_next -= delta
-			if speed_next <= 0.0:
+			# Con la barra casi llena el tirón se APLAZA (ver SPEED_MAX_ENERGY):
+			# ahí no habría margen de reacción y sería una muerte súbita.
+			if speed_next <= 0.0 and energy <= SPEED_MAX_ENERGY:
 				phases_left -= 1
 				speed_left = SPEED_TIME_BASE + SPEED_TIME_TIER * tier
 				speed_next = randf_range(2.2, 4.0)
 				instruction.text = "¡Tira con fuerza!\n¡PULSA RÁPIDO!"
 		if holding:
-			energy -= DRAIN_HOLD * delta
+			hold_time += delta
+			idle_time = 0.0
+			# La presa NO cede hasta que el dedo lleva HOLD_MIN apoyado: un
+			# toque suelto tensa el sedal (ver el pico de `_on_zone_input`)
+			# pero no recoge ni un palmo.
+			if hold_time >= HOLD_MIN:
+				energy -= DRAIN_HOLD * delta
 			tension += TENSION_BASE * (1.0 + TENSION_TIER * tier) * delta
 		else:
-			energy += (REGAIN_BASE + REGAIN_TIER * tier) * fuerza * delta
+			hold_time = 0.0
+			idle_time += delta
+			# Cuanto más tiempo sin recoger, más deprisa recupera el pez.
+			var rampa := minf(1.0 + idle_time * REGAIN_RAMP, REGAIN_RAMP_MAX)
+			energy += (REGAIN_BASE + REGAIN_TIER * tier) * fuerza * rampa * delta
 			tension -= TENSION_RELIEF * delta
 	energy = clampf(energy, 0.0, 1.0)
 	tension = clampf(tension, 0.0, 1.0)
@@ -798,12 +838,18 @@ func _on_zone_input(ev: InputEvent) -> void:
 				_start_fight()
 			State.FIGHT:
 				holding = true
+				hold_time = 0.0
 				if speed_left > 0.0:
 					# El toque FRENA la subida (no baja la barra)...
 					speed_relief = TAP_RELIEF
 					# ...y también TENSA el sedal: pulsar a lo loco con la
 					# barra roja alta lo rompe igual.
 					tension = minf(tension + TAP_TENSION, 1.0)
+				else:
+					# CADA pulsación da un TIRÓN al sedal (fuera de la fase
+					# de velocidad). Es lo que impide recoger a base de
+					# toquecitos: el pico se acumula y revienta el sedal.
+					tension = minf(tension + TAP_TENSION_KICK, 1.0)
 	else:
 		retrieving = false
 		if state == State.FIGHT:
@@ -921,7 +967,11 @@ func _reveal_panel(alto: float) -> Control:
 	return panel
 
 
-func _reveal_close_button(panel: Control, overlay_alto: float) -> void:
+## Botón de cerrar del cartel. Si la captura traía un PEZ LAPA pegado, al
+## cerrar NO se vuelve a la pesca: sale su cartel sorpresa (`premio` lleva
+## `lapa_coins`), que es lo que hace que la lapa se descubra DESPUÉS.
+func _reveal_close_button(panel: Control, overlay_alto: float,
+		premio := {}) -> void:
 	var seguir := Button.new()
 	seguir.text = "Continuar"
 	PrepBoard.skin_button(seguir)
@@ -934,7 +984,46 @@ func _reveal_close_button(panel: Control, overlay_alto: float) -> void:
 	panel.add_child(seguir)
 	seguir.pressed.connect(func() -> void:
 		panel.get_parent().queue_free()
-		_set_state(State.READY))
+		if premio.has("lapa_coins"):
+			_show_lapa_reveal(premio)
+		else:
+			_set_state(State.READY))
+
+
+## LA SORPRESA DEL PEZ LAPA: se descubre al cerrar el cartel de la captura,
+## nunca antes — venía pegado al pez y nadie lo había visto.
+func _show_lapa_reveal(premio: Dictionary) -> void:
+	var alto := 620.0
+	var panel := _reveal_panel(alto)
+	var title := PrepBoard.make_big_title("¡Venía\nacompañado!", 42)
+	title.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	title.offset_top = 34.0
+	title.offset_bottom = 150.0
+	panel.add_child(title)
+
+	var ic := TextureRect.new()
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.texture = FishData.get_icon("pez_lapa")
+	ic.position = Vector2((520.0 - 170.0) * 0.5, 160.0)
+	ic.size = Vector2(170, 170)
+	ic.pivot_offset = Vector2(85, 85)
+	panel.add_child(ic)
+	ic.scale = Vector2(0.2, 0.2)
+	create_tween().tween_property(ic, "scale", Vector2.ONE, 0.45) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).set_delay(0.1)
+
+	var ls := float(premio.get("lapa_size", 0.5))
+	_centered_label(panel, "Pez lapa", 34, 350.0)
+	_centered_label(panel, "Iba pegado a tu captura  ·  %s"
+		% FishData.size_text("pez_lapa", ls), 21, 396.0, FADED)
+	_centered_label(panel, "+%d doblones" % int(premio["lapa_coins"]),
+		26, 436.0, Color(0.2, 0.45, 0.12))
+	var veces := int(GameState.fish_album.get("pez_lapa", 1))
+	if veces > 1:
+		_centered_label(panel, "Pescado " + FishData.times_text(veces),
+			19, 480.0, FADED)
+	_reveal_close_button(panel, alto)
 
 
 func _centered_label(panel: Control, texto: String, size_f: int, y: float,
@@ -976,10 +1065,15 @@ func _show_fish_reveal(premio: Dictionary) -> void:
 
 	_centered_label(panel, str(FishData.get_fish(fish_id).get("name", fish_id)),
 		34, 340.0)
-	# Rareza + la TALLA de este ejemplar (el tamaño decide sus doblones).
+	# Rareza + la TALLA de este ejemplar (el tamaño decide sus doblones), en
+	# su unidad: centímetros, o número de calzado para la bota. La lata y la
+	# rueda no tienen talla y solo enseñan la rareza.
 	var size := float(premio.get("size", 0.5))
-	_centered_label(panel, "%s · %d cm" % [str(rareza.get("name", "")),
-		FishData.length_cm(fish_id, size)], 24, 386.0,
+	var talla := FishData.size_text(fish_id, size)
+	var linea := str(rareza.get("name", ""))
+	if talla != "":
+		linea += " · " + talla
+	_centered_label(panel, linea, 24, 386.0,
 		Color(rareza.get("color", Color.GRAY)))
 	# Las líneas del premio: usos de despensa (peces-ingrediente, siempre) y
 	# monedas por tamaño (desde la 2ª captura). La 1ª de un pez sin
@@ -1000,15 +1094,13 @@ func _show_fish_reveal(premio: Dictionary) -> void:
 		_centered_label(panel, "¡Nuevo en el álbum!", 26, y,
 			Color(0.2, 0.45, 0.12))
 		y += 40.0
-	# El pez lapa que venía pegado: su valor se cobra aparte, siempre.
-	if premio.has("lapa_coins"):
-		_centered_label(panel, "¡Traía un pez lapa pegado!  +%d doblones"
-			% int(premio["lapa_coins"]), 22, y, Color(0.16, 0.38, 0.55))
-		y += 36.0
+	# (El PEZ LAPA que venía pegado NO se menciona aquí: es una sorpresa y
+	# sale en su propio cartel al cerrar este, ver `_reveal_close_button`.)
 	var veces := int(premio.get("veces", 1))
 	if veces > 1:
-		_centered_label(panel, "Pescado %d veces" % veces, 19, y, FADED)
-	_reveal_close_button(panel, alto)
+		_centered_label(panel, "Pescado " + FishData.times_text(veces),
+			19, y, FADED)
+	_reveal_close_button(panel, alto, premio)
 
 
 ## El cartel del COFRE: sale CERRADO y con un botón "¡Abrir!". El premio del
@@ -1258,10 +1350,10 @@ func _open_ficha(fish_id: String, album_overlay: Control) -> void:
 	album_overlay.add_child(veil)
 	var panel := Control.new()
 	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.offset_left = -230.0
-	panel.offset_right = 230.0
-	panel.offset_top = -290.0
-	panel.offset_bottom = 290.0
+	panel.offset_left = -234.0
+	panel.offset_right = 234.0
+	panel.offset_top = -320.0
+	panel.offset_bottom = 320.0
 	veil.add_child(panel)
 	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
 		PrepBoard.PANEL_MARGIN))
@@ -1269,32 +1361,37 @@ func _open_ficha(fish_id: String, album_overlay: Control) -> void:
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.texture = FishData.get_icon(fish_id)
-	ic.position = Vector2((460.0 - 160.0) * 0.5, 40.0)
-	ic.size = Vector2(160, 160)
+	ic.position = Vector2((468.0 - 150.0) * 0.5, 38.0)
+	ic.size = Vector2(150, 150)
 	panel.add_child(ic)
 	_centered_label(panel, str(FishData.get_fish(fish_id).get("name", fish_id)),
-		32, 206.0)
-	_centered_label(panel, str(rareza.get("name", "")), 22, 248.0,
+		32, 194.0)
+	_centered_label(panel, str(rareza.get("name", "")), 22, 236.0,
 		Color(rareza.get("color", Color.GRAY)))
-	var premio := _centered_label(panel, "Premio: " + FishData.reward_text(fish_id),
-		21, 284.0, Color(0.2, 0.45, 0.12))
+	# LA DESCRIPCIÓN: qué es el bicho. Es lo que llena la ficha, así que se
+	# le da todo el hueco del centro.
+	var ficha := _centered_label(panel,
+		str(FishData.get_fish(fish_id).get("desc", "")), 18, 276.0, DARK)
+	ficha.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ficha.offset_left = 44.0
+	ficha.offset_right = -44.0
+	ficha.offset_bottom = 276.0 + 132.0
+	ficha.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	var premio := _centered_label(panel, FishData.reward_text(fish_id),
+		21, 414.0, Color(0.2, 0.45, 0.12))
 	premio.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	premio.offset_left = 40.0
 	premio.offset_right = -40.0
-	premio.offset_bottom = 284.0 + 74.0
-	# El renglón de sabor de los peces con historia (lapa, referencias...).
-	var flavor := str(FishData.get_fish(fish_id).get("desc", ""))
-	if flavor != "":
-		var fl := _centered_label(panel, flavor, 17, 360.0, FADED)
-		fl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		fl.offset_left = 40.0
-		fl.offset_right = -40.0
-		fl.offset_bottom = 360.0 + 58.0
-	# El RÉCORD: la ficha enseña el mayor ejemplar pescado de la especie.
+	premio.offset_bottom = 414.0 + 60.0
+	# El RÉCORD: la ficha enseña el mayor ejemplar pescado de la especie (en
+	# su unidad; la lata y la rueda no tienen talla y solo llevan la cuenta).
 	var best := float(GameState.fish_best.get(fish_id, 0.0))
-	_centered_label(panel, "Récord: %d cm  ·  Pescado %d veces"
-		% [FishData.length_cm(fish_id, best),
-			int(GameState.fish_album.get(fish_id, 0))], 19, 424.0, FADED)
+	var veces := int(GameState.fish_album.get(fish_id, 0))
+	var pie := "Pescado " + FishData.times_text(veces)
+	var record := FishData.size_text(fish_id, best)
+	if record != "":
+		pie = "Récord: %s  ·  %s" % [record, pie]
+	_centered_label(panel, pie, 19, 478.0, FADED)
 	var cerrar := Button.new()
 	cerrar.text = "Cerrar"
 	PrepBoard.skin_button(cerrar)
@@ -1302,7 +1399,7 @@ func _open_ficha(fish_id: String, album_overlay: Control) -> void:
 	cerrar.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	cerrar.offset_left = 130.0
 	cerrar.offset_right = -130.0
-	cerrar.offset_top = 470.0
-	cerrar.offset_bottom = 532.0
+	cerrar.offset_top = 528.0
+	cerrar.offset_bottom = 590.0
 	panel.add_child(cerrar)
 	cerrar.pressed.connect(func() -> void: veil.queue_free())

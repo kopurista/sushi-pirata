@@ -1,8 +1,8 @@
 class_name FishData
-## Catálogo del MINIJUEGO DE PESCA: los peces del álbum y la tabla del cofre.
-## Aquí solo hay DATOS y sorteos puros; el estado (álbum, récords, monedero,
-## coleccionables) vive en GameState, y el juego es `fishing_game.gd`,
-## montado SOBRE el propio menú (no hay pantalla aparte).
+## Catálogo del MINIJUEGO DE PESCA: los 100 peces del álbum y la tabla del
+## cofre. Aquí solo hay DATOS y sorteos puros; el estado (álbum, récords,
+## monedero, coleccionables) vive en GameState, y el juego es
+## `fishing_game.gd`, montado SOBRE el propio menú (no hay pantalla aparte).
 ##
 ## ECONOMÍA (para no re-litigar): cada intento cuesta FISHING_COST (50)
 ## doblones, se cobra AL APARECER LA SOMBRA (los relanzamientos del sedal
@@ -13,17 +13,22 @@ class_name FishData
 ##   100–160 — y el largo en cm de la ficha. Con el intento a 50 doblones,
 ##   SOLO los épicos y legendarios pasan de esa cifra: pescar por dinero solo
 ##   sale a cuenta con las piezas gordas, y el resto se pesca por el álbum y
-##   por la despensa. El álbum guarda el RÉCORD de
-##   tamaño por especie (GameState.fish_best) y la ficha enseña el mayor
-##   pescado. Las monedas se pagan DESDE LA SEGUNDA captura de la especie
-##   (la 1ª de un pez sin ingrediente es solo el descubrimiento). Los
-##   peces-ingrediente dan además sus usos de despensa EN CADA captura
-##   (`uses_of`: 5, y 10 el salmón real — la pesca es LA fuente de despensa).
+##   por la despensa. El álbum guarda el RÉCORD de tamaño por especie
+##   (GameState.fish_best) y la ficha enseña el mayor pescado. Las monedas se
+##   pagan DESDE LA SEGUNDA captura de la especie (la 1ª de un pez sin
+##   ingrediente es solo el descubrimiento). Los peces-ingrediente dan además
+##   sus usos de despensa EN CADA captura (`uses_of`: 5, y 10 el salmón real
+##   — la pesca es LA fuente de despensa).
 ## · Un COFRE (30%): ver CHEST_TABLE. El coleccionable REPETIDO paga
 ##   DUP_COINS (50).
 ## · El PEZ LAPA no pica nunca (`no_catch`): con LAPA_CHANCE puede venir
 ##   PEGADO al pez pescado y entonces se cobra el valor del pez MÁS el de la
-##   lapa (que también entra al álbum con su tamaño).
+##   lapa. Es una SORPRESA: no se anuncia con la captura, sale en su propio
+##   cartel al cerrar el del pez (ver `fishing_game`).
+##
+## LA BASURA (`junk`) es aparte: lata y rueda pagan JUNK_COINS (1) y NO
+## tienen talla — su ficha no habla de centímetros. La bota SÍ tiene talla,
+## pero se mide en NÚMERO DE CALZADO (`size_unit`), no en cm.
 ##
 ## EL SORTEO OCURRE ANTES DE VER LA SOMBRA (`GameState.fishing_roll()`): el
 ## juego ya sabe qué va a caer (pez, tamaño, lapa o cofre y su contenido) y
@@ -46,6 +51,8 @@ const CHEST_CHANCE := 0.30
 const REPEAT_COINS_FROM := 2
 ## Probabilidad de que el pez pescado traiga un PEZ LAPA pegado.
 const LAPA_CHANCE := 0.07
+## Lo que paga la BASURA (`junk`), pésquese las veces que se pesque.
+const JUNK_COINS := 1
 
 ## Rarezas: nombre para la ficha, color de acento, peso de sorteo POR PEZ,
 ## horquilla de DOBLONES por tamaño, horquilla de LARGO (cm) para la ficha y
@@ -65,127 +72,243 @@ const RARITIES: Dictionary = {
 		"coins": Vector2i(100, 160), "len": Vector2i(100, 300) },
 }
 
-## Los peces del álbum, ORDENADOS COMO LA VITRINA: por rareza ascendente y,
-## dentro de cada rareza, los peces-ingrediente al final (cierran su escalón).
-## Campos opcionales: `ingredient` (id de despensa: da `uses` o 5 usos por
-## captura), `uses` (usos que entrega, si no 5), `len` (horquilla de cm
-## propia, si la de su rareza no le hace justicia), `no_catch` (no pica el
-## anzuelo: solo aparece pegado, el pez lapa) y `desc` (renglón de la ficha).
+## Los 100 peces del álbum, ORDENADOS COMO LA VITRINA: por rareza ascendente
+## y, dentro de cada rareza, los peces-ingrediente al final (cierran su
+## escalón). Campos opcionales: `ingredient` (id de despensa), `uses` (usos
+## que entrega, si no 5), `len` (horquilla propia), `desc` (la ficha del
+## álbum: qué es el bicho), `no_catch` (no pica: solo aparece pegado),
+## `junk` (basura: paga JUNK_COINS) y `no_size` / `size_unit` (ver arriba).
 const FISH: Array = [
-	# --- Comunes (26) --------------------------------------------------------
-	{ "id": "sardina", "name": "Sardina", "rarity": "comun" },
-	{ "id": "anchoa", "name": "Anchoa", "rarity": "comun" },
-	{ "id": "boqueron", "name": "Boquerón", "rarity": "comun" },
-	{ "id": "arenque", "name": "Arenque", "rarity": "comun" },
-	{ "id": "caballa", "name": "Caballa", "rarity": "comun" },
-	{ "id": "jurel", "name": "Jurel", "rarity": "comun" },
-	{ "id": "salmonete", "name": "Salmonete", "rarity": "comun" },
-	{ "id": "palometa", "name": "Palometa", "rarity": "comun" },
-	{ "id": "sargo", "name": "Sargo", "rarity": "comun" },
-	{ "id": "lisa", "name": "Lisa", "rarity": "comun" },
-	{ "id": "gallo", "name": "Pez gallo", "rarity": "comun" },
-	{ "id": "bacaladilla", "name": "Bacaladilla", "rarity": "comun" },
-	{ "id": "ayu", "name": "Ayu", "rarity": "comun" },
-	{ "id": "barbo", "name": "Barbo", "rarity": "comun" },
-	{ "id": "pejesapo", "name": "Pejesapo", "rarity": "comun" },
-	{ "id": "remora", "name": "Rémora", "rarity": "comun" },
-	{ "id": "pez_cirujano", "name": "Pez cirujano", "rarity": "comun" },
-	{ "id": "pez_mariposa", "name": "Pez mariposa", "rarity": "comun" },
-	{ "id": "pez_payaso", "name": "Pez payaso", "rarity": "comun" },
-	{ "id": "medusa", "name": "Medusa", "rarity": "comun" },
-	{ "id": "lata_basura", "name": "Lata de basura", "rarity": "comun",
-		"len": Vector2i(25, 40),
-		"desc": "El mar devuelve lo que se le tira." },
+	# --- Comunes (33) --------------------------------------------------------
+	{ "id": "sardina", "name": "Sardina", "rarity": "comun",
+		"desc": "Nada en bancos enormes que se mueven como un solo animal. La plata de sus escamas confunde a los depredadores." },
+	{ "id": "anchoa", "name": "Anchoa", "rarity": "comun",
+		"desc": "Diminuta y de ojo grande. Curada en sal cambia por completo de sabor: por eso se pesca desde hace siglos." },
+	{ "id": "boqueron", "name": "Boquerón", "rarity": "comun",
+		"desc": "La misma familia que la anchoa, pero servido fresco y en vinagre. Se pesca de noche, atraído por las luces." },
+	{ "id": "arenque", "name": "Arenque", "rarity": "comun",
+		"desc": "Rey de los mares fríos del norte. Sus bancos llegaron a alimentar flotas enteras durante los inviernos." },
+	{ "id": "caballa", "name": "Caballa", "rarity": "comun",
+		"desc": "Se reconoce por las rayas onduladas de su lomo. Nada sin parar, incluso mientras duerme." },
+	{ "id": "jurel", "name": "Jurel", "rarity": "comun",
+		"desc": "Lleva una línea de escamas duras en el costado, como una cremallera. Es rápido y siempre va acompañado." },
+	{ "id": "salmonete", "name": "Salmonete", "rarity": "comun",
+		"desc": "Rebusca en la arena con dos barbillas bajo la boca, como si tanteara el fondo con los dedos." },
+	{ "id": "palometa", "name": "Palometa", "rarity": "comun",
+		"desc": "Plana y redonda como un plato de plata. Vira en grupo con destellos que se ven desde la superficie." },
+	{ "id": "sargo", "name": "Sargo", "rarity": "comun",
+		"desc": "Sus bandas oscuras lo camuflan entre las rocas. Muerde con dientes de paleta, casi humanos." },
+	{ "id": "lisa", "name": "Lisa", "rarity": "comun",
+		"desc": "Aguanta el agua sucia de puertos y desembocaduras. Da saltos fuera del agua sin motivo aparente." },
+	{ "id": "gallo", "name": "Pez gallo", "rarity": "comun",
+		"desc": "Levanta una cresta de espinas larguísimas cuando se asusta, y entonces parece el doble de grande." },
+	{ "id": "bacaladilla", "name": "Bacaladilla", "rarity": "comun",
+		"desc": "Prima pequeña del bacalao, de ojos enormes para ver en aguas profundas y oscuras." },
+	{ "id": "bacalao", "name": "Bacalao", "rarity": "comun",
+		"desc": "El pez que movió imperios: salado aguantaba meses en la bodega y cruzaba océanos sin echarse a perder." },
+	{ "id": "abadejo", "name": "Abadejo", "rarity": "comun",
+		"desc": "Pariente del bacalao con la mandíbula de abajo salida. Caza a media agua en vez de rebuscar en el fondo." },
+	{ "id": "platija", "name": "Platija", "rarity": "comun",
+		"desc": "Nace con un ojo a cada lado y, al crecer, uno se le muda de sitio para poder vivir tumbada en la arena." },
+	{ "id": "ayu", "name": "Ayu", "rarity": "comun",
+		"desc": "El pez dulce de Japón: come algas de las piedras y su carne huele a melón y pepino." },
+	{ "id": "pejesapo", "name": "Pejesapo", "rarity": "comun",
+		"desc": "Feo, plano y siempre enfadado. Se entierra en el fondo y espera a que la cena le pase por delante." },
+	{ "id": "remora", "name": "Rémora", "rarity": "comun",
+		"desc": "Lleva una ventosa en la cabeza para viajar pegada a tiburones y tortugas. Nunca paga el pasaje." },
+	{ "id": "pez_cirujano", "name": "Pez cirujano", "rarity": "comun",
+		"desc": "Azul intenso y con un bisturí escondido junto a la cola, afilado de verdad. De ahí su nombre." },
+	{ "id": "pez_mariposa", "name": "Pez mariposa", "rarity": "comun",
+		"desc": "Va en pareja toda la vida. La mancha oscura de su cola engaña a quien intente morderle la cabeza." },
+	{ "id": "pez_payaso", "name": "Pez payaso", "rarity": "comun",
+		"desc": "Vive entre los tentáculos venenosos de una anémona, inmune a ellos, y le paga limpiándola." },
+	{ "id": "cangrejo", "name": "Cangrejo", "rarity": "comun",
+		"desc": "Camina de lado y no suelta lo que agarra. Cuando le queda pequeño el caparazón, se lo cambia entero." },
+	{ "id": "estrella_mar", "name": "Estrella de mar", "rarity": "comun",
+		"desc": "No tiene cerebro ni sangre, pero si pierde un brazo le crece otro. A veces del brazo sale una estrella nueva." },
+	{ "id": "caracola", "name": "Caracola", "rarity": "comun",
+		"desc": "La casa espiral de un caracol de mar. Vacía y bien soplada, suena como una trompeta de abordaje." },
+	{ "id": "erizo_mar", "name": "Erizo de mar", "rarity": "comun",
+		"len": Vector2i(5, 12),
+		"desc": "Una bola de púas que camina despacísimo con cientos de patas diminutas. Por dentro guarda cinco lenguas anaranjadas." },
+	{ "id": "medusa", "name": "Medusa", "rarity": "comun",
+		"desc": "Noventa y cinco por ciento agua, sin corazón ni cabeza, y aun así lleva en el mar más tiempo que los dinosaurios." },
+	{ "id": "lata_basura", "name": "Lata oxidada", "rarity": "comun",
+		"junk": true, "no_size": true,
+		"desc": "Alguien la tiró por la borda hace años. El mar la devuelve abollada y sin una gota dentro." },
+	{ "id": "rueda", "name": "Rueda vieja", "rarity": "comun",
+		"junk": true, "no_size": true,
+		"desc": "Un neumático criando algas en el fondo. No vale nada, pero pesa como si hubiera picado un mero." },
 	{ "id": "bota", "name": "Bota", "rarity": "comun",
-		"len": Vector2i(20, 35),
-		"desc": "A juego con la otra, si algún día pica." },
+		"junk": true, "size_unit": "talla", "len": Vector2i(34, 48),
+		"desc": "Una bota sola, empapada y con el cordón deshecho. La pareja sigue ahí abajo, en alguna parte." },
 	{ "id": "mata_wakame", "name": "Mata de wakame", "rarity": "comun",
-		"ingredient": "wakame" },
+		"ingredient": "wakame",
+		"desc": "Alga de hoja ondulada que crece agarrada a las rocas. En la cocina se hincha hasta triplicar su tamaño." },
 	{ "id": "gamba_real", "name": "Gamba real", "rarity": "comun",
-		"ingredient": "gamba" },
+		"ingredient": "gamba",
+		"desc": "Nada hacia atrás dando coletazos cuando se asusta. Cruda es gris translúcida; el rojo llega con el calor." },
 	{ "id": "salmon", "name": "Salmón", "rarity": "comun",
-		"ingredient": "salmon" },
+		"ingredient": "salmon",
+		"desc": "Nace en el río, se cría en el mar y vuelve al mismo arroyo donde nació, remontando corriente y cascadas." },
 	{ "id": "atun", "name": "Atún", "rarity": "comun",
-		"ingredient": "atun" },
-	# --- Raros (29) ----------------------------------------------------------
-	{ "id": "dorada", "name": "Dorada", "rarity": "raro" },
-	{ "id": "lubina", "name": "Lubina", "rarity": "raro" },
-	{ "id": "besugo", "name": "Besugo", "rarity": "raro" },
-	{ "id": "lenguado", "name": "Lenguado", "rarity": "raro" },
-	{ "id": "rodaballo", "name": "Rodaballo", "rarity": "raro" },
-	{ "id": "merluza", "name": "Merluza", "rarity": "raro" },
-	{ "id": "rape", "name": "Rape", "rarity": "raro" },
-	{ "id": "congrio", "name": "Congrio", "rarity": "raro" },
-	{ "id": "morena", "name": "Morena", "rarity": "raro" },
-	{ "id": "calamar", "name": "Calamar", "rarity": "raro" },
-	{ "id": "pirana", "name": "Piraña", "rarity": "raro" },
-	{ "id": "carpa_koi", "name": "Carpa koi", "rarity": "raro" },
-	{ "id": "lampuga", "name": "Lampuga", "rarity": "raro" },
-	{ "id": "pargo_rojo", "name": "Pargo rojo", "rarity": "raro" },
-	{ "id": "pez_volador", "name": "Pez volador", "rarity": "raro" },
-	{ "id": "pez_balon", "name": "Pez balón", "rarity": "raro" },
-	{ "id": "pez_erizo", "name": "Pez erizo", "rarity": "raro" },
-	{ "id": "caballito_mar", "name": "Caballito de mar", "rarity": "raro",
-		"len": Vector2i(8, 18) },
-	{ "id": "bogavante", "name": "Bogavante", "rarity": "raro" },
-	{ "id": "tortuga", "name": "Tortuga", "rarity": "raro" },
-	{ "id": "amia_calva", "name": "Amia calva", "rarity": "raro" },
-	{ "id": "barbo_oloroso", "name": "Barbo oloroso", "rarity": "raro",
-		"desc": "Rojo y apestoso. Huele a otra aventura." },
-	{ "id": "pez_rana_pintado", "name": "Pez rana pintado", "rarity": "raro" },
-	{ "id": "pez_ojo_celestial", "name": "Pez ojo celestial", "rarity": "raro" },
-	{ "id": "jikin", "name": "Jikin", "rarity": "raro" },
-	{ "id": "oranda", "name": "Oranda", "rarity": "raro",
-		"desc": "La boina roja no se la quita ni en el agua." },
-	{ "id": "pez_lapa", "name": "Pez lapa", "rarity": "raro",
-		"no_catch": true, "len": Vector2i(10, 25),
-		"desc": "No pica nunca: aparece PEGADO a otros peces,\ny entonces su valor se suma al de la captura." },
+		"ingredient": "atun",
+		"desc": "Tiene la sangre más caliente que el agua y no puede parar de nadar: si se detiene, deja de respirar." },
+	# --- Raros (36) ----------------------------------------------------------
+	{ "id": "dorada", "name": "Dorada", "rarity": "raro",
+		"desc": "Lleva una banda dorada entre los ojos, como una diadema. Tritura almejas con muelas de piedra." },
+	{ "id": "lubina", "name": "Lubina", "rarity": "raro",
+		"desc": "Cazadora elegante de las rompientes. Aguanta la resaca donde el mar golpea las rocas para emboscar allí." },
+	{ "id": "besugo", "name": "Besugo", "rarity": "raro",
+		"desc": "Rojo intenso y de ojo enorme. Vive hondo, y el lunar de su hombro lo delata en cualquier lonja." },
+	{ "id": "lenguado", "name": "Lenguado", "rarity": "raro",
+		"desc": "Cambia de color para copiar la arena en la que se posa. Puede desaparecer del todo delante de ti." },
+	{ "id": "rodaballo", "name": "Rodaballo", "rarity": "raro",
+		"desc": "Plano y casi redondo, con la piel llena de bultos óseos. Se entierra hasta dejar solo los ojos fuera." },
+	{ "id": "merluza", "name": "Merluza", "rarity": "raro",
+		"desc": "Sube de noche a cazar y baja de día a la profundidad. Su boca guarda dos filas de dientes finos como agujas." },
+	{ "id": "rape", "name": "Rape", "rarity": "raro",
+		"desc": "Todo cabeza y boca. Agita un señuelo sobre los ojos para que los curiosos se acerquen a mirarlo." },
+	{ "id": "congrio", "name": "Congrio", "rarity": "raro",
+		"desc": "Anguila enorme y sin escamas que vive metida en pecios y grietas. De noche sale entera a cazar." },
+	{ "id": "morena", "name": "Morena", "rarity": "raro",
+		"desc": "Abre y cierra la boca sin parar para respirar, no por amenaza. Tiene una segunda mandíbula en la garganta." },
+	{ "id": "calamar", "name": "Calamar", "rarity": "raro",
+		"desc": "Tres corazones, sangre azul y una nube de tinta para escapar. Se propulsa a chorro, hacia atrás." },
+	{ "id": "sepia", "name": "Sepia", "rarity": "raro",
+		"desc": "La maestra del disfraz: cambia de color y de textura en un segundo, y eso que es daltónica." },
 	{ "id": "pulpo", "name": "Pulpo", "rarity": "raro",
-		"ingredient": "pulpo" },
+		"ingredient": "pulpo",
+		"desc": "Cada brazo piensa un poco por su cuenta. Abre tarros, se escapa de las peceras y recuerda las caras." },
+	{ "id": "pirana", "name": "Piraña", "rarity": "raro",
+		"desc": "Su fama es peor que su mordisco: casi siempre come fruta caída y peces enfermos. Casi siempre." },
+	{ "id": "carpa_koi", "name": "Carpa koi", "rarity": "raro",
+		"desc": "Criada durante siglos por su color. Bien cuidada vive más que la persona que la crió." },
+	{ "id": "lampuga", "name": "Lampuga", "rarity": "raro",
+		"desc": "Verde y oro mientras nada, apagándose en cuanto sale del agua. Crece más rápido que casi ningún pez." },
+	{ "id": "pargo_rojo", "name": "Pargo rojo", "rarity": "raro",
+		"desc": "Rojo de arrecife profundo, cauto y desconfiado. Los viejos aprenden a esquivar los anzuelos conocidos." },
+	{ "id": "pez_volador", "name": "Pez volador", "rarity": "raro",
+		"desc": "Sale del agua y planea con sus aletas hasta doscientos metros. A veces aterriza en la cubierta." },
+	{ "id": "pez_balon", "name": "Pez balón", "rarity": "raro",
+		"desc": "Traga agua hasta ponerse redondo y no caber en ninguna boca. Después tarda un buen rato en desinflarse." },
+	{ "id": "pez_erizo", "name": "Pez erizo", "rarity": "raro",
+		"desc": "Como el globo, pero con púas: al hincharse se convierte en una bola de pinchos imposible de morder." },
+	{ "id": "pez_loro", "name": "Pez loro", "rarity": "raro",
+		"desc": "Muerde el coral con su pico y lo tritura. La arena blanca de las playas salió, en buena parte, de aquí." },
+	{ "id": "pez_ballesta", "name": "Pez ballesta", "rarity": "raro",
+		"desc": "Se traba en su cueva con una espina que hace de cerrojo. Hasta que él no la suelta, no hay quien lo saque." },
+	{ "id": "pez_angel", "name": "Pez ángel", "rarity": "raro",
+		"desc": "Cambia de dibujo y de colores al hacerse adulto, tanto que parece otra especie distinta." },
+	{ "id": "pez_cofre", "name": "Pez cofre", "rarity": "raro",
+		"desc": "Va dentro de una caja ósea rígida, así que solo puede remar con las aletas. Nada como un helicóptero." },
+	{ "id": "raya", "name": "Raya", "rarity": "raro",
+		"desc": "Vuela por el fondo batiendo sus alas y se entierra en la arena. La púa de la cola es solo defensa." },
+	{ "id": "caballito_mar", "name": "Caballito de mar", "rarity": "raro",
+		"len": Vector2i(8, 18),
+		"desc": "Nada de pie y se ancla a las algas con la cola. Aquí es el MACHO quien queda preñado y pare las crías." },
+	{ "id": "bogavante", "name": "Bogavante", "rarity": "raro",
+		"desc": "Sus dos pinzas son distintas: una tritura y la otra corta. Azul oscuro en el mar, rojo solo en la olla." },
+	{ "id": "langosta", "name": "Langosta", "rarity": "raro",
+		"desc": "Sin pinzas, pero con dos antenas larguísimas y un caparazón de espinas. Migra en fila india por el fondo." },
+	{ "id": "tortuga", "name": "Tortuga", "rarity": "raro",
+		"desc": "Cruza océanos enteros y vuelve a poner los huevos a la misma playa donde ella rompió el cascarón." },
+	{ "id": "amia_calva", "name": "Amia calva", "rarity": "raro",
+		"desc": "Un fósil viviente: respira aire tragándolo cuando el agua se queda sin oxígeno. Lleva aquí millones de años." },
+	{ "id": "barbo_oloroso", "name": "Barbo oloroso", "rarity": "raro",
+		"desc": "Rojo, gordo y con un olor que tumba a cualquiera. Dicen que en cierto lago alguien lo pesca por deporte." },
+	{ "id": "pez_rana_pintado", "name": "Pez rana pintado", "rarity": "raro",
+		"desc": "No nada: camina por el fondo con las aletas hechas patitas, y se disfraza de esponja para cazar." },
+	{ "id": "pez_ojo_celestial", "name": "Pez ojo celestial", "rarity": "raro",
+		"desc": "Criado con los ojos mirando al cielo para siempre. Ve pasar las nubes, pero nunca lo que tiene delante." },
+	{ "id": "jikin", "name": "Jikin", "rarity": "raro",
+		"desc": "Blanco con las aletas y los labios rojos, y una cola abierta en cruz. En Japón está protegido por ley." },
+	{ "id": "oranda", "name": "Oranda", "rarity": "raro",
+		"desc": "Le crece un gorro carnoso sobre la cabeza, como una boina, que a veces le tapa hasta los ojos." },
+	{ "id": "pez_lapa", "name": "Pez lapa", "rarity": "raro",
+		"no_catch": true, "len": Vector2i(3, 9),
+		"desc": "No pica NUNCA: viaja pegado a otros peces con la ventosa de su vientre. Si viene enganchado a tu captura, se cobra aparte." },
 	{ "id": "anguila", "name": "Anguila", "rarity": "raro",
-		"ingredient": "unagi" },
-	# --- Épicos (17) ---------------------------------------------------------
-	{ "id": "pez_espada", "name": "Pez espada", "rarity": "epico" },
-	{ "id": "mero", "name": "Mero imperial", "rarity": "epico" },
-	{ "id": "corvina", "name": "Corvina real", "rarity": "epico" },
-	{ "id": "tiburon", "name": "Tiburón", "rarity": "epico" },
-	{ "id": "tiburon_martillo", "name": "Tiburón martillo", "rarity": "epico" },
-	{ "id": "pez_luna", "name": "Pez luna", "rarity": "epico" },
-	{ "id": "mantarraya", "name": "Mantarraya", "rarity": "epico" },
-	{ "id": "pez_leon", "name": "Pez león", "rarity": "epico" },
-	{ "id": "pez_napoleon", "name": "Pez napoleón", "rarity": "epico" },
-	{ "id": "pez_sierra", "name": "Pez sierra", "rarity": "epico" },
+		"ingredient": "unagi",
+		"desc": "Nace en mitad del Atlántico y cruza el océano de cría. Nadie ha visto jamás dónde desovan los adultos." },
+	# --- Épicos (23) ---------------------------------------------------------
+	{ "id": "pez_espada", "name": "Pez espada", "rarity": "epico",
+		"desc": "Su espada plana es hueso puro y la usa para golpear de plano a los bancos y aturdirlos antes de comer." },
+	{ "id": "mero", "name": "Mero imperial", "rarity": "epico",
+		"desc": "Traga a su presa entera abriendo la boca de golpe: el agua entra sola y arrastra la cena con ella." },
+	{ "id": "corvina", "name": "Corvina real", "rarity": "epico",
+		"desc": "Hace ruido con la vejiga natatoria: un tamborileo sordo que se oye desde la cubierta en noches quietas." },
+	{ "id": "tiburon", "name": "Tiburón", "rarity": "epico",
+		"desc": "Cambia de dientes toda su vida, miles de ellos. Huele una gota de sangre a cientos de metros." },
+	{ "id": "tiburon_martillo", "name": "Tiburón martillo", "rarity": "epico",
+		"desc": "La cabeza en T le separa los ojos y los sensores: barre el fondo como un detector de metales." },
+	{ "id": "tiburon_tigre", "name": "Tiburón tigre", "rarity": "epico",
+		"desc": "El basurero del mar: se ha encontrado de todo en su estómago, matrículas incluidas. Sus rayas se borran con la edad." },
+	{ "id": "barracuda", "name": "Barracuda", "rarity": "epico",
+		"desc": "Ataca en una embestida fulminante y le atrae cualquier destello. Cuidado con las hebillas brillantes." },
+	{ "id": "pez_luna", "name": "Pez luna", "rarity": "epico",
+		"desc": "El pez óseo más pesado del mundo, y parece una cabeza suelta. Toma el sol de lado en la superficie." },
+	{ "id": "mantarraya", "name": "Mantarraya", "rarity": "epico",
+		"desc": "Vuela bajo el agua con alas de siete metros y salta fuera para caer de panza. Es inofensiva: come plancton." },
+	{ "id": "pez_leon", "name": "Pez león", "rarity": "epico",
+		"desc": "Precioso y venenoso: su melena son espinas cargadas. Fuera de su mar de origen se ha vuelto una plaga." },
+	{ "id": "pez_napoleon", "name": "Pez napoleón", "rarity": "epico",
+		"desc": "Con esa joroba y esos labios parece un abuelo. Todos nacen hembra y algunos se vuelven macho de mayores." },
+	{ "id": "pez_sierra", "name": "Pez sierra", "rarity": "epico",
+		"desc": "Su hocico dentado detecta latidos escondidos en la arena y luego sirve de espada para desordenar bancos." },
 	{ "id": "pez_cabeza_transparente", "name": "Pez cabeza transparente",
-		"rarity": "epico" },
-	{ "id": "arowana", "name": "Arowana", "rarity": "epico" },
-	{ "id": "siluro", "name": "Siluro", "rarity": "epico" },
+		"rarity": "epico",
+		"desc": "Tiene la frente de cristal: sus ojos verdes van DENTRO de la cabeza y giran para mirar hacia arriba." },
+	{ "id": "pez_vibora", "name": "Pez víbora", "rarity": "epico",
+		"desc": "Colmillos tan largos que no le caben en la boca, y una hilera de luces en el vientre para no hacer sombra." },
+	{ "id": "nautilus", "name": "Nautilus", "rarity": "epico",
+		"desc": "Un pariente del pulpo metido en una concha en espiral, con noventa brazos y cámaras que llena de gas para flotar." },
+	{ "id": "arowana", "name": "Arowana", "rarity": "epico",
+		"desc": "Salta fuera del agua para cazar insectos de las ramas. Lo llaman pez dragón por sus escamas de moneda." },
+	{ "id": "siluro", "name": "Siluro", "rarity": "epico",
+		"desc": "Gigante de fondo con bigotes que saborean el agua. Los mayores pasan de los dos metros y de los cien kilos." },
 	{ "id": "bata_bata", "name": "Piraña sónica", "rarity": "epico",
-		"desc": "Una piraña de hojalata con una gema morada.\nAlguien la fabricó y el mar se la quedó." },
+		"desc": "Una piraña de hojalata con una gema morada en el costado. Alguien la fabricó y el mar se la quedó." },
 	{ "id": "froggy", "name": "Rana caótica", "rarity": "epico",
 		"len": Vector2i(20, 40),
-		"desc": "Una rana con una cola larguísima.\nParece buscar a alguien." },
+		"desc": "Una rana con una cola larguísima que no le pertenece. Parece estar buscando a alguien." },
 	{ "id": "atun_rojo", "name": "Atún rojo", "rarity": "epico",
-		"ingredient": "atun_rojo" },
+		"ingredient": "atun_rojo",
+		"desc": "El más caro del mundo: uno solo puede valer una fortuna en la subasta del amanecer." },
+	{ "id": "atun_amarillo", "name": "Atún de aleta amarilla", "rarity": "epico",
+		"ingredient": "atun",
+		"desc": "Sus aletas amarillas se alargan como hoces con la edad. Corre a más de setenta kilómetros por hora." },
 	{ "id": "fugu", "name": "Pez globo", "rarity": "epico",
-		"ingredient": "fugu" },
+		"ingredient": "fugu",
+		"desc": "Su veneno no tiene antídoto. Solo un cocinero con licencia puede servirlo, y se juega el título en cada corte." },
 	{ "id": "salmon_real", "name": "Salmón real", "rarity": "epico",
 		"ingredient": "salmon", "uses": 10, "len": Vector2i(90, 160),
-		"desc": "El doble de grande que un salmón,\ny el doble de salmón en la despensa." },
-	# --- Legendarios (6) -----------------------------------------------------
-	{ "id": "pez_lanza", "name": "Pez lanza", "rarity": "legendario" },
-	{ "id": "pez_remo", "name": "Pez remo", "rarity": "legendario" },
-	{ "id": "celacanto", "name": "Celacanto", "rarity": "legendario" },
+		"desc": "El mayor de todos los salmones. Da el doble de despensa que uno normal y pelea el triple." },
+	# --- Legendarios (8) -----------------------------------------------------
+	{ "id": "pez_lanza", "name": "Pez lanza", "rarity": "legendario",
+		"desc": "Aguja de mar abierto, esbelta y rapidísima. Se pasa la vida lejos de la costa y casi nunca se deja ver." },
+	{ "id": "pez_vela", "name": "Pez vela", "rarity": "legendario",
+		"desc": "El más veloz del océano: iza esa vela enorme para acorralar bancos y luego arranca como una flecha." },
+	{ "id": "pez_remo", "name": "Pez remo", "rarity": "legendario",
+		"desc": "Una cinta de plata de hasta once metros con una cresta roja. Cuando aparece varado, la gente habla de terremotos." },
+	{ "id": "calamar_gigante", "name": "Calamar gigante", "rarity": "legendario",
+		"desc": "El kraken de las leyendas, con ojos del tamaño de un plato. Se lo conoció por las cicatrices que deja en los cachalotes." },
+	{ "id": "celacanto", "name": "Celacanto", "rarity": "legendario",
+		"desc": "Se creyó extinguido durante setenta millones de años hasta que uno apareció en una red. Sus aletas tienen huesos, como brazos." },
 	{ "id": "tiburon_ballena", "name": "Tiburón ballena", "rarity": "legendario",
-		"len": Vector2i(500, 1000) },
+		"len": Vector2i(500, 1000),
+		"desc": "El pez más grande que existe, y come plancton. Cada uno lleva un dibujo de lunares distinto, como una huella." },
 	{ "id": "caballito_dorado", "name": "Caballito de mar dorado",
-		"rarity": "legendario", "len": Vector2i(10, 25) },
-	{ "id": "koi_dorado", "name": "Koi dorado", "rarity": "legendario" },
+		"rarity": "legendario", "len": Vector2i(10, 25),
+		"desc": "Un caballito de oro macizo que nada como si nada. Los marineros juran que trae buena mar durante un mes." },
+	{ "id": "koi_dorado", "name": "Koi dorado", "rarity": "legendario",
+		"desc": "Cuenta la leyenda que la carpa que remonta la cascada se convierte en dragón. Esta va por la mitad." },
 ]
 
 ## Tabla del COFRE (pesos). El sorteo Y la resolución contra el estado viven
 ## en `GameState.fishing_roll()` / `fishing_apply()`:
-## · "coins": 10–100 doblones, con dos franjas — lo normal es la baja
-##   (10–50) y solo CHEST_COINS_HIGH_CHANCE de las veces cae la alta (51–100).
+## · "coins": 50–100 doblones, con dos franjas — lo normal es la baja
+##   (50–75) y solo CHEST_COINS_HIGH_CHANCE de las veces cae la alta.
 ## · "collectible": uno al azar de FISHING_COLLECTIBLES, tengas o no:
 ##   el repetido paga DUP_COINS. Es lo que pide el diseño — pre-filtrar los
 ##   conseguidos dejaría la regla de las 50 monedas sin usar.
@@ -246,20 +369,41 @@ static func rarity_of(id: String) -> Dictionary:
 	return RARITIES.get(str(get_fish(id).get("rarity", "comun")), {})
 
 
-## Tier de dificultad de la pelea de un pez (0..3, por rareza).
+## Tier de dificultad de la pelea de un pez (0..3, por rareza). La BASURA
+## pelea siempre como lo más flojo: es un trasto, no una presa.
 static func tier_of(id: String) -> int:
+	if get_fish(id).get("junk", false):
+		return 0
 	return int(rarity_of(id).get("tier", 0))
 
 
 ## Doblones que paga ESTA captura según su tamaño (size 0..1 dentro de la
-## horquilla de su rareza).
+## horquilla de su rareza). La BASURA paga siempre JUNK_COINS.
 static func coins_for(id: String, size: float) -> int:
+	if get_fish(id).get("junk", false):
+		return JUNK_COINS
 	var c: Vector2i = rarity_of(id).get("coins", Vector2i.ZERO)
 	return int(roundf(lerpf(float(c.x), float(c.y), clampf(size, 0.0, 1.0))))
 
 
-## Largo en cm para la ficha y el cartel (horquilla propia del pez o la de su
-## rareza).
+## ¿Este id tiene TALLA? La lata y la rueda no: son objetos, no bichos.
+static func has_size(id: String) -> bool:
+	return not get_fish(id).get("no_size", false)
+
+
+## La talla de ESTE ejemplar, ya con su unidad ("41 cm", "Talla 41"). Vacío
+## si el id no tiene talla.
+static func size_text(id: String, size: float) -> String:
+	if not has_size(id):
+		return ""
+	var n := length_cm(id, size)
+	if str(get_fish(id).get("size_unit", "cm")) == "talla":
+		return "Talla %d" % n
+	return "%d cm" % n
+
+
+## El número de la talla (cm o número de calzado, según `size_unit`) de la
+## horquilla propia del pez o la de su rareza.
 static func length_cm(id: String, size: float) -> int:
 	var l: Vector2i = get_fish(id).get("len",
 		rarity_of(id).get("len", Vector2i(10, 50)))
@@ -271,19 +415,24 @@ static func uses_of(id: String) -> int:
 	return int(get_fish(id).get("uses", FISH_INGREDIENT_USES))
 
 
-## Texto del premio para la ficha del álbum: usos siempre (si es ingrediente)
-## y las monedas por tamaño desde la segunda captura.
+## Texto del premio para la ficha del álbum. Solo el RANGO: la letra pequeña
+## de "según tamaño / desde la 2ª captura" sobraba, se entiende sola.
 static func reward_text(id: String) -> String:
 	var f := get_fish(id)
+	if f.get("junk", false):
+		return "%d doblón" % JUNK_COINS
 	var c: Vector2i = rarity_of(id).get("coins", Vector2i.ZERO)
 	var ing := str(f.get("ingredient", ""))
 	if ing != "":
 		var data: Dictionary = RecipeData.INGREDIENTS.get(ing, {})
-		return "%d usos de %s\n(+%d–%d doblones desde la 2ª)" % [
+		return "%d usos de %s  ·  %d–%d doblones" % [
 			uses_of(id), str(data.get("name", ing)), c.x, c.y]
-	if f.get("no_catch", false):
-		return "%d–%d doblones al venir pegado" % [c.x, c.y]
-	return "%d–%d doblones según tamaño\n(desde la 2ª captura)" % [c.x, c.y]
+	return "%d–%d doblones" % [c.x, c.y]
+
+
+## "1 vez" / "N veces": el plural a mano, que "1 veces" canta mucho.
+static func times_text(n: int) -> String:
+	return "1 vez" if n == 1 else "%d veces" % n
 
 
 ## Las monedas de un cofre: franja baja casi siempre, alta de vez en cuando.

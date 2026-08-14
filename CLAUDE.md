@@ -437,9 +437,25 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     (+ un pico por tamaño) — mantener la drena, soltar la deja recuperarse, y
     **si llega al 100% ESCAPA**. Su FUERZA (`_fish_strength`) escala con el
     TAMAÑO del ejemplar y su DISTANCIA al barco, y multiplica lo que
-    recupera. En las
-    **FASES DE VELOCIDAD** (aleatorias) la presa sube con fuerza de verdad
-    (`SPEED_REGAIN` **0.31+0.063/tier ≈ 0.31–0.5/s**: aquí se puede perder)
+    recupera.
+    **EL AGUJERO QUE ROMPÍA LA PESCA (arreglado, no reabrirlo)**: dando
+    toquecitos se recogía al pez sin que el sedal llegara a tensarse, o sea
+    que machacar la pantalla era la estrategia óptima. Lo cierran TRES
+    reglas juntas: 1) cada pulsación da un **PICO de tensión**
+    (`TAP_TENSION_KICK`), así que el machaqueo revienta el sedal; 2) la
+    presa **no cede hasta `HOLD_MIN`** (0.35 s) de dedo apoyado, o sea que
+    el toque suelto no recoge nada; 3) suelto, el pez recupera **cada vez
+    más deprisa** (`REGAIN_RAMP` por `idle_time`, hasta ×2.6), y mirar sale
+    caro. Medido: 40 toques rápidos suben la barra de 0.60 a 1.00 (el pez
+    ESCAPA), mientras que mantener de verdad la baja.
+    En las
+    **FASES DE VELOCIDAD** (aleatorias) la presa sube con fuerza de verdad y
+    **mucho más cuanto mejor es el premio** (`SPEED_REGAIN`
+    **0.34+0.13/tier = 0.34 a 0.73/s**). Para que sea amenaza y no muerte
+    súbita, el tirón **se APLAZA si la barra pasa de `SPEED_MAX_ENERGY`**
+    (0.72): así siempre quedan de 0.82 s (común) a 0.38 s (legendario) de
+    reacción, y encima narra mejor — el pez tira con todo cuando se ve
+    perdiendo
     y **cada toque NO la baja: le FRENA la subida** durante `TAP_RELIEF`
     (0.3 s) — solo pulsando más rápido que esa ventana baja, y muy poco
     (`SPEED_DRAIN_TAPPING` 0.03). Cada toque **también TENSA el sedal
@@ -455,11 +471,19 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     tensa más deprisa (+28%/tier), la presa recupera más y las fases de
     velocidad son más largas y frecuentes (tier 3: 2-3 fases). Solo al LOGRAR
     la captura se entrega (`fishing_apply`, que es quien muta y guarda).
-  · **Los 79 peces** (`FishData.FISH`, orden = vitrina del álbum): 26
-    comunes, 29 raros, 18 épicos y 6 legendarios, pesos POR PEZ 24/10/4/1.
+  · **Los 100 peces** (`FishData.FISH`, orden = vitrina del álbum): 33
+    comunes, 36 raros, 23 épicos y 8 legendarios, pesos POR PEZ 24/10/4/1,
+    y **todos con `desc`**: la ficha del álbum cuenta qué es el bicho (dato
+    real del animal), y es lo que llena la tarjeta. Salvo los guiños y los
+    de agua dulce heredados, **el catálogo es de mar y océano**.
     El contador del álbum va por `FishData.caught_count()`, NO por
     `fish_album.size()`: un id renombrado (marlin → pez_lanza) dejaría una
     entrada huérfana en el guardado y el contador se pasaría del total.
+    **LA BASURA** (`junk`: lata, rueda y bota) paga `JUNK_COINS` (**1**)
+    pésquese las veces que se pesque. La lata y la rueda **no tienen talla**
+    (`no_size`: su ficha no habla de centímetros ni de récord) y la bota se
+    mide en **número de calzado** (`size_unit: "talla"`, 34–48), no en cm —
+    de ahí `FishData.size_text()`, que devuelve ya la unidad puesta.
     Cada captura trae un **TAMAÑO** (size 0..1, sorteado ANTES de la sombra)
     que decide sus doblones dentro de la horquilla de su rareza — **común
     15–35 · raro 30–50 · épico 55–90 · legendario 100–160** — y el largo
@@ -473,7 +497,10 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     no dan usos), y TODOS pagan las monedas por tamaño **desde la 2ª captura
     de la especie**. El **PEZ LAPA** no pica nunca (`no_catch`): con
     `LAPA_CHANCE` (7%) viene PEGADO a la captura y su valor se cobra APARTE
-    y SIEMPRE. Entre los nuevos hay guiños con `desc` en la ficha (barbo
+    y SIEMPRE. **Es una SORPRESA**: no se menciona en el cartel del pez —
+    sale en el suyo propio ("¡Venía acompañado!") al pulsar Continuar, que
+    es de lo que va la mecánica. Y es el pez más pequeño del catálogo
+    (3–9 cm), como corresponde a algo que viaja pegado a otro. Entre los nuevos hay guiños con `desc` en la ficha (barbo
     oloroso, Bata-Bata, Froggy) y basura clásica (lata, bota). Álbum con
     silueta + "???" y ficha (rareza, premio, récord en cm, veces, sabor).
   · **El COFRE** (`CHEST_CHANCE` **30%**, `FishData.CHEST_TABLE`): monedas
