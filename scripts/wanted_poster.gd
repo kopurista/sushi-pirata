@@ -44,8 +44,9 @@ const SHEET_W_BOARD := 520.0
 const SHEET_W_PLAIN := 640.0
 ## `wanted_hoja.png` se exporta a 600x806.
 const SHEET_RATIO := 806.0 / 600.0
-## Lo que ocupa el bloque de la mano dominante, debajo de la hoja.
-const HANDS_H := 152.0
+## Lo que ocupa el bloque de la mano dominante, debajo de la hoja (con el
+## rótulo "Zurda"/"Diestra" bajo cada dibujo).
+const HANDS_H := 182.0
 
 
 ## Lo que mide el cartel montado de una manera o de la otra. Las pantallas que
@@ -86,10 +87,11 @@ const SLIDE_TIME := 0.30
 ## girarlos. Con los 180º que parecían lo lógico salían de espaldas.
 const MODEL_YAW := 0.0
 
-## La recompensa se escribe SIEMPRE con diez cifras y sus comas, como en los
-## carteles de verdad: con el número pelado, un jugador nuevo veía un "0" suelto
-## en medio de la hoja y no se leía como una recompensa.
-const BOUNTY_DIGITS := 10
+## Separador de millares de la recompensa. Se escribe la cifra TAL CUAL, sin
+## rellenar con ceros por delante: estuvo saliendo a diez dígitos fijos
+## ("0,000,005,118" para 5.118) buscando el aire de un cartel de verdad, y lo
+## que se leía era un número roto.
+const BOUNTY_SEP := "."
 
 @export var editable_name := true
 ## ¿Se dibuja el tablón de madera detrás de la hoja? (ver BOARD_PAD).
@@ -437,19 +439,21 @@ func _build_bounty() -> void:
 	fila.add_child(cifra)
 
 
+## La recompensa, con sus millares separados y NADA de ceros por delante.
 static func _bounty_text(n: int) -> String:
-	var s := str(maxi(n, 0)).pad_zeros(BOUNTY_DIGITS)
+	var s := str(maxi(n, 0))
 	var out := ""
 	for i in range(s.length()):
 		if i > 0 and (s.length() - i) % 3 == 0:
-			out += ","
+			out += BOUNTY_SEP
 		out += s[i]
 	return out
 
 
 ## Con qué mano se empuña el cuchillo. Se elige TOCANDO LA MANO (el mismo
-## dibujo espejado), no un botón con la palabra: obligaba a pensar cuál era
-## cuál. Y de aquí sale el título por defecto del cartel ("el zurdo").
+## dibujo espejado), con la palabra debajo de cada una: el dibujo solo obligaba
+## a pararse a pensar cuál era cuál. Y de aquí sale el título por defecto del
+## cartel ("el zurdo").
 func _build_hands() -> void:
 	var titulo := Label.new()
 	titulo.text = "¿Con qué mano empuñas el cuchillo?"
@@ -466,12 +470,12 @@ func _build_hands() -> void:
 	manos.alignment = BoxContainer.ALIGNMENT_CENTER
 	manos.add_theme_constant_override("separation", 40)
 	manos.position = Vector2(50.0, titulo.position.y + 36.0)
-	manos.size = Vector2(size.x - 100.0, 108.0)
+	manos.size = Vector2(size.x - 100.0, 138.0)
 	add_child(manos)
 
-	for def in [["L", "ic_mano_izq"], ["R", "ic_mano_der"]]:
+	for def in [["L", "ic_mano_izq", "Zurda"], ["R", "ic_mano_der", "Diestra"]]:
 		var b := Button.new()
-		b.custom_minimum_size = Vector2(132, 108)
+		b.custom_minimum_size = Vector2(132, 138)
 		b.set_meta("h", def[0])
 		for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 			b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
@@ -479,9 +483,21 @@ func _build_hands() -> void:
 		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		ic.texture = load("res://assets/ui/%s.png" % def[1])
-		ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+		ic.position = Vector2.ZERO
+		ic.size = Vector2(132.0, 104.0)
 		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(ic)
+		# La palabra bajo el dibujo. Es HIJA del botón: hereda el atenuado de
+		# la mano no elegida sin más cuentas.
+		var rotulo := Label.new()
+		rotulo.text = str(def[2])
+		rotulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		rotulo.position = Vector2(0.0, 106.0)
+		rotulo.size = Vector2(132.0, 28.0)
+		rotulo.add_theme_font_size_override("font_size", 22)
+		rotulo.add_theme_color_override("font_color", TINTA)
+		rotulo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(rotulo)
 		b.pressed.connect(func() -> void:
 			hand_draft = str(def[0])
 			_refresh()

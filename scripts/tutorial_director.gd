@@ -8,13 +8,23 @@ extends StoryDirector
 ## clientes): termina este guion, que entrega las 4 recetas
 ## (GameState.complete_tutorial) y devuelve al menú.
 
-## Asiento del cliente del tutorial: el de ARRIBA A LA IZQUIERDA. Con la cámara
-## isométrica (yaw 45) la altura en pantalla es -(x+z) y la horizontal es x-z,
-## así que los asientos 0 y 6 empatan en lo más alto pero el 0 cae a la derecha
-## y el 6 a la izquierda. Se usa el 6 porque el plato le llega ANTES: los platos
-## nacen en el vértice +X/+Z y la vuelta pasa por su punto de cinta mucho antes
-## que por el del 0. También entra por la borda de arriba.
+## Asiento PREFERIDO del cliente del tutorial: el de ARRIBA A LA IZQUIERDA. Con
+## la cámara isométrica (yaw 45) la altura en pantalla es -(x+z) y la horizontal
+## es x-z, así que los asientos 0 y 6 empatan en lo más alto pero el 0 cae a la
+## derecha y el 6 a la izquierda. Se usa el 6 porque el plato le llega ANTES:
+## los platos nacen en el vértice +X/+Z y la vuelta pasa por su punto de cinta
+## mucho antes que por el del 0. También entra por la borda de arriba.
+##
+## PERO este fijo solo vale cuando el maki espera en una CAJA (el plato sale a
+## la cinta DESPUÉS de que el grumete se siente). Si el maki ya NAVEGA, el
+## asiento se elige mirando el plato (`_pick_seat`): con la cinta a 1.25 u/s el
+## plato pasaba por el punto del 6 antes de que el cliente llegara a sentarse
+## y, con una sola vuelta, acababa en la basura con el guion esperando un
+## plato que ya no existía.
 const SEAT := 6
+## Colchón entre "el cliente ya está sentado" y "el plato llega a su punto":
+## cubre el acomodo en el taburete y que cada modelo anda a su propio paso.
+const SEAT_MARGIN := 2.5
 ## Lo que se alarga el nigiri del tutorial: da tiempo a explicar el té mientras
 ## el grumete sigue masticando.
 ## El nigiri del tutorial se come LENTÍSIMO a propósito: tiene que durar lo
@@ -41,18 +51,76 @@ func _wait_served() -> void:
 		client.guaranteed_next = true
 
 
-## Trae al grumete del tutorial a un asiento FIJO (los demás se tapan un
-## instante para que no elija otro).
+## Trae al grumete del tutorial al asiento elegido a dedo (los demás se tapan
+## un instante para que no elija otro).
 func _spawn_client() -> void:
+	var asiento := _pick_seat()
 	for i in lv.seats.size():
-		if i != SEAT and lv.seat_clients[i] == null:
+		if i != asiento and lv.seat_clients[i] == null:
 			lv.seat_clients[i] = true
 	lv.forced_types.append("E")
 	lv._try_spawn_client()
 	for i in lv.seats.size():
-		if i != SEAT and lv.seat_clients[i] is bool:
+		if i != asiento and lv.seat_clients[i] is bool:
 			lv.seat_clients[i] = null
-	client = lv.seat_clients[SEAT]
+	client = lv.seat_clients[asiento]
+
+
+## Elige el asiento del grumete. Sin plato navegando (el maki quedó en una
+## caja), el fijo de siempre. Con el maki ya en la cinta, el SIGUIENTE asiento
+## vacío al que el plato llegará DESPUÉS de que el cliente haya podido
+## sentarse: para cada asiento se compara lo que tardará el plato en alcanzar
+## su punto de cinta con lo que tarda el cliente en entrar andando. La pausa de
+## los diálogos congela el árbol ENTERO (plato y cliente por igual), así que la
+## comparación vale aunque David hable por el medio. Si ningún asiento da el
+## colchón, el que más margen deje.
+func _pick_seat() -> int:
+	var plates := get_tree().get_nodes_in_group("plates")
+	if plates.is_empty():
+		return SEAT
+	var curve: Curve3D = lv.belt_path.curve
+	var largo: float = curve.get_baked_length()
+	var mejor := -1
+	var mejor_plato := INF
+	var reserva := SEAT
+	var reserva_margen := -INF
+	for i in lv.seats.size():
+		if lv.seat_clients[i] != null:
+			continue
+		var punto_cinta: Vector3 = lv.seats[i]["belt"]
+		var punto: float = curve.get_closest_offset(punto_cinta)
+		var sentado := _walk_time(i)
+		# El primer plato que pasará por este asiento. Los que morirán antes de
+		# llegar (una vuelta y a la basura) no cuentan.
+		var plato := INF
+		for p in plates:
+			if p.taken:
+				continue
+			var d: float = fposmod(punto - fposmod(p.progress, largo), largo)
+			if p.belt_length > 0.0 and d > p.MAX_LAPS * p.belt_length - p.traveled:
+				continue
+			plato = minf(plato, d / maxf(p.speed, 0.01))
+		if plato == INF:
+			continue
+		var margen := plato - sentado
+		if margen >= SEAT_MARGIN and plato < mejor_plato:
+			mejor_plato = plato
+			mejor = i
+		if margen > reserva_margen:
+			reserva_margen = margen
+			reserva = i
+	return mejor if mejor >= 0 else reserva
+
+
+## Lo que tarda un cliente en llegar de su borda al taburete del asiento `idx`.
+## A paso CONSERVADOR: los modelos andan a ~1.2 u/s pero cada uno a la suya
+## (sale de su ciclo de marcha), así que se cuenta algo más lento.
+func _walk_time(idx: int) -> float:
+	var ruta: Array = lv._route_for_seat(idx)
+	var total := 0.0
+	for j in range(1, ruta.size()):
+		total += (ruta[j] as Vector3).distance_to(ruta[j - 1] as Vector3)
+	return total / 1.05
 
 
 func _cliente_vivo() -> bool:

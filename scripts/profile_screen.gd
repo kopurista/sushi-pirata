@@ -55,11 +55,11 @@ func _setup_ui() -> void:
 	back.pressed.connect(func() -> void:
 		GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45))
 	bar.add_child(back)
-	var title := PrepBoard.make_title("Perfil")
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bar.add_child(title)
+	# SIN cinta de título: el cartel de recompensa ya dice a gritos qué pantalla
+	# es —con el retrato, el nombre y el "WANTED"—, y un rótulo encima solo
+	# repetía lo mismo robándole sitio. Solo queda el botón de volver.
 	var pad := Control.new()
-	pad.custom_minimum_size = Vector2(150, 0)
+	pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar.add_child(pad)
 
 	# El cartel, A ESCALA para dejar sitio al botón de aplicar. Va CON tablón:

@@ -14,9 +14,12 @@ extends Node
 ##  - Se atienden LOS DOS tipos de evento (`ScreenTouch` y `MouseButton`):
 ##    `emulate_mouse_from_touch` viene activado por defecto, así que un dedo
 ##    llega como evento de ratón, no como táctil.
-##  - La petición va **DIFERIDA un fotograma**. Pedir el teclado en el mismo
-##    evento que el foco hacía que el propio `LineEdit`, al reaccionar después,
-##    lo cerrara de vuelta.
+##  - La petición va **POR DUPLICADO: en seco Y diferida un fotograma**. La
+##    petición en seco es OBLIGATORIA en el navegador del móvil, que solo abre
+##    el teclado dentro del gesto del usuario (diferida sola, iOS la ignoraba
+##    y el teclado no salía nunca). Y la diferida sigue haciendo falta porque
+##    el propio `LineEdit`, al reaccionar después al mismo toque, podía cerrar
+##    el teclado de vuelta: la segunda petición gana esa carrera.
 ##  - NO se esconde el teclado en `focus_exited`. Godot ya lo hace solo, y
 ##    hacerlo aquí lo cerraba en cuanto el foco daba un salto.
 ##
@@ -48,6 +51,16 @@ func _input(event: InputEvent) -> void:
 	if not _edit.get_global_rect().has_point(event.position):
 		return
 	_edit.grab_focus()
+	# EN EL NAVEGADOR DEL MÓVIL EL TECLADO SOLO SE ABRE DENTRO DEL GESTO: iOS
+	# (y Android en web) ignoran el focus programático que abre el teclado si
+	# llega FUERA del evento táctil, y el runtime web de Godot procesa el input
+	# dentro del propio evento del DOM — o sea que ESTE es el único momento en
+	# que la petición vale. Por eso se pide AQUÍ MISMO, en seco...
+	_show()
+	# ...y ADEMÁS en diferido: el LineEdit, al reaccionar a este mismo toque,
+	# podía cerrar el teclado de vuelta (fue el motivo del call_deferred
+	# original), y la segunda petición gana esa carrera. Pedirlo dos veces es
+	# inofensivo: el foco acaba en el mismo sitio.
 	_show.call_deferred()
 
 
