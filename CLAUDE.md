@@ -470,7 +470,13 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     (0.3 s) — solo pulsando más rápido que esa ventana baja, y muy poco
     (`SPEED_DRAIN_TAPPING` 0.03). Cada toque **también TENSA el sedal
     `TAP_TENSION`**: pulsar a lo loco con la barra roja alta lo rompe igual
-    (el sedal solo se relaja despacio, `SPEED_TENSION_DECAY`). En plena
+    (el sedal solo se relaja despacio, `SPEED_TENSION_DECAY`).
+    **Y AGUANTAR EL TIRÓN A PULSO NO VALE**: si el dedo se queda apoyado más
+    de `HOLD_MIN` (para no confundirlo con un toque), el freno de los toques
+    se CANCELA —la presa sube a plena fuerza— y encima el sedal se tensa
+    como si se recogiera. Medido: manteniendo 2 s en un tirón la barra llega
+    al 100% (escapa) con el sedal subiendo, mientras que pulsando rápido esos
+    mismos 2 s la barra BAJA. Aquí se pulsa, no se mantiene. En plena
     faena el "Atrás" se esconde
     (los 50 ya están apostados). El **ÁLBUM** es un botón de icono propio
     (`ic_album.png`, el libro del pez dorado) ARRIBA A LA DERECHA, y la

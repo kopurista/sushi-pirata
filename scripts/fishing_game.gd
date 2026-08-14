@@ -739,6 +739,21 @@ func _tick_fight(delta: float) -> void:
 	if en_velocidad:
 		speed_left -= delta
 		speed_relief = maxf(speed_relief - delta, 0.0)
+		if holding:
+			hold_time += delta
+		else:
+			hold_time = 0.0
+		# MANTENER NO VALE EN LA FASE DE VELOCIDAD: aquí hay que PULSAR. Si
+		# el dedo se queda apoyado (pasado HOLD_MIN, para no confundirlo con
+		# un toque normal), el freno de los toques se CANCELA —así que la
+		# presa sube a plena fuerza— y encima el sedal se tensa igual que
+		# recogiendo. Aguantar el tirón a pulso rompe el sedal.
+		var manteniendo := holding and hold_time >= HOLD_MIN
+		if manteniendo:
+			speed_relief = 0.0
+			tension += TENSION_BASE * (1.0 + TENSION_TIER * tier) * delta
+		else:
+			tension = maxf(tension - SPEED_TENSION_DECAY * delta, 0.0)
 		# La presa SIEMPRE intenta subir todo lo posible; cada toque no la
 		# baja, le FRENA la subida durante TAP_RELIEF s (y tensa el sedal en
 		# _on_zone_input). Solo pulsando más rápido que la ventana la barra
@@ -748,7 +763,6 @@ func _tick_fight(delta: float) -> void:
 		else:
 			energy += (SPEED_REGAIN_BASE + SPEED_REGAIN_TIER * tier) \
 				* fuerza * delta
-		tension = maxf(tension - SPEED_TENSION_DECAY * delta, 0.0)
 		if speed_left <= 0.0:
 			instruction.text = "¡Mantén para recoger!\nSuelta si el sedal sufre"
 	else:
