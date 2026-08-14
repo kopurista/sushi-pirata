@@ -525,7 +525,7 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     oloroso, Bata-Bata, Froggy) y basura clásica (lata, bota). Álbum con
     silueta + "???" y ficha (rareza, premio, récord en cm, veces, sabor).
   · **El COFRE** (`CHEST_CHANCE` **30%**, `FishData.CHEST_TABLE`): monedas
-    (peso 50; **80–130 SIEMPRE** — franja 80–105 al 70% y 106–130 al 30%,
+    (peso 50; **100–150 SIEMPRE** — franja 100–125 al 70% y 126–150 al 30%,
     así que un cofre de oro cubre el intento y compite con un pez épico),
     coleccionable pescable (25; repetido = 80 doblones, ver Pescables),
     fragmento de trifuerza (15; es SU fuente) y receta bloqueada al azar (10;

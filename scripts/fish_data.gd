@@ -309,8 +309,9 @@ const FISH: Array = [
 
 ## Tabla del COFRE (pesos). El sorteo Y la resolución contra el estado viven
 ## en `GameState.fishing_roll()` / `fishing_apply()`:
-## · "coins": 80–130 doblones, con dos franjas — lo normal es la baja
-##   (80–105) y solo CHEST_COINS_HIGH_CHANCE de las veces cae la alta.
+## · "coins": 100–150 doblones, con dos franjas — lo normal es la baja
+##   (100–125) y solo CHEST_COINS_HIGH_CHANCE de las veces cae la alta. El
+##   cofre de oro SIEMPRE cubre el intento y compite con un pez épico.
 ## · "collectible": uno al azar de FISHING_COLLECTIBLES, tengas o no:
 ##   el repetido paga DUP_COINS. Es lo que pide el diseño — pre-filtrar los
 ##   conseguidos dejaría la regla de las 50 monedas sin usar.
@@ -330,8 +331,8 @@ const CHEST_TABLE: Array = [
 ## De 50 a 100 SIEMPRE: el cofre de doblones cubre al menos el intento, que
 ## abrirlo tiene que ilusionar. Es además el ÚNICO botín que se acerca a lo
 ## que paga un pez épico, así que el cofre sigue siendo un buen premio.
-const CHEST_COINS_LOW := Vector2i(80, 105)
-const CHEST_COINS_HIGH := Vector2i(106, 130)
+const CHEST_COINS_LOW := Vector2i(100, 125)
+const CHEST_COINS_HIGH := Vector2i(126, 150)
 const CHEST_COINS_HIGH_CHANCE := 0.3
 const RECIPE_FALLBACK := 230
 
