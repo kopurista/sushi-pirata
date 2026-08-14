@@ -10,8 +10,10 @@ class_name CollectibleData
 ## `desc` es CÓMO se consigue: solo se enseña cuando ya está conseguido (los
 ## bloqueados van en silueta y sin ninguna pista, a propósito). Los que aún no
 ## tienen forma de conseguirse llevan un texto genérico y ningún disparador:
-## quedan bloqueados hasta que su mecánica exista (botella → minijuego de
-## pesca; catalejo y compañía → pendientes de diseño).
+## quedan bloqueados hasta que su mecánica exista.
+## Los que dicen "cofre pescado" salen del MINIJUEGO DE PESCA
+## (`FishData.FISHING_COLLECTIBLES`): lo que uno se imagina dragando el fondo
+## del mar; lo que huele a tierra firme sigue pendiente de mecánica.
 ##
 ## El TRIÁNGULO DORADO es especial: son TRIFORCE_PIECES fragmentos que se
 ## juntan en UN solo coleccionable; al completarlo se regalan
@@ -49,17 +51,22 @@ const ITEMS: Array = [
 		"id": "botella", "name": "Botella vacía",
 		"desc": "Pescada en alta mar.",
 	},
-	{ "id": "catalejo", "name": "Catalejo", "desc": "" },
+	{ "id": "catalejo", "name": "Catalejo",
+		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "tricornio", "name": "Sombrero tricornio", "desc": "" },
 	{ "id": "panuelo", "name": "Pañuelo pirata", "desc": "" },
-	{ "id": "garfio", "name": "Garfio", "desc": "" },
+	{ "id": "garfio", "name": "Garfio",
+		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "parche", "name": "Parche pirata", "desc": "" },
 	{ "id": "canon", "name": "Cañón pirata", "desc": "" },
-	{ "id": "bala_canon", "name": "Bala de cañón", "desc": "" },
-	{ "id": "ancla", "name": "Ancla", "desc": "" },
+	{ "id": "bala_canon", "name": "Bala de cañón",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "ancla", "name": "Ancla",
+		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "pistola", "name": "Pistola pirata", "desc": "" },
 	{ "id": "espada", "name": "Espada pirata", "desc": "" },
-	{ "id": "brujula", "name": "Brújula", "desc": "" },
+	{ "id": "brujula", "name": "Brújula",
+		"desc": "Salió de un cofre pescado en alta mar." },
 	{
 		"id": "cofre", "name": "Cofre del tesoro", "desc": "",
 		"icon": "res://assets/ui/daily_cofre.png",
@@ -68,15 +75,22 @@ const ITEMS: Array = [
 	{ "id": "pluma_escribir", "name": "Pluma de escribir", "desc": "" },
 	{ "id": "barril", "name": "Barril", "desc": "" },
 	{ "id": "saco_cafe", "name": "Saco de café", "desc": "" },
-	{ "id": "tentaculo", "name": "Tentáculo de kraken", "desc": "" },
-	{ "id": "hueso", "name": "Hueso", "desc": "" },
-	{ "id": "calavera", "name": "Calavera", "desc": "" },
-	{ "id": "pata_palo", "name": "Pata de palo", "desc": "" },
+	{ "id": "tentaculo", "name": "Tentáculo de kraken",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "hueso", "name": "Hueso",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "calavera", "name": "Calavera",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "pata_palo", "name": "Pata de palo",
+		"desc": "Salió de un cofre pescado en alta mar." },
 	# --- Piratas del Caribe --------------------------------------------------
-	{ "id": "perla_negra", "name": "Perla negra", "desc": "" },
-	{ "id": "moneda_azteca", "name": "Moneda azteca", "desc": "" },
+	{ "id": "perla_negra", "name": "Perla negra",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "moneda_azteca", "name": "Moneda azteca",
+		"desc": "Salió de un cofre pescado en alta mar." },
 	# --- Monkey Island -------------------------------------------------------
-	{ "id": "grog", "name": "Botella de grog", "desc": "" },
+	{ "id": "grog", "name": "Botella de grog",
+		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "mono_tres_cabezas", "name": "Mono de tres cabezas", "desc": "" },
 	{ "id": "lista_insultos", "name": "Lista de insultos", "desc": "" },
 	# --- One Piece (la banda del sombrero de paja, en orden de tripulación) --
@@ -92,8 +106,10 @@ const ITEMS: Array = [
 	# --- Zelda (el triángulo cierra la vitrina) ------------------------------
 	{ "id": "vela", "name": "Vela de mascarón", "desc": "" },
 	{ "id": "semilla_dorada", "name": "Semilla dorada", "desc": "" },
-	{ "id": "reloj_arena", "name": "Reloj de arena", "desc": "" },
-	{ "id": "mascara_zora", "name": "Máscara de raza marina", "desc": "" },
+	{ "id": "reloj_arena", "name": "Reloj de arena",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "mascara_zora", "name": "Máscara de raza marina",
+		"desc": "Salió de un cofre pescado en alta mar." },
 	{
 		"id": "trifuerza", "name": "Tripuerca de Oro",
 		"desc": "Reúne los %d fragmentos de la Tripuerca de Oro." % TRIFORCE_PIECES,

@@ -107,11 +107,21 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   grita "¡ESPABILA!" + el recordatorio que dejó puesto `_play(aviso)`. No salta
   con alguien hablando ni con un gesto sostenido en curso
   (`prep_board.is_gesture_locked()`), que se arruinaría.
-- **Cliente del tutorial**: asiento **6**, el de ARRIBA A LA IZQUIERDA. Con la
-  cámara iso la altura en pantalla es -(x+z) y la horizontal x-z, así que el 0 y
-  el 6 empatan arriba pero el 0 cae a la derecha. Se usa el 6 porque el plato le
-  llega ANTES: nacen en el vértice +X/+Z y su punto de cinta está a 6,3 de
-  recorrido frente a los 8,1 del 0. Entra por la borda de ARRIBA.
+- **Cliente del tutorial**: si el maki quedó en una CAJA, asiento **6**, el de
+  ARRIBA A LA IZQUIERDA. Con la cámara iso la altura en pantalla es -(x+z) y la
+  horizontal x-z, así que el 0 y el 6 empatan arriba pero el 0 cae a la
+  derecha. Se usa el 6 porque el plato le llega ANTES: nacen en el vértice
+  +X/+Z y su punto de cinta está a 6,3 de recorrido frente a los 8,1 del 0.
+  **Pero si el maki ya NAVEGA por la cinta, el asiento se elige mirando el
+  plato** (`_pick_seat`): con la cinta a 1.25 u/s el plato pasaba por el punto
+  del 6 antes de que el grumete llegara a sentarse y, con `MAX_LAPS` 1, acababa
+  en la basura con el guion esperando para siempre en `client.plate_served`.
+  Se compara, por asiento, lo que tarda el plato en llegar a su punto de cinta
+  con lo que tarda el cliente en entrar andando (la ruta de `_route_for_seat` a
+  paso conservador), y se elige el PRIMERO al que el plato llegue con
+  `SEAT_MARGIN` (2.5 s) de sobra tras sentarse; la pausa de los diálogos
+  congela plato y cliente por igual, así que la cuenta vale aunque David hable
+  en medio. Sin margen posible, el asiento que más margen deje.
 - **`slow_eat` solo se aplica al EMPEZAR un plato; para acortar el bocado YA EN
   MARCHA está `client3d.bite_speed`** (se reinicia con cada plato). El nigiri
   del tutorial se sirve larguísimo para poder explicar el té mientras mastica,
@@ -370,6 +380,88 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     los bordes que ESTIRA el 9-slice, y el mapa es un sprite plano. 600 -> 66 KB.
     Nadie lo referencia por UID (se carga por ruta), así que cambiar el modo no
     deja avisos de `invalid UID`.
+- **MINIJUEGO DE PESCA** (`scripts/fish_data.gd` + `scripts/fishing_game.gd`):
+  el pergamino **"Pesca"** del menú, entre Arcade y Tienda (`ic_pesca`),
+  abierto al superar el **nivel 4** (`unlocks_fishing` en CampaignData →
+  `GameState.fishing_unlocked()`). **NO cambia de escena**: como Aventura, se
+  juega SOBRE el propio menú — `_go_fishing` aparta la interfaz con
+  `_ui_out(false)` (las cajas de recursos SE QUEDAN, que el intento cuesta
+  dinero), **esconde `menu_panel` y `submenu_bar` del todo** (bajados 660 px
+  seguían asomando con el timón) y cuelga `FishingGame` (un Control) del
+  `ui_layer`; su señal `closed` deshace el camino y `money_changed` refresca
+  las cajas (`_refresh_resources`). El barco se queda quieto donde está.
+  · **FLUJO (estilo Animal Crossing)**: el botón ÚNICO de la pesca
+    (`boton_pesca.png`, tablón con cuerdas y boya, sprite FIJO exportado al
+    ancho de dibujo; respira en espera y lleva la MONEDA del juego + "50",
+    nada de "$") cobra el intento (`FishData.FISHING_COST`) → aparece la
+    **SOMBRA con FORMA DE PEZ** (`_draw_fish`: cuerpo, cola y aletas vistos
+    desde arriba, orientada a su rumbo; más GRANDE cuanto mejor el botín) que
+    **NADA de rumbo en rumbo** (`FISH_SPEED` 62 px/s con culebreo: hay que
+    apuntar adelantándose) → se TOCA EL AGUA para lanzar el sedal (parábola);
+    si no interesa, **la ÚNICA forma de recuperarlo es MANTENER la pantalla**
+    (`RETRIEVE_SPEED`) hasta recogerlo y volver a lanzar (gratis dentro del
+    intento). El **campo de visión** (`VISION_R` 120 px) se mira CADA
+    fotograma — el pez puede nadar él solo hasta el anzuelo — y al entrar la
+    sombra se acerca y **FINTA de 2 a 5 veces** (mordisco corto, el flotador
+    se hunde 7 px). La picada REAL hunde el flotador con "¡Ha picado!" y
+    ondas, con `BITE_WINDOW` (**1 s**) para tocar. **Tocar durante una finta
+    (o el acercamiento) ESPANTA al pez y pierde el intento**, igual que
+    dejar pasar la picada.
+  · **PELEA con caña y barras VERTICALES** (a la derecha: `pesca_cana.png`,
+    la misma caña del icono exportada a 400 px, con las barras giradas -90° —
+    el 9-slice se dibuja en horizontal y la rotación lo pone de pie sin
+    deformar los topes): el **SEDAL** (roja) sube al MANTENER y a tope se
+    rompe; la **PRESA** (ámbar) empieza al **50–80%** según el tier
+    (`ENERGY_START_BASE` + 0.1/tier) — mantener la drena, soltar la deja
+    recuperarse, y **si llega al 100% ESCAPA**. En las **FASES DE VELOCIDAD**
+    (aleatorias) la presa tira con fuerza: recupera deprisa (`SPEED_REGAIN`,
+    rebajado a 0.12+0.03/tier justamente porque el 100% ahora es fuga), la
+    barra parpadea, y hay que PULSAR RÁPIDO Y REPETIDAMENTE — cada toque le
+    resta `TAP_CHUNK` **pero también TENSA el sedal `TAP_TENSION`**: pulsar a
+    lo loco con la barra roja alta lo rompe igual (el sedal solo se relaja
+    despacio, `SPEED_TENSION_DECAY`). En plena faena el "Atrás" se esconde
+    (los 50 ya están apostados). El **ÁLBUM** es un botón de icono propio
+    (`ic_album.png`, el libro del pez dorado) ARRIBA A LA DERECHA, y la
+    pantalla va SIN lazo de título (el tablón del botón ya dice dónde
+    estamos).
+  · **EL PREMIO SE SORTEA ANTES DE VER LA SOMBRA** (`GameState.fishing_roll`,
+    PURO: no toca estado) y de su `tier` 0..3 sale la DIFICULTAD: el sedal se
+    tensa más deprisa (+28%/tier), la presa recupera más y las fases de
+    velocidad son más largas y frecuentes (tier 3: 2-3 fases). Solo al LOGRAR
+    la captura se entrega (`fishing_apply`, que es quien muta y guarda).
+  · **Los 40 peces** (`FishData.FISH`, orden = vitrina del álbum): 16 comunes,
+    12 raros, 8 épicos y 4 legendarios, pesos POR PEZ 24/10/4/1. TODA captura
+    apunta el álbum; un pez con `ingredient` da **5 usos** de despensa EN CADA
+    captura (la pesca es LA fuente de despensa: los cofres ya no dan usos), y
+    TODOS pagan las monedas de su rareza (**20/40/75/100**) **desde la 2ª
+    captura de la especie** (la 1ª de un pez sin ingrediente es solo el
+    descubrimiento, a propósito). Álbum con silueta + "???" y ficha (rareza,
+    premio, veces); estado en `GameState.fish_album` (id → veces).
+  · **El COFRE** (`FishData.CHEST_TABLE`): monedas (peso 50; **10–100**, con
+    la franja 10–50 al 70% y la 51–100 al 30%), coleccionable pescable (25;
+    repetido = 50 doblones, ver Pescables), fragmento de trifuerza (15; es SU
+    fuente) y receta bloqueada al azar (10; ni ocultas ni dragon_roll, con el
+    regalo de estreno `PORT_GIFT`; sin pendientes paga 200). Destape con las
+    texturas del cofre del bonus diario.
+  · Skins del chef y mapas del tesoro (misiones secundarias) están en el
+    DISEÑO del cofre pero FUERA del sorteo: sus sistemas no existen todavía.
+  · **La sombra, el sedal y el flotador se DIBUJAN POR CÓDIGO** (señal `draw`
+    del panel táctil): cero assets. `ROD_TIP` (505,395) está medido sobre
+    captura contra el encuadre DEL MENÚ; `WATER` es el rectángulo útil de
+    agua. Entrada solo por `InputEventScreenTouch` (el ratón llega como toque
+    sintetizado), con press = picar/lanzar/mantener/tap y release = soltar.
+  · Stats: `fish_caught` y `chests_fished` (sin logros aún, pero contando ya
+    para que un logro futuro funcione hacia atrás). El gasto suma a
+    `money_spent`.
+  · Iconos `assets/ui/fish_*.png` + `ic_pesca.png` + `pesca_cana.png`: Ludo
+    (item-icon, Western Cartoon, como los coleccionables) → `_gen/ui2/fish/`
+    (y `menu/ic_pesca`) → `build_fishing()` de `tools/ui2_prep.py` (con
+    `drop_specks`; sin arte, `FishData.get_icon` cae a la moneda y nada
+    crashea).
+  · **El cuarto pergamino obligó a tocar el tablón del menú**:
+    `MENU_PANEL_INNER` pasó de 0.66 a **0.745** de alto (426 px de botones no
+    cabían en 380) y el **ancla pintada del pie se retiró** — existía porque
+    esa franja quedaba vacía, y ahora la ocupa la Pesca.
 - **CÓMO TERMINA UN NIVEL, POR TIPO** (`CampaignData.is_timed` /
   `unlimited_clients` / `time_limit_for`): los **ABORDAJES** son los ÚNICOS con
   reloj —`SHIP_TIME`, 2:30 para todos— y **no tienen cupo de clientes**: sigue
@@ -499,14 +591,19 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     `who_override == "grumete_sombrero"` — stat `fed_sombrero`; el personaje
     con sombrero AÚN NO EXISTE, queda para niveles futuros). Los tres de stats
     se comprueban al principio de `_run_achievement_check`.
-  · **Sin disparador todavía**: todo lo que no esté en la lista de arriba
-    (botella = minijuego de pesca futuro; el resto de genéricos pirata y todas
-    las referencias de Piratas del Caribe, Monkey Island, One Piece y Zelda
-    salvo la trifuerza) — quedan bloqueados y con `desc` genérica hasta que se
-    decida su mecánica.
-  · **Triángulo dorado**: 8 fragmentos (`GameState.add_triforce_piece`, sin
-    fuente todavía); al octavo se junta en UN coleccionable y regala 3
-    doblones. La vitrina enseña "n/8" sobre su silueta si hay alguno.
+  · **Pescables** (`FishData.FISHING_COLLECTIBLES`, 15): la botella y todo lo
+    que uno se imagina dragando el fondo del mar (ancla, bala de cañón,
+    calavera, hueso, pata de palo, tentáculo, perla negra, moneda azteca,
+    garfio, brújula, catalejo, grog, reloj de arena y máscara marina) salen
+    del COFRE del minijuego de PESCA; su `desc` lo cuenta. El repetido paga
+    `FishData.DUP_COINS` (50).
+  · **Sin disparador todavía**: lo que no esté en las listas de arriba (lo
+    que huele a tierra firme: tricornio, pistola, sartén, One Piece salvo el
+    sombrero...) — queda bloqueado y con `desc` genérica hasta que se decida
+    su mecánica.
+  · **Triángulo dorado**: 8 fragmentos (`GameState.add_triforce_piece`; su
+    fuente es el cofre de la PESCA); al octavo se junta en UN coleccionable y
+    regala 3 doblones. La vitrina enseña "n/8" sobre su silueta si hay alguno.
   · **Iconos** `assets/ui/col_*.png`: Ludo (item-icon, Western Cartoon) →
     `_gen/ui2/col/` → `build_collectibles()` de `tools/ui2_prep.py` (con
     `drop_specks`, NUNCA `keep_largest`: la trifuerza son 8 fragmentos
@@ -864,8 +961,10 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 - `scripts/plate3d.gd` — plato en cinta: PathFollow3D por el Path3D del
   circuito, modelo normalizado por huella (0.62 u), 2 vueltas → descarte.
 - `scripts/main_menu.gd` — menú inicial (ESCENA PRINCIPAL, raíz **Node3D**):
-  TRES botones de modo con icono propio — **Aventura** (campaña), **Arcade**
-  (partida libre, sin tocar el progreso) y **Tienda** — apoyados sobre el
+  CUATRO botones de modo con icono propio — **Aventura** (campaña), **Arcade**
+  (partida libre, sin tocar el progreso), **Pesca** (el minijuego, ver su
+  bloque; apagado hasta superar el nivel 4, con aviso al pulsarlo) y
+  **Tienda** — apoyados sobre el
   **SUBMENÚ inferior**: una barra de madera oscura con cuerda en el canto
   (`submenu_barra.png`, estilo propio, exportada al alto exacto de dibujo con
   margen vertical CERO como los botones con icono) con los CINCO accesos del
@@ -1075,8 +1174,9 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   —el izquierdo nace sangrado fuera de pantalla— y en espejo el lado visible
   quedaba a corte vivo. La elección se hace TOCANDO UNA MANO CON CUCHILLO
   (`assets/ui/ic_mano_izq.png` y su espejo exacto `ic_mano_der.png`, una es
-  el `flip` de la otra para que sean idénticas), tanto en la bienvenida de
-  David como en Opciones → Perfil. **La generada por Ludo es la mano
+  el `flip` de la otra para que sean idénticas), con el rótulo
+  **"Zurda"/"Diestra"** bajo cada dibujo (solo con el dibujo había que pararse
+  a pensar cuál era cuál), tanto en la bienvenida de David como en el Perfil. **La generada por Ludo es la mano
   IZQUIERDA**, no la derecha: se asignaron al revés y hubo que
   intercambiarlas. Si se regeneran, comprobar el dibujo antes de nombrarlas.
 - **EN EL MÓVIL, LA INTERFAZ DE GODOT NO RESPONDE AL DEDO COMO EN EL RATÓN.**
@@ -1545,7 +1645,14 @@ que no hay problema.
   — el mismo patrón que `touch_scroll.gd`. Atiende los DOS tipos de evento
   (`emulate_mouse_from_touch` está activo, así que un dedo llega como ratón) y
   no esconde el teclado en `focus_exited`, que lo cerraba en cuanto el foco daba
-  un salto. Nada de esto sirve sin la opción de exportación de arriba.
+  un salto. **La petición del teclado va POR DUPLICADO: en seco dentro del
+  propio `_input` Y diferida un fotograma.** La de en seco es la que abre el
+  teclado en el navegador del móvil (solo lo abre DENTRO del gesto del
+  usuario: diferida sola, iOS la ignoraba y el teclado no salía nunca — era
+  "el teclado no aparece al escribir el nombre en la intro"), y la diferida
+  sigue haciendo falta porque el `LineEdit`, al reaccionar después al mismo
+  toque, podía cerrarlo de vuelta. Nada de esto sirve sin la opción de
+  exportación de arriba.
 - **Un icono en el TEXTO de un botón se escapa al restyle**: el de Comprar de
   la tienda seguía con `"✔  Comprar"` escrito a mano, resto de cuando
   `skin_action_button` prefijaba el rótulo. Ahora Comprar tiene su propio
@@ -1889,7 +1996,8 @@ que no hay problema.
 - **Campos nuevos de puerto en `CampaignData`**: `fixed_recipes` (carta
   cerrada), `recipe_slots` (huecos que se pueden llevar, 4 por defecto),
   `no_extras` (oculta extras, combinar y barco → `prep_board.hide_extras`),
-  `late_type` (ese tipo de cliente entra el último), `unlocks_shop` y
+  `late_type` (ese tipo de cliente entra el último), `unlocks_shop`,
+  `unlocks_fishing` (abre la PESCA del menú; lo lleva el nivel 4) y
   `director` (guion narrado).
 
 ## Balance actual (para no re-litigar)

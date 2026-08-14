@@ -145,6 +145,9 @@ var daily_last: String = ""
 ## triángulo dorado (a CollectibleData.TRIFORCE_PIECES se juntan en uno).
 var collectibles: Array[String] = []
 var triforce_pieces: int = 0
+## ÁLBUM DE PESCA: id de pez (FishData) -> veces pescado. Solo estado; el
+## catálogo y la economía viven en `fish_data.gd`.
+var fish_album: Dictionary = {}
 ## LOGROS: medallas ya RECLAMADAS (id -> 0..3) y ya ANUNCIADAS con su toast
 ## (id -> 0..3). Lo CONSEGUIDO no se guarda: se deduce siempre de `stats`.
 var claimed_medals: Dictionary = {}
@@ -295,6 +298,16 @@ func complete_tutorial() -> void:
 func shop_unlocked() -> bool:
 	for p in CampaignData.PORTS:
 		if not p.get("unlocks_shop", false):
+			continue
+		return int(level_stars.get(p["id"], 0)) >= int(p.get("goal_stars", 1))
+	return true
+
+
+## La PESCA se abre con el puerto que lleva `unlocks_fishing` (el nivel 4):
+## a mitad de campaña ya hay monedero para apostar 50 doblones por intento.
+func fishing_unlocked() -> bool:
+	for p in CampaignData.PORTS:
+		if not p.get("unlocks_fishing", false):
 			continue
 		return int(level_stars.get(p["id"], 0)) >= int(p.get("goal_stars", 1))
 	return true
@@ -943,6 +956,126 @@ func add_triforce_piece(n := 1) -> void:
 		save_game()
 
 
+# --- Minijuego de PESCA -----------------------------------------------------
+# El catálogo y la economía viven en `fish_data.gd`; aquí está lo que toca
+# ESTADO. El sorteo (`fishing_roll`) ocurre ANTES de que aparezca la sombra
+# —el juego ya sabe qué va a caer y de ahí sale la dificultad de la pelea— y
+# NO muta nada; `fishing_apply` entrega el premio SOLO si la captura se logra.
+
+## Cobra el intento de pesca. false (sin tocar nada) si no llega el dinero.
+func fishing_pay() -> bool:
+	if money < FishData.FISHING_COST:
+		return false
+	money -= FishData.FISHING_COST
+	bump_stat("money_spent", FishData.FISHING_COST)
+	save_game()
+	return true
+
+
+## Sortea el premio del intento SIN tocar estado. Devuelve
+## {"type": "fish", "fish_id", "tier"} o {"type": "chest", "premio", "tier"},
+## con `tier` 0..3 (la dificultad de la pelea: mejor premio, pelea más dura).
+func fishing_roll() -> Dictionary:
+	if randf() >= FishData.CHEST_CHANCE:
+		var fid := FishData.roll_fish()
+		return { "type": "fish", "fish_id": fid, "tier": FishData.tier_of(fid) }
+	var premio := {}
+	match FishData.roll_chest_kind():
+		"coins":
+			var n := FishData.roll_chest_coins()
+			premio = { "kind": "coins", "coins": n,
+				"tier": 0 if n <= FishData.CHEST_COINS_LOW.y else 1 }
+		"collectible":
+			# Se sortea ENTRE TODOS los pescables, tengas o no: el repetido
+			# paga DUP_COINS (pre-filtrar los conseguidos dejaría esa regla
+			# del diseño sin usar) y pelea flojo, que no vale nada nuevo.
+			var cid := str(FishData.FISHING_COLLECTIBLES[
+				randi() % FishData.FISHING_COLLECTIBLES.size()])
+			if has_collectible(cid):
+				premio = { "kind": "dup", "collectible": cid,
+					"coins": FishData.DUP_COINS, "tier": 0 }
+			else:
+				premio = { "kind": "collectible", "collectible": cid, "tier": 2 }
+		"triforce":
+			if has_collectible("trifuerza"):
+				premio = { "kind": "dup_triforce",
+					"coins": FishData.DUP_COINS, "tier": 0 }
+			else:
+				premio = { "kind": "triforce", "tier": 2 }
+		"recipe":
+			# Una receta BLOQUEADA al azar. Ni ocultas (salen de sus mecánicas)
+			# ni dragon_roll (exclusiva del día 7 del bonus diario). Sin
+			# ninguna pendiente, paga RECIPE_FALLBACK como la casilla del 7.
+			var locked: Array = []
+			for rid in RecipeData.RECIPES:
+				if RecipeData.RECIPES[rid].get("hidden", false):
+					continue
+				if str(rid) == "dragon_roll":
+					continue
+				if not is_recipe_unlocked(str(rid)):
+					locked.append(str(rid))
+			if locked.is_empty():
+				premio = { "kind": "coins",
+					"coins": FishData.RECIPE_FALLBACK, "tier": 1 }
+			else:
+				premio = { "kind": "recipe",
+					"recipe": str(locked[randi() % locked.size()]), "tier": 3 }
+	return { "type": "chest", "premio": premio, "tier": int(premio["tier"]) }
+
+
+## Entrega el premio de un `fishing_roll` LOGRADO (mutaciones y guardado).
+## Devuelve el diccionario para el cartel del botín.
+func fishing_apply(roll: Dictionary) -> Dictionary:
+	if str(roll.get("type", "")) == "fish":
+		var fid := str(roll["fish_id"])
+		var veces := int(fish_album.get(fid, 0)) + 1
+		fish_album[fid] = veces
+		bump_stat("fish_caught")
+		var out := { "type": "fish", "fish_id": fid, "veces": veces }
+		# Los peces-ingrediente dan sus usos EN CADA captura (la pesca es la
+		# fuente de despensa)...
+		var ing := str(FishData.get_fish(fid).get("ingredient", ""))
+		if ing != "":
+			add_ingredient_uses(ing, FishData.FISH_INGREDIENT_USES)
+			out["ingredient"] = ing
+			out["uses"] = FishData.FISH_INGREDIENT_USES
+		# ...y TODOS pagan las monedas de su rareza desde la 2ª captura de la
+		# especie (la 1ª de un pez sin ingrediente es solo el álbum).
+		if veces >= FishData.REPEAT_COINS_FROM:
+			var coins := int(FishData.rarity_of(fid).get("coins", 0))
+			money += coins
+			out["coins"] = coins
+		save_game()
+		return out
+	bump_stat("chests_fished")
+	var premio: Dictionary = roll["premio"]
+	var out_c := premio.duplicate()
+	out_c["type"] = "chest"
+	match str(premio["kind"]):
+		"coins", "dup", "dup_triforce":
+			money += int(premio["coins"])
+			save_game()
+		"collectible":
+			# Anuncia con la ventana modal y guarda él solo. Si entre el
+			# sorteo y la captura cayó por otro lado (imposible hoy), paga
+			# como repetido para no quedarse en nada.
+			if not unlock_collectible(str(premio["collectible"])):
+				out_c["kind"] = "dup"
+				out_c["coins"] = FishData.DUP_COINS
+				money += FishData.DUP_COINS
+				save_game()
+		"triforce":
+			# Guarda (y al octavo anuncia la trifuerza completa).
+			add_triforce_piece()
+			out_c["pieces"] = triforce_pieces
+		"recipe":
+			unlock_recipe(str(premio["recipe"]))
+			# El mismo regalo de estreno que una receta de nivel (PORT_GIFT).
+			gift_ingredients_for([str(premio["recipe"])], PORT_GIFT)
+			save_game()
+	return out_c
+
+
 ## Programa una pasada de detección para el final del fotograma. Se llama tras
 ## cada bump/max de estadística: así una ráfaga de platos cobrados en el mismo
 ## fotograma solo cuesta UNA revisión del catálogo.
@@ -1157,6 +1290,7 @@ func save_game() -> void:
 		"daily_last": daily_last,
 		"collectibles": collectibles,
 		"triforce_pieces": triforce_pieces,
+		"fish_album": fish_album,
 		"claimed_medals": claimed_medals,
 		"seen_medals": seen_medals,
 		"player_gender": player_gender,
@@ -1247,6 +1381,10 @@ func load_game() -> void:
 		stats["money_total"] = money + int(stats.get("money_spent", 0))
 	collectibles = _to_string_array(parsed.get("collectibles", []))
 	triforce_pieces = int(parsed.get("triforce_pieces", 0))
+	fish_album = {}
+	var fish_dict: Dictionary = parsed.get("fish_album", {})
+	for k in fish_dict.keys():
+		fish_album[str(k)] = int(fish_dict[k])
 	claimed_medals = {}
 	var claimed_dict: Dictionary = parsed.get("claimed_medals", {})
 	for k in claimed_dict.keys():
@@ -1339,6 +1477,7 @@ func _new_game() -> void:
 	daily_last = ""
 	collectibles = []
 	triforce_pieces = 0
+	fish_album = {}
 	claimed_medals = {}
 	seen_medals = {}
 	# SIN recetas de inicio y con el tutorial pendiente: las 4 primeras las

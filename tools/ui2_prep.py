@@ -796,6 +796,54 @@ def build_menu_panel() -> None:
         save(fit_max(crop_alpha(drop_specks(img), 2), 96), n)
 
 
+# ------------------------------------------------- minijuego de pesca
+
+# Los iconos del ALBUM de pesca (fish_*.png, uno por pez de FishData) y la
+# cana del pergamino "Pesca" del menu (ic_pesca). Mismo criterio que
+# build_collectibles: sin `solidify` (no son 9-slice) y con `drop_specks` en
+# vez de `keep_largest` (la medusa y el pez remo llevan piezas finas y la cana
+# un flotador colgando que la isla mayor podria comerse).
+FISH_ICON_SIDE = 200
+
+FISH = [
+    "sardina", "anchoa", "arenque", "caballa", "jurel", "salmonete",
+    "palometa", "sargo", "lisa", "gallo", "bacaladilla", "medusa",
+    "mata_wakame", "gamba_real", "salmon", "atun",
+    "dorada", "lubina", "besugo", "lenguado", "rodaballo", "merluza",
+    "rape", "congrio", "morena", "calamar", "pulpo", "anguila",
+    "pez_espada", "mero", "corvina", "tiburon", "pez_luna", "mantarraya",
+    "atun_rojo", "fugu", "marlin", "pez_remo", "celacanto", "koi_dorado",
+]
+
+
+def build_fishing() -> None:
+    """La cana del menu (ic_pesca), la cana GRANDE de la pelea (pesca_cana,
+    misma fuente a 400 para que no salga borrosa ampliada) y los 40 peces del
+    album (fish_*)."""
+    icpesca = drop_white(Image.open(RAW / "menu" / "ic_pesca.webp")
+                         .convert("RGBA"))
+    icpesca = crop_alpha(drop_specks(icpesca), 2)
+    save(fit_max(icpesca, 96), "ic_pesca")
+    save(fit_max(icpesca, 400), "pesca_cana")
+    # El boton de "Pulsa para pescar": tablon con cuerdas y boya, UNICO de la
+    # pesca. Sprite FIJO (el marco es irregular, un 9-slice lo deformaria),
+    # exportado al ancho al que se dibuja.
+    boton = drop_white(Image.open(RAW / "pesca_boton_1.webp").convert("RGBA"))
+    save(fit_width(crop_alpha(drop_specks(boton), 2), 470), "boton_pesca")
+    # El icono del boton del ALBUM (arriba a la derecha de la pesca).
+    album = drop_white(Image.open(RAW / "fish" / "ic_album.webp")
+                       .convert("RGBA"))
+    save(fit_max(crop_alpha(drop_specks(album), 2), 120), "ic_album")
+    for name in FISH:
+        src = RAW / "fish" / f"{name}.webp"
+        if not src.exists():
+            print(f"fish_{name:14s} FALTA {src}")
+            continue
+        img = drop_white(Image.open(src).convert("RGBA"))
+        save(fit_max(crop_alpha(drop_specks(img), 2), FISH_ICON_SIDE),
+             f"fish_{name}")
+
+
 if __name__ == "__main__":
     build_panel()
     build_button()
@@ -823,3 +871,4 @@ if __name__ == "__main__":
     build_wanted()
     build_submenu()
     build_menu_panel()
+    build_fishing()

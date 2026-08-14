@@ -61,7 +61,11 @@ const SHOP_ZOOM_SIZE := 9.4
 ## medirlo. El timón asoma WHEEL_PEEK por encima del banner.
 const MENU_PANEL_W := 400.0
 const MENU_PANEL_RATIO := 748.0 / 520.0
-const MENU_PANEL_INNER := Rect2(0.085, 0.10, 0.83, 0.66)
+## El hueco llega hasta la franja donde vivía el ANCLA pintada (~0.845): con
+## CUATRO pergaminos (entró "Pesca") los 0.66 de antes se quedaban cortos
+## (426 px de botones en 380 de hueco) y el ancla se retiró — existía
+## justamente porque esa franja quedaba vacía.
+const MENU_PANEL_INNER := Rect2(0.085, 0.10, 0.83, 0.745)
 const WHEEL_SIZE := 172.0
 ## Alto y rollos del pergamino de los botones de modo (boton_pergamino.png,
 ## exportado a 96 con los rollos midiendo ~46 en el PNG).
@@ -115,6 +119,8 @@ var _rice_tick := 0.0
 var in_menu := true
 ## Mientras hay una transición en marcha no se aceptan más pulsaciones.
 var leaving := false
+## La PESCA montada sobre el menú (misma escena, ver `_go_fishing`).
+var fishing_ui: Control = null
 var birds: Array = []
 var clouds: Array = []
 ## Mientras las gaviotas y las nubes se retiran, `_process` deja de colocarlas.
@@ -682,19 +688,8 @@ func _setup_menu_ui() -> void:
 	menu_panel.add_child(box)
 	button_box = box
 
-	# El ANCLA pintada al pie del tablón: la franja de abajo quedaba vacía.
-	# Medio apagada a propósito: es un adorno del mueble, no un botón.
-	var ancla := TextureRect.new()
-	ancla.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	ancla.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	ancla.texture = load("res://assets/ui/menu_ancla.png")
-	# En la franja libre entre los pergaminos y el marco de abajo (~55 px):
-	# más grande o más abajo, pisaba el marco.
-	ancla.position = Vector2(MENU_PANEL_W * 0.5 - 26.0, alto_panel * 0.757)
-	ancla.size = Vector2(52.0, 56.0)
-	ancla.modulate = Color(1, 1, 1, 0.55)
-	ancla.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	menu_panel.add_child(ancla)
+	# (El ANCLA pintada que adornaba el pie del tablón se retiró al entrar el
+	# cuarto pergamino: la Pesca ocupa ahora esa franja.)
 
 	box.add_child(_make_mode_button("Aventura", "ic_aventura", 96, 42,
 		func() -> void: _go_adventure()))
@@ -705,6 +700,12 @@ func _setup_menu_ui() -> void:
 	# botón queda apagado (pulsarlo explica cómo abrirlo).
 	if not GameState.arcade_unlocked():
 		arcade_btn.modulate = Color(0.52, 0.52, 0.52)
+	var fish_btn := _make_mode_button("Pesca", "ic_pesca", 96, 42,
+		func() -> void: _go_fishing())
+	box.add_child(fish_btn)
+	# La pesca se gana superando el nivel 4: hasta entonces, apagada con aviso.
+	if not GameState.fishing_unlocked():
+		fish_btn.modulate = Color(0.52, 0.52, 0.52)
 	var shop_btn := _make_mode_button("Tienda", "ic_tienda", 96, 42,
 		func() -> void: _go_shop())
 	box.add_child(shop_btn)
@@ -713,7 +714,7 @@ func _setup_menu_ui() -> void:
 	if not GameState.shop_unlocked():
 		shop_btn.modulate = Color(0.52, 0.52, 0.52)
 	# (Inventario ya no está aquí: vive en el SUBMENÚ de abajo. El menú se
-	# queda con los tres MODOS: Aventura, Arcade y Tienda.)
+	# queda con los CUATRO modos: Aventura, Arcade, Pesca y Tienda.)
 
 	_setup_submenu()
 	_setup_resource_bar(GameState.safe_top())
@@ -1558,6 +1559,45 @@ func _go_arcade() -> void:
 
 ## Aviso de modo bloqueado: pergamino centrado que aparece con un bote, se
 ## queda un par de segundos y se desvanece solo.
+## La PESCA no cambia de escena: como Aventura, se juega SOBRE el propio menú
+## (mismo mar, barco quieto donde está). La interfaz se aparta con
+## `_ui_out(false)` —las cajas de recursos SE QUEDAN, que el intento cuesta
+## dinero y hay que verlo— y `FishingGame` se cuelga del ui_layer; su señal
+## `closed` deshace el camino. `leaving` solo cubre el tránsito: con la pesca
+## puesta vuelve a false para que el mar y el barco sigan animando.
+func _go_fishing() -> void:
+	if leaving or fishing_ui != null:
+		return
+	if not GameState.fishing_unlocked():
+		_show_locked_notice("La Pesca se abre al superar\nel nivel 4 de la Aventura.")
+		return
+	leaving = true
+	_ui_out(false)
+	var tw := create_tween()
+	tw.tween_interval(OUT_TIME + 0.05)
+	tw.tween_callback(func() -> void:
+		leaving = false
+		# El tablón bajado 660 px sigue ASOMANDO por el canto (y el timón
+		# encima): durante la pesca se esconden del todo.
+		menu_panel.visible = false
+		submenu_bar.visible = false
+		fishing_ui = preload("res://scripts/fishing_game.gd").new()
+		ui_layer.add_child(fishing_ui)
+		fishing_ui.closed.connect(_on_fishing_closed)
+		fishing_ui.money_changed.connect(_refresh_resources))
+
+
+func _on_fishing_closed() -> void:
+	if fishing_ui == null:
+		return
+	fishing_ui.queue_free()
+	fishing_ui = null
+	_refresh_resources()
+	menu_panel.visible = true
+	submenu_bar.visible = true
+	_ui_in(false)
+
+
 func _show_locked_notice(text: String) -> void:
 	var panel := Control.new()
 	panel.set_anchors_preset(Control.PRESET_CENTER)
