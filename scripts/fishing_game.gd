@@ -39,6 +39,11 @@ const FADED := Color(0.45, 0.34, 0.2)
 signal closed
 ## El monedero cambió (cobro del intento o premio): el menú refresca sus cajas.
 signal money_changed
+## Se enciende en cuanto el intento está EN JUEGO (del lanzamiento hasta que se
+## resuelve) y se apaga al volver a la calma. El menú lo usa para apagar los
+## botones "+" de las cajas de recursos: abrir un panel de compra con el pez
+## enganchado no para el reloj de la pesca, así que costaba el intento entero.
+signal busy_changed(on: bool)
 
 enum State { READY, SHADOW, APPROACH, FEINT, BITE, FIGHT, REVEAL, ESCAPED }
 
@@ -502,8 +507,19 @@ func _animate_rod(delta: float, en_velocidad: bool) -> void:
 
 # ------------------------------------------------------------ estados y bucle
 
+## ¿Hay un intento EN JUEGO? Los 50 doblones ya están apostados desde que se
+## lanza el sedal, así que cuenta todo lo que no sea la calma del principio ni
+## el cartel del botín. Es la misma condición con la que se esconde el "Atrás".
+func is_busy() -> bool:
+	return not (state == State.READY or state == State.REVEAL)
+
+
+
 func _set_state(s: int) -> void:
+	var antes := is_busy()
 	state = s
+	if is_busy() != antes:
+		busy_changed.emit(is_busy())
 	cast_btn.visible = s == State.READY
 	album_btn.visible = s == State.READY
 	# En plena faena no hay "Atrás": los 50 ya están apostados.

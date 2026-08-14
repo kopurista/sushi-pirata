@@ -1048,6 +1048,8 @@ func fishing_apply(roll: Dictionary) -> Dictionary:
 		# donde ocurre el suceso (el criterio de todo el juego).
 		if str(FishData.get_fish(fid).get("rarity", "")) == "legendario":
 			bump_stat("fish_legendary")
+		if FishData.get_fish(fid).get("junk", false):
+			bump_stat("fish_junk")
 		var out := { "type": "fish", "fish_id": fid, "veces": veces,
 			"size": size }
 		# Los peces-ingrediente dan sus usos EN CADA captura (la pesca es la
@@ -1143,13 +1145,50 @@ func _run_achievement_check() -> void:
 				str(a["name"]))
 
 
+## Medallas conseguidas y aún sin reclamar DE UN LOGRO. Es el número del globo
+## rojo de su tarjeta.
+func unclaimed_for(a: Dictionary) -> int:
+	var earned := AchievementData.medal_for(a, achievement_value(a))
+	return maxi(earned - int(claimed_medals.get(str(a["id"]), 0)), 0)
+
+
+## Lo mismo para un APARTADO entero: el globo de su pestaña.
+func unclaimed_in_group(group: String) -> int:
+	var n := 0
+	for a in AchievementData.all():
+		if str(a.get("group", "")) == group:
+			n += unclaimed_for(a)
+	return n
+
+
 ## Medallas conseguidas y aún sin reclamar: el número del globo rojo del menú.
 func unclaimed_medals() -> int:
 	var n := 0
 	for a in AchievementData.all():
-		var earned := AchievementData.medal_for(a, achievement_value(a))
-		n += maxi(earned - int(claimed_medals.get(str(a["id"]), 0)), 0)
+		n += unclaimed_for(a)
 	return n
+
+
+## Cobra las medallas pendientes DE UN SOLO LOGRO (el jugador ha tocado su
+## tarjeta). Mismo reparto que el cobro en bloque: 25/50/100 por metal, y si de
+## ese logro hay bronce y plata pendientes caen los dos.
+func claim_achievement(id: String) -> int:
+	var a := AchievementData.get_achievement(id)
+	if a.is_empty():
+		return 0
+	var earned := AchievementData.medal_for(a, achievement_value(a))
+	var claimed := int(claimed_medals.get(id, 0))
+	if earned <= claimed:
+		return 0
+	var total := 0
+	for tier in range(claimed + 1, earned + 1):
+		total += int(MEDAL_REWARDS[tier - 1])
+	claimed_medals[id] = earned
+	# Reclamado implica visto: que el toast no anuncie lo ya cobrado.
+	seen_medals[id] = maxi(int(seen_medals.get(id, 0)), earned)
+	money += total
+	save_game()
+	return total
 
 
 ## Cobra TODAS las medallas pendientes (MEDAL_REWARDS por metal). Si de un

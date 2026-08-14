@@ -19,23 +19,22 @@ const MEDAL_COLORS := [
 	Color(1.00, 0.80, 0.25),
 ]
 
-## Apartados en los que se agrupan en la pantalla de logros.
-const GROUPS := ["clientela", "cocina", "fortuna", "travesia", "recetario"]
+## Apartados en los que se agrupan en la pantalla de logros. Son DOS, y no los
+## cinco de antes: "Barra" (clientela) y "Platos" (recetario) son cocina —lo que
+## se sirve y a quién— y "Oro" es parte del viaje. Con cinco tablones en 720 px
+## los rótulos apenas cabían, y tres de las pestañas tenían media docena de
+## fichas cada una.
+const GROUPS := ["cocina", "travesia", "pesca"]
 const GROUP_NAMES := {
-	"clientela": "Clientela",
 	"cocina": "Cocina",
-	"fortuna": "Fortuna",
 	"travesia": "Travesía",
-	"recetario": "Recetario",
+	"pesca": "Pesca",
 }
-## Rótulo de la PESTAÑA: cinco tablones de madera en 720 px dejan ~84 px de
-## hueco entre las esquinas doradas, así que ahí van los nombres cortos.
+## Rótulo de la PESTAÑA. Con tres tablones siguen cabiendo enteros.
 const GROUP_TABS := {
-	"clientela": "Barra",
 	"cocina": "Cocina",
-	"fortuna": "Oro",
-	"travesia": "Viaje",
-	"recetario": "Platos",
+	"travesia": "Travesía",
+	"pesca": "Pesca",
 }
 
 ## Metas de los logros "prepara N platos de X" (uno por receta no oculta).
@@ -46,32 +45,32 @@ const RECIPE_TIERS := [25, 100, 500]
 const ACHIEVEMENTS: Array = [
 	# --- Clientela -----------------------------------------------------------
 	{
-		"id": "grumetes", "group": "clientela", "name": "Pan de grumetes",
+		"id": "grumetes", "group": "cocina", "name": "Pan de grumetes",
 		"desc": "Da de comer a %d grumetes.",
 		"stat": "clients_E", "tiers": [100, 500, 2000],
 	},
 	{
-		"id": "piratas", "group": "clientela", "name": "Rancho de la tripulación",
+		"id": "piratas", "group": "cocina", "name": "Rancho de la tripulación",
 		"desc": "Da de comer a %d piratas.",
 		"stat": "clients_A", "tiers": [100, 500, 2000],
 	},
 	{
-		"id": "capitanes", "group": "clientela", "name": "Mesa de capitanes",
+		"id": "capitanes", "group": "cocina", "name": "Mesa de capitanes",
 		"desc": "Da de comer a %d capitanes.",
 		"stat": "clients_G", "tiers": [100, 500, 2000],
 	},
 	{
-		"id": "clientes", "group": "clientela", "name": "La barra nunca duerme",
+		"id": "clientes", "group": "cocina", "name": "La barra nunca duerme",
 		"desc": "Da de comer a %d clientes.",
 		"stat": "clients_total", "tiers": [1000, 5000, 20000],
 	},
 	{
-		"id": "cliente_fiel", "group": "clientela", "name": "Cliente de la casa",
+		"id": "cliente_fiel", "group": "cocina", "name": "Cliente de la casa",
 		"desc": "Consigue que un mismo cliente coma %d platos seguidos.",
 		"stat": "best_client_plates", "tiers": [5, 8, 12],
 	},
 	{
-		"id": "despedidas", "group": "clientela", "name": "La cuenta, por favor",
+		"id": "despedidas", "group": "cocina", "name": "La cuenta, por favor",
 		"desc": "Prepara %d postres de los que despiden al cliente.",
 		"stat": ["dish_mochi", "dish_dorayaki", "dish_taiyaki"],
 		"tiers": [25, 150, 600],
@@ -121,27 +120,27 @@ const ACHIEVEMENTS: Array = [
 
 	# --- Fortuna -------------------------------------------------------------
 	{
-		"id": "dinero_nivel", "group": "fortuna", "name": "Caja del día",
+		"id": "dinero_nivel", "group": "travesia", "name": "Caja del día",
 		"desc": "Gana %d doblones en un nivel de la campaña.",
 		"stat": "best_money_level", "tiers": [60, 100, 150],
 	},
 	{
-		"id": "dinero_arcade", "group": "fortuna", "name": "Récord de Arcade",
+		"id": "dinero_arcade", "group": "travesia", "name": "Récord de Arcade",
 		"desc": "Gana %d doblones en una partida de Arcade.",
 		"stat": "best_money_arcade", "tiers": [80, 140, 220],
 	},
 	{
-		"id": "dinero_total", "group": "fortuna", "name": "Cofre del tesoro",
+		"id": "dinero_total", "group": "travesia", "name": "Cofre del tesoro",
 		"desc": "Gana %d doblones en total.",
 		"stat": "money_total", "tiers": [1000, 10000, 50000],
 	},
 	{
-		"id": "propinas", "group": "fortuna", "name": "Quédate el cambio",
+		"id": "propinas", "group": "travesia", "name": "Quédate el cambio",
 		"desc": "Reúne %d doblones en propinas.",
 		"stat": "tips_total", "tiers": [500, 3000, 15000],
 	},
 	{
-		"id": "gastado", "group": "fortuna", "name": "Cliente del tendero",
+		"id": "gastado", "group": "travesia", "name": "Cliente del tendero",
 		"desc": "Gástate %d doblones en la tienda.",
 		"stat": "money_spent", "tiers": [200, 1500, 8000],
 	},
@@ -182,34 +181,39 @@ const ACHIEVEMENTS: Array = [
 	},
 
 	# --- Pesca ---------------------------------------------------------------
-	# Van en "travesia" y no en un apartado propio: cinco pestañas ya llenan
-	# los 720 px de ancho (ver GROUP_TABS) y una sexta no cabría.
+	# Apartado PROPIO: el minijuego tiene sus estadísticas, su álbum y su
+	# progreso aparte, y mezclarlo con la travesía escondía la colección.
 	{
-		"id": "pesca_capturas", "group": "travesia", "name": "Buena mano con la caña",
+		"id": "pesca_capturas", "group": "pesca", "name": "Buena mano con la caña",
 		"desc": "Saca %d capturas del mar.",
 		"stat": "fish_caught", "tiers": [10, 100, 500],
 	},
 	{
 		# La meta del ORO es FishData.total(): se remata con el álbum LLENO.
 		# Al añadir un pez al catálogo hay que subirla con él.
-		"id": "pesca_album", "group": "travesia", "name": "Álbum del océano",
+		"id": "pesca_album", "group": "pesca", "name": "Álbum del océano",
 		"desc": "Descubre %d especies distintas.",
 		"stat": "derived:pesca_album", "tiers": [15, 50, 100],
 	},
 	{
-		"id": "pesca_legendarios", "group": "travesia", "name": "Leyendas de las profundidades",
+		"id": "pesca_legendarios", "group": "pesca", "name": "Leyendas de las profundidades",
 		"desc": "Pesca %d ejemplares legendarios.",
 		"stat": "fish_legendary", "tiers": [1, 5, 20],
 	},
 	{
-		"id": "pesca_cofres", "group": "travesia", "name": "Rastreador de cofres",
+		"id": "pesca_cofres", "group": "pesca", "name": "Rastreador de cofres",
 		"desc": "Abre %d cofres pescados en alta mar.",
 		"stat": "chests_fished", "tiers": [5, 40, 150],
 	},
 	{
-		"id": "pesca_lapa", "group": "travesia", "name": "Dos por el precio de uno",
+		"id": "pesca_lapa", "group": "pesca", "name": "Dos por el precio de uno",
 		"desc": "Pesca %d peces con un pez lapa pegado.",
 		"stat": "fish_lapa", "tiers": [1, 10, 40],
+	},
+	{
+		"id": "pesca_basura", "group": "pesca", "name": "Limpiando el fondo",
+		"desc": "Saca %d trastos del mar: botellas, ruedas y botas.",
+		"stat": "fish_junk", "tiers": [5, 25, 100],
 	},
 ]
 
@@ -230,7 +234,7 @@ static func all() -> Array:
 			continue
 		_all.append({
 			"id": "receta_%s" % id,
-			"group": "recetario",
+			"group": "cocina",
 			"name": str(r.get("name", id)),
 			"desc": "Prepara %d raciones.",
 			"stat": "dish_%s" % id,

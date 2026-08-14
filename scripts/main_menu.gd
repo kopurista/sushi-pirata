@@ -802,9 +802,24 @@ func _add_plus(caja: Control, accion: Callable) -> void:
 	mas.custom_minimum_size = Vector2(48, 48)
 	mas.size = Vector2(48, 48)
 	mas.position = Vector2(-26.0, -24.0)
+	mas.name = "Mas"
 	PrepBoard.add_press_feedback(mas)
 	mas.pressed.connect(accion)
 	caja.add_child(mas)
+
+
+## Apaga (o enciende) los tres botones "+" de las cajas de recursos. Lo usa la
+## PESCA mientras hay un intento en juego: el panel de compra no para su reloj,
+## así que abrirlo con el pez enganchado costaba los 50 doblones apostados.
+func _set_plus_enabled(ocupado: bool) -> void:
+	for caja in [ingot_box, money_box, rice_box]:
+		if caja == null:
+			continue
+		var mas: Node = caja.get_node_or_null("Mas")
+		if mas is TextureButton:
+			var b := mas as TextureButton
+			b.disabled = ocupado
+			b.modulate = Color(1, 1, 1, 0.4 if ocupado else 1.0)
 
 
 ## Repinta las tres cifras, la barra del arroz y su cuenta atrás.
@@ -1262,33 +1277,9 @@ func _setup_submenu() -> void:
 ## Globo rojo con número (medallas por reclamar) cabalgando la esquina superior
 ## derecha del icono. Con 0 no se monta nada.
 func _attach_badge(host: Control, count: int) -> void:
-	if count <= 0:
-		return
-	var badge := Panel.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.82, 0.14, 0.10)
-	style.set_corner_radius_all(17)
-	style.border_color = Color(0.35, 0.04, 0.02)
-	style.set_border_width_all(3)
-	badge.add_theme_stylebox_override("panel", style)
-	# Ensancha con dos cifras para que el número no toque el borde.
-	var w := 34.0 if count < 10 else 44.0
-	badge.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	badge.offset_left = -w + 6.0
-	badge.offset_right = 6.0
-	badge.offset_top = -4.0
-	badge.offset_bottom = 30.0
-	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	host.add_child(badge)
-	var n := Label.new()
-	n.text = str(mini(count, 99))
-	n.set_anchors_preset(Control.PRESET_FULL_RECT)
-	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	n.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	n.add_theme_font_size_override("font_size", 19)
-	n.add_theme_color_override("font_color", Color(1, 0.97, 0.92))
-	n.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	badge.add_child(n)
+	# El dibujo vive en el set de interfaz (PrepBoard): el mismo globo lo usa la
+	# pantalla de Logros sobre cada tarjeta y sobre cada pestaña.
+	PrepBoard.attach_badge(host, count)
 
 
 ## Un acceso del submenú: el icono solo, centrado, sin tablón propio (la barra
@@ -1590,6 +1581,7 @@ func _go_fishing() -> void:
 		ui_layer.add_child(fishing_ui)
 		fishing_ui.closed.connect(_on_fishing_closed)
 		fishing_ui.money_changed.connect(_refresh_resources)
+		fishing_ui.busy_changed.connect(_set_plus_enabled)
 		# LAS CAJAS DE RECURSOS, POR ENCIMA DE LA PESCA. Su panel táctil ocupa
 		# la pantalla entera con MOUSE_FILTER_STOP, y como se cuelga DESPUÉS que
 		# las cajas se llevaba también los toques de sus botones "+": pulsarlos
@@ -1605,6 +1597,7 @@ func _on_fishing_closed() -> void:
 		return
 	fishing_ui.queue_free()
 	fishing_ui = null
+	_set_plus_enabled(false)
 	_refresh_resources()
 	# (`_ui_in` vuelve a encender el tablón y el submenú.)
 	_ui_in(false)

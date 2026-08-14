@@ -73,16 +73,16 @@ func _setup_ui() -> void:
 	back.pressed.connect(func() -> void:
 		GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45))
 	bar.add_child(back)
-	# El rótulo va sobre su CINTA de tela (PrepBoard.make_title):
-	# el mismo aire de cartel que el resto del set.
-	var title := PrepBoard.make_title("Logros")
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bar.add_child(title)
-	# "Reclamar": cobra de golpe TODAS las medallas pendientes (25/50/100 por
-	# bronce/plata/oro). Ocupa el hueco que equilibraba el título.
+	# SIN cinta de título: el marcador de medallas que va justo debajo ya dice
+	# de sobra en qué pantalla estamos, y la cinta solo robaba ancho al botón.
+	var hueco := Control.new()
+	hueco.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bar.add_child(hueco)
+	# "Reclamar todo": cobra de golpe TODAS las medallas pendientes (25/50/100
+	# por bronce/plata/oro). Cada tarjeta se puede cobrar por separado tocándola.
 	claim_btn = Button.new()
-	claim_btn.text = "Reclamar"
-	claim_btn.custom_minimum_size = Vector2(150, 0)
+	claim_btn.text = "Reclamar todo"
+	claim_btn.custom_minimum_size = Vector2(210, 0)
 	PrepBoard.skin_button(claim_btn)
 	claim_btn.add_theme_font_size_override("font_size", 20)
 	claim_btn.pressed.connect(_open_claim)
@@ -134,6 +134,7 @@ func _setup_ui() -> void:
 		b.pressed.connect(_show_group.bind(g))
 		tabs.add_child(b)
 		tab_buttons[g] = b
+	_refresh_tab_badges()
 
 	content = Control.new()
 	content.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -159,6 +160,17 @@ func _setup_ui() -> void:
 	scroll.add_child(list_host)
 
 
+## Globo rojo en cada PESTAÑA con lo que le queda por reclamar dentro.
+func _refresh_tab_badges() -> void:
+	for g in tab_buttons:
+		var b: Button = tab_buttons[g]
+		var viejo := b.get_node_or_null("Badge")
+		if viejo != null:
+			viejo.queue_free()
+			b.remove_child(viejo)
+		PrepBoard.attach_badge(b, GameState.unclaimed_in_group(str(g)), 28.0)
+
+
 func _show_group(group: String) -> void:
 	current_group = group
 	for g in tab_buttons:
@@ -182,8 +194,18 @@ func _build_card(a: Dictionary) -> Control:
 	var target := AchievementData.next_target(a, value)
 	var done := medal >= AchievementData.MEDALS.size()
 
-	var card := Control.new()
+	# LA TARJETA ES UN BOTÓN: con medallas pendientes, tocarla las cobra ahí
+	# mismo (sin tener que ir al "Reclamar todo" de arriba). Sin nada pendiente
+	# queda inerte, para que pulsar no dé un falso "algo ha pasado".
+	var pend := GameState.unclaimed_for(a)
+	var card := Button.new()
 	card.custom_minimum_size = Vector2(0, 116)
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		card.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	card.disabled = pend <= 0
+	if pend > 0:
+		PrepBoard.add_press_feedback(card, 0.97)
+		card.pressed.connect(_claim_one.bind(str(a["id"]), card))
 	var skin := PrepBoard.make_nine_patch(PrepBoard.BUTTON_TEX, PrepBoard.BUTTON_MARGIN)
 	skin.modulate = Color(1, 1, 1, 0.5) if medal == 0 else Color.WHITE
 	card.add_child(skin)
@@ -244,6 +266,8 @@ func _build_card(a: Dictionary) -> Control:
 		var p := _medal_icon(i + 1 if medal >= i + 1 else 0, 26.0)
 		pips.add_child(p)
 	row.add_child(pips)
+	# Globo rojo: cuántas medallas de este logro están sin cobrar.
+	PrepBoard.attach_badge(card, pend, 32.0)
 	return card
 
 
@@ -297,6 +321,83 @@ func _build_hidden_card(a: Dictionary) -> Control:
 
 # -------------------------------------------------------- reclamar medallas
 
+## Cuántas monedas salen volando y cuánto dura la lluvia.
+const COINS_N := 12
+const COIN_FLY := 0.85
+
+
+## Cobra las medallas de UN logro (se ha tocado su tarjeta). Celebra con una
+## lluvia de monedas que sale de la propia tarjeta y sube hacia el marcador, y
+## la cifra ganada encima. Luego repinta: la tarjeta pierde su globo, la
+## pestaña recalcula el suyo y el botón de "Reclamar todo" se apaga si ya no
+## queda nada.
+func _claim_one(id: String, card: Control) -> void:
+	var ganado := GameState.claim_achievement(id)
+	if ganado <= 0:
+		return
+	var centro := card.get_global_rect().get_center()
+	_coin_burst(centro, ganado)
+	_refresh_claim_button()
+	_refresh_tab_badges()
+	# Repintar en DIFERIDO: se está dentro del `pressed` de la propia tarjeta,
+	# y liberarla en mitad de su señal deja el botón a medio procesar.
+	_show_group.bind(current_group).call_deferred()
+
+
+## Monedas que salen disparadas del punto que se toca, describen su arco y se
+## desvanecen, con el "+N" subiendo por el medio. Va en el CanvasLayer de la
+## pantalla (no en la tarjeta) para que puedan salirse de ella.
+func _coin_burst(desde: Vector2, cantidad: int) -> void:
+	var capa := Control.new()
+	capa.set_anchors_preset(Control.PRESET_FULL_RECT)
+	capa.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	capa.z_index = 200
+	ui.add_child(capa)
+	var tex: Texture2D = load("res://assets/ui/moneda.png")
+	for i in COINS_N:
+		var c := TextureRect.new()
+		c.texture = tex
+		c.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		c.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		c.size = Vector2(44, 44)
+		c.pivot_offset = Vector2(22, 22)
+		c.position = desde - Vector2(22, 22)
+		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		capa.add_child(c)
+		# Cada moneda a su aire: abanico hacia arriba y su propio retardo.
+		var ang := deg_to_rad(-90.0 + randf_range(-62.0, 62.0))
+		var dist := randf_range(120.0, 260.0)
+		var destino := c.position + Vector2(cos(ang), sin(ang)) * dist
+		var d := i * 0.035
+		var t := c.create_tween().set_parallel(true)
+		t.tween_property(c, "position", destino, COIN_FLY).set_delay(d) 				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		t.tween_property(c, "rotation_degrees", randf_range(-220.0, 220.0),
+			COIN_FLY).set_delay(d)
+		t.tween_property(c, "scale", Vector2(0.5, 0.5), COIN_FLY * 0.45) 				.set_delay(d + COIN_FLY * 0.55)
+		t.tween_property(c, "modulate:a", 0.0, COIN_FLY * 0.45) 				.set_delay(d + COIN_FLY * 0.55)
+
+	# La cifra, en grande, subiendo desde el mismo punto.
+	var l := Label.new()
+	l.text = "+%d" % cantidad
+	l.add_theme_font_size_override("font_size", 52)
+	l.add_theme_color_override("font_color", Color(1, 0.92, 0.5))
+	l.add_theme_color_override("font_outline_color", Color(0.28, 0.11, 0.03))
+	l.add_theme_constant_override("outline_size", 12)
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		l.add_theme_font_override("font", negrita)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.position = desde - Vector2(50, 30)
+	l.scale = Vector2(0.5, 0.5)
+	l.pivot_offset = Vector2(50, 30)
+	capa.add_child(l)
+	var tl := l.create_tween().set_parallel(true)
+	tl.tween_property(l, "scale", Vector2.ONE, 0.28) 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tl.tween_property(l, "position:y", l.position.y - 120.0, 1.1) 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tl.tween_property(l, "modulate:a", 0.0, 0.4).set_delay(0.75)
+	tl.chain().tween_callback(capa.queue_free)
+
+
 func _refresh_claim_button() -> void:
 	if claim_btn == null:
 		return
@@ -312,6 +413,10 @@ func _open_claim() -> void:
 	if int(r["total"]) <= 0:
 		return
 	_refresh_claim_button()
+	# Los globos rojos se van con el cobro: los de las pestañas y los de las
+	# tarjetas que se estén viendo.
+	_refresh_tab_badges()
+	_show_group.bind(current_group).call_deferred()
 
 	var overlay := Control.new()
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)

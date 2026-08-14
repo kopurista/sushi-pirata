@@ -664,6 +664,41 @@ static func skin_start_button(b: Button) -> void:
 ## Apaga (o enciende) un botón bajando su OPACIDAD, sin tocar el color de la
 ## letra. Es lo que quiere la placa de oro: aclarar el texto lo hacía
 ## ilegible sobre el dorado.
+## GLOBO ROJO de "tienes algo pendiente", pegado a la esquina superior derecha
+## de lo que sea. Vive aquí, con el resto del set, porque lo usan el menú (sobre
+## el icono de Logros) y la propia pantalla de logros (sobre cada tarjeta y
+## sobre cada pestaña): tres sitios con el mismo dibujo.
+static func attach_badge(host: Control, count: int, lado := 34.0) -> void:
+	if count <= 0 or host == null:
+		return
+	var badge := Panel.new()
+	badge.name = "Badge"
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.82, 0.14, 0.10)
+	style.set_corner_radius_all(int(lado * 0.5))
+	style.border_color = Color(0.35, 0.04, 0.02)
+	style.set_border_width_all(3)
+	badge.add_theme_stylebox_override("panel", style)
+	# Ensancha con dos cifras para que el número no toque el borde.
+	var w := lado if count < 10 else lado * 1.3
+	badge.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	badge.offset_left = -w + 6.0
+	badge.offset_right = 6.0
+	badge.offset_top = -4.0
+	badge.offset_bottom = -4.0 + lado
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.add_child(badge)
+	var n := Label.new()
+	n.text = str(mini(count, 99))
+	n.set_anchors_preset(Control.PRESET_FULL_RECT)
+	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	n.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	n.add_theme_font_size_override("font_size", int(lado * 0.56))
+	n.add_theme_color_override("font_color", Color(1, 0.97, 0.92))
+	n.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.add_child(n)
+
+
 static func set_dimmed(b: Button, dim: bool) -> void:
 	b.modulate = Color(1, 1, 1, 0.45) if dim else Color.WHITE
 

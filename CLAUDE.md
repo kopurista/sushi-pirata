@@ -539,12 +539,12 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     captura contra el encuadre DEL MENÚ; `WATER` es el rectángulo útil de
     agua. Entrada solo por `InputEventScreenTouch` (el ratón llega como toque
     sintetizado), con press = picar/lanzar/mantener/tap y release = soltar.
-  · **LOGROS de pesca** (cinco, en el apartado "travesia" — cinco pestañas
-    ya llenan los 720 px y una sexta no cabría): capturas (`fish_caught`),
-    álbum (`derived:pesca_album`, que cuenta por `FishData.caught_count` y
-    cuya meta de ORO es el catálogo entero: **al añadir un pez hay que
-    subirla**), legendarios (`fish_legendary`), cofres (`chests_fished`) y
-    peces con lapa (`fish_lapa`). Las estadísticas se suben desde
+  · **LOGROS de pesca**: SEIS, en su **apartado propio** ("pesca", la tercera
+    pestaña de la pantalla de logros) — capturas (`fish_caught`), álbum
+    (`derived:pesca_album`, que cuenta por `FishData.caught_count` y cuya
+    meta de ORO es el catálogo entero: **al añadir un pez hay que subirla**),
+    legendarios (`fish_legendary`), cofres (`chests_fished`), peces con lapa
+    (`fish_lapa`) y basura (`fish_junk`). Las estadísticas se suben desde
     `GameState.fishing_apply`, que es donde ocurre el suceso. El gasto de los
     intentos suma a `money_spent`.
   · Iconos `assets/ui/fish_*.png` + `ic_pesca.png` + `pesca_cana.png`: Ludo
@@ -630,8 +630,12 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   logro nuevo funciona hacia atrás si su estadística ya se contaba. Los logros
   "prepara N raciones de X" se generan solos de `RecipeData.RECIPES` (uno por
   receta no oculta; las ocultas —barco, combinados— tienen el suyo a mano).
-  `GROUP_TABS` son los rótulos CORTOS de las pestañas: cinco tablones de madera
-  en 720 px solo dejan ~84 px de texto entre las esquinas doradas.
+  `GROUP_TABS` son los rótulos de las pestañas. Son **TRES apartados**
+  (Cocina, Travesía y Pesca): los cinco de antes dejaban ~84 px de texto por
+  tablón en 720 px y varios tenían media docena de fichas, así que se
+  fundieron —"Barra" y "Platos" son cocina, "Oro" es parte del viaje— y la
+  PESCA se quedó con apartado propio, que tiene sus estadísticas y su álbum
+  aparte. Con tres tablones los rótulos caben enteros; a partir de ahí, no.
   **Un logro de receta SIN DESBLOQUEAR sale OCULTO** en la pantalla
   (`_build_hidden_card`): silueta del plato EN NEGRO, "???" y sin barra, para
   no desvelar la carta del juego. El logro "coleccion" (Camarote de tesoros)
