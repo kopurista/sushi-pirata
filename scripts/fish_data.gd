@@ -4,23 +4,25 @@ class_name FishData
 ## monedero, coleccionables) vive en GameState, y el juego es
 ## `fishing_game.gd`, montado SOBRE el propio menú (no hay pantalla aparte).
 ##
-## ECONOMÍA (para no re-litigar): cada intento cuesta FISHING_COST (50)
+## ECONOMÍA (para no re-litigar): cada intento cuesta FISHING_COST (100)
 ## doblones, se cobra AL APARECER LA SOMBRA (los relanzamientos del sedal
 ## dentro del intento son gratis) y saca UNA de dos cosas:
 ## · Un PEZ (70%): cada captura trae un TAMAÑO al azar (size 0..1, sorteado
 ##   ANTES de ver la sombra) que decide sus doblones dentro de la horquilla
-##   de su rareza — común 15–35 · raro 30–50 · épico 55–90 · legendario
-##   100–160 — y el largo en cm de la ficha. Con el intento a 50 doblones,
-##   SOLO los épicos y legendarios pasan de esa cifra: pescar por dinero solo
-##   sale a cuenta con las piezas gordas, y el resto se pesca por el álbum y
-##   por la despensa. El álbum guarda el RÉCORD de tamaño por especie
+##   de su rareza — común 45–65 · raro 60–80 · épico 85–120 · legendario
+##   130–190 — y el largo en cm de la ficha. Con el intento a 100 doblones,
+##   SOLO las piezas gordas lo cubren: pescar por dinero compensa con épicos
+##   y legendarios, y el resto se pesca por el álbum y por la despensa. (Toda
+##   recompensa lleva +30 sobre la tabla anterior, subida junto al coste; la
+##   BASURA es la excepción y sigue pagando JUNK_COINS.)
+##   El álbum guarda el RÉCORD de tamaño por especie
 ##   (GameState.fish_best) y la ficha enseña el mayor pescado. Las monedas se
 ##   pagan DESDE LA SEGUNDA captura de la especie (la 1ª de un pez sin
 ##   ingrediente es solo el descubrimiento). Los peces-ingrediente dan además
 ##   sus usos de despensa EN CADA captura (`uses_of`: 5, y 10 el salmón real
 ##   — la pesca es LA fuente de despensa).
 ## · Un COFRE (30%): ver CHEST_TABLE. El coleccionable REPETIDO paga
-##   DUP_COINS (50).
+##   DUP_COINS (80).
 ## · El PEZ LAPA no pica nunca (`no_catch`): con LAPA_CHANCE puede venir
 ##   PEGADO al pez pescado y entonces se cobra el valor del pez MÁS el de la
 ##   lapa. Es una SORPRESA: no se anuncia con la captura, sale en su propio
@@ -42,9 +44,9 @@ class_name FishData
 ## `build_fishing()` de tools/ui2_prep.py); mientras falte el arte,
 ## `get_icon` cae a la moneda como los coleccionables.
 
-const FISHING_COST := 50
+const FISHING_COST := 100
 const FISH_INGREDIENT_USES := 5
-const DUP_COINS := 50
+const DUP_COINS := 80
 ## Probabilidad de que el intento saque COFRE en vez de pez.
 const CHEST_CHANCE := 0.30
 ## Las monedas de rareza se pagan desde esta captura de la especie (inclusive).
@@ -60,16 +62,16 @@ const JUNK_COINS := 1
 const RARITIES: Dictionary = {
 	"comun": { "name": "Común", "weight": 24,
 		"color": Color(0.55, 0.62, 0.68), "tier": 0,
-		"coins": Vector2i(15, 35), "len": Vector2i(15, 40) },
+		"coins": Vector2i(45, 65), "len": Vector2i(15, 40) },
 	"raro": { "name": "Raro", "weight": 10,
 		"color": Color(0.30, 0.55, 0.85), "tier": 1,
-		"coins": Vector2i(30, 50), "len": Vector2i(30, 80) },
+		"coins": Vector2i(60, 80), "len": Vector2i(30, 80) },
 	"epico": { "name": "Épico", "weight": 4,
 		"color": Color(0.62, 0.35, 0.80), "tier": 2,
-		"coins": Vector2i(55, 90), "len": Vector2i(60, 150) },
+		"coins": Vector2i(85, 120), "len": Vector2i(60, 150) },
 	"legendario": { "name": "Legendario", "weight": 1,
 		"color": Color(0.95, 0.72, 0.20), "tier": 3,
-		"coins": Vector2i(100, 160), "len": Vector2i(100, 300) },
+		"coins": Vector2i(130, 190), "len": Vector2i(100, 300) },
 }
 
 ## Los 100 peces del álbum, ORDENADOS COMO LA VITRINA: por rareza ascendente
@@ -307,8 +309,8 @@ const FISH: Array = [
 
 ## Tabla del COFRE (pesos). El sorteo Y la resolución contra el estado viven
 ## en `GameState.fishing_roll()` / `fishing_apply()`:
-## · "coins": 50–100 doblones, con dos franjas — lo normal es la baja
-##   (50–75) y solo CHEST_COINS_HIGH_CHANCE de las veces cae la alta.
+## · "coins": 80–130 doblones, con dos franjas — lo normal es la baja
+##   (80–105) y solo CHEST_COINS_HIGH_CHANCE de las veces cae la alta.
 ## · "collectible": uno al azar de FISHING_COLLECTIBLES, tengas o no:
 ##   el repetido paga DUP_COINS. Es lo que pide el diseño — pre-filtrar los
 ##   conseguidos dejaría la regla de las 50 monedas sin usar.
@@ -328,10 +330,10 @@ const CHEST_TABLE: Array = [
 ## De 50 a 100 SIEMPRE: el cofre de doblones cubre al menos el intento, que
 ## abrirlo tiene que ilusionar. Es además el ÚNICO botín que se acerca a lo
 ## que paga un pez épico, así que el cofre sigue siendo un buen premio.
-const CHEST_COINS_LOW := Vector2i(50, 75)
-const CHEST_COINS_HIGH := Vector2i(76, 100)
+const CHEST_COINS_LOW := Vector2i(80, 105)
+const CHEST_COINS_HIGH := Vector2i(106, 130)
 const CHEST_COINS_HIGH_CHANCE := 0.3
-const RECIPE_FALLBACK := 200
+const RECIPE_FALLBACK := 230
 
 ## Coleccionables que se pueden PESCAR: la botella (su mecánica prometida) y
 ## lo que uno se imagina dragando el fondo del mar. Lo que huele a tierra

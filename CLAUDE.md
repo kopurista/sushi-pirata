@@ -505,10 +505,12 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     de ahí `FishData.size_text()`, que devuelve ya la unidad puesta.
     Cada captura trae un **TAMAÑO** (size 0..1, sorteado ANTES de la sombra)
     que decide sus doblones dentro de la horquilla de su rareza — **común
-    15–35 · raro 30–50 · épico 55–90 · legendario 100–160** — y el largo
-    en cm de la ficha. Con el intento a 50 doblones, **solo los épicos y los
-    legendarios pasan de esa cifra**: pescar por dinero solo compensa con
-    las piezas gordas, y el resto se pesca por el álbum y por la despensa (`len` por rareza, con overrides por pez: caballitos
+    45–65 · raro 60–80 · épico 85–120 · legendario 130–190** — y el largo
+    en cm de la ficha. Con el intento a **100 doblones**, **solo las piezas
+    gordas lo cubren**: pescar por dinero compensa con épicos y legendarios,
+    y el resto se pesca por el álbum y por la despensa. (Toda recompensa
+    lleva **+30** sobre la tabla anterior, subida junto al coste; la BASURA
+    es la excepción y sigue en 1 doblón) (`len` por rareza, con overrides por pez: caballitos
     diminutos, tiburón ballena de 5–10 m...). TODA captura apunta el álbum y
     el RÉCORD de talla (`GameState.fish_best`, la ficha enseña el mayor);
     un pez con `ingredient` da sus usos de despensa EN CADA captura (5, y
@@ -523,12 +525,12 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     oloroso, Bata-Bata, Froggy) y basura clásica (lata, bota). Álbum con
     silueta + "???" y ficha (rareza, premio, récord en cm, veces, sabor).
   · **El COFRE** (`CHEST_CHANCE` **30%**, `FishData.CHEST_TABLE`): monedas
-    (peso 50; **50–100 SIEMPRE** — franja 50–75 al 70% y 76–100 al 30%, así
-    que un cofre de oro cubre el intento y compite con un pez épico),
-    coleccionable pescable (25; repetido = 50 doblones, ver Pescables),
+    (peso 50; **80–130 SIEMPRE** — franja 80–105 al 70% y 106–130 al 30%,
+    así que un cofre de oro cubre el intento y compite con un pez épico),
+    coleccionable pescable (25; repetido = 80 doblones, ver Pescables),
     fragmento de trifuerza (15; es SU fuente) y receta bloqueada al azar (10;
     ni ocultas ni dragon_roll, con el regalo de estreno `PORT_GIFT`; sin
-    pendientes paga 200).
+    pendientes paga 230).
     **EL COFRE NO SE ABRE SOLO**: sale CERRADO, meciéndose, con un botón
     "¡Abrir!", y `GameState.fishing_apply` NO se llama hasta que termina la
     animación de apertura — así el orden es cofre → abrirlo → **y ENTONCES**
@@ -548,7 +550,7 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   · **Los botones "+" de las cajas de recursos se APAGAN con un intento en
     juego** (`fishing_game.busy_changed` → `main_menu._set_plus_enabled`): el
     panel de compra no para el reloj de la pesca, así que abrirlo con el pez
-    enganchado costaba los 50 doblones apostados. La condición es la misma con
+    enganchado costaba los doblones apostados. La condición es la misma con
     la que se esconde el "Atrás" (todo lo que no sea READY ni REVEAL), porque
     los doblones se pagan al LANZAR, no al morder.
   · **LOGROS de pesca**: seis a mano MÁS UNO POR PEZ (ver el bloque de logros),
@@ -729,7 +731,7 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     calavera, hueso, pata de palo, tentáculo, perla negra, moneda azteca,
     garfio, brújula, catalejo, grog, reloj de arena y máscara marina) salen
     del COFRE del minijuego de PESCA; su `desc` lo cuenta. El repetido paga
-    `FishData.DUP_COINS` (50).
+    `FishData.DUP_COINS` (80).
   · **Sin disparador todavía**: lo que no esté en las listas de arriba (lo
     que huele a tierra firme: tricornio, pistola, sartén, One Piece salvo el
     sombrero...) — queda bloqueado y con `desc` genérica hasta que se decida
