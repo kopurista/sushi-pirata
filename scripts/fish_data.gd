@@ -38,7 +38,7 @@ const FISHING_COST := 50
 const FISH_INGREDIENT_USES := 5
 const DUP_COINS := 50
 ## Probabilidad de que el intento saque COFRE en vez de pez.
-const CHEST_CHANCE := 0.25
+const CHEST_CHANCE := 0.30
 ## Las monedas de rareza se pagan desde esta captura de la especie (inclusive).
 const REPEAT_COINS_FROM := 2
 ## Probabilidad de que el pez pescado traiga un PEZ LAPA pegado.
@@ -145,7 +145,8 @@ const FISH: Array = [
 	{ "id": "pez_espada", "name": "Pez espada", "rarity": "epico" },
 	{ "id": "mero", "name": "Mero imperial", "rarity": "epico" },
 	{ "id": "corvina", "name": "Corvina real", "rarity": "epico" },
-	{ "id": "tiburon", "name": "Tiburón martillo", "rarity": "epico" },
+	{ "id": "tiburon", "name": "Tiburón", "rarity": "epico" },
+	{ "id": "tiburon_martillo", "name": "Tiburón martillo", "rarity": "epico" },
 	{ "id": "pez_luna", "name": "Pez luna", "rarity": "epico" },
 	{ "id": "mantarraya", "name": "Mantarraya", "rarity": "epico" },
 	{ "id": "pez_leon", "name": "Pez león", "rarity": "epico" },
@@ -155,9 +156,9 @@ const FISH: Array = [
 		"rarity": "epico" },
 	{ "id": "arowana", "name": "Arowana", "rarity": "epico" },
 	{ "id": "siluro", "name": "Siluro", "rarity": "epico" },
-	{ "id": "bata_bata", "name": "Bata-Bata", "rarity": "epico",
-		"desc": "Una piraña de hojalata. Alguien la fabricó\ny el mar se la quedó." },
-	{ "id": "froggy", "name": "Froggy", "rarity": "epico",
+	{ "id": "bata_bata", "name": "Piraña sónica", "rarity": "epico",
+		"desc": "Una piraña de hojalata con una gema morada.\nAlguien la fabricó y el mar se la quedó." },
+	{ "id": "froggy", "name": "Rana caótica", "rarity": "epico",
 		"len": Vector2i(20, 40),
 		"desc": "Una rana con una cola larguísima.\nParece buscar a alguien." },
 	{ "id": "atun_rojo", "name": "Atún rojo", "rarity": "epico",
@@ -168,7 +169,7 @@ const FISH: Array = [
 		"ingredient": "salmon", "uses": 10, "len": Vector2i(90, 160),
 		"desc": "El doble de grande que un salmón,\ny el doble de salmón en la despensa." },
 	# --- Legendarios (6) -----------------------------------------------------
-	{ "id": "marlin", "name": "Marlín azul", "rarity": "legendario" },
+	{ "id": "pez_lanza", "name": "Pez lanza", "rarity": "legendario" },
 	{ "id": "pez_remo", "name": "Pez remo", "rarity": "legendario" },
 	{ "id": "celacanto", "name": "Celacanto", "rarity": "legendario" },
 	{ "id": "tiburon_ballena", "name": "Tiburón ballena", "rarity": "legendario",
@@ -198,8 +199,9 @@ const CHEST_TABLE: Array = [
 	{ "kind": "triforce", "weight": 15 },
 	{ "kind": "recipe", "weight": 10 },
 ]
-const CHEST_COINS_LOW := Vector2i(10, 50)
-const CHEST_COINS_HIGH := Vector2i(51, 100)
+## MÍNIMO 35: un cofre nunca puede dar menos, que abrirlo tiene que ilusionar.
+const CHEST_COINS_LOW := Vector2i(35, 60)
+const CHEST_COINS_HIGH := Vector2i(61, 100)
 const CHEST_COINS_HIGH_CHANCE := 0.3
 const RECIPE_FALLBACK := 200
 
@@ -222,6 +224,17 @@ static func get_fish(id: String) -> Dictionary:
 
 static func total() -> int:
 	return FISH.size()
+
+
+## Cuántas ESPECIES DEL CATÁLOGO lleva pescadas el jugador. No vale
+## `fish_album.size()`: un id que se renombre (marlin -> pez_lanza) dejaría
+## una entrada huérfana en el guardado y el contador se pasaría del total.
+static func caught_count(album: Dictionary) -> int:
+	var n := 0
+	for f in FISH:
+		if album.has(f["id"]):
+			n += 1
+	return n
 
 
 static func rarity_of(id: String) -> Dictionary:

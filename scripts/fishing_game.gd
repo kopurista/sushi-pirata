@@ -89,21 +89,20 @@ const SPEED_TENSION_DECAY := 0.25
 const TAP_RELIEF := 0.3
 const SPEED_DRAIN_TAPPING := 0.03
 const TAP_TENSION := 0.045
-## --- El TIRA Y AFLOJA de la pelea: la boya (con el pez debajo) VIAJA por el
-## sedal — hacia el barco mientras recogemos, mar adentro cuando tira el pez.
-## `line_t` es la fracción del sedal (1 = donde picó, LINE_T_MIN = casi en el
-## barco); la FUERZA del pez escala con su TAMAÑO y con esa distancia (lejos
-## y grande = recupera más), ver `_fish_strength`.
-const LINE_REEL := 0.055
-const LINE_PAY_RELEASE := 0.035
-const LINE_PAY_SPEED := 0.11
-const LINE_T_MIN := 0.22
-const LINE_T_MAX := 1.3
-## La manivela de la caña: gira despacio al recoger y AL REVÉS y más rápido
-## cuando el pez se lleva sedal.
+## --- El TIRA Y AFLOJA: la boya (con el pez debajo) VIAJA por el sedal, y su
+## distancia al barco ES la lectura visual de la ENERGÍA de la presa — llena
+## la tiene lejos (LINE_T_FAR), vacía la trae pegada al casco (LINE_T_NEAR).
+## `line_t` persigue ese destino con retardo (LINE_FOLLOW) para que el viaje
+## se vea, y la FUERZA del pez escala con su TAMAÑO y con esa distancia
+## (lejos y grande = recupera más), ver `_fish_strength`.
+const LINE_T_NEAR := 0.16
+const LINE_T_FAR := 1.12
+const LINE_FOLLOW := 0.55
+## La manivela de la caña: gira despacio al recoger y AL REVÉS y MUCHO más
+## rápido cuando el pez se lleva sedal (en la fase de velocidad se desboca).
 const CRANK_REEL_SPEED := 2.6
-const CRANK_BACK_SPEED := 4.2
-const CRANK_BACK_FAST := 8.5
+const CRANK_BACK_SPEED := 7.0
+const CRANK_BACK_FAST := 26.0
 
 var state: int = State.READY
 var _t := 0.0
@@ -164,6 +163,9 @@ var tension_bar: ProgressBar = null
 var energy_bar: ProgressBar = null
 var rod: TextureRect = null
 var crank: TextureRect = null
+## El relleno del SEDAL, guardado para teñirlo por fotograma (ver
+## `_tension_color`): verde → naranja → rojo según la tensión.
+var tension_fill: StyleBoxTexture = null
 
 
 func _ready() -> void:
@@ -325,9 +327,19 @@ func _setup_ui() -> void:
 ## x 0.49, carrete en y 0.746): si se regenera, volver a medir.
 const ROD_RECT := Rect2(600.0, 462.0, 74.0, 448.0)
 const ROD_TRACK_X := 0.49
-const ROD_TRACK_TOP := 0.05
-const ROD_TRACK_BOTTOM := 0.62
+## El canal NO llega al extremo del mástil: deja asomar la punta de la caña
+## por arriba y su madera por abajo, o el instrumento se leía como dos barras
+## sueltas con un carrete debajo.
+const ROD_TRACK_TOP := 0.10
+const ROD_TRACK_BOTTOM := 0.60
 const ROD_REEL := Vector2(0.493, 0.746)
+## Grosor de las dos barras del instrumento y dónde cae la de la PRESA (en
+## píxeles del rectángulo de la caña; negativo = a la izquierda del mástil).
+## El sedal va MÁS GORDO que antes (14) pero sin comerse el mástil, que mide
+## 16-19 px: así la madera asoma por los lados y la barra parece embutida.
+const TENSION_BAR_W := 20.0
+const ENERGY_BAR_W := 24.0
+const ENERGY_BAR_X := -38.0
 
 
 ## La CAÑA-HUD de la pelea: una caña VERTICAL tan larga como las barras, con
@@ -355,23 +367,20 @@ func _setup_fight_ui() -> void:
 	rod.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fight_box.add_child(rod)
 
-	# El SEDAL integrado: un listón fino a lo largo del mástil.
+	# LAS DOS BARRAS van DENTRO de la caña (hijas suyas): así se inclinan y
+	# tiemblan con ella y el conjunto se lee como UN solo instrumento.
+	# · SEDAL sobre el mástil, GRUESA para que se vea de un vistazo y con el
+	#   color puesto por fotograma (verde → naranja → rojo, `_tension_color`).
+	# · PRESA en paralelo, a la izquierda del mástil.
 	var track_len := ROD_RECT.size.y * (ROD_TRACK_BOTTOM - ROD_TRACK_TOP)
-	tension_bar = ProgressBar.new()
-	tension_bar.min_value = 0.0
-	tension_bar.max_value = 1.0
-	tension_bar.show_percentage = false
-	tension_bar.size = Vector2(track_len, 14.0)
-	tension_bar.rotation = -PI / 2.0
-	tension_bar.position = Vector2(
-		ROD_RECT.size.x * ROD_TRACK_X - 7.0,
-		ROD_RECT.size.y * ROD_TRACK_BOTTOM)
-	tension_bar.add_theme_stylebox_override("background",
-		PrepBoard.make_bar_box(PrepBoard.BAR_BG_TEX))
-	tension_bar.add_theme_stylebox_override("fill",
-		PrepBoard.make_bar_box(PrepBoard.BAR_FILL_TEX, Color(0.92, 0.34, 0.26)))
-	tension_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rod.add_child(tension_bar)
+	tension_fill = PrepBoard.make_bar_box(PrepBoard.BAR_FILL_TEX,
+		_tension_color(0.0))
+	tension_bar = _make_rod_bar(track_len, TENSION_BAR_W,
+		ROD_RECT.size.x * ROD_TRACK_X, tension_fill)
+	energy_bar = _make_rod_bar(track_len, ENERGY_BAR_W, ENERGY_BAR_X,
+		PrepBoard.make_bar_box(PrepBoard.BAR_FILL_TEX, Color(0.95, 0.72, 0.20)))
+	_rod_label("Sedal", ROD_RECT.size.x * ROD_TRACK_X)
+	_rod_label("Presa", ENERGY_BAR_X)
 
 	# La MANIVELA, clavada en el eje del carrete de la caña.
 	crank = TextureRect.new()
@@ -385,20 +394,54 @@ func _setup_fight_ui() -> void:
 	crank.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rod.add_child(crank)
 
-	var sedal_l := Label.new()
-	sedal_l.text = "Sedal"
-	sedal_l.position = Vector2(ROD_RECT.position.x + ROD_RECT.size.x * 0.5 - 40.0,
-		ROD_RECT.end.y + 6.0)
-	sedal_l.size = Vector2(80.0, 30.0)
-	sedal_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sedal_l.add_theme_font_size_override("font_size", 20)
-	sedal_l.add_theme_color_override("font_color", Color(1, 0.95, 0.84))
-	sedal_l.add_theme_color_override("font_outline_color", Color(0.2, 0.1, 0.04))
-	sedal_l.add_theme_constant_override("outline_size", 7)
-	sedal_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	fight_box.add_child(sedal_l)
 
-	energy_bar = _make_vbar(500.0, "Presa", Color(0.95, 0.72, 0.20))
+## Una barra VERTICAL montada en la caña: se construye horizontal (el 9-slice
+## del set solo se puede estirar a lo ancho, y así los topes redondos no se
+## deforman) y se gira -90° para ponerla de pie. `x` es el centro que ocupa
+## dentro del rectángulo de la caña.
+func _make_rod_bar(largo: float, grosor: float, x: float,
+		fill: StyleBoxTexture) -> ProgressBar:
+	var p := ProgressBar.new()
+	p.min_value = 0.0
+	p.max_value = 1.0
+	p.show_percentage = false
+	p.size = Vector2(largo, grosor)
+	p.rotation = -PI / 2.0
+	p.position = Vector2(x - grosor * 0.5,
+		ROD_RECT.size.y * ROD_TRACK_BOTTOM)
+	p.add_theme_stylebox_override("background",
+		PrepBoard.make_bar_box(PrepBoard.BAR_BG_TEX))
+	p.add_theme_stylebox_override("fill", fill)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rod.add_child(p)
+	return p
+
+
+## Rótulo al pie de una de las barras de la caña (también hijo de la caña:
+## se inclina con ella, que es lo que hace que el conjunto se lea como uno).
+func _rod_label(texto: String, x: float) -> void:
+	var l := Label.new()
+	l.text = texto
+	l.position = Vector2(x - 44.0, ROD_RECT.size.y * ROD_TRACK_BOTTOM + 6.0)
+	l.size = Vector2(88.0, 28.0)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.add_theme_font_size_override("font_size", 20)
+	l.add_theme_color_override("font_color", Color(1, 0.95, 0.84))
+	l.add_theme_color_override("font_outline_color", Color(0.2, 0.1, 0.04))
+	l.add_theme_constant_override("outline_size", 7)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rod.add_child(l)
+
+
+## El color del SEDAL según su tensión: verde tranquilo, naranja a media y
+## rojo cuando está a punto de romperse.
+func _tension_color(v: float) -> Color:
+	var verde := Color(0.42, 0.78, 0.30)
+	var naranja := Color(0.98, 0.64, 0.13)
+	var rojo := Color(0.94, 0.20, 0.14)
+	if v < 0.5:
+		return verde.lerp(naranja, v / 0.5)
+	return naranja.lerp(rojo, (v - 0.5) / 0.5)
 
 
 ## La manivela gira con quien manda en el sedal, y la caña se dobla y tiembla.
@@ -412,43 +455,14 @@ func _animate_rod(delta: float, en_velocidad: bool) -> void:
 	if crank != null:
 		crank.rotation = crank_angle
 	if rod != null:
-		var destino := -0.10 if holding else -0.04
+		# Poca inclinación a propósito: las barras y sus rótulos CUELGAN de
+		# la caña, y un ángulo grande dejaba el texto tumbado.
+		var destino := -0.055 if holding else -0.02
 		if en_velocidad:
-			destino = -0.16
-		var temblor := sin(_t * 26.0) * (0.02 if en_velocidad else 0.008)
+			destino = -0.085
+		var temblor := sin(_t * 26.0) * (0.014 if en_velocidad else 0.005)
 		rod.rotation = lerpf(rod.rotation, destino,
 			minf(delta * 6.0, 1.0)) + temblor
-
-
-func _make_vbar(x: float, texto: String, tint: Color) -> ProgressBar:
-	var holder := Control.new()
-	holder.position = Vector2(x, 900.0)
-	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	fight_box.add_child(holder)
-	var p := ProgressBar.new()
-	p.min_value = 0.0
-	p.max_value = 1.0
-	p.show_percentage = false
-	p.size = Vector2(360.0, 34.0)
-	p.rotation = -PI / 2.0
-	p.add_theme_stylebox_override("background",
-		PrepBoard.make_bar_box(PrepBoard.BAR_BG_TEX))
-	p.add_theme_stylebox_override("fill",
-		PrepBoard.make_bar_box(PrepBoard.BAR_FILL_TEX, tint))
-	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	holder.add_child(p)
-	var l := Label.new()
-	l.text = texto
-	l.position = Vector2(-24.0, 10.0)
-	l.size = Vector2(82.0, 30.0)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", 20)
-	l.add_theme_color_override("font_color", Color(1, 0.95, 0.84))
-	l.add_theme_color_override("font_outline_color", Color(0.2, 0.1, 0.04))
-	l.add_theme_constant_override("outline_size", 7)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	holder.add_child(l)
-	return p
 
 
 # ------------------------------------------------------------ estados y bucle
@@ -607,7 +621,7 @@ func _feint_rest() -> Vector2:
 ## Multiplica lo que recupera la presa (suelto y en velocidad).
 func _fish_strength() -> float:
 	return (0.85 + 0.3 * catch_size) \
-		* (0.75 + 0.45 * clampf(line_t / LINE_T_MAX, 0.0, 1.0))
+		* (0.75 + 0.45 * clampf(line_t / LINE_T_FAR, 0.0, 1.0))
 
 
 ## El pez NADA de rumbo en rumbo (no se queda clavado: hay que apuntar
@@ -645,13 +659,15 @@ func _start_fight() -> void:
 	speed_relief = 0.0
 	# El tira y afloja arranca donde picó: la boya viajará por ese sedal.
 	fight_far = bobber
-	line_t = 1.0
 	crank_angle = 0.0
 	# La presa empieza entre el 60% (tier 0) y el 90% (tier 3), con un pelín
 	# más si el ejemplar es grande: cuanto mejor el premio, menos margen
 	# hasta el 100% que la deja escapar.
 	energy = minf(ENERGY_START_BASE + ENERGY_START_TIER * tier \
 		+ 0.06 * (catch_size - 0.5), 0.93)
+	# La distancia SALE de la energía (ver `_tick_fight`): con la barra casi
+	# llena, el pez arranca la pelea lejos del casco.
+	line_t = lerpf(LINE_T_NEAR, LINE_T_FAR, energy)
 	# Fases de velocidad: más y más largas cuanto mejor es el premio.
 	match tier:
 		0: phases_left = randi_range(0, 1)
@@ -696,22 +712,22 @@ func _tick_fight(delta: float) -> void:
 		else:
 			energy += (REGAIN_BASE + REGAIN_TIER * tier) * fuerza * delta
 			tension -= TENSION_RELIEF * delta
-	# EL TIRA Y AFLOJA: recogiendo, la boya (y el pez) vienen hacia el barco;
-	# con el pez tirando (velocidad, o el sedal suelto) se van mar adentro.
-	if en_velocidad:
-		line_t += LINE_PAY_SPEED * fuerza * delta
-	elif holding:
-		line_t -= LINE_REEL * delta
-	else:
-		line_t += LINE_PAY_RELEASE * fuerza * delta
-	line_t = clampf(line_t, LINE_T_MIN, LINE_T_MAX)
+	energy = clampf(energy, 0.0, 1.0)
+	tension = clampf(tension, 0.0, 1.0)
+	# EL TIRA Y AFLOJA: la DISTANCIA del pez al barco la manda su ENERGÍA —
+	# cuanta menos le queda, más cerca lo tenemos; si la recupera, se aleja.
+	# `line_t` persigue ese destino con retardo para que el viaje se vea.
+	var destino_t := lerpf(LINE_T_NEAR, LINE_T_FAR, energy)
+	line_t = move_toward(line_t, destino_t, LINE_FOLLOW * delta)
 	bobber = ROD_TIP + (fight_far - ROD_TIP) * line_t
 	bobber.y = maxf(bobber.y, WATER.position.y + 14.0)
 	_animate_rod(delta, en_velocidad)
-	energy = clampf(energy, 0.0, 1.0)
-	tension = clampf(tension, 0.0, 1.0)
 	tension_bar.value = tension
 	energy_bar.value = energy
+	# El SEDAL se tiñe con su propio nivel: verde tranquilo, naranja a media
+	# tensión y rojo cuando está a punto de romperse.
+	if tension_fill != null:
+		tension_fill.modulate_color = _tension_color(tension)
 	# La barra de la presa parpadea en la fase de velocidad: es el aviso.
 	energy_bar.modulate = Color(1, 0.7, 0.7) \
 		if en_velocidad and fmod(_t, 0.22) < 0.11 else Color.WHITE
@@ -742,12 +758,15 @@ func _land_catch() -> void:
 	holding = false
 	instruction.text = ""
 	_set_state(State.REVEAL)
-	var premio := GameState.fishing_apply(roll)
-	money_changed.emit()
-	if str(premio.get("type", "")) == "fish":
+	if str(roll.get("type", "")) == "fish":
+		var premio := GameState.fishing_apply(roll)
+		money_changed.emit()
 		_show_fish_reveal(premio)
 	else:
-		_show_chest_reveal(premio)
+		# El cofre NO se abre solo: sale CERRADO y lo abre el jugador. El
+		# premio se entrega (y el coleccionable se anuncia con su ventana)
+		# al terminar la animación de apertura, nunca antes.
+		_show_chest_reveal()
 
 
 # ------------------------------------------------------- entrada del jugador
@@ -992,7 +1011,10 @@ func _show_fish_reveal(premio: Dictionary) -> void:
 	_reveal_close_button(panel, alto)
 
 
-func _show_chest_reveal(premio: Dictionary) -> void:
+## El cartel del COFRE: sale CERRADO y con un botón "¡Abrir!". El premio del
+## `roll` no se entrega hasta que el jugador lo abre (ver el botón), así que
+## la ventana del coleccionable llega DESPUÉS de ver el cofre abrirse.
+func _show_chest_reveal() -> void:
 	var alto := 620.0
 	var panel := _reveal_panel(alto)
 	var title := PrepBoard.make_big_title("¡Un cofre\ndel mar!", 44)
@@ -1001,7 +1023,7 @@ func _show_chest_reveal(premio: Dictionary) -> void:
 	title.offset_bottom = 150.0
 	panel.add_child(title)
 
-	# El cofre del bonus diario: cerrado, se menea y se abre soltando el botín.
+	# El cofre del bonus diario, CERRADO y meciéndose: lo abre el jugador.
 	var cofre := TextureRect.new()
 	cofre.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	cofre.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -1010,17 +1032,73 @@ func _show_chest_reveal(premio: Dictionary) -> void:
 	cofre.size = Vector2(170, 170)
 	cofre.pivot_offset = Vector2(85, 100)
 	panel.add_child(cofre)
-	var tw := create_tween()
-	tw.tween_property(cofre, "rotation_degrees", 7.0, 0.09)
-	tw.tween_property(cofre, "rotation_degrees", -7.0, 0.09)
-	tw.tween_property(cofre, "rotation_degrees", 5.0, 0.08)
-	tw.tween_property(cofre, "rotation_degrees", 0.0, 0.07)
-	tw.tween_callback(func() -> void:
-		cofre.texture = load("res://assets/ui/daily_cofre_abierto.png"))
-	tw.tween_property(cofre, "scale", Vector2(1.12, 1.12), 0.16) \
-		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_property(cofre, "scale", Vector2.ONE, 0.12)
+	var espera := create_tween().set_loops()
+	espera.tween_property(cofre, "rotation_degrees", 4.0, 0.5) \
+		.set_trans(Tween.TRANS_SINE)
+	espera.tween_property(cofre, "rotation_degrees", -4.0, 0.5) \
+		.set_trans(Tween.TRANS_SINE)
 
+	# El botín va en esta fila, vacía hasta que se abra el cofre.
+	var fila := HBoxContainer.new()
+	fila.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	fila.offset_left = 60.0
+	fila.offset_right = -60.0
+	fila.offset_top = 360.0
+	fila.offset_bottom = 500.0
+	fila.alignment = BoxContainer.ALIGNMENT_CENTER
+	fila.add_theme_constant_override("separation", 14)
+	panel.add_child(fila)
+	var pista := _centered_label(panel, "¿Qué habrá dentro?", 24, 386.0, FADED)
+
+	# El botón hace DOS papeles: primero abre el cofre y después cierra el
+	# cartel. La caja `estado` es un diccionario porque las lambdas de
+	# GDScript capturan por VALOR: un bool suelto no se vería mutado.
+	var estado := { "abierto": false }
+	var btn := Button.new()
+	btn.text = "¡Abrir!"
+	PrepBoard.skin_button(btn)
+	btn.add_theme_font_size_override("font_size", 26)
+	btn.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	btn.offset_left = 140.0
+	btn.offset_right = -140.0
+	btn.offset_top = alto - 98.0
+	btn.offset_bottom = alto - 32.0
+	panel.add_child(btn)
+	btn.pressed.connect(func() -> void:
+		if estado["abierto"]:
+			panel.get_parent().queue_free()
+			_set_state(State.READY)
+			return
+		estado["abierto"] = true
+		espera.kill()
+		btn.disabled = true
+		PrepBoard.set_dimmed(btn, true)
+		pista.queue_free()
+		var tw := create_tween()
+		tw.tween_property(cofre, "rotation_degrees", 9.0, 0.08)
+		tw.tween_property(cofre, "rotation_degrees", -9.0, 0.08)
+		tw.tween_property(cofre, "rotation_degrees", 6.0, 0.07)
+		tw.tween_property(cofre, "rotation_degrees", 0.0, 0.07)
+		tw.tween_callback(func() -> void:
+			cofre.texture = load("res://assets/ui/daily_cofre_abierto.png"))
+		tw.tween_property(cofre, "scale", Vector2(1.12, 1.12), 0.16) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(cofre, "scale", Vector2.ONE, 0.12)
+		# Y SOLO ENTONCES se entrega el premio: si es un coleccionable, su
+		# ventana sale AHORA, con el cofre ya abierto detrás.
+		tw.tween_callback(func() -> void:
+			var premio := GameState.fishing_apply(roll)
+			money_changed.emit()
+			_fill_chest_loot(fila, premio)
+			btn.text = "Continuar"
+			btn.disabled = false
+			PrepBoard.set_dimmed(btn, false)))
+
+
+## Pinta el botín dentro del cartel del cofre YA ABIERTO. Sin fundido a
+## propósito: el coleccionable pausa el árbol con su ventana y un tween aquí
+## se quedaría congelado a medias.
+func _fill_chest_loot(fila: HBoxContainer, premio: Dictionary) -> void:
 	var texto := ""
 	var icon_tex: Texture2D = null
 	match str(premio.get("kind", "")):
@@ -1049,17 +1127,6 @@ func _show_chest_reveal(premio: Dictionary) -> void:
 				premio["recipe"], {}).get("name", premio["recipe"]))
 			icon_tex = RecipeData.get_dish_texture(str(premio["recipe"]))
 
-	# El botín aparece cuando el cofre ya está abierto.
-	var fila := HBoxContainer.new()
-	fila.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	fila.offset_left = 60.0
-	fila.offset_right = -60.0
-	fila.offset_top = 360.0
-	fila.offset_bottom = 500.0
-	fila.alignment = BoxContainer.ALIGNMENT_CENTER
-	fila.add_theme_constant_override("separation", 14)
-	fila.modulate.a = 0.0
-	panel.add_child(fila)
 	if icon_tex != null:
 		var ic := TextureRect.new()
 		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -1077,8 +1144,6 @@ func _show_chest_reveal(premio: Dictionary) -> void:
 	l.add_theme_font_size_override("font_size", 26)
 	l.add_theme_color_override("font_color", DARK)
 	fila.add_child(l)
-	create_tween().tween_property(fila, "modulate:a", 1.0, 0.3).set_delay(0.55)
-	_reveal_close_button(panel, alto)
 
 
 # ------------------------------------------------------------------- álbum
@@ -1105,7 +1170,9 @@ func _open_album() -> void:
 	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
 		PrepBoard.PANEL_MARGIN))
 
-	var pescados := GameState.fish_album.size()
+	# Se cuentan las especies DEL CATÁLOGO, no las claves del guardado: un id
+	# renombrado dejaría una entrada huérfana y el contador se pasaría.
+	var pescados := FishData.caught_count(GameState.fish_album)
 	var title := PrepBoard.make_title("Álbum: %d/%d" % [pescados,
 		FishData.total()])
 	title.set_anchors_preset(Control.PRESET_TOP_WIDE)

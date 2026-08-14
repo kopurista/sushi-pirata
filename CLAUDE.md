@@ -416,22 +416,28 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     ignora, la medida de seguridad contra el toque accidental. Dejar pasar
     la picada también lo pierde.
   · **PELEA con CAÑA-HUD animada y tira y afloja**: a la derecha va
-    `pesca_cana_hud.png` (caña VERTICAL y RECTA a propósito, tan larga como
-    las barras) con la barra del **SEDAL integrada en el propio mástil** (un
-    listón fino HIJO de la caña: se dobla y tiembla con ella) y la
-    **MANIVELA** (`pesca_manivela.png`) girando sobre el carrete — despacio
-    al recoger, AL REVÉS y más deprisa cuando el pez se lleva sedal
-    (`_animate_rod`; `ROD_RECT` calca la proporción de la textura y
+    `pesca_cana_hud.png` (caña VERTICAL y RECTA a propósito) con **LAS DOS
+    BARRAS DENTRO, hijas suyas** — así se inclinan y tiemblan con ella y el
+    conjunto se lee como UN instrumento: el **SEDAL** embutido en el mástil
+    (20 px, más gordo que los 14 que tuvo, pero sin comerse la madera de los
+    lados; su canal no llega a los extremos, o la caña parecía dos barras
+    sueltas con un carrete debajo) y la **PRESA** en paralelo a su
+    izquierda. El sedal se TIÑE con su nivel (`_tension_color`): **verde
+    tranquilo → naranja a media tensión → rojo a punto de romperse**. La
+    **MANIVELA** (`pesca_manivela.png`) gira sobre el carrete: despacio al
+    recoger y AL REVÉS y **MUCHO más rápido** cuando el pez se lleva sedal
+    (medido: 10 veces más deprisa en la fase de velocidad; `_animate_rod`,
+    `CRANK_*`). `ROD_RECT` calca la proporción de la textura y
     `ROD_TRACK`/`ROD_REEL` están MEDIDOS por barrido de alfa: si se regenera
-    la caña, volver a medir). Al lado, la barra de la **PRESA** (ámbar,
-    girada -90°: el 9-slice se dibuja horizontal y la rotación lo pone de
-    pie). El pez pelea **DEBAJO de la boya**, y boya y pez VIAJAN por el
-    sedal (`line_t`): hacia el barco al mantener, mar adentro cuando tira
-    (`LINE_REEL`/`LINE_PAY_*`). El sedal (roja) sube al MANTENER y a tope se
-    rompe; la presa empieza al **60–90%** según el tier (+ un pico por
-    tamaño) — mantener la drena, soltar la deja recuperarse, y **si llega al
-    100% ESCAPA**. Su FUERZA (`_fish_strength`) escala con el TAMAÑO del
-    ejemplar y su DISTANCIA al barco, y multiplica lo que recupera. En las
+    la caña, volver a medir. El pez pelea **DEBAJO de la boya**, y **la
+    DISTANCIA al barco la manda su ENERGÍA** — llena lo tiene lejos
+    (`LINE_T_FAR`), vacía lo trae pegado al casco (`LINE_T_NEAR`), con
+    `LINE_FOLLOW` de retardo para que el viaje se vea. El sedal sube al
+    MANTENER y a tope se rompe; la presa empieza al **60–90%** según el tier
+    (+ un pico por tamaño) — mantener la drena, soltar la deja recuperarse, y
+    **si llega al 100% ESCAPA**. Su FUERZA (`_fish_strength`) escala con el
+    TAMAÑO del ejemplar y su DISTANCIA al barco, y multiplica lo que
+    recupera. En las
     **FASES DE VELOCIDAD** (aleatorias) la presa sube con fuerza de verdad
     (`SPEED_REGAIN` **0.31+0.063/tier ≈ 0.31–0.5/s**: aquí se puede perder)
     y **cada toque NO la baja: le FRENA la subida** durante `TAP_RELIEF`
@@ -449,8 +455,11 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     tensa más deprisa (+28%/tier), la presa recupera más y las fases de
     velocidad son más largas y frecuentes (tier 3: 2-3 fases). Solo al LOGRAR
     la captura se entrega (`fishing_apply`, que es quien muta y guarda).
-  · **Los 78 peces** (`FishData.FISH`, orden = vitrina del álbum): 26
-    comunes, 29 raros, 17 épicos y 6 legendarios, pesos POR PEZ 24/10/4/1.
+  · **Los 79 peces** (`FishData.FISH`, orden = vitrina del álbum): 26
+    comunes, 29 raros, 18 épicos y 6 legendarios, pesos POR PEZ 24/10/4/1.
+    El contador del álbum va por `FishData.caught_count()`, NO por
+    `fish_album.size()`: un id renombrado (marlin → pez_lanza) dejaría una
+    entrada huérfana en el guardado y el contador se pasaría del total.
     Cada captura trae un **TAMAÑO** (size 0..1, sorteado ANTES de la sombra)
     que decide sus doblones dentro de la horquilla de su rareza — **común
     40–70 · raro 70–100 · épico 100–150 · legendario 150–250** — y el largo
@@ -465,12 +474,21 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     y SIEMPRE. Entre los nuevos hay guiños con `desc` en la ficha (barbo
     oloroso, Bata-Bata, Froggy) y basura clásica (lata, bota). Álbum con
     silueta + "???" y ficha (rareza, premio, récord en cm, veces, sabor).
-  · **El COFRE** (`FishData.CHEST_TABLE`): monedas (peso 50; **10–100**, con
-    la franja 10–50 al 70% y la 51–100 al 30%), coleccionable pescable (25;
-    repetido = 50 doblones, ver Pescables), fragmento de trifuerza (15; es SU
-    fuente) y receta bloqueada al azar (10; ni ocultas ni dragon_roll, con el
-    regalo de estreno `PORT_GIFT`; sin pendientes paga 200). Destape con las
-    texturas del cofre del bonus diario.
+  · **El COFRE** (`CHEST_CHANCE` **30%**, `FishData.CHEST_TABLE`): monedas
+    (peso 50; **mínimo 35 SIEMPRE** — franja 35–60 al 70% y 61–100 al 30%),
+    coleccionable pescable (25; repetido = 50 doblones, ver Pescables),
+    fragmento de trifuerza (15; es SU fuente) y receta bloqueada al azar (10;
+    ni ocultas ni dragon_roll, con el regalo de estreno `PORT_GIFT`; sin
+    pendientes paga 200).
+    **EL COFRE NO SE ABRE SOLO**: sale CERRADO, meciéndose, con un botón
+    "¡Abrir!", y `GameState.fishing_apply` NO se llama hasta que termina la
+    animación de apertura — así el orden es cofre → abrirlo → **y ENTONCES**
+    la ventana del coleccionable (antes salía el coleccionable primero y el
+    cofre después). El mismo botón hace luego de "Continuar" (la bandera va
+    en un diccionario: las lambdas de GDScript capturan por VALOR). El botín
+    se pinta SIN fundido a propósito: la ventana del coleccionable pausa el
+    árbol y un tween se quedaría congelado a medias. Texturas del cofre del
+    bonus diario.
   · Skins del chef y mapas del tesoro (misiones secundarias) están en el
     DISEÑO del cofre pero FUERA del sorteo: sus sistemas no existen todavía.
   · **La sombra, el sedal y el flotador se DIBUJAN POR CÓDIGO** (señal `draw`

@@ -817,11 +817,12 @@ FISH = [
     "caballito_mar", "bogavante", "tortuga", "amia_calva", "barbo_oloroso",
     "pez_rana_pintado", "pez_ojo_celestial", "jikin", "oranda", "pez_lapa",
     "pulpo", "anguila",
-    "pez_espada", "mero", "corvina", "tiburon", "pez_luna", "mantarraya",
+    "pez_espada", "mero", "corvina", "tiburon", "tiburon_martillo",
+    "pez_luna", "mantarraya",
     "pez_leon", "pez_napoleon", "pez_sierra", "pez_cabeza_transparente",
     "arowana", "siluro", "bata_bata", "froggy",
     "atun_rojo", "fugu", "salmon_real",
-    "marlin", "pez_remo", "celacanto", "tiburon_ballena",
+    "pez_lanza", "pez_remo", "celacanto", "tiburon_ballena",
     "caballito_dorado", "koi_dorado",
 ]
 

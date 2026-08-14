@@ -1422,6 +1422,14 @@ func _ui_out(con_recursos := true) -> void:
 		for caja in [ingot_box, money_box, rice_box]:
 			if caja != null:
 				ui_tween.tween_property(caja, "position:y", res_y - 220.0, OUT_TIME)
+	# Y AL FINAL SE OCULTAN DEL TODO. El tablón mide ~575 px y solo baja 660
+	# desde su sitio, así que un buen palmo suyo —y el timón, que sobresale por
+	# arriba— se quedaba ASOMANDO por el canto inferior durante toda la
+	# transición. Se veía clarísimo al ir a la Tienda, donde la cámara viaja
+	# despacio y no hay fundido a negro que lo tape.
+	ui_tween.chain().tween_callback(func() -> void:
+		menu_panel.visible = false
+		submenu_bar.visible = false)
 
 
 ## Nubes y gaviotas ENTRAN planeando desde arriba (ver `sky_drop`): sin esto
@@ -1577,14 +1585,19 @@ func _go_fishing() -> void:
 	tw.tween_interval(OUT_TIME + 0.05)
 	tw.tween_callback(func() -> void:
 		leaving = false
-		# El tablón bajado 660 px sigue ASOMANDO por el canto (y el timón
-		# encima): durante la pesca se esconden del todo.
-		menu_panel.visible = false
-		submenu_bar.visible = false
+		# (`_ui_out` ya ha escondido el tablón y el submenú al acabar de bajarlos.)
 		fishing_ui = preload("res://scripts/fishing_game.gd").new()
 		ui_layer.add_child(fishing_ui)
 		fishing_ui.closed.connect(_on_fishing_closed)
-		fishing_ui.money_changed.connect(_refresh_resources))
+		fishing_ui.money_changed.connect(_refresh_resources)
+		# LAS CAJAS DE RECURSOS, POR ENCIMA DE LA PESCA. Su panel táctil ocupa
+		# la pantalla entera con MOUSE_FILTER_STOP, y como se cuelga DESPUÉS que
+		# las cajas se llevaba también los toques de sus botones "+": pulsarlos
+		# no hacía nada. El reparto de toques va por orden de árbol, así que
+		# basta con mandarlas al final.
+		for caja in [ingot_box, money_box, rice_box]:
+			if caja != null:
+				ui_layer.move_child(caja, -1))
 
 
 func _on_fishing_closed() -> void:
@@ -1593,8 +1606,7 @@ func _on_fishing_closed() -> void:
 	fishing_ui.queue_free()
 	fishing_ui = null
 	_refresh_resources()
-	menu_panel.visible = true
-	submenu_bar.visible = true
+	# (`_ui_in` vuelve a encender el tablón y el submenú.)
 	_ui_in(false)
 
 
@@ -2222,6 +2234,9 @@ func _go_inventory() -> void:
 func _ui_in(con_recursos := true) -> void:
 	if ui_tween != null and ui_tween.is_valid():
 		ui_tween.kill()
+	# `_ui_out` los deja ocultos al terminar de bajarlos (ahí se explica por qué).
+	menu_panel.visible = true
+	submenu_bar.visible = true
 	menu_panel.position.y = home_box_y + 660.0
 	submenu_bar.position.y = home_sub_y + 260.0
 	if con_recursos:
