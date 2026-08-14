@@ -806,13 +806,23 @@ def build_menu_panel() -> None:
 FISH_ICON_SIDE = 200
 
 FISH = [
-    "sardina", "anchoa", "arenque", "caballa", "jurel", "salmonete",
-    "palometa", "sargo", "lisa", "gallo", "bacaladilla", "medusa",
+    "sardina", "anchoa", "boqueron", "arenque", "caballa", "jurel",
+    "salmonete", "palometa", "sargo", "lisa", "gallo", "bacaladilla",
+    "ayu", "barbo", "pejesapo", "remora", "pez_cirujano", "pez_mariposa",
+    "pez_payaso", "medusa", "lata_basura", "bota",
     "mata_wakame", "gamba_real", "salmon", "atun",
     "dorada", "lubina", "besugo", "lenguado", "rodaballo", "merluza",
-    "rape", "congrio", "morena", "calamar", "pulpo", "anguila",
+    "rape", "congrio", "morena", "calamar", "pirana", "carpa_koi",
+    "lampuga", "pargo_rojo", "pez_volador", "pez_balon", "pez_erizo",
+    "caballito_mar", "bogavante", "tortuga", "amia_calva", "barbo_oloroso",
+    "pez_rana_pintado", "pez_ojo_celestial", "jikin", "oranda", "pez_lapa",
+    "pulpo", "anguila",
     "pez_espada", "mero", "corvina", "tiburon", "pez_luna", "mantarraya",
-    "atun_rojo", "fugu", "marlin", "pez_remo", "celacanto", "koi_dorado",
+    "pez_leon", "pez_napoleon", "pez_sierra", "pez_cabeza_transparente",
+    "arowana", "siluro", "bata_bata", "froggy",
+    "atun_rojo", "fugu", "salmon_real",
+    "marlin", "pez_remo", "celacanto", "tiburon_ballena",
+    "caballito_dorado", "koi_dorado",
 ]
 
 
@@ -834,6 +844,14 @@ def build_fishing() -> None:
     album = drop_white(Image.open(RAW / "fish" / "ic_album.webp")
                        .convert("RGBA"))
     save(fit_max(crop_alpha(drop_specks(album), 2), 120), "ic_album")
+    # La CANA-HUD de la pelea (vertical y RECTA a proposito: encima corre el
+    # liston del sedal) y su MANIVELA suelta, que gira por codigo sobre el
+    # carrete. Si se regeneran, volver a medir ROD_TRACK/ROD_REEL en
+    # fishing_game.gd.
+    hud = drop_white(Image.open(RAW / "cana_hud_2.webp").convert("RGBA"))
+    save(fit_max(crop_alpha(drop_specks(hud), 2), 460), "pesca_cana_hud")
+    mani = drop_white(Image.open(RAW / "manivela.webp").convert("RGBA"))
+    save(fit_max(crop_alpha(drop_specks(mani), 2), 110), "pesca_manivela")
     for name in FISH:
         src = RAW / "fish" / f"{name}.webp"
         if not src.exists():

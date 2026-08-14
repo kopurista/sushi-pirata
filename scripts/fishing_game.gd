@@ -75,19 +75,35 @@ const REGAIN_BASE := 0.045
 const REGAIN_TIER := 0.02
 const ENERGY_START_BASE := 0.6
 const ENERGY_START_TIER := 0.1
-## En la fase de velocidad la presa SIEMPRE intenta subir a este ritmo; cada
-## toque NO la baja: le abre una ventana de TAP_RELIEF s en la que el subidón
-## queda FRENADO y solo entonces cae un poquito (SPEED_DRAIN_TAPPING).
-## Pulsando más rápido que la ventana, la barra baja despacito; pulsando
-## lento, sube entre toque y toque.
-const SPEED_REGAIN_BASE := 0.22
-const SPEED_REGAIN_TIER := 0.05
+## En la fase de velocidad la presa SIEMPRE intenta subir a este ritmo
+## (0.31–0.5/s según el premio: aquí se puede PERDER de verdad); cada toque
+## NO la baja: le abre una ventana de TAP_RELIEF s en la que el subidón queda
+## FRENADO y solo entonces cae un poquito (SPEED_DRAIN_TAPPING). Pulsando más
+## rápido que la ventana, la barra baja despacito; pulsando lento, sube entre
+## toque y toque.
+const SPEED_REGAIN_BASE := 0.31
+const SPEED_REGAIN_TIER := 0.063
 const SPEED_TIME_BASE := 1.1
 const SPEED_TIME_TIER := 0.35
 const SPEED_TENSION_DECAY := 0.25
 const TAP_RELIEF := 0.3
 const SPEED_DRAIN_TAPPING := 0.03
 const TAP_TENSION := 0.045
+## --- El TIRA Y AFLOJA de la pelea: la boya (con el pez debajo) VIAJA por el
+## sedal — hacia el barco mientras recogemos, mar adentro cuando tira el pez.
+## `line_t` es la fracción del sedal (1 = donde picó, LINE_T_MIN = casi en el
+## barco); la FUERZA del pez escala con su TAMAÑO y con esa distancia (lejos
+## y grande = recupera más), ver `_fish_strength`.
+const LINE_REEL := 0.055
+const LINE_PAY_RELEASE := 0.035
+const LINE_PAY_SPEED := 0.11
+const LINE_T_MIN := 0.22
+const LINE_T_MAX := 1.3
+## La manivela de la caña: gira despacio al recoger y AL REVÉS y más rápido
+## cuando el pez se lleva sedal.
+const CRANK_REEL_SPEED := 2.6
+const CRANK_BACK_SPEED := 4.2
+const CRANK_BACK_FAST := 8.5
 
 var state: int = State.READY
 var _t := 0.0
@@ -95,6 +111,9 @@ var _t := 0.0
 ## El sorteo del intento en curso (GameState.fishing_roll) y su dificultad.
 var roll: Dictionary = {}
 var tier := 0
+## Tamaño del pez sorteado (0..1): agranda la sombra, sube sus doblones y da
+## fuerza a la pelea.
+var catch_size := 0.5
 
 # Sombra y sedal.
 var shadow_base := Vector2.ZERO
@@ -129,6 +148,11 @@ var speed_next := 0.0
 ## Ventana abierta por el ÚLTIMO toque de la fase de velocidad: mientras dura,
 ## la subida de la presa está frenada.
 var speed_relief := 0.0
+## Dónde picó el pez y en qué punto del sedal va la boya (el tira y afloja).
+var fight_far := Vector2.ZERO
+var line_t := 1.0
+## Ángulo acumulado de la manivela de la caña.
+var crank_angle := 0.0
 
 var zone: Control = null
 var cast_btn: Button = null
@@ -138,6 +162,8 @@ var album_btn: Button = null
 var fight_box: Control = null
 var tension_bar: ProgressBar = null
 var energy_bar: ProgressBar = null
+var rod: TextureRect = null
+var crank: TextureRect = null
 
 
 func _ready() -> void:
@@ -292,11 +318,25 @@ func _setup_ui() -> void:
 	_setup_fight_ui()
 
 
-## La caña grande con las DOS barras verticales de la pelea: el SEDAL (roja,
-## sube al mantener, a tope se rompe) y la PRESA (ámbar, empieza llena y hay
-## que vaciarla). Las barras usan la textura horizontal del set GIRADA -90°:
-## el 9-slice se dibuja en horizontal y la rotación lo pone de pie, así que
-## los topes redondos no se deforman.
+## Dónde se dibuja la CAÑA-HUD y dónde caen, EN FRACCIONES de su rectángulo,
+## el canal del sedal y el eje del carrete. El RECT calca la proporción de la
+## textura (76x460) para que las fracciones del rect sean las del dibujo.
+## Medidos por barrido de alfa sobre `pesca_cana_hud.png` (mástil centrado en
+## x 0.49, carrete en y 0.746): si se regenera, volver a medir.
+const ROD_RECT := Rect2(600.0, 462.0, 74.0, 448.0)
+const ROD_TRACK_X := 0.49
+const ROD_TRACK_TOP := 0.05
+const ROD_TRACK_BOTTOM := 0.62
+const ROD_REEL := Vector2(0.493, 0.746)
+
+
+## La CAÑA-HUD de la pelea: una caña VERTICAL tan larga como las barras, con
+## la barra del SEDAL integrada en el propio mástil (un listón fino sobre su
+## canal, HIJO de la caña: se dobla y tiembla con ella) y la MANIVELA del
+## carrete girando — despacio al recoger, al revés y más deprisa cuando el
+## pez se lleva sedal (`_animate_rod`). Al lado, la barra de la PRESA
+## (textura horizontal del set girada -90°: el 9-slice se dibuja en
+## horizontal y la rotación lo pone de pie sin deformar los topes).
 func _setup_fight_ui() -> void:
 	fight_box = Control.new()
 	fight_box.set_anchors_preset(Control.PRESET_TOP_LEFT)
@@ -304,18 +344,80 @@ func _setup_fight_ui() -> void:
 	fight_box.visible = false
 	add_child(fight_box)
 
-	var rod := TextureRect.new()
+	rod = TextureRect.new()
 	rod.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	rod.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	rod.texture = load("res://assets/ui/pesca_cana.png")
-	rod.position = Vector2(546.0, 520.0)
-	rod.size = Vector2(170.0, 300.0)
+	rod.texture = load("res://assets/ui/pesca_cana_hud.png")
+	rod.position = ROD_RECT.position
+	rod.size = ROD_RECT.size
+	# La caña se dobla desde su EMPUÑADURA (abajo), como una caña de verdad.
+	rod.pivot_offset = Vector2(ROD_RECT.size.x * 0.5, ROD_RECT.size.y)
 	rod.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fight_box.add_child(rod)
 
-	# Separadas lo bastante para que sus rótulos no se toquen (se montaban).
-	tension_bar = _make_vbar(424.0, "Sedal", Color(0.92, 0.34, 0.26))
-	energy_bar = _make_vbar(512.0, "Presa", Color(0.95, 0.72, 0.20))
+	# El SEDAL integrado: un listón fino a lo largo del mástil.
+	var track_len := ROD_RECT.size.y * (ROD_TRACK_BOTTOM - ROD_TRACK_TOP)
+	tension_bar = ProgressBar.new()
+	tension_bar.min_value = 0.0
+	tension_bar.max_value = 1.0
+	tension_bar.show_percentage = false
+	tension_bar.size = Vector2(track_len, 14.0)
+	tension_bar.rotation = -PI / 2.0
+	tension_bar.position = Vector2(
+		ROD_RECT.size.x * ROD_TRACK_X - 7.0,
+		ROD_RECT.size.y * ROD_TRACK_BOTTOM)
+	tension_bar.add_theme_stylebox_override("background",
+		PrepBoard.make_bar_box(PrepBoard.BAR_BG_TEX))
+	tension_bar.add_theme_stylebox_override("fill",
+		PrepBoard.make_bar_box(PrepBoard.BAR_FILL_TEX, Color(0.92, 0.34, 0.26)))
+	tension_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rod.add_child(tension_bar)
+
+	# La MANIVELA, clavada en el eje del carrete de la caña.
+	crank = TextureRect.new()
+	crank.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	crank.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	crank.texture = load("res://assets/ui/pesca_manivela.png")
+	crank.size = Vector2(52.0, 52.0)
+	crank.position = Vector2(ROD_RECT.size.x * ROD_REEL.x - 26.0,
+		ROD_RECT.size.y * ROD_REEL.y - 26.0)
+	crank.pivot_offset = Vector2(26.0, 26.0)
+	crank.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rod.add_child(crank)
+
+	var sedal_l := Label.new()
+	sedal_l.text = "Sedal"
+	sedal_l.position = Vector2(ROD_RECT.position.x + ROD_RECT.size.x * 0.5 - 40.0,
+		ROD_RECT.end.y + 6.0)
+	sedal_l.size = Vector2(80.0, 30.0)
+	sedal_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sedal_l.add_theme_font_size_override("font_size", 20)
+	sedal_l.add_theme_color_override("font_color", Color(1, 0.95, 0.84))
+	sedal_l.add_theme_color_override("font_outline_color", Color(0.2, 0.1, 0.04))
+	sedal_l.add_theme_constant_override("outline_size", 7)
+	sedal_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fight_box.add_child(sedal_l)
+
+	energy_bar = _make_vbar(500.0, "Presa", Color(0.95, 0.72, 0.20))
+
+
+## La manivela gira con quien manda en el sedal, y la caña se dobla y tiembla.
+func _animate_rod(delta: float, en_velocidad: bool) -> void:
+	if en_velocidad:
+		crank_angle -= CRANK_BACK_FAST * delta
+	elif holding:
+		crank_angle += CRANK_REEL_SPEED * delta
+	else:
+		crank_angle -= CRANK_BACK_SPEED * delta
+	if crank != null:
+		crank.rotation = crank_angle
+	if rod != null:
+		var destino := -0.10 if holding else -0.04
+		if en_velocidad:
+			destino = -0.16
+		var temblor := sin(_t * 26.0) * (0.02 if en_velocidad else 0.008)
+		rod.rotation = lerpf(rod.rotation, destino,
+			minf(delta * 6.0, 1.0)) + temblor
 
 
 func _make_vbar(x: float, texto: String, tint: Color) -> ProgressBar:
@@ -381,6 +483,7 @@ func _start_attempt() -> void:
 	# sale la dificultad de la pelea (y el tamaño de la sombra).
 	roll = GameState.fishing_roll()
 	tier = int(roll.get("tier", 0))
+	catch_size = clampf(float(roll.get("size", 0.5)), 0.0, 1.0)
 	var inner := WATER.grow(-SHADOW_MARGIN)
 	shadow_base = Vector2(randf_range(inner.position.x, inner.end.x),
 		randf_range(inner.position.y, inner.end.y))
@@ -485,13 +588,26 @@ func _tick_precast(delta: float) -> void:
 					_enter_bite()
 
 
+## Radio de la silueta del pez: la rareza pone la base y el TAMAÑO sorteado
+## la escala (la sombra ya chiva si es un ejemplar grande).
+func _fish_r() -> float:
+	return (26.0 + 7.0 * tier) * (0.75 + 0.5 * catch_size)
+
+
 ## El puesto del pez frente al anzuelo: el CENTRO del cuerpo queda de forma
 ## que la BOCA (el morro de la silueta, a ~1.35 radios del centro) apunte al
 ## flotador desde FEINT_RETREAT píxeles de distancia.
 func _feint_rest() -> Vector2:
-	var nariz := (26.0 + 7.0 * tier) * 1.35 + 4.0
+	var nariz := _fish_r() * 1.35 + 4.0
 	return bobber - Vector2.from_angle(heading) * (nariz + FEINT_RETREAT) \
 		+ Vector2(0, 6.0)
+
+
+## La FUERZA del pez en la pelea: su tamaño y lo lejos que está del barco.
+## Multiplica lo que recupera la presa (suelto y en velocidad).
+func _fish_strength() -> float:
+	return (0.85 + 0.3 * catch_size) \
+		* (0.75 + 0.45 * clampf(line_t / LINE_T_MAX, 0.0, 1.0))
 
 
 ## El pez NADA de rumbo en rumbo (no se queda clavado: hay que apuntar
@@ -517,8 +633,8 @@ func _enter_bite() -> void:
 	bite_sink = 0.0
 	# La picada de verdad: el pez se queda ADELANTADO, con la boca en el
 	# anzuelo (sin el retiro de las fintas).
-	var nariz := (26.0 + 7.0 * tier) * 1.35
-	shadow_pos = bobber - Vector2.from_angle(heading) * nariz + Vector2(0, 6.0)
+	shadow_pos = bobber - Vector2.from_angle(heading) * (_fish_r() * 1.35) \
+		+ Vector2(0, 6.0)
 	instruction.text = "¡Ha picado!"
 	_set_state(State.BITE)
 
@@ -527,9 +643,15 @@ func _start_fight() -> void:
 	holding = true
 	tension = 0.0
 	speed_relief = 0.0
-	# La presa empieza entre el 60% (tier 0) y el 90% (tier 3): cuanto mejor
-	# el premio, menos margen hasta el 100% que la deja escapar.
-	energy = ENERGY_START_BASE + ENERGY_START_TIER * tier
+	# El tira y afloja arranca donde picó: la boya viajará por ese sedal.
+	fight_far = bobber
+	line_t = 1.0
+	crank_angle = 0.0
+	# La presa empieza entre el 60% (tier 0) y el 90% (tier 3), con un pelín
+	# más si el ejemplar es grande: cuanto mejor el premio, menos margen
+	# hasta el 100% que la deja escapar.
+	energy = minf(ENERGY_START_BASE + ENERGY_START_TIER * tier \
+		+ 0.06 * (catch_size - 0.5), 0.93)
 	# Fases de velocidad: más y más largas cuanto mejor es el premio.
 	match tier:
 		0: phases_left = randi_range(0, 1)
@@ -543,6 +665,7 @@ func _start_fight() -> void:
 
 
 func _tick_fight(delta: float) -> void:
+	var fuerza := _fish_strength()
 	var en_velocidad := speed_left > 0.0
 	if en_velocidad:
 		speed_left -= delta
@@ -554,7 +677,8 @@ func _tick_fight(delta: float) -> void:
 		if speed_relief > 0.0:
 			energy -= SPEED_DRAIN_TAPPING * delta
 		else:
-			energy += (SPEED_REGAIN_BASE + SPEED_REGAIN_TIER * tier) * delta
+			energy += (SPEED_REGAIN_BASE + SPEED_REGAIN_TIER * tier) \
+				* fuerza * delta
 		tension = maxf(tension - SPEED_TENSION_DECAY * delta, 0.0)
 		if speed_left <= 0.0:
 			instruction.text = "¡Mantén para recoger!\nSuelta si el sedal sufre"
@@ -570,8 +694,20 @@ func _tick_fight(delta: float) -> void:
 			energy -= DRAIN_HOLD * delta
 			tension += TENSION_BASE * (1.0 + TENSION_TIER * tier) * delta
 		else:
-			energy += (REGAIN_BASE + REGAIN_TIER * tier) * delta
+			energy += (REGAIN_BASE + REGAIN_TIER * tier) * fuerza * delta
 			tension -= TENSION_RELIEF * delta
+	# EL TIRA Y AFLOJA: recogiendo, la boya (y el pez) vienen hacia el barco;
+	# con el pez tirando (velocidad, o el sedal suelto) se van mar adentro.
+	if en_velocidad:
+		line_t += LINE_PAY_SPEED * fuerza * delta
+	elif holding:
+		line_t -= LINE_REEL * delta
+	else:
+		line_t += LINE_PAY_RELEASE * fuerza * delta
+	line_t = clampf(line_t, LINE_T_MIN, LINE_T_MAX)
+	bobber = ROD_TIP + (fight_far - ROD_TIP) * line_t
+	bobber.y = maxf(bobber.y, WATER.position.y + 14.0)
+	_animate_rod(delta, en_velocidad)
 	energy = clampf(energy, 0.0, 1.0)
 	tension = clampf(tension, 0.0, 1.0)
 	tension_bar.value = tension
@@ -668,8 +804,12 @@ func _draw_sea() -> void:
 	# veces: un halo grande difuso y la silueta encima.
 	var spos := shadow_pos
 	if state == State.FIGHT:
-		spos = bobber + Vector2(randf_range(-4.0, 4.0), 10.0 + randf_range(-3.0, 3.0))
-	var r := 26.0 + 7.0 * tier
+		# Enganchado: DEBAJO de la boya, tirando mar adentro (de espaldas al
+		# barco), y viaja con ella por el sedal.
+		heading = (bobber - ROD_TIP).angle()
+		spos = bobber + Vector2(0.0, _fish_r() * 0.55 + 10.0) \
+			+ Vector2(randf_range(-3.0, 3.0), randf_range(-2.0, 2.0))
+	var r := _fish_r()
 	_draw_fish(spos, heading, r * 1.22, Color(0.02, 0.05, 0.09, 0.16))
 	_draw_fish(spos, heading, r, Color(0.02, 0.05, 0.09, 0.38))
 	if not bobber_out:
@@ -794,7 +934,7 @@ func _centered_label(panel: Control, texto: String, size_f: int, y: float,
 
 func _show_fish_reveal(premio: Dictionary) -> void:
 	var fish_id := str(premio["fish_id"])
-	var alto := 640.0
+	var alto := 700.0
 	var panel := _reveal_panel(alto)
 	var rareza := FishData.rarity_of(fish_id)
 	var title := PrepBoard.make_big_title("¡Pescado!", 52)
@@ -817,11 +957,14 @@ func _show_fish_reveal(premio: Dictionary) -> void:
 
 	_centered_label(panel, str(FishData.get_fish(fish_id).get("name", fish_id)),
 		34, 340.0)
-	_centered_label(panel, str(rareza.get("name", "")), 24, 386.0,
+	# Rareza + la TALLA de este ejemplar (el tamaño decide sus doblones).
+	var size := float(premio.get("size", 0.5))
+	_centered_label(panel, "%s · %d cm" % [str(rareza.get("name", "")),
+		FishData.length_cm(fish_id, size)], 24, 386.0,
 		Color(rareza.get("color", Color.GRAY)))
 	# Las líneas del premio: usos de despensa (peces-ingrediente, siempre) y
-	# monedas (desde la 2ª captura). La 1ª de un pez sin ingrediente es el
-	# descubrimiento y lo dice.
+	# monedas por tamaño (desde la 2ª captura). La 1ª de un pez sin
+	# ingrediente es el descubrimiento y lo dice.
 	var y := 426.0
 	if premio.has("ingredient"):
 		var data: Dictionary = RecipeData.INGREDIENTS.get(
@@ -838,6 +981,11 @@ func _show_fish_reveal(premio: Dictionary) -> void:
 		_centered_label(panel, "¡Nuevo en el álbum!", 26, y,
 			Color(0.2, 0.45, 0.12))
 		y += 40.0
+	# El pez lapa que venía pegado: su valor se cobra aparte, siempre.
+	if premio.has("lapa_coins"):
+		_centered_label(panel, "¡Traía un pez lapa pegado!  +%d doblones"
+			% int(premio["lapa_coins"]), 22, y, Color(0.16, 0.38, 0.55))
+		y += 36.0
 	var veces := int(premio.get("veces", 1))
 	if veces > 1:
 		_centered_label(panel, "Pescado %d veces" % veces, 19, y, FADED)
@@ -1045,8 +1193,8 @@ func _open_ficha(fish_id: String, album_overlay: Control) -> void:
 	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.offset_left = -230.0
 	panel.offset_right = 230.0
-	panel.offset_top = -260.0
-	panel.offset_bottom = 260.0
+	panel.offset_top = -290.0
+	panel.offset_bottom = 290.0
 	veil.add_child(panel)
 	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
 		PrepBoard.PANEL_MARGIN))
@@ -1054,21 +1202,32 @@ func _open_ficha(fish_id: String, album_overlay: Control) -> void:
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.texture = FishData.get_icon(fish_id)
-	ic.position = Vector2((460.0 - 170.0) * 0.5, 42.0)
-	ic.size = Vector2(170, 170)
+	ic.position = Vector2((460.0 - 160.0) * 0.5, 40.0)
+	ic.size = Vector2(160, 160)
 	panel.add_child(ic)
 	_centered_label(panel, str(FishData.get_fish(fish_id).get("name", fish_id)),
-		32, 220.0)
-	_centered_label(panel, str(rareza.get("name", "")), 22, 262.0,
+		32, 206.0)
+	_centered_label(panel, str(rareza.get("name", "")), 22, 248.0,
 		Color(rareza.get("color", Color.GRAY)))
 	var premio := _centered_label(panel, "Premio: " + FishData.reward_text(fish_id),
-		22, 300.0, Color(0.2, 0.45, 0.12))
+		21, 284.0, Color(0.2, 0.45, 0.12))
 	premio.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	premio.offset_left = 40.0
 	premio.offset_right = -40.0
-	premio.offset_bottom = 300.0 + 76.0
-	_centered_label(panel, "Pescado %d veces"
-		% int(GameState.fish_album.get(fish_id, 0)), 19, 386.0, FADED)
+	premio.offset_bottom = 284.0 + 74.0
+	# El renglón de sabor de los peces con historia (lapa, referencias...).
+	var flavor := str(FishData.get_fish(fish_id).get("desc", ""))
+	if flavor != "":
+		var fl := _centered_label(panel, flavor, 17, 360.0, FADED)
+		fl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		fl.offset_left = 40.0
+		fl.offset_right = -40.0
+		fl.offset_bottom = 360.0 + 58.0
+	# El RÉCORD: la ficha enseña el mayor ejemplar pescado de la especie.
+	var best := float(GameState.fish_best.get(fish_id, 0.0))
+	_centered_label(panel, "Récord: %d cm  ·  Pescado %d veces"
+		% [FishData.length_cm(fish_id, best),
+			int(GameState.fish_album.get(fish_id, 0))], 19, 424.0, FADED)
 	var cerrar := Button.new()
 	cerrar.text = "Cerrar"
 	PrepBoard.skin_button(cerrar)
@@ -1076,7 +1235,7 @@ func _open_ficha(fish_id: String, album_overlay: Control) -> void:
 	cerrar.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	cerrar.offset_left = 130.0
 	cerrar.offset_right = -130.0
-	cerrar.offset_top = 424.0
-	cerrar.offset_bottom = 486.0
+	cerrar.offset_top = 470.0
+	cerrar.offset_bottom = 532.0
 	panel.add_child(cerrar)
 	cerrar.pressed.connect(func() -> void: veil.queue_free())

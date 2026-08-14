@@ -145,9 +145,11 @@ var daily_last: String = ""
 ## triángulo dorado (a CollectibleData.TRIFORCE_PIECES se juntan en uno).
 var collectibles: Array[String] = []
 var triforce_pieces: int = 0
-## ÁLBUM DE PESCA: id de pez (FishData) -> veces pescado. Solo estado; el
-## catálogo y la economía viven en `fish_data.gd`.
+## ÁLBUM DE PESCA: id de pez (FishData) -> veces pescado, y el RÉCORD de
+## tamaño por especie (id -> size 0..1, el mayor pescado: es lo que enseña la
+## ficha). Solo estado; catálogo y economía en `fish_data.gd`.
 var fish_album: Dictionary = {}
+var fish_best: Dictionary = {}
 ## LOGROS: medallas ya RECLAMADAS (id -> 0..3) y ya ANUNCIADAS con su toast
 ## (id -> 0..3). Lo CONSEGUIDO no se guarda: se deduce siempre de `stats`.
 var claimed_medals: Dictionary = {}
@@ -978,7 +980,12 @@ func fishing_pay() -> bool:
 func fishing_roll() -> Dictionary:
 	if randf() >= FishData.CHEST_CHANCE:
 		var fid := FishData.roll_fish()
-		return { "type": "fish", "fish_id": fid, "tier": FishData.tier_of(fid) }
+		var out := { "type": "fish", "fish_id": fid,
+			"tier": FishData.tier_of(fid), "size": randf() }
+		# El PEZ LAPA puede venir pegado: se decide (y se dimensiona) ya.
+		if randf() < FishData.LAPA_CHANCE:
+			out["lapa_size"] = randf()
+		return out
 	var premio := {}
 	match FishData.roll_chest_kind():
 		"coins":
@@ -1028,23 +1035,38 @@ func fishing_roll() -> Dictionary:
 func fishing_apply(roll: Dictionary) -> Dictionary:
 	if str(roll.get("type", "")) == "fish":
 		var fid := str(roll["fish_id"])
+		var size := clampf(float(roll.get("size", 0.5)), 0.0, 1.0)
 		var veces := int(fish_album.get(fid, 0)) + 1
 		fish_album[fid] = veces
+		fish_best[fid] = maxf(float(fish_best.get(fid, 0.0)), size)
 		bump_stat("fish_caught")
-		var out := { "type": "fish", "fish_id": fid, "veces": veces }
+		var out := { "type": "fish", "fish_id": fid, "veces": veces,
+			"size": size }
 		# Los peces-ingrediente dan sus usos EN CADA captura (la pesca es la
-		# fuente de despensa)...
+		# fuente de despensa; el salmón real da el doble)...
 		var ing := str(FishData.get_fish(fid).get("ingredient", ""))
 		if ing != "":
-			add_ingredient_uses(ing, FishData.FISH_INGREDIENT_USES)
+			add_ingredient_uses(ing, FishData.uses_of(fid))
 			out["ingredient"] = ing
-			out["uses"] = FishData.FISH_INGREDIENT_USES
-		# ...y TODOS pagan las monedas de su rareza desde la 2ª captura de la
-		# especie (la 1ª de un pez sin ingrediente es solo el álbum).
+			out["uses"] = FishData.uses_of(fid)
+		# ...y TODOS pagan las monedas de su rareza POR TAMAÑO desde la 2ª
+		# captura de la especie (la 1ª de un pez sin ingrediente es solo el
+		# álbum).
 		if veces >= FishData.REPEAT_COINS_FROM:
-			var coins := int(FishData.rarity_of(fid).get("coins", 0))
+			var coins := FishData.coins_for(fid, size)
 			money += coins
 			out["coins"] = coins
+		# El PEZ LAPA pegado: entra al álbum con su tamaño y SU valor se
+		# cobra SIEMPRE (es el extra que regala la captura).
+		if roll.has("lapa_size"):
+			var ls := clampf(float(roll["lapa_size"]), 0.0, 1.0)
+			fish_album["pez_lapa"] = int(fish_album.get("pez_lapa", 0)) + 1
+			fish_best["pez_lapa"] = maxf(float(fish_best.get("pez_lapa", 0.0)), ls)
+			bump_stat("fish_caught")
+			var lapa_coins := FishData.coins_for("pez_lapa", ls)
+			money += lapa_coins
+			out["lapa_coins"] = lapa_coins
+			out["lapa_size"] = ls
 		save_game()
 		return out
 	bump_stat("chests_fished")
@@ -1291,6 +1313,7 @@ func save_game() -> void:
 		"collectibles": collectibles,
 		"triforce_pieces": triforce_pieces,
 		"fish_album": fish_album,
+		"fish_best": fish_best,
 		"claimed_medals": claimed_medals,
 		"seen_medals": seen_medals,
 		"player_gender": player_gender,
@@ -1385,6 +1408,10 @@ func load_game() -> void:
 	var fish_dict: Dictionary = parsed.get("fish_album", {})
 	for k in fish_dict.keys():
 		fish_album[str(k)] = int(fish_dict[k])
+	fish_best = {}
+	var best_dict: Dictionary = parsed.get("fish_best", {})
+	for k in best_dict.keys():
+		fish_best[str(k)] = float(best_dict[k])
 	claimed_medals = {}
 	var claimed_dict: Dictionary = parsed.get("claimed_medals", {})
 	for k in claimed_dict.keys():
@@ -1478,6 +1505,7 @@ func _new_game() -> void:
 	collectibles = []
 	triforce_pieces = 0
 	fish_album = {}
+	fish_best = {}
 	claimed_medals = {}
 	seen_medals = {}
 	# SIN recetas de inicio y con el tutorial pendiente: las 4 primeras las

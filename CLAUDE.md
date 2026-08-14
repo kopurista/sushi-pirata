@@ -415,20 +415,31 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     (`feints_done`): un toque nada más lanzar o durante el acercamiento se
     ignora, la medida de seguridad contra el toque accidental. Dejar pasar
     la picada también lo pierde.
-  · **PELEA con caña y barras VERTICALES** (a la derecha: `pesca_cana.png`,
-    la misma caña del icono exportada a 400 px, con las barras giradas -90° —
-    el 9-slice se dibuja en horizontal y la rotación lo pone de pie sin
-    deformar los topes): el **SEDAL** (roja) sube al MANTENER y a tope se
-    rompe; la **PRESA** (ámbar) empieza al **60–90%** según el tier
-    (`ENERGY_START_BASE` 0.6 + 0.1/tier) — mantener la drena, soltar la deja
-    recuperarse, y **si llega al 100% ESCAPA**. En las **FASES DE VELOCIDAD**
-    (aleatorias) la presa SIEMPRE intenta subir con fuerza (`SPEED_REGAIN`
-    0.22+0.05/tier) y **cada toque NO la baja: le FRENA la subida** durante
-    `TAP_RELIEF` (0.3 s) — solo pulsando más rápido que esa ventana la barra
-    baja, y muy poco (`SPEED_DRAIN_TAPPING` 0.03). Cada toque **también
-    TENSA el sedal `TAP_TENSION`**: pulsar a lo loco con la barra roja alta
-    lo rompe igual (el sedal solo se relaja despacio,
-    `SPEED_TENSION_DECAY`). En plena faena el "Atrás" se esconde
+  · **PELEA con CAÑA-HUD animada y tira y afloja**: a la derecha va
+    `pesca_cana_hud.png` (caña VERTICAL y RECTA a propósito, tan larga como
+    las barras) con la barra del **SEDAL integrada en el propio mástil** (un
+    listón fino HIJO de la caña: se dobla y tiembla con ella) y la
+    **MANIVELA** (`pesca_manivela.png`) girando sobre el carrete — despacio
+    al recoger, AL REVÉS y más deprisa cuando el pez se lleva sedal
+    (`_animate_rod`; `ROD_RECT` calca la proporción de la textura y
+    `ROD_TRACK`/`ROD_REEL` están MEDIDOS por barrido de alfa: si se regenera
+    la caña, volver a medir). Al lado, la barra de la **PRESA** (ámbar,
+    girada -90°: el 9-slice se dibuja horizontal y la rotación lo pone de
+    pie). El pez pelea **DEBAJO de la boya**, y boya y pez VIAJAN por el
+    sedal (`line_t`): hacia el barco al mantener, mar adentro cuando tira
+    (`LINE_REEL`/`LINE_PAY_*`). El sedal (roja) sube al MANTENER y a tope se
+    rompe; la presa empieza al **60–90%** según el tier (+ un pico por
+    tamaño) — mantener la drena, soltar la deja recuperarse, y **si llega al
+    100% ESCAPA**. Su FUERZA (`_fish_strength`) escala con el TAMAÑO del
+    ejemplar y su DISTANCIA al barco, y multiplica lo que recupera. En las
+    **FASES DE VELOCIDAD** (aleatorias) la presa sube con fuerza de verdad
+    (`SPEED_REGAIN` **0.31+0.063/tier ≈ 0.31–0.5/s**: aquí se puede perder)
+    y **cada toque NO la baja: le FRENA la subida** durante `TAP_RELIEF`
+    (0.3 s) — solo pulsando más rápido que esa ventana baja, y muy poco
+    (`SPEED_DRAIN_TAPPING` 0.03). Cada toque **también TENSA el sedal
+    `TAP_TENSION`**: pulsar a lo loco con la barra roja alta lo rompe igual
+    (el sedal solo se relaja despacio, `SPEED_TENSION_DECAY`). En plena
+    faena el "Atrás" se esconde
     (los 50 ya están apostados). El **ÁLBUM** es un botón de icono propio
     (`ic_album.png`, el libro del pez dorado) ARRIBA A LA DERECHA, y la
     pantalla va SIN lazo de título (el tablón del botón ya dice dónde
@@ -438,14 +449,22 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     tensa más deprisa (+28%/tier), la presa recupera más y las fases de
     velocidad son más largas y frecuentes (tier 3: 2-3 fases). Solo al LOGRAR
     la captura se entrega (`fishing_apply`, que es quien muta y guarda).
-  · **Los 40 peces** (`FishData.FISH`, orden = vitrina del álbum): 16 comunes,
-    12 raros, 8 épicos y 4 legendarios, pesos POR PEZ 24/10/4/1. TODA captura
-    apunta el álbum; un pez con `ingredient` da **5 usos** de despensa EN CADA
-    captura (la pesca es LA fuente de despensa: los cofres ya no dan usos), y
-    TODOS pagan las monedas de su rareza (**20/40/75/100**) **desde la 2ª
-    captura de la especie** (la 1ª de un pez sin ingrediente es solo el
-    descubrimiento, a propósito). Álbum con silueta + "???" y ficha (rareza,
-    premio, veces); estado en `GameState.fish_album` (id → veces).
+  · **Los 78 peces** (`FishData.FISH`, orden = vitrina del álbum): 26
+    comunes, 29 raros, 17 épicos y 6 legendarios, pesos POR PEZ 24/10/4/1.
+    Cada captura trae un **TAMAÑO** (size 0..1, sorteado ANTES de la sombra)
+    que decide sus doblones dentro de la horquilla de su rareza — **común
+    40–70 · raro 70–100 · épico 100–150 · legendario 150–250** — y el largo
+    en cm de la ficha (`len` por rareza, con overrides por pez: caballitos
+    diminutos, tiburón ballena de 5–10 m...). TODA captura apunta el álbum y
+    el RÉCORD de talla (`GameState.fish_best`, la ficha enseña el mayor);
+    un pez con `ingredient` da sus usos de despensa EN CADA captura (5, y
+    **10 el salmón real** — la pesca es LA fuente de despensa: los cofres ya
+    no dan usos), y TODOS pagan las monedas por tamaño **desde la 2ª captura
+    de la especie**. El **PEZ LAPA** no pica nunca (`no_catch`): con
+    `LAPA_CHANCE` (7%) viene PEGADO a la captura y su valor se cobra APARTE
+    y SIEMPRE. Entre los nuevos hay guiños con `desc` en la ficha (barbo
+    oloroso, Bata-Bata, Froggy) y basura clásica (lata, bota). Álbum con
+    silueta + "???" y ficha (rareza, premio, récord en cm, veces, sabor).
   · **El COFRE** (`FishData.CHEST_TABLE`): monedas (peso 50; **10–100**, con
     la franja 10–50 al 70% y la 51–100 al 30%), coleccionable pescable (25;
     repetido = 50 doblones, ver Pescables), fragmento de trifuerza (15; es SU
