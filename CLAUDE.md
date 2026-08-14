@@ -479,8 +479,11 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     El contador del álbum va por `FishData.caught_count()`, NO por
     `fish_album.size()`: un id renombrado (marlin → pez_lanza) dejaría una
     entrada huérfana en el guardado y el contador se pasaría del total.
-    **LA BASURA** (`junk`: lata, rueda y bota) paga `JUNK_COINS` (**1**)
-    pésquese las veces que se pesque. La lata y la rueda **no tienen talla**
+    **LA BASURA** (`junk`: botella rota, rueda y bota) paga `JUNK_COINS`
+    (**1**) pésquese las veces que se pesque. Ojo: la **botella rota** es
+    BASURA y no tiene nada que ver con el coleccionable "Botella vacía", que
+    sale de los cofres — su ficha lo aclara ("sin mensaje dentro").
+    La botella y la rueda **no tienen talla**
     (`no_size`: su ficha no habla de centímetros ni de récord) y la bota se
     mide en **número de calzado** (`size_unit: "talla"`, 34–48), no en cm —
     de ahí `FishData.size_text()`, que devuelve ya la unidad puesta.

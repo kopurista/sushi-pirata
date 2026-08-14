@@ -811,7 +811,7 @@ FISH = [
     "salmonete", "palometa", "sargo", "lisa", "gallo", "bacaladilla",
     "bacalao", "abadejo", "platija", "ayu", "pejesapo", "remora",
     "pez_cirujano", "pez_mariposa", "pez_payaso", "cangrejo", "estrella_mar",
-    "caracola", "erizo_mar", "medusa", "lata_basura", "rueda", "bota",
+    "caracola", "erizo_mar", "medusa", "botella_rota", "rueda", "bota",
     "mata_wakame", "gamba_real", "salmon", "atun",
     "dorada", "lubina", "besugo", "lenguado", "rodaballo", "merluza",
     "rape", "congrio", "morena", "calamar", "sepia", "pulpo",

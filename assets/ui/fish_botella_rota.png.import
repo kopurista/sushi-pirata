@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://btp7fpanbqrge"
-path="res://.godot/imported/fish_lata_basura.png-dbae6a5887216d5d616587f0c912b184.ctex"
+uid="uid://c4eu2uxuac4bx"
+path="res://.godot/imported/fish_botella_rota.png-61679ce9a8b9df65fa6b0cf66cf59c7f.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ui/fish_lata_basura.png"
-dest_files=["res://.godot/imported/fish_lata_basura.png-dbae6a5887216d5d616587f0c912b184.ctex"]
+source_file="res://assets/ui/fish_botella_rota.png"
+dest_files=["res://.godot/imported/fish_botella_rota.png-61679ce9a8b9df65fa6b0cf66cf59c7f.ctex"]
 
 [params]
 
