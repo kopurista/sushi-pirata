@@ -878,6 +878,11 @@ func mark_day_played() -> void:
 ## (Array de claves) y las "derived:*", que se calculan del progreso guardado.
 func achievement_value(a: Dictionary) -> int:
 	var stat: Variant = a.get("stat", "")
+	# "derived:fish:<id>": cuántos ejemplares de esa especie se han pescado. Sale
+	# del ÁLBUM y no de un contador nuevo, así que los logros por pez cuentan
+	# hacia atrás con lo ya capturado.
+	if stat is String and str(stat).begins_with("derived:fish:"):
+		return int(fish_album.get(str(stat).substr(13), 0))
 	if stat is Array:
 		var total := 0
 		for s in stat:
@@ -1139,7 +1144,9 @@ func _run_achievement_check() -> void:
 			continue
 		seen_medals[id] = earned
 		for tier in range(seen + 1, earned + 1):
-			_ensure_notices().toast_achievement(load("res://assets/ui/moneda.png"),
+			# EL ICONO DEL LOGRO, no la moneda de siempre: así el aviso se lee de
+			# un vistazo sin tener que leer el nombre.
+			_ensure_notices().toast_achievement(AchievementData.icon_for(a),
 				AchievementData.MEDAL_COLORS[tier - 1],
 				"¡Logro: medalla de %s!" % AchievementData.MEDAL_NAMES[tier - 1].to_lower(),
 				str(a["name"]))

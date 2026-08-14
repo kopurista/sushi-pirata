@@ -18,7 +18,10 @@ var ui: CanvasLayer = null
 var content: Control = null
 var list_host: VBoxContainer = null
 var tab_buttons: Dictionary = {}
-var current_group := "clientela"
+## Pestaña con la que se abre la pantalla. Estuvo apuntando a "clientela", un
+## apartado que ya no existe, así que al entrar la lista salía VACÍA y ninguna
+## pestaña encendida.
+var current_group := "cocina"
 var backdrop: Node3D = null
 var claim_btn: Button = null
 var _t := 0.0
@@ -219,20 +222,19 @@ func _build_card(a: Dictionary) -> Control:
 	row.add_theme_constant_override("separation", 12)
 	card.add_child(row)
 
-	# Icono: el plato en los logros de receta, la medalla en los demás.
-	if a.has("recipe"):
-		var dish := TextureRect.new()
-		dish.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		dish.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		dish.texture = RecipeData.get_dish_texture(str(a["recipe"]))
-		dish.custom_minimum_size = Vector2(78, 78)
-		dish.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		dish.modulate = Color(1, 1, 1, 1.0 if medal > 0 else 0.55)
-		row.add_child(dish)
-	else:
-		var ic := _medal_icon(medal, 72.0)
-		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		row.add_child(ic)
+	# CADA LOGRO CON SU ICONO (AchievementData.icon_for): el plato si es de
+	# receta, la ficha del álbum si es de pez y el suyo propio en los demás.
+	# Antes casi todos compartían la misma moneda y en una lista larga no había
+	# manera de distinguirlos de un vistazo. El metal conseguido lo siguen
+	# contando las tres chapas de la derecha.
+	var ic := TextureRect.new()
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.texture = AchievementData.icon_for(a)
+	ic.custom_minimum_size = Vector2(78, 78)
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	ic.modulate = Color(1, 1, 1, 1.0 if medal > 0 else 0.55)
+	row.add_child(ic)
 
 	var col := VBoxContainer.new()
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -323,6 +325,8 @@ func _build_hidden_card(a: Dictionary) -> Control:
 
 ## Cuántas monedas salen volando y cuánto dura la lluvia.
 const COINS_N := 12
+## La del "Reclamar todo" es mucho mayor: son todas las medallas de golpe.
+const COINS_ALL := 34
 const COIN_FLY := 0.85
 
 
@@ -347,14 +351,15 @@ func _claim_one(id: String, card: Control) -> void:
 ## Monedas que salen disparadas del punto que se toca, describen su arco y se
 ## desvanecen, con el "+N" subiendo por el medio. Va en el CanvasLayer de la
 ## pantalla (no en la tarjeta) para que puedan salirse de ella.
-func _coin_burst(desde: Vector2, cantidad: int) -> void:
+func _coin_burst(desde: Vector2, cantidad: int, cuantas := COINS_N,
+		con_cifra := true) -> void:
 	var capa := Control.new()
 	capa.set_anchors_preset(Control.PRESET_FULL_RECT)
 	capa.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	capa.z_index = 200
 	ui.add_child(capa)
 	var tex: Texture2D = load("res://assets/ui/moneda.png")
-	for i in COINS_N:
+	for i in cuantas:
 		var c := TextureRect.new()
 		c.texture = tex
 		c.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -376,7 +381,12 @@ func _coin_burst(desde: Vector2, cantidad: int) -> void:
 		t.tween_property(c, "scale", Vector2(0.5, 0.5), COIN_FLY * 0.45) 				.set_delay(d + COIN_FLY * 0.55)
 		t.tween_property(c, "modulate:a", 0.0, COIN_FLY * 0.45) 				.set_delay(d + COIN_FLY * 0.55)
 
-	# La cifra, en grande, subiendo desde el mismo punto.
+	# La cifra, en grande, subiendo desde el mismo punto. En el cobro EN BLOQUE
+	# no se dibuja: el cartel del cofre ya canta el total, y superpuesta le caía
+	# justo encima del rótulo.
+	if not con_cifra:
+		capa.create_tween().tween_callback(capa.queue_free) 				.set_delay(COIN_FLY + COINS_N * 0.04 + 0.5)
+		return
 	var l := Label.new()
 	l.text = "+%d" % cantidad
 	l.add_theme_font_size_override("font_size", 52)
@@ -417,6 +427,11 @@ func _open_claim() -> void:
 	# tarjetas que se estén viendo.
 	_refresh_tab_badges()
 	_show_group.bind(current_group).call_deferred()
+	# Lluvia GRANDE, del centro de la pantalla: es el cobro gordo, y tiene que
+	# notarse más que el de una tarjeta suelta.
+	var lienzo := GameState.canvas_size()
+	_coin_burst(Vector2(lienzo.x * 0.5, lienzo.y * 0.42), int(r["total"]),
+		COINS_ALL, false)
 
 	var overlay := Control.new()
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)

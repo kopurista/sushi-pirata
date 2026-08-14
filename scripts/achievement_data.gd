@@ -40,6 +40,58 @@ const GROUP_TABS := {
 ## Metas de los logros "prepara N platos de X" (uno por receta no oculta).
 const RECIPE_TIERS := [25, 100, 500]
 
+## Metas de los logros "pesca N ejemplares de X", UNO POR PEZ. Cuanto más raro
+## es el bicho, menos ejemplares se piden: un común pica cada dos por tres y un
+## legendario es la captura de una tarde entera. Los pesos del sorteo son
+## 24/10/4/1 por rareza, así que la escala de metas va más o menos al revés.
+const FISH_TIERS := {
+	"comun": [10, 30, 80],
+	"raro": [5, 15, 40],
+	"epico": [3, 8, 20],
+	"legendario": [1, 3, 8],
+}
+
+## ICONO PROPIO DE CADA LOGRO. Los de receta usan el sprite de su plato y los de
+## pez su ficha del álbum (ver `icon_for`), así que aquí solo están los escritos
+## a mano. Todos DISTINTOS a propósito: en una lista de sesenta fichas, la
+## moneda repetida no ayudaba a distinguir ninguna.
+const ICONS := {
+	# --- Cocina ---
+	"grumetes": "res://assets/ui/head_E.png",
+	"piratas": "res://assets/ui/head_A.png",
+	"capitanes": "res://assets/ui/head_G.png",
+	"clientes": "res://assets/ui/pot_clientela.png",
+	"cliente_fiel": "res://assets/ui/pot_variedad.png",
+	"despedidas": "res://assets/dishes/mochi.webp",
+	"platos": "res://assets/dishes/nigiri_salmon.webp",
+	"platos_partida": "res://assets/ui/pot_sin_esperas.png",
+	"cortes": "res://assets/ui/col_espada.png",
+	"tempura_perfecta": "res://assets/dishes/tempura.webp",
+	"barcos": "res://assets/dishes/moriawase.webp",
+	"combos": "res://assets/dishes/udon_tempura.webp",
+	"extras": "res://assets/ingredients/jengibre.png",
+	"sin_desperdicio": "res://assets/ui/pot_sin_basura.png",
+	# --- Travesía ---
+	"dinero_nivel": "res://assets/ui/pack_moneda_100.png",
+	"dinero_arcade": "res://assets/ui/ic_arcade.png",
+	"dinero_total": "res://assets/ui/pack_moneda_1000.png",
+	"propinas": "res://assets/ui/ic_propina.png",
+	"gastado": "res://assets/ui/ic_tienda.png",
+	"estrellas": "res://assets/ui/estrella_llena.png",
+	"niveles": "res://assets/ui/ic_aventura.png",
+	"recetario_completo": "res://assets/ui/ic_inventario.png",
+	"partidas": "res://assets/ui/timon.png",
+	"dias": "res://assets/ui/reloj.png",
+	"coleccion": "res://assets/ui/col_trifuerza.png",
+	# --- Pesca ---
+	"pesca_capturas": "res://assets/ui/ic_pesca.png",
+	"pesca_album": "res://assets/ui/ic_album.png",
+	"pesca_legendarios": "res://assets/ui/col_perla_negra.png",
+	"pesca_cofres": "res://assets/ui/cofre.png",
+	"pesca_lapa": "res://assets/ui/fish_pez_lapa.png",
+	"pesca_basura": "res://assets/ui/col_botella.png",
+}
+
 ## `stat`: clave de `GameState.stats`, un Array de claves que se SUMAN, o una
 ## clave "derived:*" que GameState calcula del progreso guardado.
 const ACHIEVEMENTS: Array = [
@@ -241,7 +293,39 @@ static func all() -> Array:
 			"tiers": RECIPE_TIERS,
 			"recipe": id,
 		})
+	# UNO POR PEZ. La BASURA se queda fuera: no es un pez, y ya tiene su propio
+	# logro ("Limpiando el fondo"). El pez lapa SÍ entra: no pica, pero se
+	# consigue igual (viene pegado a otra captura).
+	for f in FishData.FISH:
+		if f.get("junk", false):
+			continue
+		var fid := str(f["id"])
+		_all.append({
+			"id": "pez_%s" % fid,
+			"group": "pesca",
+			"name": str(f.get("name", fid)),
+			"desc": "Pesca %d ejemplares.",
+			"stat": "derived:fish:%s" % fid,
+			"tiers": FISH_TIERS.get(str(f.get("rarity", "comun")),
+				FISH_TIERS["comun"]),
+			"fish": fid,
+		})
 	return _all
+
+
+## El icono que identifica a un logro: el plato si es de receta, la ficha del
+## álbum si es de pez, y si no el suyo de `ICONS`. La moneda solo como comodín.
+static func icon_for(a: Dictionary) -> Texture2D:
+	if a.has("recipe"):
+		var t := RecipeData.get_dish_texture(str(a["recipe"]))
+		if t != null:
+			return t
+	if a.has("fish"):
+		return FishData.get_icon(str(a["fish"]))
+	var ruta := str(ICONS.get(str(a.get("id", "")), ""))
+	if ruta != "" and ResourceLoader.exists(ruta):
+		return load(ruta)
+	return load("res://assets/ui/moneda.png")
 
 
 static func get_achievement(id: String) -> Dictionary:

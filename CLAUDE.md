@@ -539,7 +539,14 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     captura contra el encuadre DEL MENÚ; `WATER` es el rectángulo útil de
     agua. Entrada solo por `InputEventScreenTouch` (el ratón llega como toque
     sintetizado), con press = picar/lanzar/mantener/tap y release = soltar.
-  · **LOGROS de pesca**: SEIS, en su **apartado propio** ("pesca", la tercera
+  · **Los botones "+" de las cajas de recursos se APAGAN con un intento en
+    juego** (`fishing_game.busy_changed` → `main_menu._set_plus_enabled`): el
+    panel de compra no para el reloj de la pesca, así que abrirlo con el pez
+    enganchado costaba los 50 doblones apostados. La condición es la misma con
+    la que se esconde el "Atrás" (todo lo que no sea READY ni REVEAL), porque
+    los doblones se pagan al LANZAR, no al morder.
+  · **LOGROS de pesca**: seis a mano MÁS UNO POR PEZ (ver el bloque de logros),
+    en su **apartado propio** ("pesca", la tercera
     pestaña de la pantalla de logros) — capturas (`fish_caught`), álbum
     (`derived:pesca_album`, que cuenta por `FishData.caught_count` y cuya
     meta de ORO es el catálogo entero: **al añadir un pez hay que subirla**),
@@ -629,7 +636,17 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   progreso NO se guarda por logro: se deduce de `GameState.stats`, así que un
   logro nuevo funciona hacia atrás si su estadística ya se contaba. Los logros
   "prepara N raciones de X" se generan solos de `RecipeData.RECIPES` (uno por
-  receta no oculta; las ocultas —barco, combinados— tienen el suyo a mano).
+  receta no oculta; las ocultas —barco, combinados— tienen el suyo a mano), y
+  los "pesca N ejemplares de X" de `FishData.FISH` (uno por pez; la BASURA se
+  queda fuera, que ya tiene el suyo). Sus metas salen de `FISH_TIERS` POR
+  RAREZA y van al revés que la dificultad: un común pide 10/30/80 y un
+  legendario 1/3/8. Cuentan por `derived:fish:<id>`, que lee el ÁLBUM, así que
+  funcionan hacia atrás con lo ya capturado.
+- **CADA LOGRO CON SU ICONO** (`AchievementData.icon_for`): el sprite del plato
+  si es de receta, la ficha del álbum si es de pez, y si no el suyo propio de
+  `ICONS` — todos distintos, porque en una lista de 160 fichas la misma moneda
+  repetida no distinguía ninguna. Ese icono sale también en el TOAST del logro.
+  Al añadir un logro escrito a mano, su entrada en `ICONS`.
   `GROUP_TABS` son los rótulos de las pestañas. Son **TRES apartados**
   (Cocina, Travesía y Pesca): los cinco de antes dejaban ~84 px de texto por
   tablón en 720 px y varios tenían media docena de fichas, así que se
@@ -656,12 +673,24 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     `MOUSE_FILTER_IGNORE` en todo — notificación, no cartel.
   · **Reclamo**: `claimed_medals` (id → 0..3) y `MEDAL_REWARDS` 25/50/100 por
     bronce/plata/oro. Si de un logro hay bronce Y plata sin reclamar, caen las
-    dos de golpe. El botón "Reclamar" de `achievements_screen` (en el hueco
-    que equilibraba el título) abre el cartel del COFRE (las texturas del
-    diario: cerrado → meneo → abierto) con el total y el desglose por metales;
-    con 0 pendientes va apagado. El GLOBO ROJO del menú
-    (`main_menu._attach_badge` sobre ic_logros) enseña
-    `GameState.unclaimed_medals()`.
+    dos de golpe. El botón "Reclamar todo" de `achievements_screen` (en el
+    hueco que dejó la cinta del título, que se quitó) abre el cartel del COFRE
+    (las texturas del diario: cerrado → meneo → abierto) con el total y el
+    desglose por metales; con 0 pendientes va apagado.
+  · **TAMBIÉN SE COBRA LOGRO A LOGRO**: cada tarjeta es un BOTÓN y tocarla
+    cobra lo suyo (`GameState.claim_achievement`), con una lluvia de monedas
+    que sale de la propia tarjeta y el "+N" subiendo por encima. Sin nada
+    pendiente la tarjeta queda inerte (`disabled`), para que pulsar no dé un
+    falso "algo ha pasado". El cobro EN BLOQUE lanza la misma lluvia, más
+    grande y **sin la cifra**: el cartel del cofre ya canta el total y
+    superpuesta le caía encima del rótulo.
+  · **EL GLOBO ROJO va en TRES sitios** y lo dibuja `PrepBoard.attach_badge`
+    (vive con el resto del set): sobre `ic_logros` en el menú
+    (`unclaimed_medals`), sobre cada PESTAÑA (`unclaimed_in_group`) y sobre
+    cada TARJETA con medallas sin cobrar (`unclaimed_for`).
+  · La pantalla abre por **Cocina**. `current_group` apuntó un tiempo a
+    "clientela", un apartado que ya no existe, y la lista salía VACÍA al
+    entrar.
   · **Guardados viejos**: al cargar sin `seen_medals` se siembra con lo YA
     conseguido (nada de un aluvión de toasts al arrancar), pero `claimed`
     queda vacío → todo lo ganado hasta hoy se puede reclamar del tirón.
