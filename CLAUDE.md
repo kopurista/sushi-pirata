@@ -462,8 +462,10 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     entrada huérfana en el guardado y el contador se pasaría del total.
     Cada captura trae un **TAMAÑO** (size 0..1, sorteado ANTES de la sombra)
     que decide sus doblones dentro de la horquilla de su rareza — **común
-    40–70 · raro 70–100 · épico 100–150 · legendario 150–250** — y el largo
-    en cm de la ficha (`len` por rareza, con overrides por pez: caballitos
+    15–35 · raro 30–50 · épico 55–90 · legendario 100–160** — y el largo
+    en cm de la ficha. Con el intento a 50 doblones, **solo los épicos y los
+    legendarios pasan de esa cifra**: pescar por dinero solo compensa con
+    las piezas gordas, y el resto se pesca por el álbum y por la despensa (`len` por rareza, con overrides por pez: caballitos
     diminutos, tiburón ballena de 5–10 m...). TODA captura apunta el álbum y
     el RÉCORD de talla (`GameState.fish_best`, la ficha enseña el mayor);
     un pez con `ingredient` da sus usos de despensa EN CADA captura (5, y
@@ -475,7 +477,8 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     oloroso, Bata-Bata, Froggy) y basura clásica (lata, bota). Álbum con
     silueta + "???" y ficha (rareza, premio, récord en cm, veces, sabor).
   · **El COFRE** (`CHEST_CHANCE` **30%**, `FishData.CHEST_TABLE`): monedas
-    (peso 50; **mínimo 35 SIEMPRE** — franja 35–60 al 70% y 61–100 al 30%),
+    (peso 50; **50–100 SIEMPRE** — franja 50–75 al 70% y 76–100 al 30%, así
+    que un cofre de oro cubre el intento y compite con un pez épico),
     coleccionable pescable (25; repetido = 50 doblones, ver Pescables),
     fragmento de trifuerza (15; es SU fuente) y receta bloqueada al azar (10;
     ni ocultas ni dragon_roll, con el regalo de estreno `PORT_GIFT`; sin
