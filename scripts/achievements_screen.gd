@@ -192,6 +192,10 @@ func _build_card(a: Dictionary) -> Control:
 	# plato, para no desvelar qué recetas hay en el juego.
 	if a.has("recipe") and not GameState.is_recipe_unlocked(str(a["recipe"])):
 		return _build_hidden_card(a)
+	# Logro de un PEZ que aún no se ha pescado ni una vez: oculto igual, para
+	# no desvelar qué especies hay en el álbum antes de sacarlas del agua.
+	if a.has("fish") and int(GameState.fish_album.get(str(a["fish"]), 0)) <= 0:
+		return _build_hidden_card(a)
 	var value := GameState.achievement_value(a)
 	var medal := AchievementData.medal_for(a, value)
 	var target := AchievementData.next_target(a, value)
@@ -273,8 +277,10 @@ func _build_card(a: Dictionary) -> Control:
 	return card
 
 
-## Tarjeta de logro OCULTO: la silueta del plato en negro y "???" en vez del
-## nombre. Ni barra ni pista: la receta se descubre jugando.
+## Tarjeta de logro OCULTO: la silueta en negro y "???" en vez del nombre. Ni
+## barra ni pista del bicho o la receta, que eso se descubre jugando. Sirve
+## para dos casos: una RECETA aún sin desbloquear y un PEZ sin capturas (en
+## ese, el aviso sí dice la rareza, que es justo lo que anima a intentarlo).
 func _build_hidden_card(a: Dictionary) -> Control:
 	var card := Control.new()
 	card.custom_minimum_size = Vector2(0, 116)
@@ -289,15 +295,17 @@ func _build_hidden_card(a: Dictionary) -> Control:
 	row.offset_bottom = -12.0
 	row.add_theme_constant_override("separation", 12)
 	card.add_child(row)
-	var dish := TextureRect.new()
-	dish.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	dish.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	dish.texture = RecipeData.get_dish_texture(str(a["recipe"]))
-	dish.custom_minimum_size = Vector2(78, 78)
-	dish.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	# En NEGRO: la silueta no debe dejar adivinar el plato de un vistazo.
-	dish.modulate = Color(0.07, 0.05, 0.04, 0.85)
-	row.add_child(dish)
+	var es_pez := a.has("fish")
+	var ic := TextureRect.new()
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.texture = FishData.get_icon(str(a["fish"])) if es_pez \
+			else RecipeData.get_dish_texture(str(a["recipe"]))
+	ic.custom_minimum_size = Vector2(78, 78)
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	# En NEGRO: la silueta no debe dejar adivinar el plato o el pez de un vistazo.
+	ic.modulate = Color(0.07, 0.05, 0.04, 0.85)
+	row.add_child(ic)
 	var col := VBoxContainer.new()
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -311,7 +319,12 @@ func _build_hidden_card(a: Dictionary) -> Control:
 	name_l.add_theme_constant_override("outline_size", 6)
 	col.add_child(name_l)
 	var desc := Label.new()
-	desc.text = "Descubre esta receta para desvelar su logro."
+	if es_pez:
+		var rareza := str(FishData.rarity_of(str(a["fish"])).get("name", "Común"))
+		desc.text = "Pesca un ejemplar de rareza %s para desvelar su logro." \
+				% rareza.to_lower()
+	else:
+		desc.text = "Descubre esta receta para desvelar su logro."
 	desc.add_theme_font_size_override("font_size", 17)
 	desc.add_theme_color_override("font_color", Color(0.72, 0.66, 0.54))
 	desc.add_theme_color_override("font_outline_color", Color(0.13, 0.07, 0.02))
