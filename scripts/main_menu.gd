@@ -14,8 +14,9 @@ extends "res://scripts/level_select3d.gd"
 ## como para que ningún nodo de campaña asome por arriba.
 ## Fondeadero del barco en modo MENÚ: muy por debajo del nivel 1 para que
 ## ningún nodo del mapa asome. Va atado a `CampaignData.MAP_POS["nivel_1"]`:
-## al separar los puertos, el nivel 1 bajó 454 px y este ancla bajó lo mismo.
-const MENU_ANCHOR := Vector2(360.0, 3134.0)
+## al entrar el nivel 10 la ruta entera bajó un MAP_STEP (215 px) y este ancla
+## bajó lo mismo, o el nivel 1 asomaba por arriba estando en el menú.
+const MENU_ANCHOR := Vector2(360.0, 3349.0)
 ## Cuánto se sube la vista respecto al barco cuando manda el menú. POSITIVO =
 ## el barco queda por ENCIMA del centro de pantalla: desde que el logotipo se
 ## quedó en la portada, el barco es quien ocupa su hueco de arriba y los
@@ -91,6 +92,9 @@ var logo_float: Tween = null
 var logo_sway: Tween = null
 var ui_layer: CanvasLayer = null
 var button_box: VBoxContainer = null
+## El pergamino de AVENTURA, guardado aparte: la guía post-tutorial lo señala
+## (ver _guiar_a_aventura).
+var aventura_btn: Control = null
 ## Botones redondos de las esquinas: la rueda de ajustes abajo a la derecha y
 ## la medalla de los logros arriba a la izquierda.
 var submenu_bar: Control = null
@@ -202,6 +206,12 @@ func _ready() -> void:
 ## Carteles del menú (recetas nuevas y bonus diario). En la PORTADA no salen:
 ## se enseñan al LLEGAR al menú, que es cuando el jugador está en casa.
 func _menu_popups() -> void:
+	# La GUÍA post-tutorial va la primera: David señala el pergamino de
+	# Aventura y no suelta al jugador hasta que lo toca. Los demás carteles
+	# esperan a la siguiente visita (la guía acaba saliendo del menú).
+	if GameState.tutorial_done and not GameState.menu_intro_done:
+		_guiar_a_aventura.call_deferred()
+		return
 	# Recetas recién ganadas (tutorial o nivel): el menú las anuncia. Se espera
 	# a que termine de entrar la interfaz para no montar dos animaciones juntas.
 	if not GameState.pending_reveal.is_empty():
@@ -216,9 +226,17 @@ func _menu_popups() -> void:
 		_show_daily()
 
 
-## Salto a la bienvenida de David (partida nueva), fuera del _ready.
-func _ir_a_la_intro() -> void:
-	GameState.fade_to_scene("res://scenes/david_intro.tscn", 0.0, 0.5)
+## Salto a la INTRO DEL CAOS (partida nueva), fuera del _ready: una partida
+## imposible sobre level3d en modo tutorial — solo el maki, la barra llena y
+## los clientes largándose — de la que David rescata al jugador
+## (tutorial_director.gd). De ahí se pasa a la ficha (david_intro) y al menú.
+func _ir_a_la_intro(out_time := 0.0) -> void:
+	GameState.mode = "tutorial"
+	GameState.current_port = ""
+	var recs: Array[String] = ["maki_aguacate"]
+	GameState.selected_recipes = recs
+	GameState.selected_perks = []
+	GameState.fade_to_scene("res://scenes/level3d.tscn", out_time, 0.5)
 
 
 ## En la PORTADA cualquier toque zarpa; fuera de ella manda el arrastre del
@@ -284,7 +302,7 @@ func _zarpar_de_la_portada() -> void:
 		ship_tween.tween_property(self, "ship_px",
 			PORT_PX + Vector2(700.0, 0.0), 1.2)
 		get_tree().create_timer(0.55).timeout.connect(func() -> void:
-			GameState.fade_to_scene("res://scenes/david_intro.tscn", 0.55, 0.5))
+			_ir_a_la_intro(0.55))
 		return
 	# El mismo viaje que el de Aventura: barco y cámara juntos, sin fundido.
 	ship_tween = create_tween().set_trans(Tween.TRANS_SINE) \
@@ -691,12 +709,13 @@ func _setup_menu_ui() -> void:
 	# (El ANCLA pintada que adornaba el pie del tablón se retiró al entrar el
 	# cuarto pergamino: la Pesca ocupa ahora esa franja.)
 
-	box.add_child(_make_mode_button("Aventura", "ic_aventura", 96, 42,
-		func() -> void: _go_adventure()))
+	aventura_btn = _make_mode_button("Aventura", "ic_aventura", 96, 42,
+		func() -> void: _go_adventure())
+	box.add_child(aventura_btn)
 	var arcade_btn := _make_mode_button("Arcade", "ic_arcade", 96, 42,
 		func() -> void: _go_arcade())
 	box.add_child(arcade_btn)
-	# El Arcade se gana superando el nivel 5 de la aventura: hasta entonces el
+	# El Arcade se gana venciendo al jefe del nivel 10: hasta entonces el
 	# botón queda apagado (pulsarlo explica cómo abrirlo).
 	if not GameState.arcade_unlocked():
 		arcade_btn.modulate = Color(0.52, 0.52, 0.52)
@@ -929,6 +948,55 @@ func _explicar_arroz() -> void:
 	caja.queue_free()
 	rice_box.z_index = z_antes
 	velo.queue_free()
+
+
+## GUÍA POST-TUTORIAL: la primera vez que se pisa el menú, David señala el
+## pergamino de AVENTURA y espera a que el jugador lo toque. Mismo apaño de
+## foco que _explicar_arroz (velo oscuro + nodo por encima vía z_index); el
+## z_index no cambia QUIÉN recibe el toque (el picking va por orden de árbol,
+## y el velo, añadido el último, se lo queda todo), así que es el PROPIO VELO
+## quien escucha y dispara la Aventura cuando el toque cae sobre el pergamino.
+func _guiar_a_aventura() -> void:
+	if GameState.menu_intro_done or aventura_btn == null:
+		return
+	# Una pausa para que la interfaz termine de entrar antes de oscurecerla.
+	await get_tree().create_timer(0.8).timeout
+	if leaving or start_mode:
+		return
+	var velo := ColorRect.new()
+	velo.color = Color(0, 0, 0, 0.72)
+	velo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	velo.z_index = 150
+	velo.mouse_filter = Control.MOUSE_FILTER_STOP
+	ui_layer.add_child(velo)
+	# El tablón entero por debajo del velo salvo el pergamino de Aventura.
+	var z_antes := aventura_btn.z_index
+	aventura_btn.z_index = 180
+
+	var caja := DialogueBox.new()
+	caja.z_index = 200
+	caja.veil_on = false
+	ui_layer.add_child(caja)
+	caja.say([
+		{ "text": "Este es tu **camarote de mando**, %s. De aquí se zarpa a todas partes." % GameState.player_title(), "mood": "feliz" },
+		{ "text": "¿Ves ese pergamino iluminado? Es la **Aventura**: nuestra travesía de puerto en puerto. Lo demás ya caerá.", "mood": "hablando" },
+		{ "text": "¡TÓCALO Y ZARPAMOS! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+	])
+	await caja.finished
+	caja.queue_free()
+	# El velo se queda puesto haciendo de compuerta: solo el toque que caiga
+	# sobre el pergamino iluminado pasa, y pasa directo a la Aventura.
+	velo.gui_input.connect(func(ev: InputEvent) -> void:
+		var toque: bool = ev is InputEventScreenTouch and ev.pressed
+		if not toque:
+			return
+		if not aventura_btn.get_global_rect().grow(10.0).has_point(ev.position):
+			return
+		GameState.menu_intro_done = true
+		GameState.save_game()
+		aventura_btn.z_index = z_antes
+		velo.queue_free()
+		_go_adventure())
 
 
 func _on_buy_ingots() -> void:
@@ -1536,7 +1604,7 @@ func _go_arcade() -> void:
 	if leaving:
 		return
 	if not GameState.arcade_unlocked():
-		_show_locked_notice("El modo Arcade se abre al superar\nel nivel 5 de la Aventura.")
+		_show_locked_notice("El modo Arcade se abre al vencer\nal jefe del nivel 10 de la Aventura.")
 		return
 	leaving = true
 	GameState.mode = "test"

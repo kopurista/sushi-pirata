@@ -75,13 +75,41 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   y `easy_next` se fueron con los potenciadores manuales que los encendían, y
   con ellos `_simplify_steps` y `recycle_recipe`.)
 
-## Guiones narrados (tutorial y primeros niveles)
+## Guiones narrados (la campaña ES el tutorial)
 
+- **LA ENSEÑANZA VA INTEGRADA EN LOS NIVELES 1-10** (rediseño del 14-8-2026):
+  el "tutorial" clásico se redujo a una escena de rescate y cada nivel presenta
+  UNA mecánica jugando. El flujo de una partida nueva:
+  1. **INTRO DEL CAOS** (`tutorial_director.gd`, sobre level3d en modo
+     tutorial): una partida IMPOSIBLE a propósito — solo el maki, la barra
+     llena de clientes de todo tipo con la paciencia YA mermada y escalonada
+     (`CHAOS_PATIENCE`), cero indicaciones. Cuando 2 se han ido (o a los 38 s)
+     entran David y Gigi con la oferta de unirse a la tripulación. Botón
+     **"Saltar tutorial"** arriba a la derecha (bajo la fila del HUD, que
+     pegado al borde pisaba el contador de clientes). El recién sentado se
+     identifica comparando los asientos ANTES y DESPUÉS del spawn: el spawner
+     elige silla al azar, así que "el último del array" era otro cliente y las
+     paciencias mermadas caían todas en el mismo.
+  2. `david_intro.tscn`: ya SOLO la ficha (nombre y género en el cartel de
+     recompensa) con dos frases; al aplicar → `complete_tutorial()` (entrega
+     SOLO el maki de aguacate) → menú.
+  3. Menú: `main_menu._guiar_a_aventura()` — velo oscuro con el pergamino de
+     **Aventura** iluminado (patrón de `_explicar_arroz`). OJO: el z_index no
+     cambia quién recibe el toque (el picking va por orden de árbol), así que
+     es el PROPIO VELO quien escucha el toque sobre el pergamino y dispara
+     `_go_adventure`. Bandera `menu_intro_done` (los saves con tutorial hecho
+     la dan por vista al cargar).
+  4. Mapa: `_explicar_arroz` de siempre (`rice_intro_done`).
+- **La rama de tutorial de level3d no repasa la interfaz de la tabla sola**:
+  en aventura lo dispara la lectura del puerto, pero sin puerto hay que llamar
+  `prep_board.refresh_extra_ui()` A MANO tras poner `hide_storage` (las cajas
+  se quedaban dibujadas en pleno caos).
 - `scripts/story_director.gd` (`StoryDirector`) es la BASE de todo guion sobre
   `level3d`: pausa el árbol entero al hablar (`get_tree().paused`, con la caja
   y el director en `PROCESS_MODE_ALWAYS`), retiene el reloj (`lv.clock_hold`),
   pinta el FOCO circular y vigila la inactividad. Las hijas solo escriben
-  `_run()`. De ella cuelgan `tutorial_director.gd` y `level_director.gd`.
+  `_run()`. De ella cuelgan `tutorial_director.gd` (la intro del caos) y
+  `level_director.gd` (los niveles).
 - **FOCO**: es una **ELIPSE** ajustada al rectángulo (`radius` es un `vec2`),
   no un círculo: la fila entera de recetas mide 700×150 y el círculo que la
   cubriera se comía la tabla y media pantalla. Cada semieje se multiplica por
@@ -107,58 +135,86 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   grita "¡ESPABILA!" + el recordatorio que dejó puesto `_play(aviso)`. No salta
   con alguien hablando ni con un gesto sostenido en curso
   (`prep_board.is_gesture_locked()`), que se arruinaría.
-- **Cliente del tutorial**: si el maki quedó en una CAJA, asiento **6**, el de
-  ARRIBA A LA IZQUIERDA. Con la cámara iso la altura en pantalla es -(x+z) y la
-  horizontal x-z, así que el 0 y el 6 empatan arriba pero el 0 cae a la
-  derecha. Se usa el 6 porque el plato le llega ANTES: nacen en el vértice
-  +X/+Z y su punto de cinta está a 6,3 de recorrido frente a los 8,1 del 0.
-  **Pero si el maki ya NAVEGA por la cinta, el asiento se elige mirando el
-  plato** (`_pick_seat`): con la cinta a 1.25 u/s el plato pasaba por el punto
-  del 6 antes de que el grumete llegara a sentarse y, con `MAX_LAPS` 1, acababa
-  en la basura con el guion esperando para siempre en `client.plate_served`.
-  Se compara, por asiento, lo que tarda el plato en llegar a su punto de cinta
-  con lo que tarda el cliente en entrar andando (la ruta de `_route_for_seat` a
-  paso conservador), y se elige el PRIMERO al que el plato llegue con
-  `SEAT_MARGIN` (2.5 s) de sobra tras sentarse; la pausa de los diálogos
-  congela plato y cliente por igual, así que la cuenta vale aunque David hable
-  en medio. Sin margen posible, el asiento que más margen deje.
 - **`slow_eat` solo se aplica al EMPEZAR un plato; para acortar el bocado YA EN
-  MARCHA está `client3d.bite_speed`** (se reinicia con cada plato). El nigiri
-  del tutorial se sirve larguísimo para poder explicar el té mientras mastica,
-  y en cuanto el grumete pica el té ese motivo desaparece pero le quedaba casi
-  un minuto de barra bajando: ahí se sube `bite_speed`, que vacía la barra a
-  buen ritmo en vez de pegar un salto.
-- **Orden del tutorial**: maki → cinta/cajas → primer cliente → oro → **nigiri
-  de salmón** (con `client.slow_eat` ×4.5, para que dé tiempo a explicar cosas
-  mientras mastica) → Gigi explica la **barra de comer** → **té verde** →
-  David explica la **barra de paciencia** (foco en la barra del cliente, ya sin
-  comer) → mochi → por qué conviene echar clientes. El "aburrimiento" se llama
-  ahora **hastío** y la barra gris es la **paciencia**.
+  MARCHA está `client3d.bite_speed`** (se reinicia con cada plato).
 - `scripts/level_director.gd` narra los puertos que llevan `director` en
-  `CampaignData`. Nivel 1: qué pasa si un plato da la vuelta entera (se cuenta
-  EN CALIENTE la primera vez que ocurre; si no ocurre, a media partida).
-  Nivel 2: bienvenida al puerto, consejos, el castigo por dejar marchar a
-  alguien de vacío (en caliente o, si no pasa, al llegar al 70% del objetivo)
-  y, al cerrar, las primas de sobrantes. Nivel 3: el pirata entra el último
-  (`late_type` en el puerto) o se adelanta al 60% del objetivo, y David regala
-  el **nigiri de atún** metiéndolo en la tabla EN MARCHA
-  (`prep_board.add_recipe`). Nivel 4: presenta el BARCO combinado nada más
-  empezar. Nivel 5: la flota de **Pablo el Rubio** — presentación de Pablo
-  (con su broma de apuñalar a David), y cuando por fin se sienta a la barra,
-  regalo del **salmón tsuke don** con la explicación del corte lento.
-  **El `match` de `_run()` hay que ampliarlo con cada guion nuevo**: `_nivel_4`
-  estaba escrito pero sin su rama, así que David no aparecía en el nivel 4
-  ni con partida nueva.
+  `CampaignData`. El reparto de lecciones (una por nivel, el detalle en la
+  cabecera de `campaign_data.gd`):
+  **N1** (guion del usuario): sobre el PRIMER cliente — maki servido → barra de
+  paciencia; comiendo → barra de bocado; regalo del **nigiri de salmón** y la
+  tabla se limita a él (`allowed_recipes`); cuando a un cliente le sale el
+  **x2** (espera a `variety >= 2`: si el primer nigiri se lo lleva un recién
+  llegado queda a x1 y el guion sigue esperando), 0,2 s de respiro y se explica
+  el multiplicador y el paladar ("aún sabes pocas recetas, no te agobies");
+  cuando ese cliente paga → el oro; después, tabla libre.
+  **N2**: cajas de guardado (foco en `storage_box` de entrada), y EN CALIENTE
+  el hastío (primer `repeat_count >= 1`) → regalo del té verde; silla atascada
+  (paciencia < 50% o 2 idos) → regalo del mochi (postres).
+  **N3**: primer pirata (tardío, se adelanta al 60% — `TARDIO_PROGRESO`),
+  regalo del **nigiri de atún** en marcha (`prep_board.add_recipe`).
+  **N4**: Saverio se presenta al empezar, castigo por irse de vacío en
+  caliente, y AL CERRAR Saverio abre la tienda y regala los extras
+  (`shop_intro_done = true` lo pone este guion, no la tienda).
+  **N5**: el bote de propinas (foco en `tip_bar`) y, tras el primer
+  potenciador elegido, su coletilla.
+  **N6**: primer capitán (tardío) → regalo del **sashimi de atún rojo** con la
+  lección del CORTE LENTO (`free_mistakes` hasta servir el primero, y Gigi
+  regaña vía `slice_failed`).
+  **N7**: primer abordaje — reloj, clientela sin fin y prima por tiempo.
+  **N8**: la flota de **Pablo el Rubio** (el guion que estrenó el nivel 5
+  viejo): broma del puñal, Pablo tardío que se adelanta al 80%, regalo del
+  **salmón tsuke don** (el corte ya se aprendió en el 6).
+  **N9**: SIN guion a propósito — el examen antes del jefe.
+  **N10**: el JEFE (ver el bloque del Kappa).
+  **El `match` de `_run()` hay que ampliarlo con cada guion nuevo**: pasó de
+  verdad (un guion escrito sin su rama = David no aparece).
 - **Cliente ESPECIAL de un puerto** (`special_client` en `CampaignData`):
   `{who, type}` hace que UNO de los clientes de ese tipo salga con un modelo
   propio (`client3d.who_override` → `CharacterData.MODELS`), sin tocar el
   equilibrio: come, paga y aguanta como los de su tipo. Con `late_type` del
-  mismo tipo, entra el último. Lo usa Pablo el Rubio en el nivel 5. La fila de
+  mismo tipo, entra el último. Lo usan Pablo el Rubio (nivel 8) y el guion del
+  jefe (que rellena `special_who` a mano para traer al Kappa). La fila de
   cabezas del HUD sigue contando por TIPO, pero la CARA sale de `head_who`
-  (el personaje del primero de ese tipo que llegó), así que en el nivel 5 el
-  capitán de la fila es Pablo. Su icono lo genera `tools/head_icons.gd` como
-  el resto, con un encuadre propio en `FRAME_OVERRIDE` (su sombrero es mucho
-  más alto y se le cortaba por arriba).
+  (el personaje del primero de ese tipo que llegó), así que en su nivel el
+  capitán de la fila es Pablo (o el Kappa). Sus iconos los genera
+  `tools/head_icons.gd` con encuadre propio en `FRAME_OVERRIDE` (el sombrero
+  de Pablo es muy alto, y el Kappa es un cabezón: media altura es cabeza).
+  **OJO: `head_icons` ahora solo trae al Kappa en `OUT`** — regenerar los
+  demás es jugar a la lotería de render; la lista completa queda comentada.
+- **EL JEFE DEL NIVEL 10: EL KAPPA** (`boss: "kappa"` en el puerto,
+  coreografía en `level_director._nivel_10`, comportamiento en
+  `client3d.make_boss`):
+  · El nivel arranca como abordaje normal; con **3 clientes alimentados** (o a
+    los 60 s) el guion PARA el reloj (`lv.timed = false` + `_apply_hud_layout`,
+    desde ahí manda la paciencia del jefe), vacía la barra sin castigos
+    (`force_leave(false)`), corta las llegadas y trae al Kappa por el
+    mecanismo del cliente especial.
+  · `make_boss(eat=0.32, drain=1.55, max=55)`: bocado al TRIPLE de velocidad
+    (los platos gordos siguen durando más, solo que todo corre), paciencia que
+    drena ×1.55 esperando, barra más gorda en pantalla. En `_scan_belt` el
+    jefe come de TODO (piso `BOSS_TAKE` 0.95 en cualquier nivel) pero **los
+    postres se descartan antes del dado**: un postre lo despediría y el duelo
+    consiste en retenerlo.
+  · CONDICIÓN: **10 platos** (`BOSS_PLATES`) antes de que su paciencia toque
+    fondo. El marcador vive en la tablilla de fase ("Kappa: N/10"). Victoria →
+    `lv.boss_done = true` y el nivel se cierra; derrota (se va con menos) → el
+    nivel se cierra igual. En `_finalize_results`, con jefe SIN rendir las
+    estrellas se capan a 1 (no se aprueba por dinero) y con él rendido caen
+    al menos las 2 del aprobado; `_check_goal_reached` tampoco cierra por oro
+    con un jefe pendiente. Superarlo abre el **Arcade** (`ARCADE_PORT`).
+  · **El nivel del jefe monta su director SIEMPRE** (level3d: `boss_id != ""`
+    salta el filtro de `narrated_ports`): el director es quien trae al Kappa y
+    sin él el nivel sería infranqueable al reintentar. En las repeticiones el
+    guion corre EN MUDO (`_mudo`, capturado al arrancar `_run` porque el
+    puerto se marca narrado al acabar la preparación de esa misma partida).
+  · BALANCE SIMULADO (no a ojo): con la escalera de variedad real y carta de
+    3 principales + té, ganar exige un plato cada **≤9 s**; a 10-12 s el Kappa
+    se harta en el plato 5-9, y repetir platos lo hunde antes. La simulación
+    está en el historial (constantes PATIENCE_FOOD/REPEAT_RECHARGE reales).
+  · El modelo es `kappa_rig.glb` (concepto → 3D → rig `humanoid_template_hands`
+    con nombres smpl; el rig_type `humanoid` devolvió huesos `bone_0..14` sin
+    nombres y CharacterAnim no lo entiende). Piernas al 27% del alto (es
+    rechoncho): `has_humanoid_bones` no las veta y el andar corto le pega.
 - **El contador de clientes del HUD cuenta los que HAN LLEGADO**
   (`clients_spawned`), no los que se han ido: con los idos se quedaba en 0 con
   la barra llena, que es justo cuando interesa saber cuánta clientela queda.
@@ -168,8 +224,9 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 - **En las ISLAS la carta la decide el DISEÑO, no el jugador**: van con
   `fixed_recipes` y no pasan por el selector NUNCA, tampoco al repetirlas. Lo
   único que cambia al repetir es que pueden traer otra lista
-  (`fixed_recipes_replay`): el nivel 3 vuelve ya con el nigiri de atún que
-  regaló David. Como el jugador no elige, tampoco puede esquivar un ingrediente
+  (`fixed_recipes_replay`): el nivel 1 vuelve ya con el nigiri de salmón que
+  regaló David, y el 2 con el té y el mochi. Como el jugador no elige, tampoco
+  puede esquivar un ingrediente
   que le falte: antes de zarpar, el mapa lo comprueba
   (`GameState.missing_ingredients`) y **Gigi canta lo que falta y para qué
   receta**, con un cartel de tres salidas — Jugar, Visitar tienda (solo si ya
@@ -294,6 +351,11 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   más grande se las comía y dejaba tres nigiris pelados en el cartel; pasó y
   hubo que rehacer el recorte. `drop_specks` tira solo lo que no llega al 0,3%
   de la isla mayor, que es lo que de verdad son motas.
+  Y `fill_white_holes` (ui2_prep) transparenta el blanco que quedó ENCERRADO
+  tras la inundación desde los bordes: el hueco entre la papelera y su tachado
+  en `pot_sin_basura` y el fondo entre el engranaje y la llave de `ic_opciones`
+  salían blancos opacos. Se aplica SOLO a esos dos iconos a propósito — en
+  otros dibujos un blanco interior es arte (el arroz).
 - `scripts/perk_data.gd` — catálogo de potenciadores **PERMANENTES** (`PerkData`,
   no confundir con los anteriores): se ganan haciendo un COMBO en partida, se
   eligen antes de zarpar junto con las recetas, gastan 1 uso por partida y se
@@ -320,16 +382,13 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   inalcanzable y desaparecería del juego.
   Solo funcionan en aventura: Arcade no toca el progreso.
 - **EL BARCO PIDE DOS LLAVES**: que el puerto lo permita (`boat` en
-  `CampaignData`, que es lo que hace que sea la novedad del nivel 4) **Y** que
+  `CampaignData`; con la campaña-escuela lo llevan los niveles 8-10, sin guion
+  que lo presente — su presentación queda para los niveles futuros) **Y** que
   el jugador lleve puesto el bonificador `barco`. Si falta cualquiera de las
   dos, su botón ni aparece (`prep_board.hide_boat`). Se gana teniendo **3
   platos guardados en 2 cajas distintas** a la vez (lo vigila
   `level3d._on_storage_changed` con la señal `storage_changed`, y basta con
   que ocurra una vez en la partida).
-  **El guion del nivel 4 se adapta**: si el jugador no lleva el bonificador no
-  hay botón que enfocar, así que David explica CÓMO ganárselo en vez de
-  presentar una mecánica que no está (`level_director._nivel_4` mira
-  `prep_board.hide_boat`).
 - `scripts/daily_data.gd` — **BONUS DIARIO** (`DailyData`): siete escalones por
   días CONSECUTIVOS. La racha sube solo si el último cobro fue AYER (con un
   hueco vuelve a 1: premia venir a diario, no acumular días sueltos) y pasado
@@ -588,22 +647,27 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   "Horas extra" se cae del sorteo donde no hay reloj.
   **`elapsed` sigue contando SIEMPRE**, haya reloj o no: es lo que dispara las
   llegadas. Lo que solo pasa con reloj es que se acabe el turno al agotarse.
-- `scripts/campaign_data.gd` — los 9 niveles de la campaña (`PORTS`, ordenados):
-  `client_mix` (recuento EXACTO {E,A,G}; el nivel construye una cola barajada y
-  `total_clients` sale de la suma), **`arrival_span`** (la VENTANA sobre la que
-  se reparten las llegadas; **no es la duración del nivel**, solo el RITMO al
-  que entra la clientela, y por eso lo llevan también los niveles sin reloj:
-  de ahí sale `arrival_step`, que en un abordaje se repite hasta que se acaba
-  el tiempo), `patience_mult`, `arrival_scale` (<1 = llegan más seguidos),
-  `goal_stars` (3 en todos), `star_money` ([$1★,$2★,$3★], calibrado al techo de
-  producción de cada nivel) y `reward_recipes`. **El reparto sigue a la
-  CLIENTELA del puerto**: donde solo hay grumetes caen recetas de nivel 1, los
-  piratas traen las de nivel 2 y los capitanes las de nivel 3; los postres van
-  al puerto donde ya se sienta su tipo (`only_type`). Entre las 2 iniciales y
-  las 32 recompensas quedan cubiertas las **34 recetas visibles**; las `hidden`
-  (barco, combinados, variantes de fritura) no se desbloquean nunca: salen de
-  sus propias mecánicas. También
-  `INITIAL_RECIPES` e `INITIAL_INGREDIENTS` de partida nueva.
+- `scripts/campaign_data.gd` — los **10 niveles-escuela** de la campaña
+  (`PORTS`, ordenados; la cabecera del archivo lista qué lección trae cada
+  uno). Campos: `client_mix` (recuento EXACTO {E,A,G}; el nivel construye una
+  cola barajada y `total_clients` sale de la suma), **`arrival_span`** (la
+  VENTANA sobre la que se reparten las llegadas; **no es la duración del
+  nivel**, solo el RITMO al que entra la clientela, y por eso lo llevan
+  también los niveles sin reloj: de ahí sale `arrival_step`, que en un
+  abordaje se repite hasta que se acaba el tiempo), `patience_mult`,
+  `arrival_scale` (<1 = llegan más seguidos), `goal_stars` (2 en todos),
+  `star_money` ([$1★,$2★,$3★]) y `reward_recipes` / `reward_recipes_3`.
+  **Compuertas de la escuela**: `free_ingredients` (niveles 1-2: no gastan ni
+  despensa ni arroz, tampoco al repetir — `consume_ingredients_for_level` los
+  salta), `no_powerups` (1-4: sin bote de propinas — el HUD esconde el bote,
+  `_add_tip` no cobra y los clientes salen con `tips_enabled` false, así que
+  ni tiran propina), `no_storage` (solo el 1: sin cajas,
+  `prep_board.hide_storage`) y `boss` (el Kappa del 10).
+  **Estos 10 niveles NO cubren la carta entera a propósito** (el jugador
+  aprende ~un tercio de las recetas; el resto y el barco/bonificadores quedan
+  para los niveles 11+, con jefes cada 10 como este). El DRAGON ROLL sigue
+  siendo del día 7 del bonus diario. También
+  `INITIAL_RECIPES` (solo el maki) e `INITIAL_INGREDIENTS` de partida nueva.
 - `scripts/game_state.gd` — **autoload** `GameState`: modo ("adventure"/"test"),
   nivel en curso, recetas elegidas + progreso PERSISTENTE en
   `user://savegame.json`: dinero, recetas desbloqueadas, estrellas por nivel e
@@ -663,7 +727,10 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   aparte. Con tres tablones los rótulos caben enteros; a partir de ahí, no.
   **Un logro de receta SIN DESBLOQUEAR sale OCULTO** en la pantalla
   (`_build_hidden_card`): silueta del plato EN NEGRO, "???" y sin barra, para
-  no desvelar la carta del juego. El logro "coleccion" (Camarote de tesoros)
+  no desvelar la carta del juego. **Y un logro de PEZ sin ni una captura,
+  igual** (mismo `_build_hidden_card`, mirando `GameState.fish_album`): no se
+  desvela ni el pez ni su nombre; la única pista de la tarjeta es la RAREZA
+  ("Pesca un ejemplar de rareza épica..."). El logro "coleccion" (Camarote de tesoros)
   bebe de `derived:coleccion` y **su meta de ORO tiene que ser el tamaño del
   catálogo de coleccionables**: al añadir uno, subirla con él.
 - **LOGROS: aviso, globo y reclamo** (montado con los coleccionables):
@@ -901,7 +968,49 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   `tools/head_icons.gd`): se rinden UNA vez a PNG porque tres SubViewports
   vivos en un menú serían tres escenas 3D de más. La luz del retrato es más
   suave que la del nivel: con la del nivel las caras claras se quemaban y el
-  chef neutro salía sin rasgos.
+  chef neutro salía sin rasgos. **`tools/head_icons.gd` tiene LOTERÍA de
+  render**: en una misma pasada unos iconos salen limpios y otros con manchas
+  oscuras (texturas a medio cargar al capturar). Tras regenerar, comparar cada
+  PNG con `git diff` y **revertir los que no se buscaba tocar** — al rehacer
+  `head_A_f`, `head_G_f` y `head_P` salieron manchados y hubo que devolverlos.
+- **LA PIRATA FEMENINA LLEVABA GAFAS DE SOL (dos "parches") y se convirtió en
+  UN parche + ojo repintando su textura**: `tools/eye_patch_fix.py`, con el
+  original a salvo en `pirata_fem_rig_0.png.antes_del_parche` y la escena de
+  verificación `tools/pirata_fem_check.tscn` (render de la cabeza con la misma
+  cámara que `head_icons.gd`). Costó 17 rondas y todas las lecciones están en
+  el docstring de la herramienta; el resumen:
+  · **`tools/skin_pose.py` es la clave de todo**: en un modelo rigueado, las
+    posiciones del accessor POSITION (pose de BIND) **pueden no ser dónde se
+    dibuja el triángulo**. Medido aquí: los triángulos del cristal delantero
+    tienen su bind en **y = −0.33, a la altura de los PIES**, y se dibujan en
+    la cara. Por eso TODO filtro por coordenadas los dejaba fuera y sobrevivía
+    un bulto oscuro sobre el ojo, ronda tras ronda. La herramienta aplica el
+    skinning de la pose de reposo y devuelve las posiciones REALES; con ellas,
+    los filtros geométricos de siempre funcionan a la primera.
+  · Las gafas **SON la superficie de la cabeza**: al borrar sus triángulos del
+    `.glb` se ve el fondo a través, no una cara debajo. Hay que repintar.
+  · Qué es gafas se decide **por color y TEXEL A TEXEL** (nunca por el color
+    medio del triángulo: los del borde son mitad lente y mitad piel y no
+    llegaban al listón). Ojo: el pelo granate oscuro y el marco son casi el
+    mismo color — se separan porque el pelo es ROJIZO (max−min 32) y el marco
+    NEUTRO (max−min 9).
+  · **El halo tiene que ser ANCHO (14 pasos)**: el modelo se ve pequeño, así
+    que Godot muestrea un MIPMAP reducido que promedia téxeles de mucho más
+    allá del borde de la isla. Con un halo de 3 el bulto seguía saliendo *con
+    la isla entera ya pintada*. Y va vallado contra los téxeles del parche, o
+    se le cuela por el atlas y le come un mordisco.
+  · **El ojo es una mancha OSCURA maciza**, sin blanco ni pupila: la lente se
+    pliega y parte de sus téxeles no se ven de frente, así que un óvalo con
+    esclerótica salía como una media luna blanca con la pupila descolgada. Sus
+    fracciones están afinadas contra el render — moverlas un poco lo deshace
+    en motas, así que render tras cada cambio.
+  · **NO sirve decodificar un render** con la textura sustituida por un
+    gradiente de coordenadas: las texturas de modelo van en **Basis (con
+    pérdida)** y el gradiente llega machacado. Para diagnosticar sí valen los
+    colores PLANOS (magenta/verde), que sobreviven bien.
+  · **Editar un PNG que usa un `.glb` exige `--headless --import` después**,
+    o el render sigue sirviendo el `.ctex` viejo y parece que el cambio "no
+    hace nada" (se perdieron varias rondas por esto).
 - `scripts/achievements_screen.gd` — Logros (raíz **Node3D**): pestañas por
   apartado y una tarjeta por logro con la medalla conseguida, la barra de lo que
   falta para la SIGUIENTE y tres chapas. Los logros de receta llevan el sprite
@@ -1006,31 +1115,24 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   FÍSICA (p. ej. 1450×2560 en pantalla escalada) o queda a 0×0, pisando el
   tamaño. Anclas a cero + `position`/`size` de diseño (720×1280) explícitos:
   así van la raíz de DialogueBox y el paño del foco.
-  `scripts/david_intro.gd` + `scenes/david_intro.tscn`: bienvenida (primera
-  vez) DESDE LA CUBIERTA del barco (cubierta propia construida por código:
-  tablones, barandilla al fondo, mástil con vela que respira, carga — NO el
-  barco visto desde fuera), pide nombre (teclado) y género (tocando los
-  retratos del chef) y salta al tutorial.
-  `scripts/tutorial_director.gd`: guion del tutorial SOBRE level3d —
-  **mientras David habla se PAUSA el árbol entero** (clientes y platos
-  quietos; caja y director en PROCESS_MODE_ALWAYS), **foco CIRCULAR degradado**
-  (`shaders/tutorial_focus.gdshader`, dim 0.78, radio acotado 70-230 px:
-  enfocar contenedores anchos del HUD daba un círculo tan grande que no se
-  percibía — enfocar las LABELS concretas, no sus filas), permisos por fase
-  (`prep_board.allowed_recipes`), cliente fijo en el asiento 4 con paciencia
-  clavada y `guaranteed_next` en cada servicio; enseña maki (guiado paso a
-  paso) → cinta/cajas (rama según dónde lo deje) → té verde → nigiri → mochi
-  (despide al cliente) → recetario, y al acabar `complete_tutorial()` y menú.
-  En modo tutorial level3d NO termina solo (`_end_level` ignora reloj y
-  clientes), sin botón Salir, sin fase de preparación, `tutorial_mode` oculta
-  barco/combinar/extras. `GameState`: `tutorial_done` persistente (los saves
-  viejos con recetas lo dan por hecho; **`_new_game` DEBE ponerlo a false** —
-  se olvidó y borrar la partida no relanzaba la intro), `is_tutorial()`,
-  `complete_tutorial()` (entrega `CampaignData.INITIAL_RECIPES`:
-  maki_aguacate, nigiri_salmon, te_verde y mochi — SOLO se desbloquean así),
-  `arcade_unlocked()` (= superar `GameState.ARCADE_PORT`, el **nivel 10**, que
-  todavía no existe en la campaña: hasta entonces el Arcade sigue cerrado); el menú manda a la intro si falta
-  el tutorial y el botón Arcade queda apagado con aviso hasta ganarlo.
+  `scripts/david_intro.gd` + `scenes/david_intro.tscn`: DESDE LA CUBIERTA del
+  barco (cubierta propia construida por código), hoy es SOLO la ficha de
+  tripulación — dos frases, el cartel de recompensa con nombre y género, y al
+  aplicar `complete_tutorial()` y al menú. La bienvenida larga que hubo aquí
+  se fue: el discurso lo da David en la intro del caos.
+  `scripts/tutorial_director.gd`: la INTRO DEL CAOS (ver el bloque de guiones
+  arriba). En modo tutorial level3d NO termina solo (`_end_level` ignora reloj
+  y clientes), sin fase de preparación, `tutorial_mode` oculta barco/combinar/
+  extras (y el caos esconde además cajas y bote con `hide_storage` +
+  `no_powerups`). `GameState`: `tutorial_done` persistente (los saves viejos
+  con recetas lo dan por hecho; **`_new_game` DEBE ponerlo a false** — se
+  olvidó y borrar la partida no relanzaba la intro), `is_tutorial()`,
+  `complete_tutorial()` (entrega `CampaignData.INITIAL_RECIPES`, que ya es
+  SOLO el maki de aguacate: el resto de la carta la regala David nivel a
+  nivel), `arcade_unlocked()` (= superar `GameState.ARCADE_PORT`, el **nivel
+  10 del Kappa**: vencer al jefe abre el Arcade); el menú manda a la intro del
+  caos si falta el tutorial (`_ir_a_la_intro`) y el botón Arcade queda apagado
+  con aviso hasta ganarlo.
   **La partida nueva empieza con 50 doblones** (botín de bienvenida para la
   tienda).
 - `scripts/prep_board.gd` — la tabla inferior: minijuego de elaboración por
@@ -2112,10 +2214,11 @@ que no hay problema.
   llenan `complete_tutorial`/`complete_port` y consume `main_menu`): pergamino
   con los platos entrando de uno en uno con su bote.
 - **La TIENDA se gana** superando el puerto que la trae (`unlocks_shop`, el
-  nivel 2); el botón del menú queda apagado hasta entonces. La PRIMERA visita
-  es una escena: David presenta a **Saverio**, que explica la tienda y los tres
-  extras y regala 5 usos de cada uno (`shop_intro_done`, persistente, que es
-  además lo que abre los **extras**: antes de esa escena no existen).
+  nivel 4); el botón del menú queda apagado hasta entonces. La presentación de
+  Saverio y el regalo de los extras van DENTRO del guion del nivel 4
+  (`level_director._nivel_4`, al cerrar el turno): es él quien pone
+  `shop_intro_done`, que es además lo que abre los **extras** — antes de esa
+  escena no existen.
 - **El surtido de la tienda solo trae ingredientes de recetas DESBLOQUEADAS**
   (`roll_shop_stock` filtra por `unlocked_recipes`), y `unlock_recipe` pone
   `shop_day = ""` para que el surtido se rehaga al aprender algo nuevo.
@@ -2131,9 +2234,12 @@ que no hay problema.
 - **Campos nuevos de puerto en `CampaignData`**: `fixed_recipes` (carta
   cerrada), `recipe_slots` (huecos que se pueden llevar, 4 por defecto),
   `no_extras` (oculta extras, combinar y barco → `prep_board.hide_extras`),
-  `late_type` (ese tipo de cliente entra el último), `unlocks_shop`,
-  `unlocks_fishing` (abre la PESCA del menú; lo lleva el nivel 4) y
-  `director` (guion narrado).
+  `no_storage` (oculta las cajas → `prep_board.hide_storage`), `no_powerups`
+  (sin bote de propinas), `free_ingredients` (no gasta despensa ni arroz),
+  `boss` (el jefe del nivel), `late_type` (ese tipo de cliente entra el
+  último), `unlocks_shop` (nivel 4), `unlocks_fishing` (candado histórico de
+  la PESCA; lo lleva el nivel 4), `prep_dialog` (aviso de David en el
+  selector: niveles 3, 8 y 10) y `director` (guion narrado).
 
 ## Balance actual (para no re-litigar)
 
@@ -2541,16 +2647,15 @@ que no hay problema.
   contra la clientela (clientes × platos × PRECIO medio de la carta). Confundir
   los dos da cifras imposibles: reescalando el nivel 2 por $/s pedía 127
   doblones cuando su techo real ronda los 75.
-  Umbrales vigentes: n1 22/37/49 · n2 57/95/127 · n3 38/63/94 · n4 45/74/96 ·
-  n5 38/64/99 · n6 41/73/118 · n7 45/79/128 · n8 59/105/171 · n9 51/90/145.
-  **Son de MODELO, no de partida jugada**: salen de reescalar la calibración
-  anterior por lo que cambió la carta, así que quieren una pasada de juego real
-  antes de darlos por buenos.
-  **Y el aluvión de clientes se limita SOLO**: los abordajes tardíos programan
-  más llegadas que asientos (el 9 llega a 31 para 8 taburetes), pero un cliente
-  no aparece hasta que se libera un sitio y uno sin comer aguanta ~50-60 s
-  (`FIRST_PLATE_DRAIN` 0.45), así que caben ~20 por partida y el resto no llega
-  a entrar — ni cobra su `LEAVE_PENALTY`.
+  Umbrales vigentes (campaña-escuela, BAJOS a propósito — aquí se aprende):
+  n1 12/20/30 · n2 16/26/38 · n3 20/34/50 · n4 24/40/60 · n5 26/42/64 ·
+  n6 30/50/76 · n7 32/55/88 · n8 36/62/95 · n9 40/68/105 · n10 30/55/90
+  (en el 10 el aprobado es el JEFE, el dinero solo decide la 3ª estrella).
+  **Son de MODELO, no de partida jugada**: quieren una pasada real.
+  **Y el aluvión de clientes se limita SOLO**: los abordajes programan más
+  llegadas que asientos, pero un cliente no aparece hasta que se libera un
+  sitio y uno sin comer aguanta ~50-60 s (`FIRST_PLATE_DRAIN` 0.45), así que
+  el resto no llega a entrar — ni cobra su `LEAVE_PENALTY`.
   NO hay dinero extra por estrellas (economía limpia para la tienda).
   En aventura el dinero va al monedero persistente; en Prueba no toca el progreso.
 - **Probabilidades de coger plato** (`client3d.TAKE_CHANCES`), por tipo × nivel:

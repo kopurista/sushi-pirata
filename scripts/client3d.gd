@@ -232,9 +232,23 @@ var slow_eat: float = 1.0
 ## quedaba casi un minuto de barra bajando. Se reinicia con cada plato.
 var bite_speed: float = 1.0
 ## Personaje CONCRETO en vez del que le tocaría por tipo (`CharacterData.MODELS`):
-## lo usa Pablo el Rubio en el nivel 5, que come como un capitán pero tiene su
-## propio modelo. "" = el del tipo de siempre.
+## lo usan Pablo el Rubio y el Kappa, que comen como su tipo pero con su propio
+## modelo. "" = el del tipo de siempre.
 var who_override: String = ""
+## En los niveles-escuela (sin bote) las propinas NI SE TIRAN: así no hay
+## cifras verdes flotando hacia un bote que no existe en pantalla.
+var tips_enabled := true
+## MODO JEFE (el Kappa del nivel 10). Lo enciende `make_boss()`: bocado
+## rapidísimo, paciencia que se agota más deprisa, come platos de CUALQUIER
+## nivel casi seguro y no toca los postres (un postre lo despediría y el duelo
+## consiste justo en retenerlo). Su condición la vigila el guion del nivel.
+var boss := false
+## Cuánto se ACORTA su bocado (0.32 = come el triple de rápido) y cuánto más
+## deprisa DRENA la paciencia esperando. Los fija make_boss().
+var boss_eat_scale := 1.0
+var boss_drain_scale := 1.0
+## Piso de probabilidad con el que el jefe coge cualquier plato no-postre.
+const BOSS_TAKE := 0.95
 ## Perdona el castigo de marcharse sin comer (ver force_leave).
 var _sin_castigo := false
 ## Puntos de la ruta de entrada (el nivel los define; el ultimo es el asiento).
@@ -405,6 +419,27 @@ const COMER_AZUL := Color(0.24, 0.60, 0.96)
 const PAT_HIELO := Color(0.55, 0.85, 1.0)
 
 var _patience_fill: StyleBoxFlat = null
+
+
+## Convierte a ESTE cliente en el JEFE del nivel (el Kappa). Se llama justo
+## después de sentarlo el guion; toca lo que en un cliente normal fija _ready:
+##  - PACIENCIA: barra más gorda en pantalla (que se vea que es el jefe), un
+##    máximo alto y un drenaje BOSS de `drain` veces el normal. El "aguanta
+##    poco" del jefe sale del drenaje, no del máximo: con el máximo corto la
+##    barra ni se veía bajar, era un semáforo.
+##  - BOCADO: `eat` (0.32 = come el triple de rápido). Los platos de más nivel
+##    siguen durando MÁS (la base por nivel se respeta), solo que todo corre.
+func make_boss(eat := 0.32, drain := 1.55, max_patience := 55.0) -> void:
+	boss = true
+	boss_eat_scale = eat
+	boss_drain_scale = drain
+	patience_max = max_patience
+	patience = patience_max
+	if _patience_bar != null:
+		_patience_bar.max_value = patience_max
+		_patience_bar.size = Vector2(96, 17)
+		_eat_bar.size = Vector2(96, 17)
+		patience_bar_update()
 
 
 func _make_bars() -> void:
@@ -589,6 +624,9 @@ func _process(delta: float) -> void:
 			# el drenaje pasa a ser el normal.
 			if eaten_ids.is_empty():
 				drain *= FIRST_PLATE_DRAIN
+			# El JEFE se impacienta más deprisa: su duelo es una cuenta atrás
+			# que solo se detiene mientras mastica.
+			drain *= boss_drain_scale
 			patience -= delta * drain
 			patience_bar_update()
 			if patience <= 0.0:
@@ -717,6 +755,11 @@ func _scan_belt(snack_only: bool = false) -> void:
 		# Plato RESERVADO a un personaje concreto (ver plate3d.only_who).
 		if plate.only_who != "" and plate.only_who != who_override:
 			continue
+		# El JEFE no toca los postres: un postre lo despediría de la mesa y su
+		# duelo consiste justo en retenerlo comiendo. Se descarta ANTES del
+		# dado, como los only_type.
+		if boss and data.get("leaves_seat", false):
+			continue
 		# Solo un picoteo por plato en curso: hasta que no termine el que está
 		# comiendo no vuelve a picar (al empezar el siguiente se rearma).
 		# "Manos libres" (potenciador): mientras corre, CUALQUIER plato se puede
@@ -746,6 +789,10 @@ func _scan_belt(snack_only: bool = false) -> void:
 			chance = float(forced)
 		if _aroma_active() and plate_satiety == FAVORITE_TIER.get(client_type, 0):
 			chance = maxf(chance, 0.95)
+		# El JEFE come de TODO: nivel 1, 2 o 3, casi seguro. Su filtro no es
+		# qué coge, sino cuánto le dura (los platos gordos se mastican más).
+		if boss and not snack_only:
+			chance = maxf(chance, BOSS_TAKE)
 		if guaranteed_next and not snack_only:
 			chance = 1.0
 		if randf() < chance:
@@ -827,7 +874,7 @@ func _start_eating(plate_global: Vector3) -> void:
 	# `slow_eat` lo usa el guion del TUTORIAL para que un plato concreto dure
 	# lo suficiente como para explicar otra receta mientras el cliente come.
 	eat_duration = base * randf_range(1.0 - EAT_JITTER, 1.0 + EAT_JITTER) \
-			* _eat_mult_of(recipe) * slow_eat
+			* _eat_mult_of(recipe) * slow_eat * boss_eat_scale
 	eat_timer = eat_duration
 	_eat_bar.max_value = eat_duration
 	_eat_bar.value = eat_duration
@@ -1293,6 +1340,9 @@ func _walk_out() -> void:
 ## comidos), cuantia = % del dinero ACUMULADO del cliente. Debe llamarse
 ## DESPUES de sumar current_price a money_earned y del append a eaten_ids.
 func _roll_plate_tip() -> int:
+	# Niveles-escuela: sin bote de propinas no hay propina que tirar.
+	if not tips_enabled:
+		return 0
 	var rules: Dictionary = TIP_RULES.get(client_type, {})
 	var plates := eaten_ids.size()
 	if rules.is_empty() or plates < int(rules.start):

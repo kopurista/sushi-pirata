@@ -55,6 +55,11 @@ const MODELS := {
 	"pablo": {
 		MALE: "res://assets/models/pablo_rig.glb",
 	},
+	# El JEFE del nivel 10: el Kappa. Come como un capitán (a su manera: ver
+	# client3d.make_boss) y, como Pablo, es un personaje concreto sin variantes.
+	"kappa": {
+		MALE: "res://assets/models/kappa_rig.glb",
+	},
 	"chef": {
 		MALE: "res://assets/models/chef_rig.glb",
 		FEMALE: "res://assets/models/chef_fem_rig.glb",
@@ -72,6 +77,7 @@ const HEADS := {
 	"capitan": { MALE: "res://assets/ui/head_G.png", FEMALE: "res://assets/ui/head_G_f.png" },
 	"vip": { MALE: "res://assets/ui/head_V.png", FEMALE: "res://assets/ui/head_V_f.png" },
 	"pablo": { MALE: "res://assets/ui/head_P.png" },
+	"kappa": { MALE: "res://assets/ui/head_K.png" },
 }
 
 ## Tipo de cliente (el de client_mix / TAKE_CHANCES) -> personaje.

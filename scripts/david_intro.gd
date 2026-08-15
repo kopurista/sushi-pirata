@@ -491,41 +491,30 @@ func _process(delta: float) -> void:
 
 # -------------------------------------------------------------------- guion
 
+## LA FICHA DE TRIPULACIÓN. Se llega aquí desde la intro del caos (o desde su
+## botón "Saltar tutorial"): la bienvenida larga que hubo un día se fue — el
+## discurso del rescate ya lo dio David sobre la partida imposible, así que
+## esta escena va al grano: nombre y género, y al menú.
 func _run_intro() -> void:
 	dialog.say([
-		{ "text": "¡¿Quién anda ahí?! ¿Un polizón en **mi barco**?", "mood": "gritando" },
-		{ "text": "¡RAAAK! ¡Polizón! ¡Al agua! ¡AL AGUA!", "who": "gigi", "mood": "loro" },
-		{ "text": "Quieto, plumas. Que es broma... ¡Bienvenido a bordo!", "mood": "riendo" },
-		{ "text": "Soy **David Jones**, capitán de esta belleza flotante y el pirata más temido de estas aguas. Y este chillón del hombro es **Gigi**.", "mood": "mira_loro" },
-		{ "text": "¡Gigi el TEMIBLE! ¡RAAK!", "who": "gigi", "mood": "loro" },
-		{ "text": "Temible para las galletas, sobre todo.", "mood": "loro_resignado" },
-		{ "text": "Te estarás preguntando qué haces aquí. Verás: mi tripulación es valiente como un tifón... pero come como un banco de pirañas.", "mood": "serio" },
-		{ "text": "Mi último cocinero saltó por la borda. Dijo algo de \"vacaciones\"... y de \"no aguantar ni un asalto más\".", "mood": "triste" },
-		{ "text": "¡TRABAJO! ¡HAY QUE TRABAJAR! ¡RAAAK! ¡Nadie quiere trabajar!", "who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "Necesito manos rápidas y estómago firme: ¡un **cocinero de sushi** para la cinta kaiten de mi barco!", "mood": "hablando" },
-		{ "text": "Pero antes de nada... dime quién eres, marinero.", "mood": "feliz" },
+		{ "text": "Bienvenido a bordo, grumete. Ficha de **tripulación** nueva: escribe tu nombre y elige tu retrato.", "mood": "feliz" },
+		{ "text": "El cartel de recompensa no se rellena solo. ¡RAAK!", "who": "gigi", "mood": "loro" },
 	])
 	await dialog.finished
 	var pname := await _ask_identity()
 	dialog.say([
 		{ "text": "¡RAAAK! ¡**%s**! ¿Eso es un nombre o el ruido que hace un barril al caerse?" % pname, "who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "¡Ignóralo! A mí me suena a nombre de leyenda.", "mood": "loro_grito" },
-		{ "text": "El plan es simple, **%s**: navegaremos de puerto en puerto sirviendo el mejor sushi de los siete mares. Los clientes pagan, y con ese **oro** compraremos ingredientes para llegar aún más lejos." % pname, "mood": "serio" },
-		{ "text": "¿Que no has cocinado en tu vida? ¡¿Ni un triste onigiri?!", "mood": "sorprendido" },
-		{ "text": "Ja, ja... no sufras. Para eso me tienes a mí. Todo capitán fue grumete una vez.", "mood": "riendo" },
-		{ "text": "¡Sígueme a la **cocina**! Te voy a enseñar los secretos del oficio.", "mood": "gritando" },
+		{ "text": "A mí me suena a nombre de leyenda. El plan, **%s**: de puerto en puerto, sirviendo el mejor sushi de los siete mares. Cada parada te enseño algo nuevo." % pname, "mood": "serio" },
+		{ "text": "De momento dominas el **maki de aguacate**... y con eso basta para zarpar. ¡A cubierta!", "mood": "riendo" },
 	])
 	await dialog.finished
-	# Al tutorial: partida guiada en el nivel 3D con las 4 recetas del guion.
-	GameState.save_game()
-	GameState.mode = "tutorial"
+	# El tutorial queda HECHO aquí (entrega el maki y su despensa); la guía
+	# sigue en el menú, donde David señala la Aventura (main_menu).
+	GameState.complete_tutorial()
+	GameState.mode = ""
 	GameState.current_port = ""
-	var recs: Array[String] = []
-	for r in CampaignData.INITIAL_RECIPES:
-		recs.append(r)
-	GameState.selected_recipes = recs
-	GameState.selected_perks = []
-	GameState.fade_to_scene("res://scenes/level3d.tscn", 0.35, 0.45)
+	GameState.transition = "menu"
+	GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45)
 
 
 ## CARTEL DE RECOMPENSA: la ficha del jugador (ver `wanted_poster.gd`). Se

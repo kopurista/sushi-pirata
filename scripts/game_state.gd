@@ -111,8 +111,11 @@ var tutorial_done := false
 var shop_intro_done := false
 ## David ya explicó para qué sirve el ARROZ (al elegir el primer puerto).
 var rice_intro_done := false
-## Ya se vio la escena de Pablo y Saverio en la tienda (tras el nivel 5).
+## Ya se vio la escena de Pablo y Saverio en la tienda (tras su nivel).
 var pablo_shop_done := false
+## David ya señaló el pergamino de AVENTURA en el menú (la primera visita tras
+## el rescate). Persistente: la guía solo se da una vez.
+var menu_intro_done := false
 ## Puertos cuyo GUION ya se ha visto (ver `port_narrated`). Se marca al terminar
 ## la fase de preparación, así que fallar y repetir NO obliga a volver a pasar
 ## por las explicaciones.
@@ -281,13 +284,14 @@ func is_tutorial() -> bool:
 	return mode == "tutorial"
 
 
-## Cierra el tutorial: entrega las 4 recetas con las que se aprendió y deja
-## paso al modo aventura. Idempotente (repetir el tutorial no duplica nada).
+## Cierra el tutorial (la escena del rescate): entrega SOLO el maki de
+## aguacate — el resto de la carta se gana nivel a nivel, que la campaña es la
+## escuela. Idempotente (repetirlo no duplica nada).
 func complete_tutorial() -> void:
 	tutorial_done = true
 	for r in CampaignData.INITIAL_RECIPES:
 		unlock_recipe(r)
-	# Se estrenan con la despensa llena: 5 usos de todo lo que piden.
+	# Se estrena con la despensa llena: 5 usos de lo que pide.
 	gift_ingredients_for(CampaignData.INITIAL_RECIPES, TUTORIAL_GIFT)
 	# SIN `pending_reveal`: el propio David acaba de entregarlas en su despedida
 	# ("estas 4 recetas son tuyas"), así que el pergamino de "¡Recetas nuevas!"
@@ -495,6 +499,13 @@ func missing_ingredients(recipe_ids: Array) -> Array[String]:
 
 
 func consume_ingredients_for_level(recipe_ids: Array) -> bool:
+	# NIVELES DE PRÁCTICA (los dos primeros): no gastan NADA — ni usos de
+	# despensa ni saco de arroz — tampoco al repetirlos. Son la escuela del
+	# juego y David lo dice así ("hoy invita la casa"); el gasto de verdad
+	# empieza en el nivel 3, donde él mismo lo explica.
+	if is_adventure() and CampaignData.get_port(current_port) \
+			.get("free_ingredients", false):
+		return true
 	if not can_play():
 		return false
 	var needed := ingredients_for_selection(recipe_ids)
@@ -1380,6 +1391,7 @@ func save_game() -> void:
 		"shop_intro_done": shop_intro_done,
 		"rice_intro_done": rice_intro_done,
 		"pablo_shop_done": pablo_shop_done,
+		"menu_intro_done": menu_intro_done,
 		"narrated_ports": narrated_ports,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -1501,6 +1513,9 @@ func load_game() -> void:
 	shop_intro_done = bool(parsed.get("shop_intro_done", false))
 	rice_intro_done = bool(parsed.get("rice_intro_done", false))
 	pablo_shop_done = bool(parsed.get("pablo_shop_done", false))
+	# Guardados de antes de la guía del menú: si el tutorial ya está hecho, la
+	# guía sobra (ese jugador ya sabe dónde está la Aventura).
+	menu_intro_done = bool(parsed.get("menu_intro_done", tutorial_done))
 	narrated_ports = parsed.get("narrated_ports", [])
 	# Guardado de ANTES del tutorial: si ya tenía recetas es que ya jugó, así
 	# que no se le vuelve a plantar la introducción.
@@ -1571,6 +1586,7 @@ func _new_game() -> void:
 	shop_intro_done = false
 	rice_intro_done = false
 	pablo_shop_done = false
+	menu_intro_done = false
 	narrated_ports = []
 	# Los usos iniciales SOLO en partida nueva (si se diera también al cargar,
 	# se rellenarían gratis en cada arranque).

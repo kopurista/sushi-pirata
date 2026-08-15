@@ -143,12 +143,13 @@ func _pick(lista: Array) -> Dictionary:
 ## David lleva al jugador a conocer a Saverio. David habla desde la IZQUIERDA y
 ## Saverio desde la DERECHA (los dos en pantalla a la vez, ver DialogueBox).
 ## Al terminar quedan desbloqueados los EXTRAS, con 5 usos de regalo de cada uno.
-## ¿Toca la escena de Pablo? Solo una vez, y solo con el nivel 5 superado.
+## ¿Toca la escena de Pablo? Solo una vez, y solo con SU nivel (el 8, el de
+## la flota) superado.
 func _toca_pablo() -> bool:
 	if GameState.pablo_shop_done:
 		return false
-	var p5 := CampaignData.get_port("nivel_5")
-	return int(GameState.level_stars.get("nivel_5", 0)) 			>= int(p5.get("goal_stars", 2))
+	var p8 := CampaignData.get_port("nivel_8")
+	return int(GameState.level_stars.get("nivel_8", 0)) 			>= int(p8.get("goal_stars", 2))
 
 
 ## Pablo el Rubio se pasa por el puesto. Los dos hablan desde la DERECHA (es su

@@ -72,6 +72,7 @@ const BUDGETS := {
 	"vip_fem_rig": 6000,
 	"ayudante_fem_rig": 6000,
 	"pablo_rig": 6000,
+	"kappa_rig": 6000,
 }
 
 ## Tope de pasadas. Cada `generate_lods` recorta ~50%, así que 6 pasadas dan de

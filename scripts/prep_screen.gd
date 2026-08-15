@@ -133,17 +133,37 @@ func _aviso_antes_de_zarpar() -> void:
 			>= int(port.get("goal_stars", 1))
 	if superado:
 		return
-	if guion != "nivel_5":
-		return
+	var lineas: Array = []
+	match guion:
+		"nivel_3":
+			# La primera vez que el jugador PISA el selector — y el primer
+			# nivel que GASTA despensa: las dos cosas se cuentan aquí.
+			lineas = [
+				{ "text": "¡Tu primera **carta a elegir**! En los puertos decides tú qué recetas llevas: toca un pergamino para subirlo al barco.", "mood": "feliz" },
+				{ "text": "Y una noticia seria: se acabó lo gratis. Desde hoy cada receta que embarques gasta **un uso** de sus ingredientes de la **despensa**.", "mood": "serio" },
+				{ "text": "Los usos se ganan superando niveles... y pronto habrá otra manera. Hoy vas sobrado: ¡elige y zarpa!", "mood": "hablando" },
+				{ "text": "¡NADA ES GRATIS! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+			]
+		"nivel_8":
+			lineas = [
+				{ "text": "Antes de zarpar, escúchame bien: hoy abordamos la **flota de Pablo el Rubio**.", "mood": "serio" },
+				{ "text": "Pablo es un viejo amigo mío, pero de los que se ríen mientras te cobran. Y es **capitán**, así que come de tres estrellas.", "mood": "hablando" },
+				{ "text": "Solo puedes llevar **tres recetas**. Carga sobre todo platos de **una y dos estrellas**: son los que sacas rápido y los que van a comer los grumetes y los piratas.", "mood": "hablando" },
+				{ "text": "De lo gordo ya me encargo yo cuando llegue Pablo. Tú confía y cocina.", "mood": "feliz" },
+				{ "text": "¡CONFÍA Y COCINA! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+			]
+		"nivel_10":
+			lineas = [
+				{ "text": "Estas aguas... las conozco. Aquí vive el **Kappa**: un espíritu del río con más hambre que toda mi tripulación junta.", "mood": "serio" },
+				{ "text": "Come de TODO — una, dos y tres estrellas — pero se **aburre rapidísimo**. Llévale la carta más **variada** que puedas.", "mood": "hablando" },
+				{ "text": "Y ni se te ocurra ofrecerle postre: al Kappa no se le despide. Se le **alimenta**.", "mood": "sorprendido" },
+				{ "text": "¡DIEZ PLATOS O AL AGUA! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+			]
+		_:
+			return
 	var caja := DialogueBox.new()
 	$UI.add_child(caja)
-	caja.say([
-		{ "text": "Antes de zarpar, escúchame bien: hoy abordamos la **flota de Pablo el Rubio**.", "mood": "serio" },
-		{ "text": "Pablo es un viejo amigo mío, pero de los que se ríen mientras te cobran. Y es **capitán**, así que come de tres estrellas.", "mood": "hablando" },
-		{ "text": "Solo puedes llevar **tres recetas** y el turno dura minuto y medio. Carga sobre todo platos de **una y dos estrellas**: son los que sacas rápido y los que van a comer los grumetes y los piratas.", "mood": "hablando" },
-		{ "text": "De lo gordo ya me encargo yo cuando llegue Pablo. Tú confía y cocina.", "mood": "feliz" },
-		{ "text": "¡CONFÍA Y COCINA! ¡RAAAK!", "who": "gigi", "mood": "loro" },
-	])
+	caja.say(lineas)
 	await caja.finished
 	caja.queue_free()
 

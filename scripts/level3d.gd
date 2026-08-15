@@ -164,6 +164,16 @@ var unlimited := false
 ## Ventana sobre la que se reparten las llegadas. NO es la duración del nivel:
 ## marca el RITMO al que entra la clientela, también donde no hay reloj.
 var arrival_span := ARRIVAL_SPAN
+## SIN bote de propinas ni potenciadores de partida (niveles 1-4, la escuela):
+## el HUD esconde el bote y las propinas ni se tiran (los clientes salen con
+## `tips_enabled` a false, así que tampoco hay "+$N" verde que explicar).
+var no_powerups := false
+## JEFE del nivel ("" = ninguno). Con jefe, superar el nivel exige cumplir su
+## condición (el guion pone `boss_done` al lograrla): sin jefe rendido las
+## estrellas se quedan en 1 como mucho, y con él rendido caen al menos las 2
+## del aprobado. La 3ª sigue siendo cosa del dinero.
+var boss_id := ""
+var boss_done := false
 ## Segundos entre llegada y llegada (se deduce de arrival_span y la clientela).
 var arrival_step := 12.0
 var star_money: Array = DEFAULT_STAR_MONEY
@@ -415,8 +425,14 @@ func _ready() -> void:
 		var especial: Dictionary = port.get("special_client", {})
 		special_who = str(especial.get("who", ""))
 		special_type = str(especial.get("type", ""))
+		# La escuela (niveles 1-4): sin bote de propinas ni potenciadores.
+		no_powerups = bool(port.get("no_powerups", false))
+		# El JEFE del nivel, si lo hay (el Kappa del 10).
+		boss_id = str(port.get("boss", ""))
 		# Puertos que aún no han presentado extras, combinados ni barco.
 		prep_board.hide_extras = bool(port.get("no_extras", false))
+		# Las cajas de guardado se enseñan en el nivel 2: el 1 va sin ellas.
+		prep_board.hide_storage = bool(port.get("no_storage", false))
 		# El barco se estrena en el nivel 4 y desde ahí sale siempre; los
 		# combinados todavía no se presentan en ningún puerto.
 		# El barco pide DOS llaves: que el puerto lo permita (es la novedad del
@@ -438,7 +454,12 @@ func _ready() -> void:
 		# estrellas obligaba a tragarse el guion entero otra vez al repetir.
 		var ya_narrado: bool = ya_superado \
 			or GameState.port_narrated(GameState.current_port)
-		if str(port.get("director", "")) != "" and not ya_narrado:
+		# OJO: un nivel con JEFE monta su director SIEMPRE, narrado o no — el
+		# director es quien TRAE al jefe y vigila su duelo, y sin él el nivel
+		# sería infranqueable al reintentarlo. El propio guion consulta
+		# `port_narrated` para callarse los diálogos en las repeticiones.
+		if str(port.get("director", "")) != "" \
+				and (not ya_narrado or boss_id != ""):
 			var guia := preload("res://scripts/level_director.gd").new()
 			guia.name = "LevelDirector"
 			add_child.call_deferred(guia)
@@ -446,7 +467,8 @@ func _ready() -> void:
 			# el tsuke don es el regalo de David para Pablo, y servírselo a un
 			# grumete le quitaría la gracia a la escena. Al repetir el puerto
 			# ya no hay guion y el plato vale para todo el mundo.
-			exclusive_dishes = port.get("exclusive_dishes", {})
+			if not ya_narrado:
+				exclusive_dishes = port.get("exclusive_dishes", {})
 		# Jugar un nivel consume 1 uso de cada ingrediente de las recetas
 		# elegidas; si no alcanzan, vuelta a la seleccion.
 		if not GameState.consume_ingredients_for_level(GameState.selected_recipes):
@@ -468,6 +490,14 @@ func _ready() -> void:
 		# Termina cuando lo dice su guion, y punto.
 		timed = false
 		time_limit = 0.0
+		# La intro del CAOS se juega pelada: ni bote, ni cajas, ni extras — solo
+		# la tabla, el maki y una barra llena de bocas imposibles de contentar.
+		# El repaso de la interfaz hay que pedirlo A MANO: en la rama de
+		# aventura lo dispara la lectura del puerto, pero aquí no hay puerto
+		# (sin él, las cajas se quedaban dibujadas).
+		no_powerups = true
+		prep_board.hide_storage = true
+		prep_board.refresh_extra_ui()
 		total_clients = 1
 		prep_phase = false
 		_show_phase(false)
@@ -2232,6 +2262,9 @@ func _try_spawn_client() -> bool:
 		head_who[c.client_type] = CharacterData.who_for_type(c.client_type) \
 				if c.who_override == "" else c.who_override
 	c.patience_scale = patience_mult
+	# En la escuela (sin bote) las propinas ni se tiran: sin esto el cliente
+	# soltaba su "+$N" verde flotante hacia un bote que no está en pantalla.
+	c.tips_enabled = not no_powerups
 	# Entra andando por la borda mas cercana a su asiento, rodea el mostrador
 	# y llega a su taburete; al marcharse saldra por esa misma borda.
 	var entry: Vector3 = seats[idx]["entry"]
@@ -2388,6 +2421,10 @@ func _star_money() -> int:
 func _check_goal_reached() -> void:
 	if ended or goal_reached or star_money.is_empty():
 		return
+	# Con un JEFE pendiente el turno no se cierra por dinero: cortar la partida
+	# antes de que el jefe salga (o a mitad de su duelo) le robaría el nivel.
+	if boss_id != "" and not boss_done:
+		return
 	if _score_money() >= int(star_money.back()):
 		goal_reached = true
 		_end_level()
@@ -2415,6 +2452,11 @@ func _tip_threshold(claimed: int) -> int:
 
 
 func _add_tip(amount: int) -> void:
+	# Sin bote (niveles-escuela) las propinas no existen. Los clientes ya salen
+	# con `tips_enabled` a false, así que aquí no debería llegar nada; el guard
+	# cubre las que caen por otros canales (el bono de postre).
+	if no_powerups:
+		return
 	tips_total += amount
 	GameState.bump_stat("tips_total", amount)
 	# SIN `_check_goal_reached()`: las propinas cuentan para las estrellas al
@@ -2753,6 +2795,12 @@ func _finalize_results() -> void:
 	for threshold in star_money:
 		if _star_money() >= int(threshold):
 			stars += 1
+	# NIVEL CON JEFE: el aprobado es el jefe, no el oro. Sin rendirlo, las
+	# estrellas se quedan en 1 como mucho (el nivel NO se supera por dinero);
+	# con él rendido caen al menos las 2 del aprobado, y la 3ª sigue pidiendo
+	# el umbral de dinero de siempre.
+	if boss_id != "":
+		stars = maxi(stars, 2) if boss_done else mini(stars, 1)
 
 	# Lo que se cobra: platos + propinas + las primas por lo que ha sobrado.
 	bonus_clients = 0
@@ -3657,6 +3705,11 @@ func _apply_hud_layout() -> void:
 	var top: HBoxContainer = $HUD/TopRow
 	var caja_reloj: Control = $HUD/TopRow/TimeBox
 	caja_reloj.visible = timed
+	# Sin potenciadores (la escuela), el BOTE entero desaparece del marcador:
+	# una barra azul que nunca sube solo generaría preguntas.
+	if tip_bar != null and is_instance_valid(tip_bar) \
+			and tip_bar.get_parent() != null:
+		tip_bar.get_parent().visible = not no_powerups
 	if timed:
 		if time_gap != null:
 			time_gap.visible = false

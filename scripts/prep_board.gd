@@ -1206,6 +1206,8 @@ func refresh_extra_ui() -> void:
 	_update_boat_button()
 	_update_combo_button()
 	_update_extra_buttons()
+	# Las cajas de guardado con su propia compuerta (nivel 1 y la intro).
+	storage_box.visible = not hide_storage
 
 
 ## Añade una receta a la tabla EN PLENA PARTIDA: la usa el guion del nivel 3,
@@ -1348,6 +1350,11 @@ var hide_extras := false
 ## puerto de campaña el que las levanta (level3d las fija al leer el nivel).
 var hide_boat := false
 var hide_combo := false
+## Y las CAJAS DE GUARDADO tienen la suya: se enseñan en el nivel 2, así que el
+## 1 (y la intro del caos) se juegan solo con la tabla y la cinta. La levanta
+## level3d al leer el puerto (`no_storage`); con ella puesta, las cajas ni se
+## dibujan ni reciben platos (el arrastre que caía en su zona vuelve a la tabla).
+var hide_storage := false
 ## Mientras un guion ESTÁ ENSEÑANDO un gesto, equivocarse no cuesta dinero (el
 ## corte del salmón que explica David en el nivel 5). El aviso y el destello
 ## rojo siguen saliendo: lo único que se perdona es el bolsillo.
@@ -2560,7 +2567,9 @@ func _continue_dish_drag(event: InputEvent) -> void:
 		# Guardado con MUCHO margen (arriba, abajo y a los lados de las cajas):
 		# se comprueba primero, así soltar cerca de las cajas siempre guarda
 		# aunque también toque la franja de la cinta que pasa por encima.
-		if storage_box.get_global_rect().grow(90.0).has_point(center):
+		# Con las cajas OCULTAS (nivel 1) su zona no existe: cae al caso general.
+		if not hide_storage \
+				and storage_box.get_global_rect().grow(90.0).has_point(center):
 			var slot := _auto_store_index()
 			if slot >= 0:
 				_store_dish(d, slot)
@@ -2737,6 +2746,10 @@ func _refresh_stack_extras(i: int) -> void:
 
 ## Arrastrar DESDE una caja: saca un solo plato de la pila.
 func _try_start_stack_drag(event: InputEventScreenTouch) -> bool:
+	# Con las cajas ocultas no hay pilas que tocar (y aunque quedara alguna
+	# viva por un guion raro, su zona no debe comerse toques de la tabla).
+	if hide_storage:
+		return false
 	for i in stacks.keys():
 		var p: Control = storage_panels[i]
 		if p.get_global_rect().has_point(event.position):
