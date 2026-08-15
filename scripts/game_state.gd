@@ -183,7 +183,8 @@ var seen_medals: Dictionary = {}
 ## (ver achievement_data.gd). Clave -> entero. Los que empiezan por "best_"
 ## guardan un máximo, el resto se acumulan.
 var stats: Dictionary = {}
-## Segundos jugados de verdad (solo dentro de un nivel, nunca en los menús).
+## Segundos con el juego abierto: los suma `_process` de este autoload, así que
+## cuentan los menús, el mapa, la tienda y la pesca, no solo los niveles.
 var play_seconds: float = 0.0
 ## Ajustes del jugador (gráficos e identidad). `apply_graphics()` los aplica.
 var settings: Dictionary = {}
@@ -231,6 +232,18 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	load_game()
 	apply_graphics()
+
+
+## HORAS JUGADAS: se cuentan DESDE AQUÍ, así que suma todo el rato que el juego
+## está abierto — menús, mapa, tienda, pesca y niveles. Antes solo sumaba
+## `level3d` mientras había partida, y el contador de Progreso se quedaba muy
+## por debajo de lo que el jugador recordaba haber echado.
+##
+## El autoload va en PROCESS_MODE_ALWAYS, así que el reloj corre también con el
+## árbol en pausa (un cartel de resultados o un diálogo siguen siendo tiempo de
+## juego).
+func _process(delta: float) -> void:
+	play_seconds += delta
 
 
 # --- Fundido a negro entre pantallas ---------------------------------------
@@ -899,9 +912,9 @@ func max_stat(id: String, value: int) -> void:
 		queue_achievement_check()
 
 
-## Segundos JUGADOS: los suma `level3d` mientras hay partida (aventura y
-## arcade). Los menús no cuentan, así que el contador de Opciones dice tiempo
-## de juego de verdad, no tiempo con el juego abierto.
+## Suma tiempo de juego a mano. YA NO LO USA NADIE en el bucle normal (lo lleva
+## el `_process` de este autoload); se conserva por si algún día hace falta
+## sumar un rato que el motor no haya contado.
 func add_play_time(seconds: float) -> void:
 	play_seconds += seconds
 

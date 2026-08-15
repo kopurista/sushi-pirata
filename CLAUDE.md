@@ -819,8 +819,13 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   donde salen los logros: `bump_stat` suma, `max_stat` guarda récords,
   `achievement_value` resuelve sumas de claves y las "derived:*") y los
   **AJUSTES** (`settings`: bloque de gráficos, calidad, fps, sombras y
-  animaciones) y las HORAS JUGADAS (`play_seconds`, que solo suma `level3d`
-  dentro de una partida: los menús no cuentan). El nombre y el género van
+  animaciones) y las HORAS JUGADAS (`play_seconds`, que las suma el `_process`
+  DEL PROPIO AUTOLOAD: cuenta todo el rato con el juego abierto —menús, mapa,
+  tienda, pesca y niveles— y también con el árbol en pausa, porque GameState va
+  en `PROCESS_MODE_ALWAYS`. Estuvo sumando solo `level3d` dentro de una partida
+  y el contador de Progreso salía muy por debajo de lo que el jugador recordaba
+  haber echado; `level3d.play_time` sigue siendo el reloj de ESA partida, que es
+  otra cosa). El nombre y el género van
   aparte, en `player_name` / `player_gender`; los guardados de la primera
   versión de Opciones los traían dentro de `settings` y se rescatan al cargar.
   `apply_graphics()` aplica lo global (escala de render 3D y `Engine.max_fps`);

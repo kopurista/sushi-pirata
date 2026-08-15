@@ -2134,11 +2134,11 @@ func _show_chef_tool(tool: String) -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
-	# Horas jugadas (pestaña Progreso de Opciones): SOLO cuenta aquí, dentro de
-	# una partida. Los menús no suman, y el reloj se para al acabar el nivel.
+	# `play_time` es el reloj DE ESTA PARTIDA (lo usa el desglose del cartel de
+	# resultados). Las horas jugadas de toda la vida ya no se suman aquí: las
+	# lleva el `_process` de GameState, que cuenta también los menús.
 	if not ended:
 		play_time += delta
-		GameState.add_play_time(delta)
 	# El ayudante respira en reposo (desfasado del chef para que no parezcan dos
 	# copias del mismo muñeco) y solo amasa cuando le toca cocinar un plato.
 	if helper_anim != null:
