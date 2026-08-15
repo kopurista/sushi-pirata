@@ -64,6 +64,59 @@ def drop_white(img: Image.Image, thr: int = 232) -> Image.Image:
     return img
 
 
+def fill_white_holes(img: Image.Image, thr: int = 232) -> Image.Image:
+    """Transparenta el blanco que quedo ENCERRADO tras `drop_white`.
+
+    `drop_white` inunda desde los BORDES a proposito, para no tocar brillos
+    claros dentro del sujeto. Pero eso deja intacto el blanco que queda
+    encerrado por completo dentro del dibujo -sin camino hasta el borde-, como
+    el hueco circular de una senal de "prohibido" o el centro de un engranaje
+    detras de una llave: ahi no hay reflejo que proteger, es fondo que no
+    llego a inundarse. Se relanza la misma inundacion pero solo por las
+    regiones blancas QUE NO TOCAN EL BORDE.
+    """
+    img = img.copy()
+    w, h = img.size
+    px = img.load()
+    lab = [0] * (w * h)
+    tag = 0
+    groups = []  # tag -> (pixeles, toca_borde)
+    for sy in range(h):
+        for sx in range(w):
+            i = sy * w + sx
+            if lab[i]:
+                continue
+            r, g, b, a = px[sx, sy]
+            if not (a > 0 and r >= thr and g >= thr and b >= thr):
+                continue
+            tag += 1
+            pixels = []
+            touches_border = False
+            q = deque([(sx, sy)])
+            lab[i] = tag
+            while q:
+                x, y = q.popleft()
+                pixels.append((x, y))
+                if x == 0 or y == 0 or x == w - 1 or y == h - 1:
+                    touches_border = True
+                for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                    if 0 <= nx < w and 0 <= ny < h:
+                        j = ny * w + nx
+                        if lab[j]:
+                            continue
+                        nr, ng, nb, na = px[nx, ny]
+                        if na > 0 and nr >= thr and ng >= thr and nb >= thr:
+                            lab[j] = tag
+                            q.append((nx, ny))
+            groups.append((pixels, touches_border))
+    for pixels, touches_border in groups:
+        if touches_border:
+            continue
+        for x, y in pixels:
+            px[x, y] = (0, 0, 0, 0)
+    return img
+
+
 def keep_largest(img: Image.Image) -> Image.Image:
     """Deja solo la mancha de alfa mas grande.
 
@@ -506,6 +559,12 @@ def build_powerups() -> None:
     """
     for src, dst in POWERUPS:
         img = drop_white(Image.open(RAW / "pot" / f"{src}.webp").convert("RGBA"))
+        # "Nada se tira" es una senal de PROHIBIDO: el circulo rojo encierra un
+        # anillo de blanco entre el trazo y el cubo que la inundacion desde el
+        # borde no alcanza (no toca ningun canto de la imagen). Solo aqui: los
+        # demas potenciadores no tienen fondo encerrado y no hace falta tocarlos.
+        if dst == "pot_sin_basura":
+            img = fill_white_holes(img)
         save(fit_max(crop_alpha(drop_specks(img), 2), POWERUP_ICON_SIDE), dst)
 
 
@@ -793,6 +852,12 @@ def build_menu_panel() -> None:
     save(fit_max(timon, 300), "timon")
     for n in ("ic_logros", "ic_inventario", "ic_opciones"):
         img = drop_white(load("menu/" + n))
+        # El engranaje de Opciones encierra fondo: el circulo interior detras
+        # de la llave y las muescas entre dientes quedan rodeados de metal por
+        # todos lados, sin camino hasta el borde de la imagen. Solo aqui: los
+        # otros dos iconos no tienen huecos cerrados.
+        if n == "ic_opciones":
+            img = fill_white_holes(img)
         save(fit_max(crop_alpha(drop_specks(img), 2), 96), n)
 
 

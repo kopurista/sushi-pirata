@@ -45,7 +45,7 @@ SAIL_FRAC = 0.55
 MIN_TEXELS = 12
 
 COMP = {5120: "b", 5121: "B", 5122: "h", 5123: "H", 5125: "I", 5126: "f"}
-NUM = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}
+NUM = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4, "MAT4": 16}
 
 
 def read_glb(path):
