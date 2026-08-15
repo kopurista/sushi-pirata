@@ -821,6 +821,22 @@ func _open_recipe_sheet(id: String) -> void:
 		locked.add_theme_color_override("font_color", FADED)
 		body.add_child(locked)
 	else:
+		# QUÉ HACE ESTE PLATO, lo primero de la ficha. Es el mismo texto que sale
+		# en la ventana de "¡Receta nueva!" y se DEDUCE de los datos
+		# (`RecipeData.summary`), así que las dos pantallas no pueden discrepar.
+		var resumen := RecipeData.summary(id)
+		if resumen != "":
+			var desc := RichTextLabel.new()
+			desc.bbcode_enabled = true
+			desc.fit_content = true
+			desc.scroll_active = false
+			desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			desc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			desc.text = DialogueBox.format_keywords(resumen)
+			desc.add_theme_font_size_override("normal_font_size", 20)
+			desc.add_theme_font_size_override("bold_font_size", 20)
+			desc.add_theme_color_override("default_color", DARK)
+			body.add_child(desc)
 		body.add_child(_build_stats_block(data))
 		body.add_child(_section_title("Ingredientes"))
 		body.add_child(_build_ingredients_block(id))

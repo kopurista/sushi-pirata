@@ -312,6 +312,17 @@ func close() -> void:
 	clear_stage()
 
 
+## Cierra CON su fundido y espera a que termine antes de soltar el nodo.
+##
+## Lo necesitan las explicaciones sueltas del menú y del mapa, que montan una
+## caja por bloque: hacían `queue_free()` en cuanto llegaba `finished` y David
+## desaparecía de golpe, sin el fundido que sí tienen los guiones de nivel.
+func close_and_free() -> void:
+	close()
+	await get_tree().create_timer(FADE_OUT + 0.05).timeout
+	queue_free()
+
+
 ## Entrada/salida suave: la caja aparece subiendo un poco y se va bajando, y el
 ## velo del fondo la acompaña. Antes se encendía y se apagaba de golpe, y con
 ## Saverio saludando en cada visita a la tienda el corte cantaba mucho.
@@ -324,6 +335,13 @@ func _fade(entra: bool) -> void:
 		_fade_tween.kill()
 	_closing = not entra
 	if entra:
+		# DESDE CERO cuando la caja no estaba puesta: el nodo nace con
+		# `modulate.a` a 1, así que la PRIMERA aparición tweenaba de 1 a 1 y
+		# David entraba de golpe (solo se le veía deslizarse los 34 px). Se
+		# notaba en todas las explicaciones sueltas del menú, que crean una caja
+		# nueva por bloque.
+		if not visible:
+			modulate.a = 0.0
 		visible = true
 		position.y = FADE_RISE
 	_fade_tween = create_tween()

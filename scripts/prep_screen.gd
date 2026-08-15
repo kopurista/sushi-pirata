@@ -84,6 +84,17 @@ func _ready() -> void:
 			if id in permitidas:
 				filtradas.append(id)
 		available = filtradas
+		# RED DE SEGURIDAD DE LA ESCUELA: mientras no haya TIENDA (nivel 4) el
+		# jugador no tiene dónde reponer, así que quedarse sin NINGUNA receta
+		# jugable sería un callejón sin salida. David rellena lo que falte.
+		if not GameState.shop_unlocked() and not available.is_empty():
+			var jugable := false
+			for id in available:
+				if GameState.has_ingredients_for(id):
+					jugable = true
+					break
+			if not jugable:
+				_rescate_de_david(available)
 	# Agrupadas por nivel (1★, 2★, 3★); dentro de cada grupo, por precio.
 	var by_level: Dictionary = {}
 	for id in available:
@@ -135,14 +146,14 @@ func _aviso_antes_de_zarpar() -> void:
 		return
 	var lineas: Array = []
 	match guion:
-		"nivel_3":
-			# La primera vez que el jugador PISA el selector — y el primer
-			# nivel que GASTA despensa: las dos cosas se cuentan aquí.
+		"nivel_4":
+			# La primera vez que el jugador PISA el selector: hasta aquí las
+			# tres islas venían con la carta puesta.
 			lineas = [
 				{ "text": "¡Tu primera **carta a elegir**! En los puertos decides tú qué recetas llevas: toca un pergamino para subirlo al barco.", "mood": "feliz" },
-				{ "text": "Y una noticia seria: se acabó lo gratis. Desde hoy cada receta que embarques gasta **un uso** de sus ingredientes de la **despensa**.", "mood": "serio" },
-				{ "text": "Los usos se ganan superando niveles... y pronto habrá otra manera. Hoy vas sobrado: ¡elige y zarpa!", "mood": "hablando" },
-				{ "text": "¡NADA ES GRATIS! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+				{ "text": "Hoy solo caben **tres**, y vas a servir a ocho grumetes. Piénsatelo: con pocas recetas se repite mucho.", "mood": "serio" },
+				{ "text": "Cada receta que embarques gasta **un uso** de sus ingredientes de la despensa, así que mira también lo que te queda.", "mood": "hablando" },
+				{ "text": "¡ELIGE BIEN! ¡RAAAK!", "who": "gigi", "mood": "loro" },
 			]
 		"nivel_8":
 			lineas = [
@@ -577,3 +588,27 @@ func _on_start_pressed() -> void:
 	# Nivel 3D low poly (el level.tscn 2D queda como referencia hasta acabar
 	# la conversion completa del juego).
 	GameState.fade_to_scene("res://scenes/level3d.tscn", 0.35, 0.45)
+
+
+## RED DE SEGURIDAD DE LA ESCUELA: el jugador se ha quedado sin ingredientes
+## para NINGUNA de sus recetas y la tienda todavía no ha abierto (nivel 4), así
+## que no tiene dónde reponer. David le rellena la despensa y lo cuenta.
+##
+## Va aquí y no en el mapa porque este es el camino de los puertos de carta
+## LIBRE; las islas de carta cerrada lo resuelven en `level_select3d`.
+func _rescate_de_david(recetas: Array) -> void:
+	var repuestos := GameState.gift_missing_ingredients(recetas)
+	if repuestos.is_empty():
+		return
+	var caja := DialogueBox.new()
+	$UI.add_child(caja)
+	caja.say([
+		{ "text": "¡RAAAK! ¡LA DESPENSA ESTÁ PELADA! ¡No queda NADA que cocinar!",
+			"who": "gigi", "mood": "loro_grito" },
+		{ "text": "Calma. Toma **%d usos** de cada cosa que te faltaba, de mi **reserva particular**."
+			% GameState.RESCUE_GIFT, "mood": "feliz" },
+	])
+	await caja.finished
+	await caja.close_and_free()
+	# Las tarjetas ya se dibujaron con la despensa vieja: se repintan.
+	get_tree().reload_current_scene()

@@ -174,6 +174,23 @@ var no_powerups := false
 ## del aprobado. La 3ª sigue siendo cosa del dinero.
 var boss_id := ""
 var boss_done := false
+## Sin botón de "Salir" (la primera jornada: no hay de qué escaparse todavía).
+var no_exit := false
+## Sin el aparato de la VARIEDAD en los clientes: ni bocadillo de platos
+## comidos ni chapa del "x2". El multiplicador se sigue calculando por dentro,
+## solo que no se enseña hasta que David lo explica.
+var no_variety_ui := false
+## Sin BONIFICADORES permanentes: este puerto no los reparte aunque se cumpla
+## su combo (la primera jornada, que todavía no sabe qué son).
+var no_perks := false
+## La clientela ocupa las sillas por orden de CINTA en vez de al azar (ver
+## `_compute_seat_order`). Es de la escuela: con cuatro clientes sueltos, uno
+## sentado justo detrás del punto de salida espera una vuelta entera.
+var near_seats := false
+## Índices de asiento ordenados por cercanía de cinta (se calcula al vuelo).
+var seat_order: Array[int] = []
+## Clientes por llegada (1 = de uno en uno). Ver el reparto del horario.
+var arrival_batch := 1
 ## Segundos entre llegada y llegada (se deduce de arrival_span y la clientela).
 var arrival_step := 12.0
 var star_money: Array = DEFAULT_STAR_MONEY
@@ -427,10 +444,31 @@ func _ready() -> void:
 		special_type = str(especial.get("type", ""))
 		# La escuela (niveles 1-4): sin bote de propinas ni potenciadores.
 		no_powerups = bool(port.get("no_powerups", false))
+		# Y en la primera jornada, sin botón de Salir y sin el aparato de la
+		# VARIEDAD (bocadillos y chapas): son cosas que aún no se han contado.
+		# El botón de Salir se esconde SOLO EN EL ESTRENO del puerto: quien ya lo
+		# ha jugado una vez (aunque no lo aprobara) puede irse cuando quiera.
+		no_exit = bool(port.get("no_exit", false)) \
+				and not GameState.level_stars.has(GameState.current_port)
+		no_variety_ui = bool(port.get("no_variety_ui", false))
+		no_perks = bool(port.get("no_perks", false))
+		# Escuela: la clientela ocupa las sillas por orden de cinta, no al azar.
+		near_seats = bool(port.get("near_seats", false))
+		# Cuántos entran DE GOLPE en cada llegada (1 = de uno en uno).
+		arrival_batch = maxi(int(port.get("arrival_batch", 1)), 1)
+		# El botón de Salir se monta ANTES de leer el puerto (va con el resto
+		# del HUD), así que aquí ya está construido: hay que retirarlo a mano.
+		if no_exit and exit_button != null:
+			exit_button.queue_free()
+			exit_button = null
 		# El JEFE del nivel, si lo hay (el Kappa del 10).
 		boss_id = str(port.get("boss", ""))
 		# Puertos que aún no han presentado extras, combinados ni barco.
-		prep_board.hide_extras = bool(port.get("no_extras", false))
+		# Los EXTRAS necesitan las DOS llaves: que el puerto los permita y que
+		# Saverio ya los haya sacado (nivel 6). Sin la segunda, un puerto
+		# posterior repetido los enseñaría antes de que existan.
+		prep_board.hide_extras = bool(port.get("no_extras", false)) \
+				or not GameState.extras_unlocked()
 		# Las cajas de guardado se enseñan en el nivel 2: el 1 va sin ellas.
 		prep_board.hide_storage = bool(port.get("no_storage", false))
 		# El barco se estrena en el nivel 4 y desde ahí sale siempre; los
@@ -524,6 +562,17 @@ func _ready() -> void:
 		while t <= tope:
 			arrival_queue.append(clampf(t + randf_range(-3.0, 3.0) * arrival_scale, 2.0, tope))
 			t += arrival_step
+	elif arrival_batch > 1:
+		# LLEGADAS EN TANDAS (el nivel 4 de dos en dos, el 6 de cuatro en
+		# cuatro): la ventana se reparte entre TANDAS, no entre clientes, y
+		# dentro de una tanda el azar es mínimo para que se lean como un grupo
+		# que entra junto. Si no hay sillas libres, el spawner los va soltando
+		# según se vacían.
+		var tandas: int = maxi(ceili(float(total_clients) / float(arrival_batch)), 1)
+		arrival_step = maxf((last - FIRST_ARRIVAL) / float(maxi(tandas - 1, 1)), 4.0)
+		for i in total_clients:
+			var center := FIRST_ARRIVAL + float(i / arrival_batch) * arrival_step
+			arrival_queue.append(clampf(center + randf_range(-1.0, 1.0), 2.0, last))
 	else:
 		for i in total_clients:
 			var center := FIRST_ARRIVAL + i * arrival_step
@@ -572,6 +621,11 @@ func _setup_helper() -> void:
 ## Combos de la partida que desbloquean potenciadores permanentes. Devuelve
 ## los ids recién conseguidos, para anunciarlos en los resultados.
 func _check_perk_unlocks() -> Array:
+	# Los puertos-escuela que aún no han presentado los BONIFICADORES no los
+	# reparten: ganar uno sin saber qué es ni de dónde ha salido solo genera
+	# preguntas (`no_perks` del puerto; hoy lo lleva el nivel 1).
+	if no_perks:
+		return []
 	# Los potenciadores permanentes están APAGADOS a propósito: se abrirán
 	# cuando el diseño de la campaña lo pida (ver PerkData.UNLOCKS_ENABLED).
 	if not PerkData.UNLOCKS_ENABLED:
@@ -2160,13 +2214,9 @@ func _process(delta: float) -> void:
 		if prep_time_left <= 0.0:
 			prep_phase = false
 			_show_phase(false)
-			# La partida ha empezado de verdad: el guion de este puerto queda
-			# marcado como visto, así que si el jugador se queda corto de
-			# estrellas y repite, la segunda vez se juega sin explicaciones.
-			# Se marca AQUÍ y no al montar el nivel porque salir durante la
-			# preparación es gratis: ahí no debería quemarse la narración.
-			if GameState.is_adventure():
-				GameState.mark_port_narrated(GameState.current_port)
+			# (El guion del puerto se marca como visto al SUPERARLO, no aquí:
+			# ver `_finalize_results`. Quien se quede corto de estrellas y
+			# repita vuelve a tener a David explicándoselo todo.)
 		_update_hud()
 		return
 
@@ -2237,7 +2287,20 @@ func _try_spawn_client() -> bool:
 			free_seats.append(i)
 	if free_seats.is_empty():
 		return false
+	# LOS PRIMEROS ASIENTOS (`near_seats` del puerto, la escuela): en vez de
+	# sortear silla, se ocupan por orden de CINTA — primero al que el plato
+	# recién servido alcanza antes. Con pocos clientes y sillas al azar, uno
+	# podía caer justo detrás del punto de salida y quedarse esperando una
+	# vuelta entera, que es un castigo que el jugador no entiende y que en los
+	# niveles de aprender no aporta nada.
 	var idx: int = free_seats.pick_random()
+	if near_seats:
+		if seat_order.is_empty():
+			_compute_seat_order()
+		for s in seat_order:
+			if s in free_seats:
+				idx = s
+				break
 	var c: Node3D = CLIENT3D.new()
 	if not forced_types.is_empty():
 		c.client_type = forced_types.pop_front()
@@ -2265,6 +2328,7 @@ func _try_spawn_client() -> bool:
 	# En la escuela (sin bote) las propinas ni se tiran: sin esto el cliente
 	# soltaba su "+$N" verde flotante hacia un bote que no está en pantalla.
 	c.tips_enabled = not no_powerups
+	c.variety_ui = not no_variety_ui
 	# Entra andando por la borda mas cercana a su asiento, rodea el mostrador
 	# y llega a su taburete; al marcharse saldra por esa misma borda.
 	var entry: Vector3 = seats[idx]["entry"]
@@ -2280,6 +2344,22 @@ func _try_spawn_client() -> bool:
 	clients_spawned += 1
 	_update_client_heads()
 	return true
+
+
+## Orden de los asientos por CERCANÍA DE CINTA: cuánto recorre un plato recién
+## nacido (en `SPAWN_PROGRESS`) hasta pasar por delante de cada silla. Lo usa
+## `near_seats`; se calcula una vez porque el circuito no cambia.
+func _compute_seat_order() -> void:
+	var largo: float = belt_path.curve.get_baked_length()
+	var pares: Array = []
+	for i in seats.size():
+		var off: float = belt_path.curve.get_closest_offset(seats[i]["belt"])
+		pares.append({ "i": i, "d": fposmod(off - SPAWN_PROGRESS, largo) })
+	pares.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a["d"]) < float(b["d"]))
+	seat_order.clear()
+	for e in pares:
+		seat_order.append(int(e["i"]))
 
 
 ## Ruta de entrada: desde SU borda (la esquina superior para las sillas de
@@ -2820,6 +2900,15 @@ func _finalize_results() -> void:
 	# líneas del desglose no sumaban el titular.
 	var total_money := _star_money() + bonus_clients + bonus_time
 
+	# EL GUION SE QUEMA AL SUPERAR EL NIVEL, NO AL JUGARLO. Si el jugador se
+	# queda corto de estrellas y repite, David vuelve a explicárselo todo; en
+	# cuanto lo aprueba, las repeticiones son partidas limpias. (Estuvo
+	# marcándose al acabar la fase de preparación, y entonces un intento
+	# fallido dejaba al jugador sin la clase que aún necesitaba.)
+	if GameState.is_adventure() and stars >= int(CampaignData.get_port(
+			GameState.current_port).get("goal_stars", 2)):
+		GameState.mark_port_narrated(GameState.current_port)
+
 	var new_recipes: Array = []
 	if GameState.is_adventure():
 		GameState.money += total_money
@@ -3145,8 +3234,13 @@ func _show_next_recipe(overlay: ColorRect, queue: Array) -> void:
 	overlay.add_child(center)
 
 	var box := Control.new()
-	box.custom_minimum_size = Vector2(470, 580)
-	box.pivot_offset = Vector2(235, 290)
+	# Con descripción el cartel crece: la ficha de una receta trae ahora un
+	# párrafo de dos o tres renglones y con el alto de siempre se salía.
+	var alto := 580.0
+	if not is_perk and RecipeData.summary(id) != "":
+		alto = 690.0
+	box.custom_minimum_size = Vector2(470, alto)
+	box.pivot_offset = Vector2(235, alto * 0.5)
 	center.add_child(box)
 	box.add_child(prep_board.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 
@@ -3203,6 +3297,21 @@ func _show_next_recipe(overlay: ColorRect, queue: Array) -> void:
 	else:
 		var lvl := int(data.get("level", 1))
 		vb.add_child(prep_board.make_star_row(lvl, lvl, 34))
+		# QUÉ HACE ESTA RECETA, aquí mismo: ganarla y no saber para qué sirve
+		# obligaba a irse al recetario a buscarlo. El texto se DEDUCE de los
+		# datos (`RecipeData.summary`), así que nunca se queda desfasado.
+		var resumen := RecipeData.summary(id)
+		if resumen != "":
+			var desc := RichTextLabel.new()
+			desc.bbcode_enabled = true
+			desc.fit_content = true
+			desc.scroll_active = false
+			desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			desc.text = "[center]%s[/center]" % DialogueBox.format_keywords(resumen)
+			desc.add_theme_font_size_override("normal_font_size", 19)
+			desc.add_theme_font_size_override("bold_font_size", 19)
+			desc.add_theme_color_override("default_color", Color(0.42, 0.3, 0.18))
+			vb.add_child(desc)
 
 	if not queue.is_empty():
 		var counter := Label.new()
@@ -3486,8 +3595,9 @@ func _icon_amount(icon_path: String, text: String) -> Control:
 ## para algo que no se toca casi nunca, y una flecha suelta no decia si vuelve
 ## al mapa, retrocede un paso o abandona la partida.
 func _setup_exit_button() -> void:
-	# En el tutorial no se puede abandonar: interfaz mínima, sin "Salir".
-	if GameState.is_tutorial():
+	# En el tutorial no se puede abandonar: interfaz mínima, sin "Salir". En la
+	# primera jornada de campaña tampoco (`no_exit` del puerto).
+	if GameState.is_tutorial() or no_exit:
 		return
 	var b := Button.new()
 	b.text = "Salir"
@@ -3680,8 +3790,16 @@ func _on_retry_pressed() -> void:
 
 ## "Siguiente" devuelve al MAPA de la campaña (no al menú principal), que es
 ## desde donde se elige el puerto siguiente.
+##
+## Con la TIENDA recién abierta (nivel 4) el juego lleva al jugador DIRECTO al
+## puesto de Saverio: David acaba de decirle que se pase, y hacerle buscar el
+## botón en el menú justo después rompía la escena.
 func _on_menu_pressed() -> void:
 	get_tree().paused = false
+	if GameState.pending_shop_visit:
+		GameState.pending_shop_visit = false
+		GameState.fade_to_scene("res://scenes/shop_screen.tscn", 0.35, 0.45)
+		return
 	if GameState.is_adventure():
 		GameState.transition = "mapa"
 	GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45)
@@ -3705,6 +3823,11 @@ func _apply_hud_layout() -> void:
 	var top: HBoxContainer = $HUD/TopRow
 	var caja_reloj: Control = $HUD/TopRow/TimeBox
 	caja_reloj.visible = timed
+	# El lienzo puede cambiar de ancho después del arranque (ventana redimensionada,
+	# rotación en móvil): sin esto el cuerpo del contador se quedaba con la medida
+	# del primer fotograma y "120/120" salía cortado.
+	if not get_viewport().size_changed.is_connected(_fit_top_row):
+		get_viewport().size_changed.connect(_fit_top_row)
 	# Sin potenciadores (la escuela), el BOTE entero desaparece del marcador:
 	# una barra azul que nunca sube solo generaría preguntas.
 	if tip_bar != null and is_instance_valid(tip_bar) \
@@ -3743,14 +3866,26 @@ func _medir_hueco() -> void:
 ## cuesta DOS. Con dos cifras a cada lado ("10/10", "17/17") la suma de mínimos
 ## igualaba JUSTO el ancho disponible, y en cuanto el lienzo es un poco más
 ## estrecho el contador sale cortado ("10/1").
-const CLIENTS_FONTS := [42, 38, 34, 30, 26]
+const CLIENTS_FONTS := [42, 38, 34, 30, 26, 23, 20]
+
+## Última medida aplicada (ancho de la fila, clientela): ver `_update_hud`.
+var _row_fit_key := Vector2i(-1, -1)
 
 
 ## Elige el cuerpo más grande con el que la fila entra ENTERA, midiendo el peor
-## texto posible del nivel ("N/N" con toda la clientela). Se decide una sola vez
-## por partida: `total_clients` se sabe al arrancar y el lienzo no cambia.
+## texto posible del nivel ("N/N" con toda la clientela).
+##
+## SE REMIDE, no se decide una vez: la primera pasada del `_ready` corre con el
+## lienzo aún asentándose (y en el tutorial, con un `total_clients` que el guion
+## cambia después a 120), así que un único cálculo temprano elegía un cuerpo que
+## luego NO cabía y el contador salía cortado por la derecha. Por eso espera DOS
+## fotogramas (los contenedores recolocan en diferido) y se vuelve a llamar
+## desde `size_changed` del viewport.
 func _fit_top_row() -> void:
 	await get_tree().process_frame
+	await get_tree().process_frame
+	if not is_inside_tree():
+		return
 	var top: HBoxContainer = $HUD/TopRow
 	var caja: Control = clients_label.get_parent()
 	var peor := "99" if unlimited else "%d/%d" % [total_clients, total_clients]
@@ -3778,6 +3913,14 @@ func _fit_top_row() -> void:
 
 
 func _update_hud() -> void:
+	# El cuerpo del contador se REVISA cada vez que cambia el ancho de la fila o
+	# la clientela del nivel. La medida diferida del arranque llega con el lienzo
+	# todavía asentándose (y en el tutorial, antes de que el guion suba el total a
+	# 120), así que decidirlo una sola vez dejaba "120/120" cortado por la derecha.
+	var clave := Vector2i(int($HUD/TopRow.size.x), total_clients)
+	if clave != _row_fit_key:
+		_row_fit_key = clave
+		_fit_top_row()
 	if timed:
 		var remaining := maxf(time_limit - elapsed, 0.0)
 		time_label.text = "%d:%02d" % [int(remaining) / 60, int(remaining) % 60]

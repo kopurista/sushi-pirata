@@ -1355,6 +1355,13 @@ var hide_combo := false
 ## level3d al leer el puerto (`no_storage`); con ella puesta, las cajas ni se
 ## dibujan ni reciben platos (el arrastre que caía en su zona vuelve a la tabla).
 var hide_storage := false
+## LA CINTA, CERRADA POR GUION (la lección de las cajas del nivel 1): mientras
+## esté puesto, un plato terminado NO se puede mandar a la cinta — solo
+## guardarse. El guion lo usa para obligar a llenar las cajas antes de servir,
+## y avisa por `serve_blocked` para que Gigi lo explique en vez de dejar al
+## jugador tocando un plato que no reacciona.
+var block_serve := false
+signal serve_blocked
 ## Mientras un guion ESTÁ ENSEÑANDO un gesto, equivocarse no cuesta dinero (el
 ## corte del salmón que explica David en el nivel 5). El aviso y el destello
 ## rojo siguen saliendo: lo único que se perdona es el bolsillo.
@@ -2586,6 +2593,12 @@ func _continue_dish_drag(event: InputEvent) -> void:
 
 
 func _serve_dish(d: Control) -> void:
+	# Cinta cerrada por guion: el plato se queda en la tabla y el director
+	# se entera para poder explicar por qué.
+	if block_serve:
+		serve_blocked.emit()
+		d.position = _dish_rest_position(dishes.find(d))
+		return
 	dishes.erase(d)
 	_fly_dish_to_belt(d)
 	# Los extras se gastan de la despensa AQUÍ, uno por plato servido; si al

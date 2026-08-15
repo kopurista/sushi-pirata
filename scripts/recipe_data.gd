@@ -246,6 +246,34 @@ const RECIPES: Dictionary = {
 		],
 		"stages": ["arroz_bola", "arroz_plano", "plano_aguacate", "rollo_aguacate", "corte_aguacate"],
 	},
+	"maki_pepino": {
+		"label": "MaPep",
+		"name": "Maki de pepino",
+		"level": 1,
+		"satiety": 1,
+		"cooldown": 3.0,
+		# CUATRO piezas por elaboración (la de mano + 3 de maestría) frente a las
+		# tres del maki de aguacate, a cambio de pagar 2 en vez de 3. Es la ÚNICA
+		# receta con `free_uses` 3 de toda la carta: por eso su precio POR PIEZA es
+		# el más bajo que hay (8 doblones por elaboración, contra los 9 del maki de
+		# aguacate, y con un paso más de trabajo). Ver el calibrado por $/s.
+		"price": 2,
+		"vegetarian": true,
+		"patience_mult": 0.8,
+		"free_uses": 3,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "arroz" },
+			{ "type": "tap_board", "count": 3 },
+			{ "type": "tap_ingredient", "ingredient": "pepino" },
+			# Aquí está la diferencia con el maki de aguacate: el pepino NO se
+			# arrastra entero, se CORTA en bastones sobre el arroz.
+			{ "type": "tap_board", "count": 3, "cutting": true },
+			{ "type": "swipe_board", "count": 2, "direction": "down" },
+			{ "type": "tap_board", "count": 2, "cutting": true },
+		],
+		"stages": ["arroz_bola", "arroz_plano", "plano_pepino", "plano_pepino_cort",
+			"rollo_pepino", ""],
+	},
 	"nigiri_salmon": {
 		"label": "NiSal",
 		"name": "Nigiri de salmón",
@@ -304,6 +332,11 @@ const RECIPES: Dictionary = {
 		"vegetarian": true,
 		"patience_mult": 1.2,
 		"eat_mult": 1.5,
+		# LIMPIA EL PALADAR como el té verde (todo vuelve a contar como nuevo)
+		# pero NO sube el multiplicador: es el reinicio en versión plato
+		# principal — cuesta un hueco de carta y una elaboración larga, y a
+		# cambio se cobra como plato en vez de valer 1 doblón.
+		"clears_boredom": true,
 		"steps": [
 			{ "type": "tap_ingredient", "ingredient": "agua" },
 			{ "type": "hold_board", "duration": 1.2 },
@@ -481,6 +514,28 @@ const RECIPES: Dictionary = {
 			{ "type": "drag_ingredient", "ingredient": "edamame", "prop": "cuenco_vacio" },
 		],
 		"stages": [""],
+	},
+	"sunomono": {
+		"label": "Suno",
+		"name": "Sunomono",
+		"level": 1,
+		"satiety": 1,
+		"cooldown": 3.0,
+		"price": 2,
+		"vegetarian": true,
+		"snack": true,
+		"take_chance": 0.9,
+		# EL ÚNICO PICOTEO QUE SUMA VARIEDAD. El edamame y el té no tocan la racha
+		# del cliente (ni la suben ni la rompen, que son aperitivos); este sí, así
+		# que es la manera barata de estirar un multiplicador cuando la carta ya
+		# está agotada — y encima se puede picar sin soltar el plato en curso.
+		"variety_snack": true,
+		"steps": [
+			{ "type": "tap_ingredient", "ingredient": "pepino" },
+			{ "type": "tap_board", "count": 3, "cutting": true },
+			{ "type": "drag_stage", "prop": "cuenco_vacio" },
+		],
+		"stages": ["pepino_tabla", "pepino_rodajas", ""],
 	},
 	"tempura": {
 		"label": "Tempu",
@@ -1071,3 +1126,93 @@ static func get_recipe_ingredients(id: String) -> Array[String]:
 			if ing != "" and not ing in result:
 				result.append(ing)
 	return result
+
+
+## --- QUÉ HACE ESTA RECETA, en una frase -------------------------------------
+##
+## Se DEDUCE de los datos, no se escribe a mano receta por receta: así una
+## ficha nunca puede mentir (si mañana el mochi deja de liberar la silla, su
+## descripción cambia sola) y una receta nueva llega descrita sin trabajo
+## extra. Lo usan la ventana de "¡Receta nueva!" y la ficha del recetario.
+##
+## Devuelve de una a tres frases cortas, con las palabras clave entre
+## `**asteriscos**` (el mismo marcador que los diálogos, ver
+## `DialogueBox.format_keywords`). Solo se cuentan las particularidades: lo que
+## ya se ve en la ficha (estrellas, precio, ingredientes) no se repite.
+
+## Nombre en plural de cada tipo de cliente, para los platos de un solo paladar.
+const TYPE_PLURAL: Dictionary = {
+	"E": "grumetes", "A": "piratas", "G": "capitanes",
+}
+## Cuántas frases como mucho: más de tres y deja de ser una descripción.
+const SUMMARY_MAX := 3
+
+
+static func summary(id: String) -> String:
+	var r := get_recipe(id)
+	if r.is_empty():
+		return ""
+	var f: Array[String] = []
+
+	if bool(r.get("snack", false)):
+		f.append("**Picoteo**: el cliente lo coge sin soltar el plato que está comiendo, y le alarga el bocado.")
+	if bool(r.get("variety_snack", false)):
+		f.append("Y, al contrario que los demás picoteos, **sube el multiplicador**.")
+	if bool(r.get("leaves_seat", false)):
+		var quien := str(TYPE_PLURAL.get(str(r.get("only_type", "")), ""))
+		f.append("**Postre**: al terminarlo el cliente paga, deja propina segura, cobra su multiplicador y **deja la silla libre**%s."
+			% ("" if quien == "" else ". Solo lo cogen los %s" % quien))
+	if bool(r.get("clears_boredom", false)) and not bool(r.get("snack", false)):
+		f.append("**Limpia el paladar**: todo vuelve a contar como nuevo, pero sin subir el multiplicador.")
+	elif bool(r.get("clears_boredom", false)):
+		f.append("Además **limpia el paladar**: todo vuelve a contar como nuevo.")
+
+	var libres := int(r.get("free_uses", 0))
+	if libres > 0:
+		f.append("**Maestría**: de una sola elaboración salen **%d piezas** — la primera la haces tú y las demás salen ya hechas."
+			% (libres + 1))
+
+	var congela := float(r.get("patience_freeze", 0.0))
+	if congela > 0.0:
+		f.append("**Congela la paciencia** del cliente %d segundos." % int(congela))
+
+	var comer := float(r.get("eat_mult", 1.0))
+	if comer >= 1.3:
+		f.append("Se come **muy despacio**: aparta al cliente un buen rato.")
+	elif comer <= 0.7:
+		f.append("Se come **deprisa**: el cliente vuelve enseguida a pedir.")
+
+	var llena := float(r.get("patience_mult", 1.0))
+	if llena >= 1.2:
+		f.append("**Llena más** de lo que aparenta para su nivel.")
+	elif llena <= 0.85:
+		f.append("Llena **poco**: es rápido de hacer, no de saciar.")
+
+	if float(r.get("tip_amount_mult", 1.0)) > 1.0:
+		f.append("Cuando cae propina, cae **más gorda**.")
+	if float(r.get("tip_chance_bonus", 0.0)) > 0.0:
+		f.append("Sube la **probabilidad** de propina.")
+
+	# Gestos que el jugador tiene que saber ANTES de meterse en la receta.
+	for step in r.get("steps", []):
+		match str(step.get("type", "")):
+			"slice_board":
+				if int(step.get("fail_penalty", 0)) > 0:
+					f.append("Lleva **corte lento**, y cortarlo con prisa cuesta oro.")
+				else:
+					f.append("Lleva **corte lento**: de lado a lado y sin correr.")
+			"fry_board":
+				f.append("Hay que **clavar el punto** de fritura: pasarse o quedarse corto cambia lo que paga.")
+			"drag_choice":
+				f.append("Se **elige el pescado** al prepararlo, y el plato cambia con él.")
+
+	var take: Variant = r.get("take_chance", null)
+	if take is float and float(take) >= 0.85:
+		f.append("Lo coge **cualquier paladar**, sea del tipo que sea.")
+
+	if f.is_empty():
+		return ""
+	var out := ""
+	for i in mini(f.size(), SUMMARY_MAX):
+		out += ("" if out == "" else " ") + f[i]
+	return out

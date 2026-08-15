@@ -31,6 +31,10 @@ const BUDGETS := {
 	"gunkan_ikura": 2500,
 	"hana_maki": 2500,
 	"edamame": 2500,
+	"maki_pepino": 2500,
+	# El cuenco del sunomono es geometría MUY simple y con 2.500 el
+	# simplificador lo dejaba en 48 triángulos (una caja): medido y subido.
+	"sunomono": 9000,
 	"temaki": 2500,
 	"aburi": 2500,
 	"aburi_atun": 2500,

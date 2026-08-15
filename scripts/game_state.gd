@@ -56,7 +56,7 @@ var player_name: String = ""
 ## (tabla a la izquierda, cajas y botones a la derecha); con la DERECHA el
 ## panel inferior se voltea en espejo para que el pulgar derecho no tape las
 ## instrucciones ni tenga que estirarse hasta la tabla.
-var player_hand: String = "L"
+var player_hand: String = "R"
 
 
 func right_handed() -> bool:
@@ -106,9 +106,23 @@ var unlocked_powerups: Array[String] = []
 ## menú manda a la introducción y no hay recetas desbloqueadas (las 4 primeras
 ## las entrega el propio tutorial).
 var tutorial_done := false
-## true cuando David ya ha presentado la TIENDA y a Saverio (tras el nivel 2).
-## Es lo que además abre los EXTRAS: antes de esa escena no existen.
+## true cuando David ya ha presentado la TIENDA y a Saverio (tras el nivel 4).
 var shop_intro_done := false
+## Los EXTRAS (jengibre, wasabi, soja) llegan MÁS TARDE que la tienda: Saverio
+## los saca en el nivel 6, no el día que abre el puesto. Hasta entonces ni
+## aparecen en la tabla ni se venden.
+var extras_done := false
+## David ya felicitó al jugador tras superar el NIVEL 1 (recompensas + invitación
+## al 2) y ya explicó el BONUS DIARIO. Los dos van seguidos y una sola vez.
+var level1_outro_done := false
+var daily_intro_done := false
+## La lección del CUBO DE BASURA ya se ha contado. Es de TODA LA PARTIDA, no de
+## un nivel: atada al nivel, David y Gigi repetían la parrafada cada vez que se
+## colaba un plato en cualquier puerto narrado.
+var trash_intro_done := false
+## De SESIÓN (no se guarda): al cerrar el nivel que abre la tienda, el juego
+## lleva al jugador allí en vez de devolverlo al mapa.
+var pending_shop_visit := false
 ## David ya explicó para qué sirve el ARROZ (al elegir el primer puerto).
 var rice_intro_done := false
 ## Ya se vio la escena de Pablo y Saverio en la tienda (tras su nivel).
@@ -116,14 +130,22 @@ var pablo_shop_done := false
 ## David ya señaló el pergamino de AVENTURA en el menú (la primera visita tras
 ## el rescate). Persistente: la guía solo se da una vez.
 var menu_intro_done := false
+## Y David ya señaló el PRIMER PUERTO en el mapa (la guía de los tres tipos
+## de nivel). Igual que la anterior: una sola vez en la vida de la partida.
+var map_intro_done := false
 ## Puertos cuyo GUION ya se ha visto (ver `port_narrated`). Se marca al terminar
 ## la fase de preparación, así que fallar y repetir NO obliga a volver a pasar
 ## por las explicaciones.
 var narrated_ports: Array = []
-## Usos de ingredientes que regala el juego al desbloquear recetas: la tanda
-## del tutorial viene más surtida que las de cada nivel.
-const TUTORIAL_GIFT := 5
-const PORT_GIFT := 3
+## Usos de ingredientes que regala el juego al desbloquear una receta. TODA
+## receta nueva llega con DIEZ usos de lo que pide: la campaña-escuela no tiene
+## tienda hasta el nivel 4, así que hasta entonces el jugador no puede reponer
+## nada y una receta recién regalada tiene que dar para varias jornadas.
+const TUTORIAL_GIFT := 10
+const PORT_GIFT := 10
+## Y si aun así se queda a CERO de algo antes de que abra la tienda, David
+## aparece y le regala esta cantidad (ver `gift_missing_ingredients`).
+const RESCUE_GIFT := 3
 ## Mejor resultado en estrellas (0-3) por nivel jugado. port_id -> int.
 var level_stars: Dictionary = {}
 ## Mejor puntuación (dinero ganado) por nivel jugado. port_id -> int.
@@ -309,20 +331,36 @@ func shop_unlocked() -> bool:
 	return true
 
 
-## La PESCA está ABIERTA DESDE EL INICIO (decidido para poder probarla sin
-## trabas). El candado de antes —superar el puerto con `unlocks_fishing`, el
-## nivel 4— queda aquí apuntado por si algún día se quiere reponer:
-##   for p in CampaignData.PORTS:
-##       if p.get("unlocks_fishing", false):
-##           return int(level_stars.get(p["id"], 0)) >= int(p.get("goal_stars", 1))
+## La PESCA se gana superando el puerto que la trae (`unlocks_fishing`, hoy el
+## nivel 5): hasta entonces su pergamino del menú queda apagado. Estuvo abierta
+## desde el inicio mientras se probaba el minijuego.
 func fishing_unlocked() -> bool:
+	for p in CampaignData.PORTS:
+		if p.get("unlocks_fishing", false):
+			return int(level_stars.get(p["id"], 0)) >= int(p.get("goal_stars", 1))
 	return true
 
 
-## Los EXTRAS (jengibre, wasabi, soja) los presenta Saverio la primera vez que
-## David lleva al jugador a la tienda: hasta entonces ni existen.
+## Los EXTRAS (jengibre, wasabi, soja) los saca Saverio en el nivel 6, DOS
+## niveles después de abrir el puesto: la tienda ya es bastante novedad ella
+## sola, y los extras solo tienen sentido cuando el jugador conoce el hastío.
 func extras_unlocked() -> bool:
-	return shop_intro_done
+	return extras_done
+
+
+## Regala `RESCUE_GIFT` usos de cada ingrediente del que no quede nada. Es la
+## red de seguridad de la escuela: MIENTRAS NO HAY TIENDA (nivel 4) el jugador
+## no puede reponer, así que quedarse a cero sería un callejón sin salida.
+## Devuelve los ingredientes que ha rellenado (vacío si no hacía falta o si la
+## tienda ya está abierta).
+func gift_missing_ingredients(recipe_ids: Array) -> Array[String]:
+	var faltan := missing_ingredients(recipe_ids)
+	if faltan.is_empty() or shop_unlocked():
+		return [] as Array[String]
+	for ing in faltan:
+		add_ingredient_uses(ing, RESCUE_GIFT)
+	save_game()
+	return faltan
 
 
 ## Puerto que abre el modo Arcade al superarlo. Todavía no está en la campaña
@@ -396,6 +434,13 @@ func has_ingredients_for(recipe_id: String) -> bool:
 func ingredients_for_selection(recipe_ids: Array) -> Array[String]:
 	var out: Array[String] = []
 	for rid in recipe_ids:
+		# UNA RECETA QUE TODAVÍA NO ES SUYA NO PIDE DESPENSA. En la carta cerrada
+		# de una isla puede haber una receta que David REGALA dentro del nivel
+		# (el nigiri de salmón del 1): antes de zarpar el jugador aún no la tiene
+		# ni tiene su género, y avisarle de que "le falta salmón" era mentir —
+		# el salmón se lo va a dar David, con sus usos, en mitad de la partida.
+		if is_adventure() and not is_recipe_unlocked(str(rid)):
+			continue
 		for ing in RecipeData.get_ingredients(rid):
 			if int(RecipeData.get_ingredient(ing).get("cost", 0)) <= 0:
 				continue
@@ -499,16 +544,21 @@ func missing_ingredients(recipe_ids: Array) -> Array[String]:
 
 
 func consume_ingredients_for_level(recipe_ids: Array) -> bool:
-	# NIVELES DE PRÁCTICA (los dos primeros): no gastan NADA — ni usos de
-	# despensa ni saco de arroz — tampoco al repetirlos. Son la escuela del
-	# juego y David lo dice así ("hoy invita la casa"); el gasto de verdad
-	# empieza en el nivel 3, donde él mismo lo explica.
-	if is_adventure() and CampaignData.get_port(current_port) \
-			.get("free_ingredients", false):
-		return true
+	# NIVEL DE PRÁCTICA (solo el primero): no gasta DESPENSA, tampoco al
+	# repetirlo. El ARROZ sí se gasta desde la primera jornada — es la energía
+	# del juego y hay que verla bajar, o el saco que regala el bonus diario de
+	# ese mismo día parece que no suma nada. El gasto de despensa empieza en el
+	# nivel 2 (David lo avisa).
+	var gratis: bool = is_adventure() and CampaignData.get_port(current_port) \
+			.get("free_ingredients", false)
 	if not can_play():
 		return false
-	var needed := ingredients_for_selection(recipe_ids)
+	# Tipo explícito: con el ternario, el `[]` llega como Array pelado y la
+	# asignación a un Array[String] revienta en tiempo de ejecución (y el nivel
+	# se caía entero al arrancar).
+	var needed: Array[String] = []
+	if not gratis:
+		needed = ingredients_for_selection(recipe_ids)
 	for ing in needed:
 		if get_ingredient_uses(ing) <= 0:
 			return false
@@ -1389,9 +1439,14 @@ func save_game() -> void:
 		"unlocked_titles": unlocked_titles,
 		"tutorial_done": tutorial_done,
 		"shop_intro_done": shop_intro_done,
+		"extras_done": extras_done,
+		"level1_outro_done": level1_outro_done,
+		"daily_intro_done": daily_intro_done,
+		"trash_intro_done": trash_intro_done,
 		"rice_intro_done": rice_intro_done,
 		"pablo_shop_done": pablo_shop_done,
 		"menu_intro_done": menu_intro_done,
+		"map_intro_done": map_intro_done,
 		"narrated_ports": narrated_ports,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -1511,11 +1566,18 @@ func load_game() -> void:
 		settings[k] = int(settings[k])
 	tutorial_done = bool(parsed.get("tutorial_done", false))
 	shop_intro_done = bool(parsed.get("shop_intro_done", false))
+	# Guardados de cuando los EXTRAS los abría la tienda: quien ya la tenía
+	# abierta se queda con ellos (quitárselos sería una regresión).
+	extras_done = bool(parsed.get("extras_done", shop_intro_done))
+	level1_outro_done = bool(parsed.get("level1_outro_done", tutorial_done))
+	daily_intro_done = bool(parsed.get("daily_intro_done", tutorial_done))
+	trash_intro_done = bool(parsed.get("trash_intro_done", tutorial_done))
 	rice_intro_done = bool(parsed.get("rice_intro_done", false))
 	pablo_shop_done = bool(parsed.get("pablo_shop_done", false))
 	# Guardados de antes de la guía del menú: si el tutorial ya está hecho, la
 	# guía sobra (ese jugador ya sabe dónde está la Aventura).
 	menu_intro_done = bool(parsed.get("menu_intro_done", tutorial_done))
+	map_intro_done = bool(parsed.get("map_intro_done", tutorial_done))
 	narrated_ports = parsed.get("narrated_ports", [])
 	# Guardado de ANTES del tutorial: si ya tenía recetas es que ya jugó, así
 	# que no se le vuelve a plantar la introducción.
@@ -1548,12 +1610,17 @@ func reset_progress() -> void:
 
 
 func _new_game() -> void:
-	stats = {}
+	# `money_total` a CERO explicito: es lo que el cartel de recompensa
+	# ensena como botin, y dejandolo sin poner el rescate de guardados viejos
+	# (money + money_spent) lo sembraba con los 50 doblones de bienvenida.
+	stats = { "money_total": 0 }
 	settings = DEFAULT_SETTINGS.duplicate()
 	play_seconds = 0.0
 	player_gender = CharacterData.MALE
 	player_name = ""
-	player_hand = "L"
+	# DIESTRA por defecto: es la mano dominante de la mayoria, y en la ficha
+	# de tripulacion sale ya marcada para que no haya que elegir nada.
+	player_hand = "R"
 	player_title_id = TitleData.MANO
 	unlocked_titles = [TitleData.MANO]
 	# Un pequeño botín de bienvenida para las primeras compras en la tienda.
@@ -1584,9 +1651,14 @@ func _new_game() -> void:
 	# introducción: el true viejo se colaba en el guardado nuevo.
 	tutorial_done = false
 	shop_intro_done = false
+	extras_done = false
+	level1_outro_done = false
+	daily_intro_done = false
+	trash_intro_done = false
 	rice_intro_done = false
 	pablo_shop_done = false
 	menu_intro_done = false
+	map_intro_done = false
 	narrated_ports = []
 	# Los usos iniciales SOLO en partida nueva (si se diera también al cargar,
 	# se rellenarían gratis en cada arranque).

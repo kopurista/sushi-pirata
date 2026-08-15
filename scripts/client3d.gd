@@ -222,6 +222,11 @@ var gender: String = CharacterData.MALE
 var patience_scale: float = 1.0
 var pay_mult: float = 1.0
 var guaranteed_next: bool = false
+## Este cliente NO falla nunca el dado de un PICOTEO. Lo pone el guion del
+## nivel 3 sobre el primer grumete: la lección es "el picoteo se cuela mientras
+## come", y con el 0.9 de la receta había un 10% de que el jugador hiciera todo
+## bien y viera cómo su edamame pasa de largo.
+var snack_sure: bool = false
 ## Multiplicador extra del tiempo de comer. Solo lo toca el guion del tutorial,
 ## que necesita bocados largos para poder explicar cosas mientras el cliente come.
 var slow_eat: float = 1.0
@@ -243,10 +248,26 @@ var tips_enabled := true
 ## nivel casi seguro y no toca los postres (un postre lo despediría y el duelo
 ## consiste justo en retenerlo). Su condición la vigila el guion del nivel.
 var boss := false
-## Cuánto se ACORTA su bocado (0.32 = come el triple de rápido) y cuánto más
-## deprisa DRENA la paciencia esperando. Los fija make_boss().
+## Cuánto se ACORTA su bocado (0.32 = come el triple de rápido). Lo fija
+## make_boss().
 var boss_eat_scale := 1.0
-var boss_drain_scale := 1.0
+## Multiplicador del DRENAJE de paciencia mientras espera. Lo usan el jefe
+## (make_boss) y la INTRO DEL CAOS, que reparte drenajes calculados para que
+## cada cliente se levante en su segundo exacto.
+var drain_scale := 1.0
+## Paciencia CONGELADA por guion (la lección de las cajas del nivel 1): la
+## barra se queda quieta sin teñirse de azul, que ese color es del unagi.
+var patience_hold := false
+## La paciencia baja TAMBIÉN mientras come. Lo enciende la INTRO DEL CAOS: allí
+## la clientela se larga a una hora fijada de antemano y darle un plato no
+## puede salvarla — como mucho, retrasarla. En el juego normal el bocado es un
+## respiro (comer NO gasta paciencia) y esto se queda apagado.
+var always_drain := false
+## ¿Se dibuja el aparato de la VARIEDAD (bocadillo de platos comidos y chapa
+## del multiplicador)? En el nivel 1 no: el sistema no se ha explicado todavía
+## y son dos adornos que el jugador no sabe leer. El multiplicador se sigue
+## calculando por dentro — lo único que se apaga es enseñarlo.
+var variety_ui := true
 ## Piso de probabilidad con el que el jefe coge cualquier plato no-postre.
 const BOSS_TAKE := 0.95
 ## Perdona el castigo de marcharse sin comer (ver force_leave).
@@ -432,7 +453,7 @@ var _patience_fill: StyleBoxFlat = null
 func make_boss(eat := 0.32, drain := 1.55, max_patience := 55.0) -> void:
 	boss = true
 	boss_eat_scale = eat
-	boss_drain_scale = drain
+	drain_scale = drain
 	patience_max = max_patience
 	patience = patience_max
 	if _patience_bar != null:
@@ -617,6 +638,12 @@ func _process(delta: float) -> void:
 				patience_bar_update()
 				_scan_belt()
 				return
+			# Retenida POR GUION (la lección de las cajas del nivel 1): sin
+			# tinte azul y sin cuenta atrás, pero el cliente sigue mirando la
+			# cinta por si le llega algo.
+			if patience_hold:
+				_scan_belt()
+				return
 			# Cuanto mas ha comido, mas rapido se agota la paciencia.
 			var drain := 1.0 + PATIENCE_DRAIN_PER_PLATE * eaten_ids.size()
 			# Recién sentado la paciencia baja MUCHO más despacio: casi todo el
@@ -624,9 +651,9 @@ func _process(delta: float) -> void:
 			# el drenaje pasa a ser el normal.
 			if eaten_ids.is_empty():
 				drain *= FIRST_PLATE_DRAIN
-			# El JEFE se impacienta más deprisa: su duelo es una cuenta atrás
-			# que solo se detiene mientras mastica.
-			drain *= boss_drain_scale
+			# El JEFE (y la clientela de la intro del caos) se impacienta más
+			# deprisa: su espera es una cuenta atrás.
+			drain *= drain_scale
 			patience -= delta * drain
 			patience_bar_update()
 			if patience <= 0.0:
@@ -643,6 +670,15 @@ func _process(delta: float) -> void:
 				_anim.bite(_eat_t)
 			eat_timer -= delta * speed
 			_eat_bar.value = maxf(eat_timer, 0.0)
+			# INTRO DEL CAOS: aquí la paciencia NO se detiene al comer. Esta
+			# clientela tiene la hora puesta y darle un plato solo hace que se
+			# vaya masticando; en el juego normal esta rama no corre.
+			if always_drain:
+				patience -= delta * drain_scale
+				patience_bar_update()
+				if patience <= 0.0:
+					_leave()
+					return
 			# Sin dejar de comer puede picar un plato de "snack" (edamame).
 			if not _leave_when_done:
 				_scan_belt(true)
@@ -696,6 +732,19 @@ func _seat() -> void:
 	_sit_on_stool()
 	_place_bars()
 	_patience_bar.visible = true
+
+
+## Sienta al cliente EN EL ACTO, sin el paseo por la cubierta. Lo usa la INTRO
+## DEL CAOS, que empieza con la barra ya llena: verlos entrar de uno en uno
+## quitaba justo la sensación que busca la escena (llegas tarde a un desastre
+## que ya está montado).
+func sit_now() -> void:
+	if state != State.ARRIVING or route.is_empty():
+		return
+	position = route.back()
+	_leg = route.size() - 1
+	_leg_dist = 0.0
+	_seat()
 
 
 ## Sienta al personaje SOBRE el taburete: con la pose de sentado puesta, se
@@ -795,6 +844,8 @@ func _scan_belt(snack_only: bool = false) -> void:
 			chance = maxf(chance, BOSS_TAKE)
 		if guaranteed_next and not snack_only:
 			chance = 1.0
+		if snack_only and snack_sure:
+			chance = 1.0
 		if randf() < chance:
 			var rid: String = plate.recipe_id
 			var plate_pos: Vector3 = plate.global_position
@@ -846,6 +897,14 @@ func _eat_snack(recipe_id: String, data: Dictionary) -> void:
 	if data.get("clears_boredom", false):
 		tried.clear()
 	var price: int = int(round(data.get("price", 0) * pay_mult)) + SNACK_BONUS
+	# EL PICOTEO QUE SÍ SUMA VARIEDAD ("variety_snack", hoy solo el sunomono):
+	# cobra el bono de oro del multiplicador VIGENTE y sube un punto la primera
+	# vez que se prueba, igual que un plato normal. Los demás picoteos ni suman
+	# ni rompen la racha.
+	if data.get("variety_snack", false) and not tried.has(recipe_id):
+		price += variety
+		tried[recipe_id] = true
+		_set_variety(variety + 1, true)
 	satiety_eaten += sat
 	money_earned += price
 	eaten_ids.append(recipe_id)
@@ -931,6 +990,18 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 	if recipe.get("leaves_seat", false) or recipe.get("snack", false):
 		if recipe.get("clears_boredom", false):
 			tried.clear()
+		# El sunomono ("variety_snack") es el único picoteo que SUMA racha; ver
+		# `_eat_snack`, que es la otra puerta por la que entra un picoteo.
+		if recipe.get("variety_snack", false) and not tried.has(current_id):
+			current_price += variety
+			tried[current_id] = true
+			_set_variety(variety + 1, true)
+		patience = minf(patience + base * patience_max, patience_max)
+	elif recipe.get("clears_boredom", false):
+		# PLATO QUE LIMPIA EL PALADAR sin ser picoteo (la sopa de miso): borra el
+		# historial —todo vuelve a contar como nuevo— pero NO toca la racha: ni
+		# la sube ni la rompe. Recarga como un plato normal de su nivel.
+		tried.clear()
 		patience = minf(patience + base * patience_max, patience_max)
 	elif not tried.has(current_id) or not current_extras.is_empty():
 		# BONO DEL MULTIPLICADOR: cada plato nuevo paga su precio + 1 doblón
@@ -1052,7 +1123,7 @@ func _place_badge() -> void:
 ## dejaban dos iconos montados en la misma casilla.
 func _push_bubble_icon(recipe_id: String, con_extra: bool) -> void:
 	var ui := _world_ui()
-	if ui == null:
+	if ui == null or not variety_ui:
 		return
 	if _bubble == null or not is_instance_valid(_bubble):
 		# El lado se decide UNA vez, con la pantalla partida por la mitad: el

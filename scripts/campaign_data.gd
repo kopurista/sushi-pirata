@@ -4,20 +4,29 @@ class_name CampaignData
 ## LA CAMPAÑA ES TAMBIÉN EL TUTORIAL. Los 10 primeros niveles presentan las
 ## mecánicas de una en una, jugando (el "tutorial" clásico se redujo a una
 ## escena de rescate: ver tutorial_director.gd). El reparto:
-##   n1  paciencia, bocado, multiplicador y oro (maki → regalo del nigiri)
-##   n2  cajas de guardado, hastío, té verde y mochi (postres)
-##   n3  primer PIRATA + desde aquí la despensa SE GASTA (free_ingredients
-##       se acaba) + primer paso por el SELECTOR de recetas
-##   n4  puerto grande; superarlo abre la TIENDA (y Saverio regala los extras)
-##   n5  BOTE DE PROPINAS y potenciadores de partida (primer nivel con bote)
-##   n6  primer CAPITÁN + regalo del sashimi de atún rojo (corte lento)
-##   n7  primer ABORDAJE: reloj, clientela sin fin y prima por tiempo
-##   n8  Pablo el Rubio (cliente especial + salmón tsuke don)
+##   n1  paciencia, bocado y oro — jornada NORMAL con maki + nigiri de salmón
+##   n2  las CAJAS de guardado (y desde aquí la despensa SE GASTA)
+##   n3  el PICOTEO: regalo del edamame
+##   n4  MULTIPLICADOR, hastío y paladar (regalo del té verde);
+##       superarlo abre la TIENDA y lleva al jugador allí
+##   n5  POSTRES (regalo del mochi) y, con ellos, PROPINAS y potenciadores
+##   n6  los EXTRAS (jengibre, wasabi, soja)
+##   n7  primer ABORDAJE (reloj y clientela sin fin) y primeros PIRATAS y
+##       CAPITANES: regalo del nigiri de atún
+##   n8  Pablo el Rubio (cliente especial + salmón tsuke don y el CORTE LENTO)
 ##   n9  consolidación sin guion: el puerto más bravo hasta la fecha
 ##   n10 JEFE: el Kappa (ver el bloque del jefe en level_director/client3d)
-## Lo que no cabe aquí (barco combinado, bonificadores permanentes, la mayor
-## parte de la carta) queda para los niveles 11+ — la campaña larga prevé
-## jefes cada 10 niveles, y este es el primero.
+##
+## LOS SEIS PRIMEROS NIVELES SON TODOS DE GRUMETES a propósito: se aprende a
+## cocinar antes de aprender a leer paladares. Piratas y capitanes entran en el
+## 7, que es también el primer abordaje.
+##
+## Los BONIFICADORES permanentes (PerkData) no se reparten hasta el nivel 8
+## (`no_perks`); los POTENCIADORES de partida y las propinas se estrenan en el 5.
+##
+## Lo que no cabe aquí (barco combinado, la mayor parte de la carta) queda para
+## los niveles 11+ — la campaña larga prevé jefes cada 10 niveles, y este es el
+## primero.
 ##
 ## Cada nivel es una partida corta. La puntuación es POR DINERO generado:
 ## "star_money" = [1★, 2★, 3★] doblones mínimos. Superar el nivel (alcanzar
@@ -56,11 +65,25 @@ class_name CampaignData
 ##    con esas recetas y punto, también al repetir el puerto.
 ##    `fixed_recipes_replay` es la lista para cuando ya está superado (entran
 ##    los regalos de David de la primera pasada).
-##  - free_ingredients: este puerto NO gasta usos de despensa (los niveles 1-2
-##    son de práctica: todo regalado, también al repetirlos).
+##    `optional_recipes` se SUMAN a la carta cerrada si el jugador las tiene
+##    desbloqueadas (el gunkan de wakame del nivel 2: es premio de 3 estrellas
+##    del 1, así que puede tenerlo o no).
+##    `alt_recipes` es una lista por PREFERENCIA de la que entra SOLO LA
+##    PRIMERA que esté desbloqueada (en el 3: el maki de pepino si lo tiene y,
+##    si no, el gunkan de wakame). Así la carta cerrada mantiene su tamaño
+##    tenga el jugador lo que tenga.
+##  - free_ingredients: este puerto NO gasta usos de despensa (solo el nivel 1,
+##    que es la jornada de práctica; el ARROZ sí se gasta desde el primer día).
 ##  - no_powerups: sin bote de propinas ni potenciadores de partida (el HUD
 ##    esconde el bote y las propinas no se acumulan). Niveles 1-4: el bote se
-##    estrena en el 5.
+##    estrena en el 5, con los postres.
+##  - no_perks: este puerto no reparte BONIFICADORES permanentes aunque se
+##    cumpla su combo. Niveles 1-7: se estrenan en el 8.
+##  - near_seats: la clientela ocupa las sillas por orden de CINTA en vez de al
+##    azar (la escuela: con cuatro clientes sueltos, uno sentado justo detrás
+##    del punto de salida se comería una vuelta entera de espera).
+##  - arrival_batch: cuántos clientes entran DE GOLPE en cada llegada (el 4 va
+##    de dos en dos y el 6 en dos tandas de cuatro).
 ##  - no_storage: sin cajas de guardado (solo el nivel 1: se enseñan en el 2).
 ##  - boss: id del JEFE del nivel ("kappa"). El guion lo trae cuando la primera
 ##    tanda ha comido y el nivel no se supera sin cumplir su condición (ver
@@ -90,147 +113,182 @@ const SHIP_TIME := 150.0
 ## entrega SOLO el maki de aguacate: el resto de la carta se gana nivel a nivel
 ## (el nigiri lo regala David en el 1, el té y el mochi en el 2...).
 const INITIAL_RECIPES: Array = ["maki_aguacate"]
-## Usos de ingredientes iniciales. Cubren de sobra los primeros niveles de
-## despensa REAL (la 1-2 no gastan): lo que regala David ya trae sus usos.
-const INITIAL_INGREDIENTS: Dictionary = {
-	"aguacate": 5, "salmon": 5, "te": 3, "masa_mochi": 3, "matcha": 3,
-}
+## Usos de ingredientes iniciales: NINGUNO a mano. La despensa la reparte
+## `GameState.complete_tutorial`, que da `TUTORIAL_GIFT` (10) usos de todo lo
+## que piden las recetas de inicio — la misma regla que cualquier receta que
+## regale David después. Poner cifras aquí sumaba encima de ese regalo.
+const INITIAL_INGREDIENTS: Dictionary = {}
 
 const PORTS: Array = [
 	{
 		"id": "nivel_1",
 		"name": "Cala Tortuga",
-		"desc": "Tu primer turno de verdad: cuatro grumetes y el maki que ya dominas.",
+		"desc": "Tu primer turno de verdad: cuatro grumetes y dos recetas sencillas.",
 		"client_mix": { "E": 4 },
-		"arrival_span": 110.0,
+		# Medido: con 110 el cuarto grumete no entraba hasta el segundo 88 y el
+		# nivel se iba a tres minutos con un solo cliente en la barra casi todo
+		# el rato. Con 75, las llegadas caen en 5 · 21 · 37 · 53 s.
+		"arrival_span": 75.0,
 		# Paciencia generosa: el primer cliente es la pizarra de David (paciencia,
-		# bocado, multiplicador y oro se explican sobre él).
+		# bocado y oro se explican sobre él).
 		"patience_mult": 1.15,
 		"arrival_scale": 1.0,
 		"goal_stars": 2,
-		# 4 grumetes, carta de $2-3: techo ~40. Nivel-escuela, cifras bajas.
-		"star_money": [12, 20, 30],
+		# Umbrales del usuario: 10 · 25 · 40 doblones.
+		"star_money": [10, 25, 40],
 		"reward_recipes": [],
-		"reward_rice_3": 1,
-		# Solo el maki al zarpar; el nigiri lo regala David en plena partida y al
-		# repetir ya se viene con él.
-		"fixed_recipes": ["maki_aguacate"],
-		"fixed_recipes_replay": ["maki_aguacate", "nigiri_salmon"],
+		"reward_recipes_3": ["gunkan_wakame"],
+		# UNA JORNADA CORRIENTE: el nigiri de salmón está en la carta DESDE EL
+		# PRIMER FOTOGRAMA, tanto en el estreno como al repetir el nivel desde el
+		# mapa o desde el botón "Repetir" del cartel de resultados. David solo lo
+		# presenta; ya no hay que esperar a que lo saque a media partida.
+		"fixed_recipes": ["maki_aguacate", "nigiri_salmon"],
 		"gift_recipes": ["nigiri_salmon"],
+		# Única jornada que no gasta DESPENSA (el arroz sí: es la energía y hay
+		# que verla bajar desde el primer día).
 		"free_ingredients": true,
 		"no_powerups": true,
+		# Las cajas son la lección del nivel 2: aquí ni aparecen.
 		"no_storage": true,
 		"no_extras": true,
+		# Chapas de multiplicador: se explican en el 4.
+		"no_variety_ui": true,
+		"no_perks": true,
+		# Sin botón de Salir en el ESTRENO (de la primera jornada no se huye);
+		# a partir del segundo intento sale como en cualquier otro nivel, y de
+		# eso se encarga level3d mirando si el puerto ya se ha jugado.
+		"no_exit": true,
+		# Cuatro clientes en las sillas que la cinta alcanza antes.
+		"near_seats": true,
 		"director": "nivel_1",
 	},
 	{
 		"id": "nivel_2",
 		"name": "Playa del Coco",
-		"desc": "Cinco grumetes y dos armas nuevas: las cajas y el postre.",
-		"client_mix": { "E": 5 },
+		"desc": "Se junta la clientela: hoy aprendes a guardar platos en las cajas.",
+		"client_mix": { "E": 4 },
 		"arrival_span": 120.0,
 		"patience_mult": 1.1,
-		"arrival_scale": 0.8,
+		"arrival_scale": 0.9,
 		"goal_stars": 2,
-		"star_money": [16, 26, 38],
+		"star_money": [14, 26, 40],
 		"reward_recipes": [],
-		"reward_recipes_3": ["edamame"],
-		# Se zarpa con lo aprendido; el té y el mochi los regala David aquí (el
-		# té cuando el hastío asome, el mochi para enseñar a liberar la silla).
+		"reward_recipes_3": ["maki_pepino"],
+		# El primero entra solo; el guion trae a los otros TRES DE GOLPE cuando
+		# se ha comido su segundo plato (ver level_director._nivel_2), que es lo
+		# que justifica las cajas.
 		"fixed_recipes": ["maki_aguacate", "nigiri_salmon"],
-		"fixed_recipes_replay": ["maki_aguacate", "nigiri_salmon", "te_verde",
-			"mochi"],
-		"gift_recipes": ["te_verde", "mochi"],
-		"free_ingredients": true,
+		# El gunkan es premio de 3 estrellas del nivel 1: entra en la carta solo
+		# si el jugador se lo ganó.
+		"optional_recipes": ["gunkan_wakame"],
 		"no_powerups": true,
 		"no_extras": true,
+		"no_variety_ui": true,
+		"no_perks": true,
+		"near_seats": true,
+		# Las cajas aparecen A MEDIA PARTIDA, con la lección. NO va aquí sino en
+		# el guion (`level_director._nivel_2` las esconde al arrancar): así, al
+		# repetir el nivel —donde el guion ya no corre— salen desde el principio.
 		"director": "nivel_2",
 	},
 	{
 		"id": "nivel_3",
-		"name": "Puerto Corona",
-		"desc": "Llega el primer pirata... y desde hoy la despensa se gasta.",
-		"client_mix": { "E": 4, "A": 2 },
-		"arrival_span": 130.0,
-		"patience_mult": 1.0,
-		"arrival_scale": 0.8,
+		"name": "Isla del Bambú",
+		"desc": "Cinco grumetes hambrientos y un plato que se come sin soltar el otro.",
+		"client_mix": { "E": 5 },
+		"arrival_span": 120.0,
+		"patience_mult": 1.05,
+		"arrival_scale": 0.85,
 		"goal_stars": 2,
-		# 6 clientes con dos piratas comiendo L2: techo ~70.
-		"star_money": [20, 34, 50],
-		"reward_recipes": ["maki_atun"],
-		"reward_recipes_3": ["gunkan_wakame"],
-		# Primer paso por el SELECTOR (puerto = carta libre) y primer nivel que
-		# GASTA ingredientes: David lo avisa antes de zarpar.
-		"prep_dialog": "nivel_3",
-		# Los piratas entran los últimos; el guion los adelanta si vas sobrado.
-		"late_type": "A",
-		"director": "nivel_3",
-		"gift_recipes": ["nigiri_atun"],
+		"star_money": [18, 32, 50],
+		"reward_recipes": [],
+		"reward_recipes_3": ["sunomono"],
+		# TRES recetas de carta: la cuarta la trae David al empezar (el edamame,
+		# con la lección del picoteo).
+		"fixed_recipes": ["maki_aguacate", "nigiri_salmon"],
+		# La tercera sale de lo que el jugador se haya ganado, por preferencia.
+		"alt_recipes": ["maki_pepino", "gunkan_wakame"],
+		"gift_recipes": ["edamame"],
 		"no_powerups": true,
 		"no_extras": true,
+		"no_variety_ui": true,
+		"no_perks": true,
+		"near_seats": true,
+		"director": "nivel_3",
 	},
 	{
 		"id": "nivel_4",
 		"name": "Arrecife del Ron",
-		"desc": "Más bocas que nunca. Corre la voz de que hay tienda en el puerto.",
-		"client_mix": { "E": 5, "A": 2 },
-		"arrival_span": 130.0,
-		"patience_mult": 0.95,
-		"arrival_scale": 0.75,
+		"desc": "Ocho bocas de dos en dos. Y corre la voz de que hay tienda en el puerto.",
+		"client_mix": { "E": 8 },
+		"arrival_span": 140.0,
+		"patience_mult": 1.0,
+		"arrival_scale": 0.8,
+		# De dos en dos: es lo que obliga a variar en vez de repetir el mismo
+		# plato, que es la lección del nivel.
+		"arrival_batch": 2,
 		"goal_stars": 2,
-		"star_money": [24, 40, 60],
+		"star_money": [26, 46, 72],
 		"reward_recipes": [],
 		"reward_recipes_3": ["onigiri"],
-		# Superarlo abre la TIENDA (con la escena de Saverio, que además regala
-		# los EXTRAS): el jugador llega justo cuando su despensa empieza a doler.
+		# Primer PUERTO: carta libre, pero solo TRES huecos.
+		"recipe_slots": 3,
+		# Primer paso por el selector: David lo explica antes de zarpar.
+		"prep_dialog": "nivel_4",
+		"gift_recipes": ["te_verde"],
+		# Superarlo abre la TIENDA, y el guion lleva al jugador allí de la mano.
 		"unlocks_shop": true,
-		# El candado ORIGINAL de la PESCA (hoy abierta desde el inicio: ver
-		# GameState.fishing_unlocked). Se deja apuntado por si se repone.
-		"unlocks_fishing": true,
 		"director": "nivel_4",
 		"no_powerups": true,
 		"no_extras": true,
+		"no_perks": true,
 	},
 	{
 		"id": "nivel_5",
 		"name": "Cala del Calamar",
-		"desc": "Los clientes agradecidos llenan el bote: estrena los potenciadores.",
-		"client_mix": { "E": 4, "A": 2 },
+		"desc": "El postre es la cuenta: aprende a despedir clientes y a llenar el bote.",
+		"client_mix": { "E": 5 },
 		"arrival_span": 120.0,
-		"patience_mult": 0.95,
-		"arrival_scale": 0.8,
+		"patience_mult": 1.0,
+		"arrival_scale": 0.85,
 		"goal_stars": 2,
-		"star_money": [26, 42, 64],
-		"reward_recipes": ["sopa_miso"],
+		"star_money": [20, 38, 58],
+		"reward_recipes": [],
 		"reward_recipes_3": ["caldo_dashi"],
-		# Isla: carta cerrada con lo aprendido + el postre para rotar la barra.
-		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "maki_atun", "mochi"],
-		# PRIMER NIVEL CON BOTE DE PROPINAS: aquí se estrenan los potenciadores.
+		# Isla: carta cerrada con lo aprendido. El mochi lo regala David dentro.
+		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "te_verde"],
+		"gift_recipes": ["mochi"],
+		# PRIMER NIVEL CON BOTE DE PROPINAS: aquí se estrenan los potenciadores
+		# de partida. Y superarlo abre la PESCA del menú.
+		"unlocks_fishing": true,
 		"director": "nivel_5",
+		"no_extras": true,
+		"no_perks": true,
 	},
 	{
 		"id": "nivel_6",
 		"name": "Bahía del Kraken",
-		"desc": "Un capitán exigente atraca en la bahía: solo come platos finos.",
-		"client_mix": { "E": 4, "A": 2, "G": 1 },
-		"arrival_span": 130.0,
+		"desc": "Saverio saca los extras: jengibre, wasabi y soja sobre el plato hecho.",
+		"client_mix": { "E": 8 },
+		# Con solo DOS tandas la ventana se reparte entre ellas, así que un
+		# `arrival_span` largo dejaba un desierto en medio: con 90, las dos
+		# oleadas caen a los 5 y a los 54 s.
+		"arrival_span": 90.0,
 		"patience_mult": 0.95,
 		"arrival_scale": 0.8,
+		# Dos tandas de cuatro: la barra se llena de golpe dos veces.
+		"arrival_batch": 4,
 		"goal_stars": 2,
-		# El capitán come L3 ($11): sube el techo.
-		"star_money": [30, 50, 76],
-		"reward_recipes": ["dorayaki"],
-		"reward_recipes_3": ["gunkan_tartar"],
-		# El capitán entra el último; David regala el sashimi de atún rojo (y con
-		# él, el CORTE LENTO) cuando el capitán asome.
-		"late_type": "G",
+		"star_money": [28, 52, 82],
+		"reward_recipes": [],
+		"reward_recipes_3": ["sopa_miso"],
 		"director": "nivel_6",
-		"gift_recipes": ["sashimi_atun_rojo"],
+		"no_perks": true,
 	},
 	{
 		"id": "nivel_7",
 		"name": "Estrecho del Rayo",
-		"desc": "¡Abordaje! Contra el reloj y con clientela sin fin.",
+		"desc": "¡Abordaje! Reloj, clientela sin fin y paladares que no son de grumete.",
 		"client_mix": { "E": 3, "A": 2, "G": 1 },
 		"arrival_span": 100.0,
 		"patience_mult": 0.9,
@@ -238,9 +296,15 @@ const PORTS: Array = [
 		"goal_stars": 2,
 		# Primer abordaje: 150 s con carta media ~$5 → techo ~90.
 		"star_money": [32, 55, 88],
-		"reward_recipes": ["nigiri_ebi"],
+		"reward_recipes": ["sashimi_atun_rojo"],
+		"reward_recipes_3": ["nigiri_ebi"],
+		# Primeros PIRATAS y CAPITANES del juego: David presenta los paladares y
+		# regala una receta de 2 estrellas para estrenarla con el pirata.
+		"gift_recipes": ["nigiri_atun"],
+		"late_type": "A",
 		"reward_rice_3": 2,
 		"director": "nivel_7",
+		"no_perks": true,
 	},
 	{
 		"id": "nivel_8",
@@ -321,7 +385,7 @@ const PORTS: Array = [
 const KINDS: Dictionary = {
 	"nivel_1": "isla",
 	"nivel_2": "isla",
-	"nivel_3": "puerto",
+	"nivel_3": "isla",
 	"nivel_4": "puerto",
 	"nivel_5": "isla",
 	"nivel_6": "puerto",
@@ -472,6 +536,21 @@ static func fixed_recipes_for(port_id: String, superado := false) -> Array[Strin
 	var out: Array[String] = []
 	for r in fijas:
 		out.append(str(r))
+	if out.is_empty():
+		return out
+	# EXTRAS DE LA CARTA CERRADA, que dependen de lo que el jugador se haya
+	# ganado: `optional_recipes` entra entera si está desbloqueada, y de
+	# `alt_recipes` entra SOLO LA PRIMERA que lo esté (lista por preferencia).
+	# Así una isla mantiene el tamaño de carta que se diseñó tanto si el jugador
+	# sacó las 3 estrellas del nivel anterior como si no.
+	for r in port.get("optional_recipes", []):
+		if GameState.is_recipe_unlocked(str(r)) and not str(r) in out:
+			out.append(str(r))
+	for r in port.get("alt_recipes", []):
+		if GameState.is_recipe_unlocked(str(r)):
+			if not str(r) in out:
+				out.append(str(r))
+			break
 	return out
 
 

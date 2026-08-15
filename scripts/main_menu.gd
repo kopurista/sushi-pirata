@@ -38,6 +38,10 @@ const START_SAIL := 1.9
 const OUT_TIME := 0.55
 ## Distancia (en px de mapa) que recorre el barco al entrar o salir de escena.
 const OFFSCREEN := 1500.0
+## Segundos que tarda en armarse el botón "¡Ese soy yo!" del cartel de
+## tripulación: se llega hasta ahí pasando diálogo a toques y el toque de
+## inercia se saltaba la ficha entera.
+const FICHA_ARMADO := 0.9
 ## En el menú el barco es el protagonista y se ve mucho más grande que como
 ## ficha del mapa.
 const MENU_SHIP_SCALE := 2.75
@@ -160,7 +164,10 @@ func _ready() -> void:
 	# Sin portada por delante, quien vuelva al menú SIN tutorial va a la
 	# bienvenida de David. Solo puede pasar por un camino raro: el arranque
 	# normal de una partida nueva pasa por la portada, que ya manda allí.
-	if not GameState.tutorial_done and GameState.booted:
+	# ("ficha" es justo el caso contrario: se viene de la intro del caos a
+	# rellenar el cartel de tripulación SOBRE este menú, y el tutorial se da por
+	# hecho al aplicarlo. Sin esta salvedad, rebotaba de vuelta al caos.)
+	if not GameState.tutorial_done and GameState.booted and trans != "ficha":
 		GameState.fade_out(0.0)
 		# DIFERIDO a propósito: cambiar de escena dentro de _ready pilla al árbol
 		# montando nodos y el motor suelta "Parent node is busy adding/removing
@@ -195,6 +202,12 @@ func _ready() -> void:
 		"mapa":
 			# Se vuelve del selector de recetas de aventura: directo al mapa.
 			_enter_map(false)
+		"ficha":
+			# Se viene de la intro del caos: David se presenta AQUÍ, sobre el
+			# mismo mar del menú, y la interfaz no aparece hasta que el cartel
+			# de tripulación está relleno.
+			_show_ficha()
+			return
 		"menu":
 			_show_menu(false)
 			_play_menu_intro()
@@ -219,17 +232,68 @@ func _menu_popups() -> void:
 		GameState.pending_reveal.clear()
 		await get_tree().create_timer(0.9).timeout
 		_show_reveal(nuevas)
+	# TRAS SUPERAR EL NIVEL 1: David felicita, explica las estrellas y sus
+	# recompensas, e invita al puerto siguiente. Va ANTES del bonus diario.
+	if GameState.tutorial_done and not GameState.level1_outro_done \
+			and int(GameState.level_stars.get("nivel_1", 0)) >= 2:
+		await get_tree().create_timer(0.7).timeout
+		await _felicitar_nivel_1()
 	# BONUS DIARIO: después del anuncio de recetas, para no apilar carteles.
 	if GameState.tutorial_done and GameState.daily_available():
 		await get_tree().create_timer(0.9).timeout
+		# La PRIMERA vez, David explica antes de qué va el mapa del tesoro.
+		if not GameState.daily_intro_done and GameState.level1_outro_done:
+			await _explicar_bonus_diario()
 		# El premio NO se cobra aquí: lo cobra el jugador tocando el cofre.
 		_show_daily()
+
+
+## TRAS SUPERAR EL NIVEL 1: qué son las estrellas, qué se gana con ellas y a
+## dónde se va ahora. Una sola vez en la vida de la partida.
+func _felicitar_nivel_1() -> void:
+	GameState.level1_outro_done = true
+	GameState.save_game()
+	var caja := DialogueBox.new()
+	caja.z_index = 200
+	ui_layer.add_child(caja)
+	var estrellas := int(GameState.level_stars.get("nivel_1", 0))
+	var lineas: Array = [
+		{ "text": "¡Turno cerrado, %s! Tu primera jornada al mando de mi cocina." % GameState.player_title(), "mood": "riendo" },
+		{ "text": "Cada puerto se puntúa con **estrellas**, y las estrellas salen del **oro** que dejes en caja. Con **dos** apruebas y se abre el puerto siguiente.", "mood": "hablando" },
+	]
+	if estrellas >= 3:
+		lineas.append({ "text": "Y tú has sacado las **tres**, así que el premio gordo es tuyo: una **receta nueva** para tu carta. Eso no se saca aprobando por los pelos.", "mood": "feliz" })
+	else:
+		lineas.append({ "text": "Ojo a la **tercera** estrella: es la que guarda el premio gordo, casi siempre una **receta nueva**. Puedes volver a por ella cuando quieras.", "mood": "serio" })
+	lineas.append({ "text": "¡AL SIGUIENTE PUERTO! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" })
+	lineas.append({ "text": "Ya lo has oído. Te espero en **Playa del Coco**: allí te enseño el truco que separa a un cocinero de un friegaplatos.", "mood": "hablando" })
+	caja.say(lineas)
+	await caja.finished
+	await caja.close_and_free()
+
+
+## Antes del PRIMER bonus diario, David explica de qué va el mapa del tesoro.
+func _explicar_bonus_diario() -> void:
+	GameState.daily_intro_done = true
+	GameState.save_game()
+	var caja := DialogueBox.new()
+	caja.z_index = 200
+	ui_layer.add_child(caja)
+	caja.say([
+		{ "text": "¡Ah! Y se me olvidaba lo mejor de enrolarse en esta tripulación.", "mood": "feliz" },
+		{ "text": "Tengo un **mapa del tesoro** con siete paradas, y en cada una hay un **cofre**: uno por día. Lo abres, te llevas lo que haya y a navegar.", "mood": "hablando" },
+		{ "text": "Pero la racha se cuenta por días **seguidos**: si te saltas uno, vuelta a la primera parada. Y en la séptima está el mejor botín de todos.", "mood": "serio" },
+		{ "text": "¡TODOS LOS DÍAS, GRUMETE! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+	])
+	await caja.finished
+	await caja.close_and_free()
 
 
 ## Salto a la INTRO DEL CAOS (partida nueva), fuera del _ready: una partida
 ## imposible sobre level3d en modo tutorial — solo el maki, la barra llena y
 ## los clientes largándose — de la que David rescata al jugador
-## (tutorial_director.gd). De ahí se pasa a la ficha (david_intro) y al menú.
+## (tutorial_director.gd). De ahí se vuelve a ESTE menú a rellenar la ficha
+## de tripulación (`_show_ficha`), sin cambiar de escena.
 func _ir_a_la_intro(out_time := 0.0) -> void:
 	GameState.mode = "tutorial"
 	GameState.current_port = ""
@@ -359,12 +423,227 @@ func _show_menu(animate: bool) -> void:
 	_sky_in()
 
 
+# ------------------------------------------------- ficha de tripulación
+#
+# LA PRESENTACIÓN DE DAVID OCURRE EN EL MENÚ, no en una escena aparte. Antes
+# había un `david_intro.tscn` con su propio decorado; se retiró porque el fondo
+# tenía que ser EXACTAMENTE este (el barco navegando) y, siéndolo, el fundido a
+# negro y el cambio de escena por medio solo eran un corte de más. Ahora el
+# jugador llega aquí desde la intro del caos y ve el mismo mar todo el rato: se
+# rellena el cartel de tripulación, y solo entonces bajan el tablón, el submenú
+# y los contadores. David sigue hablando ya con el camarote puesto.
+
+## Estado FICHA: el mar del menú, pero SIN interfaz — solo David y el cartel.
+func _show_ficha() -> void:
+	in_menu = true
+	map_visible = false
+	sky_leaving = false
+	_set_map_ui_visible(false)
+	_set_menu_ui_visible(false)
+	for caja in [ingot_box, money_box, rice_box, rice_timer_label]:
+		if caja != null:
+			caja.visible = false
+	menu_blend = 1.0
+	cam_side = 0.0
+	ship_px = MENU_ANCHOR
+	cam_center = MENU_ANCHOR.y
+	if ship_pivot != null:
+		ship_pivot.scale = Vector3.ONE * MENU_SHIP_SCALE
+	if ship_blob != null:
+		ship_blob.scale = Vector3.ONE * MENU_SHIP_SCALE
+	_update_camera()
+	_sky_in()
+	_place_resources(false, false)
+	_run_ficha.call_deferred()
+
+
+func _run_ficha() -> void:
+	var caja := DialogueBox.new()
+	caja.z_index = 200
+	ui_layer.add_child(caja)
+	caja.say([
+		{ "text": "Bienvenido a bordo, grumete. Ficha de **tripulación** nueva: escribe tu nombre y elige tu retrato.", "mood": "feliz" },
+		{ "text": "El cartel de recompensa no se rellena solo. ¡RAAK!", "who": "gigi", "mood": "loro" },
+	])
+	# SIN `keep_open`: la caja tiene que RETIRARSE antes de que salga el cartel
+	# de recompensa, o el retrato de David se queda tapándolo media pantalla.
+	await caja.finished
+	await get_tree().create_timer(DialogueBox.FADE_OUT + 0.05).timeout
+	var pname := await _ask_identity()
+	caja.say([
+		{ "text": _pulla_de_gigi(pname), "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "No creo que seas el más indicado para hablar de nombres, Gigi. **%s**, el plan es navegar por los siete mares sirviendo el mejor sushi que un pirata podría probar." % pname, "mood": "serio" },
+	])
+	await caja.finished
+	# El tutorial queda HECHO aquí: entrega el maki y su despensa.
+	GameState.complete_tutorial()
+	await caja.close_and_free()
+	# Y AHORA aparece el camarote entero, con su animación de entrada de siempre.
+	for c in [ingot_box, money_box, rice_box, rice_timer_label]:
+		if c != null:
+			c.visible = true
+	_refresh_resources()
+	_ui_in()
+	await get_tree().create_timer(1.1).timeout
+	if leaving:
+		return
+	# David sigue, ya con los pergaminos en pantalla.
+	_menu_popups()
+
+
+# --- LAS PULLAS DE GIGI AL NOMBRE ------------------------------------------
+#
+# Recién rellenado el cartel, Gigi suelta UNA broma con el nombre elegido. Hay
+# tres sacos: diez para el chef masculino, diez para la femenina y cinco que
+# valen para cualquiera, o sea veinticinco frases distintas. `%s` es el nombre.
+# Se sortean con `pick_random`, así que dos partidas seguidas casi nunca dan la
+# misma; el género sale de `GameState.player_gender`, que ya está aplicado
+# cuando esto se llama (el cartel hace `aplicar()` antes de devolver).
+
+const GIGI_PULLAS_M: Array = [
+	"¡RAAAK! ¡**%s**! ¿Eso es un nombre o el ruido que hace un barril al caerse?",
+	"¡**%s**! ¡RAAK! Conocí a un **%s** una vez. Se cayó por la borda a los dos días.",
+	"¿**%s**? ¡RAAAK! Suena a alguien que se marea mirando el mar desde el muelle.",
+	"¡**%s**! Con ese nombre no asustas ni a una gaviota dormida. ¡RAAK!",
+	"¡RAAAK! **%s**... como el cocinero anterior. Y del anterior no volvimos a saber nada.",
+	"¿**%s**? Yo habría puesto **Almirante Rascatripas**, pero nadie me pregunta. ¡RAAK!",
+	"¡**%s**! ¡RAAK! Apúntalo en el barril, no se te olvide a mitad de travesía.",
+	"¡RAAAK! **%s**. Tres sílabas para alguien que aún no sabe hervir arroz.",
+	"¿**%s**? Vale, vale. Yo te llamaré **grumete** hasta nuevo aviso. ¡RAAK!",
+	"¡**%s**! Ese nombre huele a fregar cubierta. ¡RAAAK!",
+]
+
+const GIGI_PULLAS_F: Array = [
+	"¡RAAAK! ¡**%s**! ¿Eso es un nombre o el ruido que hace un barril al caerse?",
+	"¿**%s**? ¡RAAK! Suena a alguien que le pone nombre a las gaviotas.",
+	"¡**%s**! Conocí a una **%s**. Me robó una galleta. No te confío la despensa. ¡RAAK!",
+	"¡RAAAK! **%s**... ¿segura? Todavía estás a tiempo de elegir uno que dé miedo.",
+	"¡**%s**! Con ese nombre te van a pedir la carta en vez de la espada. ¡RAAK!",
+	"¿**%s**? Yo habría puesto **Capitana Rascaplumas**, pero aquí nadie me escucha. ¡RAAAK!",
+	"¡**%s**! ¡RAAK! Bonito. Demasiado bonito para alguien que va a oler a pescado.",
+	"¡RAAAK! **%s**. Que conste que yo lo he oído primero y no me ha impresionado.",
+	"¿**%s**? Vale. Yo te llamaré **grumete** hasta que sepas cocinar. ¡RAAK!",
+	"¡**%s**! Ese nombre se pierde con el viento. ¡RAAAK! Grita más.",
+]
+
+const GIGI_PULLAS_ANY: Array = [
+	"¡RAAAK! ¿**%s**? ¿Y ese nombre lo has elegido tú o te lo ha dado el mar?",
+	"¡**%s**! ¡RAAK! Yo me llamo **Gigi**, que es mucho mejor y encima vuelo.",
+	"¿**%s**? Ponlo bien grande en el cartel, que luego hay confusiones. ¡RAAAK!",
+	"¡RAAAK! **%s**. Suena a alguien que va a quemar el primer plato.",
+	"¡**%s**! Está bien, está bien. Total, aquí todos acabamos llamándonos \"¡EH, TÚ!\". ¡RAAK!",
+]
+
+
+## Una pulla al azar del saco que toque (género + las comunes). El nombre entra
+## tantas veces como `%s` tenga la frase, así que se rellena por conteo.
+func _pulla_de_gigi(pname: String) -> String:
+	var saco: Array = GIGI_PULLAS_ANY.duplicate()
+	saco.append_array(GIGI_PULLAS_F if GameState.player_gender == CharacterData.FEMALE
+			else GIGI_PULLAS_M)
+	var frase: String = str(saco.pick_random())
+	var huecos := frase.count("%s")
+	var datos: Array = []
+	for i in huecos:
+		datos.append(pname)
+	return frase % datos
+
+
+## CARTEL DE RECOMPENSA: la ficha del jugador (ver `wanted_poster.gd`). Se
+## escribe el nombre en el propio cartel, se pasa de personaje con las flechas
+## de la foto y se elige la mano; "¡Ese soy yo!" se enciende con el nombre
+## puesto. Devuelve el nombre.
+func _ask_identity() -> String:
+	# ARRIBA, no centrado: centrado, el cartel (ya alto de por sí) empujaba el
+	# botón hacia el borde y quedaba una franja muerta sobre el WANTED.
+	var caja := Control.new()
+	caja.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	var medida := WantedPoster.panel_size(true)
+	var alto := medida.y + 104.0
+	caja.offset_left = -medida.x * 0.5
+	caja.offset_right = medida.x * 0.5
+	caja.offset_top = 30.0 + GameState.safe_top()
+	caja.offset_bottom = caja.offset_top + alto
+	caja.z_index = 190
+	ui_layer.add_child(caja)
+
+	var cartel := WantedPoster.new()
+	cartel.editable_name = true
+	caja.add_child(cartel)
+
+	var ok := Button.new()
+	ok.text = "¡Ese soy yo!"
+	# Ancho de sobra a propósito: con el botón justo, el texto se montaba sobre
+	# las esquinas doradas del 9-slice.
+	ok.position = Vector2((medida.x - 400.0) * 0.5, medida.y + 16.0)
+	ok.size = Vector2(400, 82)
+	PrepBoard.skin_button(ok)
+	ok.add_theme_font_size_override("font_size", 30)
+	caja.add_child(ok)
+
+	# CLIC DE SEGURIDAD: el botón nace apagado y no se arma hasta FICHA_ARMADO
+	# segundos. Se llega aquí pasando el diálogo a toques, y quien va rápido
+	# encadenaba el último toque con el botón y se saltaba la ficha entera sin
+	# verla; con el retardo, ese toque de inercia cae en un botón inerte.
+	var armado := { "on": false }
+	var refrescar := func() -> void:
+		var listo: bool = cartel.listo() and bool(armado["on"])
+		ok.disabled = not listo
+		ok.modulate = Color.WHITE if listo else Color(0.62, 0.62, 0.62)
+	cartel.edited.connect(func() -> void: refrescar.call())
+	# El cartel se construye en su `_ready`, que corre al entrar en el árbol; la
+	# primera comprobación tiene que ir DESPUÉS o `listo()` mira un LineEdit que
+	# todavía no existe.
+	await get_tree().process_frame
+	refrescar.call()
+	get_tree().create_timer(FICHA_ARMADO).timeout.connect(func() -> void:
+		armado["on"] = true
+		refrescar.call())
+
+	await ok.pressed
+	var pname := cartel.nombre()
+	cartel.aplicar()
+	# El cartel también se despide con fundido, no de golpe.
+	var out := caja.create_tween().set_parallel(true)
+	out.tween_property(caja, "modulate:a", 0.0, 0.22)
+	out.tween_property(caja, "position:y", caja.position.y - 26.0, 0.22)
+	out.chain().tween_callback(caja.queue_free)
+	await get_tree().create_timer(0.24).timeout
+	return pname
+
+
+# ---------------------------------------------- velos de las explicaciones
+
+## Velo oscuro de una explicación de David, que ENTRA con fundido. Los guiones
+## sueltos del menú lo montaban de golpe (y a David con él), y el corte cantaba.
+func _velo_guia(alpha := 0.72) -> ColorRect:
+	var velo := ColorRect.new()
+	velo.color = Color(0, 0, 0, alpha)
+	velo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	velo.z_index = 150
+	velo.mouse_filter = Control.MOUSE_FILTER_STOP
+	velo.modulate.a = 0.0
+	ui_layer.add_child(velo)
+	velo.create_tween().tween_property(velo, "modulate:a", 1.0, 0.3)
+	return velo
+
+
+func _quitar_velo(velo: Control) -> void:
+	if velo == null or not is_instance_valid(velo):
+		return
+	velo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tw := velo.create_tween()
+	tw.tween_property(velo, "modulate:a", 0.0, 0.26)
+	tw.tween_callback(velo.queue_free)
+
+
 ## Modo MAPA: el barco navega hasta el último nivel abierto y entra la
 ## interfaz de la campaña.
 func _enter_map(animate: bool) -> void:
 	in_menu = false
-	# Con el mapa ya en pantalla, la explicación del arroz (solo la 1ª vez).
-	_explicar_arroz.call_deferred()
+	# Con el mapa ya en pantalla: primero el arroz y, encadenada, la guía del
+	# primer puerto (las dos solo la 1ª vez, cada una con su bandera).
+	_presentar_mapa.call_deferred()
 	# Los contadores se corren a la derecha y dejan hueco al botón "Atrás".
 	_place_resources(true, animate)
 	map_visible = true
@@ -722,7 +1001,7 @@ func _setup_menu_ui() -> void:
 	var fish_btn := _make_mode_button("Pesca", "ic_pesca", 96, 42,
 		func() -> void: _go_fishing())
 	box.add_child(fish_btn)
-	# La pesca se gana superando el nivel 4: hasta entonces, apagada con aviso.
+	# La pesca se gana superando el nivel 5: hasta entonces, apagada con aviso.
 	if not GameState.fishing_unlocked():
 		fish_btn.modulate = Color(0.52, 0.52, 0.52)
 	var shop_btn := _make_mode_button("Tienda", "ic_tienda", 96, 42,
@@ -915,17 +1194,24 @@ const PACKS_ARROZ := [
 ## El foco es un velo oscuro con la caja del arroz POR ENCIMA (subiéndole el
 ## z_index un momento): en el mapa no está el paño con agujero de los guiones
 ## de nivel, y para señalar una sola cosa esto basta y no arrastra el shader.
-func _explicar_arroz() -> void:
+## Las dos explicaciones del mapa, EN ORDEN: el arroz (que es de la barra de
+## arriba) y después el primer puerto (que ya es del mapa). Encadenadas a mano
+## porque las dos montan su propio velo y, lanzadas a la vez, se pisaban.
+## LAS DOS EXPLICACIONES DEL MAPA VAN ENCADENADAS EN LA MISMA CAJA: David pasa
+## del arroz a los tipos de nivel sin cerrar el pergamino y volver a entrar, que
+## era un corte en mitad de una idea. `_explicar_arroz` devuelve su caja (o
+## null) y la guía del primer puerto la reaprovecha.
+func _presentar_mapa() -> void:
+	var caja := await _explicar_arroz()
+	_guiar_primer_nivel(caja)
+
+
+func _explicar_arroz() -> DialogueBox:
 	if GameState.rice_intro_done or rice_box == null:
-		return
+		return null
 	GameState.rice_intro_done = true
 	GameState.save_game()
-	var velo := ColorRect.new()
-	velo.color = Color(0, 0, 0, 0.72)
-	velo.set_anchors_preset(Control.PRESET_FULL_RECT)
-	velo.z_index = 150
-	velo.mouse_filter = Control.MOUSE_FILTER_STOP
-	ui_layer.add_child(velo)
+	var velo := _velo_guia()
 	var z_antes := rice_box.z_index
 	rice_box.z_index = 180
 
@@ -938,16 +1224,17 @@ func _explicar_arroz() -> void:
 	ui_layer.add_child(caja)
 	caja.say([
 		{ "text": "Un momento antes de zarpar, %s. ¿Ves ese saco de ahí arriba?" % GameState.player_title(), "mood": "hablando" },
-		{ "text": "Es **arroz**. Sin arroz no hay sushi, y sin sushi no hay jornada: cada vez que sales a un puerto se gasta **un saco**.", "mood": "serio" },
-		{ "text": "Se repone solo con el tiempo: cae **un saco cada hora y media**, aunque tengas el juego cerrado. Debajo del saco tienes la cuenta atrás.", "mood": "hablando" },
-		{ "text": "Si tienes prisa, puedes comprarlo con **lingotes de oro** en el botón de al lado. Y más adelante también podrás conseguirlo viendo anuncios.", "mood": "hablando" },
-		{ "text": "La bodega tiene su tope, eso sí. Se amplía según vayas juntando estrellas y superando puertos, pero eso ya lo verás.", "mood": "serio" },
+		{ "text": "Es **arroz**. Sin arroz no hay sushi, y sin sushi no hay oro: cada vez que comienzas una nueva jornada se gasta **un saco**.", "mood": "serio" },
+		{ "text": "Se repone solo pasado el tiempo, y podrás ir consiguiendo más a lo largo de tu aventura.", "mood": "hablando" },
 		{ "text": "¡SIN ARROZ NO SE NAVEGA! ¡RAAAK!", "who": "gigi", "mood": "loro" },
-	])
+	], true)
+	# `keep_open`: la caja SIGUE PUESTA y se la queda `_guiar_primer_nivel`, que
+	# continúa hablando de los tipos de nivel. Lo que sí se retira aquí es el
+	# foco del saco: a partir de la línea siguiente se habla del mapa entero.
 	await caja.finished
-	caja.queue_free()
 	rice_box.z_index = z_antes
-	velo.queue_free()
+	_quitar_velo(velo)
+	return caja
 
 
 ## GUÍA POST-TUTORIAL: la primera vez que se pisa el menú, David señala el
@@ -963,12 +1250,7 @@ func _guiar_a_aventura() -> void:
 	await get_tree().create_timer(0.8).timeout
 	if leaving or start_mode:
 		return
-	var velo := ColorRect.new()
-	velo.color = Color(0, 0, 0, 0.72)
-	velo.set_anchors_preset(Control.PRESET_FULL_RECT)
-	velo.z_index = 150
-	velo.mouse_filter = Control.MOUSE_FILTER_STOP
-	ui_layer.add_child(velo)
+	var velo := _velo_guia()
 	# El tablón entero por debajo del velo salvo el pergamino de Aventura.
 	var z_antes := aventura_btn.z_index
 	aventura_btn.z_index = 180
@@ -983,7 +1265,7 @@ func _guiar_a_aventura() -> void:
 		{ "text": "¡TÓCALO Y ZARPAMOS! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
 	])
 	await caja.finished
-	caja.queue_free()
+	await caja.close_and_free()
 	# El velo se queda puesto haciendo de compuerta: solo el toque que caiga
 	# sobre el pergamino iluminado pasa, y pasa directo a la Aventura.
 	velo.gui_input.connect(func(ev: InputEvent) -> void:
@@ -995,7 +1277,7 @@ func _guiar_a_aventura() -> void:
 		GameState.menu_intro_done = true
 		GameState.save_game()
 		aventura_btn.z_index = z_antes
-		velo.queue_free()
+		_quitar_velo(velo)
 		_go_adventure())
 
 
@@ -1636,7 +1918,7 @@ func _go_fishing() -> void:
 	if leaving or fishing_ui != null:
 		return
 	if not GameState.fishing_unlocked():
-		_show_locked_notice("La Pesca se abre al superar\nel nivel 4 de la Aventura.")
+		_show_locked_notice("La Pesca se abre al superar\nel nivel 5 de la Aventura.")
 		return
 	leaving = true
 	_ui_out(false)
@@ -1930,11 +2212,13 @@ func _show_daily() -> void:
 func _open_daily_chest(velo: Control, panel: Control, caja: Control,
 		cofre: TextureRect, pie: Label) -> void:
 	caja.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var dado := GameState.claim_daily()
-	# El monedero y el arroz de la cabecera ya no valen: se repintan aquí, con
-	# el premio cobrado, y no al cerrar el cartel.
-	_refresh_resources()
 	pie.text = ""
+	# EL PREMIO SE COBRA CUANDO EL COFRE SE ABRE, no al tocarlo. Cobrando antes,
+	# las cajas de la cabecera ya traían sumado el saco de arroz con el cofre
+	# todavía cerrado: parecía que el nivel no había gastado su arroz y que el
+	# bonus tampoco daba ninguno. El botín viaja en un DICCIONARIO porque las
+	# lambdas de GDScript capturan por VALOR.
+	var botin := {}
 
 	var tw := caja.create_tween()
 	tw.tween_property(caja, "rotation", 0.0, 0.10)
@@ -1942,11 +2226,14 @@ func _open_daily_chest(velo: Control, panel: Control, caja: Control,
 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_callback(func() -> void:
 		cofre.texture = load(DAILY_CHEST_TEX["abierto"])
+		botin["dado"] = GameState.claim_daily()
+		_refresh_resources()
 		_daily_coin_burst(caja))
 	tw.tween_property(caja, "scale", Vector2.ONE, 0.26) \
 			.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 	tw.tween_interval(0.18)
-	tw.tween_callback(func() -> void: _show_daily_reward(dado, velo, panel, pie))
+	tw.tween_callback(func() -> void:
+		_show_daily_reward(botin.get("dado", {}), velo, panel, pie))
 
 
 ## Puñado de monedas saliendo del cofre al abrirlo.
@@ -2169,16 +2456,27 @@ func _show_reveal(ids: Array) -> void:
 		fila.add_child(caja)
 		fichas.append(caja)
 
-	var pie := Label.new()
-	pie.text = "Ya tienes ingredientes en la despensa\npara estrenarlas."
+	# CON UNA SOLA RECETA, el pie cuenta QUÉ HACE (deducido de sus datos, ver
+	# `RecipeData.summary`): es el momento en que el jugador la ve por primera
+	# vez y mandarlo al recetario a averiguarlo no tenía sentido. Con varias no
+	# cabe una descripción por plato, así que se queda el aviso de la despensa.
+	var resumen := RecipeData.summary(str(ids[0])) if ids.size() == 1 else ""
+	var pie := RichTextLabel.new()
+	pie.bbcode_enabled = true
+	pie.scroll_active = false
+	pie.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	pie.text = "[center]%s[/center]" % (DialogueBox.format_keywords(resumen)
+			if resumen != ""
+			else "Ya tienes ingredientes en la despensa para estrenarlas.")
 	pie.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	pie.offset_left = 44.0
 	pie.offset_right = -44.0
-	pie.offset_top = -118.0
-	pie.offset_bottom = -40.0
-	pie.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pie.add_theme_font_size_override("font_size", 20)
-	pie.add_theme_color_override("font_color", Color(0.42, 0.28, 0.14))
+	pie.offset_top = -140.0
+	pie.offset_bottom = -34.0
+	pie.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pie.add_theme_font_size_override("normal_font_size", 20)
+	pie.add_theme_font_size_override("bold_font_size", 20)
+	pie.add_theme_color_override("default_color", Color(0.42, 0.28, 0.14))
 	panel.add_child(pie)
 
 	panel.scale = Vector2(0.6, 0.6)

@@ -2,7 +2,8 @@ class_name WantedPoster
 extends Control
 ## CARTEL DE RECOMPENSA: la ficha del jugador, y el ÚNICO sitio donde se elige
 ## quién es. Lo usan dos pantallas:
-##   · la bienvenida de David (`david_intro`), donde se rellena por primera vez
+##   · la bienvenida de David (`main_menu._show_ficha`), donde se rellena por
+##     primera vez
 ##     y el nombre SÍ se puede escribir;
 ##   · la pantalla PERFIL del submenú (`profile_screen`), donde se cambia
 ##     todo MENOS el nombre.

@@ -96,6 +96,10 @@ var info_clients_row: HBoxContainer
 var info_recipes_row: HBoxContainer
 var info_reward_row: HBoxContainer
 var info_stars_box: Control
+## Atado al primer puerto: en la primera visita al mapa el "Atrás" no vale
+## hasta que se zarpa (ver `_guiar_primer_nivel` y `_on_map_back`).
+var _atado_al_puerto := false
+var _regana_atras := false
 ## Filas gráficas del objetivo (estrellas + moneda + cifra).
 var goal_box: VBoxContainer = null
 ## Fila del récord (moneda + cifra).
@@ -441,6 +445,12 @@ func _build_top_bar() -> Control:
 ## "Atrás" desde el mapa. En la escena fundida (main_menu.gd hereda de aquí)
 ## no se cambia de escena: el barco vuelve navegando a su fondeadero.
 func _on_map_back() -> void:
+	# Antes de la primera jornada no se vuelve al menú: Gigi lo impide (ver
+	# _guiar_primer_nivel). El botón sigue vivo y respondiendo — apagarlo no
+	# habría explicado nada.
+	if _atado_al_puerto:
+		_gigi_no_te_vas()
+		return
 	if has_method("_back_to_menu"):
 		call("_back_to_menu")
 	else:
@@ -860,6 +870,59 @@ func _select(id: String, animate: bool) -> void:
 	_scroll_to(CampaignData.map_pos(id))
 
 
+## PRIMERA VISITA AL MAPA: David explica los tres tipos de nivel y ata al
+## jugador al primer puerto — no hay velo ni foco, se ve el mapa entero, pero
+## el botón "Atrás" no funciona hasta que zarpa (Gigi se encarga de decirlo).
+## `caja` viene puesta cuando esto ENCADENA con la explicación del arroz
+## (`main_menu._presentar_mapa`): David sigue hablando en el mismo pergamino en
+## vez de cerrarlo y volver a entrar, que era un corte a mitad de idea. Sin
+## caja, se monta una propia (camino que hoy no usa nadie, pero la guía tiene
+## que poder salir sola).
+func _guiar_primer_nivel(caja: DialogueBox = null) -> void:
+	var primero := CampaignData.first_port_id()
+	if GameState.map_intro_done or primero == "":
+		if caja != null and is_instance_valid(caja):
+			await caja.close_and_free()
+		return
+	_atado_al_puerto = true
+	if caja == null:
+		await get_tree().create_timer(0.5).timeout
+		caja = DialogueBox.new()
+		caja.z_index = 200
+		# Sin velo: aquí no se señala nada, se explica el mapa entero.
+		caja.veil_on = false
+		ui.add_child(caja)
+	caja.say([
+		{ "text": "Nuestra primera parada es esa de ahí: **Cala Tortuga**, una **isla**.", "mood": "feliz" },
+		{ "text": "Porque las paradas son de tres clases. Las **islas** son tranquilas: poca clientela, y con la carta que yo te ponga.", "mood": "hablando" },
+		{ "text": "Los **puertos** son un hervidero: mucha más gente entrando, y ahí eliges tú las recetas.", "mood": "serio" },
+		{ "text": "Y los **abordajes** se juegan contra reloj, con clientela que no se acaba nunca. Esos son los bravos.", "mood": "gritando" },
+		{ "text": "Hoy empezamos por lo fácil. Dale a **¡Zarpar!** cuando quieras.", "mood": "feliz" },
+	])
+	await caja.finished
+	await caja.close_and_free()
+
+
+## Gigi corta al jugador si intenta volverse al menú antes de su primera
+## jornada. No es un botón apagado: es un loro gritando, que se entiende mejor.
+func _gigi_no_te_vas() -> void:
+	if _regana_atras:
+		return
+	_regana_atras = true
+	var caja := DialogueBox.new()
+	caja.z_index = 200
+	caja.veil_on = false
+	ui.add_child(caja)
+	caja.say([
+		{ "text": "¡¿A DÓNDE CREES QUE VAS?! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "¡¿Abandonando el barco en tu primer día?! ¡Te tiro por la borda y que te coman los tiburones!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "Déjalo, plumas... pero tiene razón: hoy se zarpa. **Cala Tortuga** te espera.", "mood": "loro_resignado" },
+	])
+	await caja.finished
+	caja.queue_free()
+	_regana_atras = false
+
+
 func _scroll_to(point: Vector2) -> void:
 	var target := clampf(point.y, SCROLL_MIN, SCROLL_MAX)
 	if scroll_tween != null:
@@ -895,6 +958,12 @@ func _unhandled_input(event: InputEvent) -> void:
 func _on_sail_pressed() -> void:
 	if selected_id == "" or not GameState.is_port_unlocked(selected_id):
 		return
+	# Zarpar por primera vez cierra la guía del mapa: a la vuelta, el jugador
+	# ya se mueve por donde quiera.
+	if _atado_al_puerto:
+		_atado_al_puerto = false
+		GameState.map_intro_done = true
+		GameState.save_game()
 	GameState.mode = "adventure"
 	GameState.current_port = selected_id
 	GameState.selected_recipes = []
@@ -910,8 +979,31 @@ func _on_sail_pressed() -> void:
 	var faltan := GameState.missing_ingredients(fijas)
 	if faltan.is_empty():
 		_zarpar_con(fijas)
-	else:
-		_avisar_falta_genero(fijas, faltan)
+		return
+	# SIN TIENDA TODAVÍA (abre en el nivel 4) el jugador no tiene DÓNDE
+	# reponer: quedarse a cero sería un callejón sin salida. Así que David le
+	# rellena lo que le falte y se zarpa igual, tantas veces como haga falta.
+	if not GameState.shop_unlocked():
+		await _david_regala_genero(faltan)
+		GameState.gift_missing_ingredients(fijas)
+		_zarpar_con(fijas)
+		return
+	_avisar_falta_genero(fijas, faltan)
+
+
+## David rellena la despensa cuando el jugador se queda a cero ANTES de que
+## abra la tienda. No es un premio: es la red de seguridad de la escuela.
+func _david_regala_genero(faltan: Array) -> void:
+	var caja := DialogueBox.new()
+	ui.add_child(caja)
+	caja.say([
+		{ "text": "¡RAAAK! ¡DESPENSA VACÍA! ¡Que no queda %s!"
+			% _lista(_nombres_ingredientes(faltan)), "who": "gigi", "mood": "loro_grito" },
+		{ "text": "Tranquilo, para eso está el capitán. Toma **%d usos** de cada cosa que te falte, de mi **reserva particular**."
+			% GameState.RESCUE_GIFT, "mood": "feliz" },
+	])
+	await caja.finished
+	await caja.close_and_free()
 
 
 ## Manda al nivel con una carta cerrada ya decidida.
@@ -1110,7 +1202,15 @@ func _process(delta: float) -> void:
 		# Y APARTADA DE LA CÁMARA (-x, -z), por lo mismo: acercarla la ponía
 		# por delante del propio barco en el test de profundidad.
 		if ship_blob != null:
-			ship_blob.position = _world(ship_px) + Vector3(-0.30, 0.04, -0.26)
+			# EL DESPLAZAMIENTO ESCALA CON EL BARCO. La mancha se agranda con
+			# `scale` (en el menú, ×2.75) pero el apartado iba en unidades fijas
+			# de mapa, así que en el menú la mancha crecía y no se apartaba: su
+			# esquina cercana pasaba por delante de las velas y dejaba un borrón
+			# gris sobre el aparejo. Con el apartado escalado, la proporción es
+			# la misma en el mapa y en el menú.
+			var esc: float = ship_blob.scale.x
+			ship_blob.position = _world(ship_px) \
+					+ Vector3(-0.30, 0.04, -0.26) * esc
 
 	# Overlays 2D anclados a sus nodos 3D.
 	if not map_visible:
