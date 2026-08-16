@@ -2217,12 +2217,17 @@ que no hay problema.
     oscuro (111/76/38) y bajándole el brillo se hundía en el canal de la
     barra, como un agujero. El `modulate` por encima de 1 MULTIPLICA, así que
     sube el brillo en vez de teñir.
-  · **Las DOS PRIMERAS se corren a la IZQUIERDA lo que mide su propia cifra**
-    (`_mobile_value_width`, medido con la fuente real de la etiqueta, que los
-    umbrales van de dos a cuatro cifras): la cifra que sube va pegada POR
-    DETRÁS a la punta del relleno, así que centrando la estrella en su umbral
-    exacto el número se quedaba a media estrella de distancia justo al
-    ganarla. Corridas, el número aterriza ENCIMA de su estrella.
+  · **CADA ESTRELLA VA EN SU FRACCIÓN EXACTA y la cifra que sube va CENTRADA
+    en la punta del relleno** (solo en esta barra; en el bote sigue arrastrada
+    por detrás, que allí no hay estrellas). Es lo único que cumple las tres
+    condiciones a la vez: el verde llega a la estrella JUSTO al ganarla y ni
+    un pixel antes, y el número aterriza clavado en su centro —centro del
+    número = punta = centro de la estrella—. Se probó lo contrario, correr las
+    estrellas a la izquierda para cuadrar el número dejándolo arrastrado, y es
+    peor: el verde se pasaba de largo antes de haberse ganado la estrella.
+    Por eso la móvil **no se acota por la derecha**: tiene que poder llegar
+    hasta el final, que es donde está la tercera. Y va la ÚLTIMA del árbol,
+    para dibujarse por encima de las estrellas en ese tramo final.
   · **La TERCERA es la meta y va aparte**: **centrada en el final de la
     barra** —medio cuerpo por fuera— y con el oro que cuesta **escrito
     DENTRO**. Del mismo tamaño que las otras: se probó más grande y se comía

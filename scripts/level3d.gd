@@ -1994,6 +1994,11 @@ func _mark_star_steps() -> void:
 		money_meta.add_theme_constant_override("outline_size", 4)
 		money_meta.add_theme_color_override("font_color", Color(0.24, 0.14, 0.05))
 		money_meta.add_theme_color_override("font_outline_color", Color(1, 0.96, 0.84))
+	# La cifra que SUBE, la última de todas: tiene que dibujarse por encima de
+	# las estrellas y de la del objetivo, porque en el tramo final se le echa
+	# encima a la tercera estrella hasta que la alcanza y desaparece.
+	if money_label != null:
+		money_bar.move_child(money_label, -1)
 	for i in star_money.size():
 		var marca := TextureRect.new()
 		marca.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -2029,35 +2034,21 @@ func _place_star_marks() -> void:
 		# El pivote va al centro para que el bote de encendido crezca desde la
 		# estrella y no desde su esquina.
 		n.pivot_offset = n.size * 0.5
-		# Las dos primeras se corren a la IZQUIERDA lo que mide su propia cifra:
-		# la que sube va PEGADA POR DETRÁS a la punta del relleno, así que al
-		# alcanzar el umbral el número queda justo encima de su estrella en vez
-		# de a media estrella de distancia. La última no se mueve: es la meta y
-		# tiene que quedarse clavada al final de la barra.
-		var centro := float(m["frac"]) * ancho
-		if not meta_star:
-			centro -= _mobile_value_width(int(m["meta"])) * 0.5 + 2.0
-		n.position = Vector2(centro - lado * 0.5, (alto - lado) * 0.5)
+		# CADA ESTRELLA VA CENTRADA EN SU FRACCIÓN EXACTA, sin corregir nada: es
+		# lo que hace que el relleno verde llegue justo a la estrella al alcanzar
+		# su umbral y ni un pixel antes. Y como la cifra que sube va CENTRADA en
+		# la punta del relleno (`_place_bar_value`), esa misma fracción hace que
+		# el número aterrice clavado en el centro de la estrella. Se probó a
+		# correrlas a la izquierda para cuadrar el número y era peor: el verde se
+		# pasaba de largo antes de haberse ganado la estrella.
+		n.position = Vector2(float(m["frac"]) * ancho - lado * 0.5,
+			(alto - lado) * 0.5)
 		if meta_star:
 			_place_goal_value(n, lado)
 		var ganada: bool = oro >= float(m["meta"])
 		if ganada != bool(m["on"]):
 			m["on"] = ganada
 			_light_star_mark(n, ganada)
-
-
-## Lo que va a medir la cifra que sube cuando marque `valor`. Se mide con la
-## FUENTE REAL de la etiqueta, no a ojo: el ancho decide cuánto se corre su
-## estrella a la izquierda, y los umbrales van de dos a cuatro cifras.
-func _mobile_value_width(valor: int) -> float:
-	if money_label == null:
-		return 0.0
-	var f := money_label.get_theme_font("font")
-	if f == null:
-		return 0.0
-	# El +10 es el mismo colchón que le pone `_place_bar_value` al colocarla.
-	return f.get_string_size(str(valor), HORIZONTAL_ALIGNMENT_LEFT, -1,
-		money_label.get_theme_font_size("font_size")).x + 10.0
 
 
 ## La cifra del objetivo, CENTRADA DENTRO de la estrella de la meta. El cuerpo
@@ -2172,13 +2163,21 @@ func _place_bar_value(bar: ProgressBar, movil: Label, meta_l: Label,
 		return
 	movil.size = Vector2(movil.get_minimum_size().x + 10.0, bar.size.y)
 	var punta := clampf(float(valor) / float(maxi(meta, 1)), 0.0, 1.0) * ancho
-	# En la barra del ORO la meta ya no está pegada al canto: vive dentro de la
-	# estrella final, que sobresale media hacia fuera. La móvil tiene que
-	# frenar antes de meterse debajo de esa estrella.
-	var reserva := bar.size.y * STAR_GOAL_H * 0.5 + 8.0 \
-		if bar == money_bar and not star_marks.is_empty() \
-		else meta_l.get_minimum_size().x + 18.0
-	var tope := ancho - reserva - movil.size.x
+	if bar == money_bar and not star_marks.is_empty():
+		# BARRA DEL ORO: la cifra va CENTRADA en la punta del relleno, no
+		# arrastrada por detrás. Es lo único que cumple las tres cosas a la vez:
+		# el verde llega a la estrella justo al ganarla, y el número aterriza
+		# clavado en su centro -las estrellas están en su fracción exacta, así
+		# que centro del número = punta = centro de la estrella-.
+		# Solo se acota por la izquierda, para que no se salga del canto cuando
+		# todavía no hay relleno; por la derecha SE DEJA LLEGAR hasta el final,
+		# que ahí es donde está la tercera estrella.
+		var centro := clampf(punta, movil.size.x * 0.5 + 2.0, ancho)
+		movil.position = Vector2(centro - movil.size.x * 0.5, 0.0)
+		return
+	# El resto de barras (el bote) no llevan estrellas: la cifra va DETRÁS de la
+	# punta y frena antes de montarse sobre la meta, que sigue pegada al canto.
+	var tope := ancho - meta_l.get_minimum_size().x - 18.0 - movil.size.x
 	movil.position = Vector2(
 		clampf(punta - movil.size.x - 2.0, 6.0, maxf(tope, 6.0)), 0.0)
 
