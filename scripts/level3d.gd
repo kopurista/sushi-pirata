@@ -1937,33 +1937,39 @@ func _with_icon(bar: Control, icono: String, lado: float) -> HBoxContainer:
 	return fila
 
 
-## Color del MARCO de la barra, sacado de su propia textura
-## (`barra_oro_fondo.png`, el borde vale 76/45/23): las muescas son del mismo
-## trazo que dibuja el canal, así que se leen como parte de la barra y no como
-## algo pegado encima.
-const BAR_STROKE := Color(0.298, 0.176, 0.090)
-## Inclinación de las muescas: son BARRAS "/" y no palotes "|". Un palote se
-## confundía con el borde de un tramo lleno; inclinado se lee como una marca.
-## Van A SANGRE, de canto a canto del canal: cortadas antes del borde parecían
-## un carácter escrito encima en vez de una división de la propia barra.
-const MARK_TILT := 24.0
-const MARK_W := 5.0
-## Lo que se pasa de largo por arriba y por abajo. El sobrante lo recorta el
-## `clip_contents` de la barra, así que el corte sale limpio y recto aunque la
-## marca esté girada (girada, su alto útil es `alto * cos(TILT)`, siempre menor
-## que el de la barra).
-const MARK_BLEED := 1.5
+## Las separaciones de la barra del oro son LAS ESTRELLAS DEL JUEGO
+## (`estrella_vacia/llena.png`, las mismas del cartel de resultados), no unas
+## muescas dibujadas: así el jugador ve DE QUÉ va cada tramo sin tener que
+## saberlo. Empiezan apagadas y se encienden al alcanzar su umbral.
+const STAR_MARK_TEX := "res://assets/ui/estrella_%s.png"
+## Un pelo más alta que el canal: la estrella CABALGA la barra, que es lo que
+## la separa del relleno y la hace legible sobre los dos fondos por los que
+## pasa (el verde lleno y el canal oscuro).
+const STAR_MARK_H := 1.34
+## La ÚLTIMA va CENTRADA EN EL FINAL de la barra, medio cuerpo por fuera: es la
+## meta del turno, y dentro lleva escrito el oro que cuesta. Del MISMO tamaño
+## que las otras dos, que más grande se comía la fila.
+const STAR_GOAL_H := STAR_MARK_H
+## Hueco de la cifra dentro de la estrella, en fracción de su lado: una
+## estrella tiene las puntas fuera y solo el cuerpo central sirve de papel.
+const STAR_GOAL_TEXT := 0.62
+## Apagada se ACLARA, no se oscurece: `estrella_vacia.png` ya es marrón oscuro
+## (111/76/38) y atenuándola encima se hundía en el canal de la barra —parecía
+## un agujero, no una estrella por ganar—. Aclarada se ve la silueta y sigue
+## sin competir con la conseguida, que va dorada y a más brillo.
+const STAR_MARK_OFF := Color(1.55, 1.55, 1.55, 0.9)
+const STAR_MARK_ON := Color(1.25, 1.20, 0.85)
 
-## Muescas de la barra del oro: `{ nodo, frac }`. Se recolocan por fotograma en
-## `_place_star_marks`, porque una marca girada no puede vivir de anclas (el
-## giro necesita el pivote en su centro, y el centro sale del tamaño ya
-## resuelto).
+## Estrellas de la barra del oro: `{ nodo, frac, meta, on }`. Se recolocan por
+## fotograma en `_place_star_marks` porque el ancho de la barra cambia con el
+## lienzo, y el encendido se repasa ahí mismo.
 var star_marks: Array = []
 
 
-## Las DOS MUESCAS de la barra del oro, en los umbrales de 1 y 2 estrellas: la
-## barra se lee entonces como tres tramos, uno por estrella, y de un vistazo se
-## ve cuánto falta para la siguiente en vez de solo "cuánto llevo del total".
+## LAS TRES ESTRELLAS de la barra del oro, cada una en su umbral: la barra se
+## lee entonces como tres tramos, uno por estrella, y de un vistazo se ve
+## cuánto falta para la siguiente en vez de solo "cuánto llevo del total". La
+## tercera cae al final, porque su umbral ES la barra llena.
 ##
 ## Se llama al final de `_ready`, no desde `_setup_money_bars`: los umbrales
 ## salen del puerto y todavía no están puestos cuando se visten los paneles.
@@ -1971,17 +1977,29 @@ func _mark_star_steps() -> void:
 	star_marks.clear()
 	if money_bar == null or star_money.size() < 2:
 		return
-	# Las muescas se dibujan más largas que el canal y se recortan aquí: así
-	# llegan al borde de arriba y al de abajo con un corte recto, sin el degradado
-	# de los cantos de un rectángulo girado.
-	money_bar.clip_contents = true
+	# SIN recorte: la estrella sobresale del canal a propósito y con
+	# `clip_contents` se le comía la punta de arriba y la de abajo.
+	money_bar.clip_contents = false
 	var meta := float(star_money.back())
 	if meta <= 0.0:
 		return
-	for i in star_money.size() - 1:
-		var marca := ColorRect.new()
-		marca.color = BAR_STROKE
-		marca.rotation_degrees = MARK_TILT
+	# La cifra del objetivo deja de vivir pegada al canto: se mete DENTRO de la
+	# estrella de la meta, así que pasa a colocarse a mano por fotograma en
+	# `_place_star_marks`.
+	if money_meta != null:
+		money_meta.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+		money_meta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		money_meta.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		# Contorno FINO: el de 10 px se comía la cifra dentro de la estrella.
+		money_meta.add_theme_constant_override("outline_size", 4)
+		money_meta.add_theme_color_override("font_color", Color(0.24, 0.14, 0.05))
+		money_meta.add_theme_color_override("font_outline_color", Color(1, 0.96, 0.84))
+	for i in star_money.size():
+		var marca := TextureRect.new()
+		marca.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		marca.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		marca.texture = load(STAR_MARK_TEX % "vacia")
+		marca.modulate = STAR_MARK_OFF
 		marca.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		money_bar.add_child(marca)
 		# Por debajo de las etiquetas, que van las últimas.
@@ -1989,6 +2007,8 @@ func _mark_star_steps() -> void:
 		star_marks.append({
 			"nodo": marca,
 			"frac": clampf(float(star_money[i]) / meta, 0.0, 1.0),
+			"meta": float(star_money[i]),
+			"on": false,
 		})
 
 
@@ -1999,13 +2019,86 @@ func _place_star_marks() -> void:
 	var alto := money_bar.size.y
 	if ancho <= 0.0:
 		return
-	var largo := alto * MARK_BLEED
-	for m in star_marks:
-		var n: ColorRect = m["nodo"]
-		n.size = Vector2(MARK_W, largo)
+	var oro := _score_money()
+	for i in star_marks.size():
+		var m: Dictionary = star_marks[i]
+		var meta_star: bool = i == star_marks.size() - 1
+		var lado := alto * (STAR_GOAL_H if meta_star else STAR_MARK_H)
+		var n: TextureRect = m["nodo"]
+		n.size = Vector2(lado, lado)
+		# El pivote va al centro para que el bote de encendido crezca desde la
+		# estrella y no desde su esquina.
 		n.pivot_offset = n.size * 0.5
-		n.position = Vector2(float(m["frac"]) * ancho - MARK_W * 0.5,
-			(alto - largo) * 0.5)
+		# Las dos primeras se corren a la IZQUIERDA lo que mide su propia cifra:
+		# la que sube va PEGADA POR DETRÁS a la punta del relleno, así que al
+		# alcanzar el umbral el número queda justo encima de su estrella en vez
+		# de a media estrella de distancia. La última no se mueve: es la meta y
+		# tiene que quedarse clavada al final de la barra.
+		var centro := float(m["frac"]) * ancho
+		if not meta_star:
+			centro -= _mobile_value_width(int(m["meta"])) * 0.5 + 2.0
+		n.position = Vector2(centro - lado * 0.5, (alto - lado) * 0.5)
+		if meta_star:
+			_place_goal_value(n, lado)
+		var ganada: bool = oro >= float(m["meta"])
+		if ganada != bool(m["on"]):
+			m["on"] = ganada
+			_light_star_mark(n, ganada)
+
+
+## Lo que va a medir la cifra que sube cuando marque `valor`. Se mide con la
+## FUENTE REAL de la etiqueta, no a ojo: el ancho decide cuánto se corre su
+## estrella a la izquierda, y los umbrales van de dos a cuatro cifras.
+func _mobile_value_width(valor: int) -> float:
+	if money_label == null:
+		return 0.0
+	var f := money_label.get_theme_font("font")
+	if f == null:
+		return 0.0
+	# El +10 es el mismo colchón que le pone `_place_bar_value` al colocarla.
+	return f.get_string_size(str(valor), HORIZONTAL_ALIGNMENT_LEFT, -1,
+		money_label.get_theme_font_size("font_size")).x + 10.0
+
+
+## La cifra del objetivo, CENTRADA DENTRO de la estrella de la meta. El cuerpo
+## de letra se remide contra el hueco útil de la estrella (`STAR_GOAL_TEXT`),
+## porque los objetivos van de dos a cuatro cifras según el nivel y con un
+## cuerpo fijo los de tres se salían por las puntas.
+func _place_goal_value(estrella: TextureRect, lado: float) -> void:
+	if money_meta == null:
+		return
+	money_meta.size = Vector2(lado, lado)
+	money_meta.position = estrella.position
+	var hueco := lado * STAR_GOAL_TEXT
+	var cuerpo := int(lado * 0.34)
+	while cuerpo > 10:
+		money_meta.add_theme_font_size_override("font_size", cuerpo)
+		if money_meta.get_minimum_size().x <= hueco:
+			break
+		cuerpo -= 2
+
+
+## Encender una estrella de la barra: se rellena Y BRILLA -un fogonazo que se
+## apaga y un bote elástico-, porque cruzar un umbral es la noticia del turno y
+## sin el golpe se pasaba sin verla. El `modulate` por encima de 1 es a
+## propósito: multiplica, así que sube el brillo en vez de teñir.
+##
+## Se apaga también (con el castigo por plato tirado o por cliente que se va de
+## vacío el oro BAJA), pero sin bote: perder una estrella no se celebra.
+func _light_star_mark(n: TextureRect, ganada: bool) -> void:
+	n.texture = load(STAR_MARK_TEX % ("llena" if ganada else "vacia"))
+	n.modulate = STAR_MARK_ON if ganada else STAR_MARK_OFF
+	if not ganada:
+		n.scale = Vector2.ONE
+		return
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(n, "scale", Vector2(1.75, 1.75), 0.12) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(n, "scale", Vector2.ONE, 0.26) \
+		.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT).set_delay(0.12)
+	tw.tween_property(n, "modulate", Color(2.2, 2.1, 1.6), 0.10)
+	tw.tween_property(n, "modulate", STAR_MARK_ON, 0.30).set_delay(0.10)
 
 
 func _make_hud_bar(tex: String, cap: int, tamano: Vector2, tinte: Color,
@@ -2079,7 +2172,13 @@ func _place_bar_value(bar: ProgressBar, movil: Label, meta_l: Label,
 		return
 	movil.size = Vector2(movil.get_minimum_size().x + 10.0, bar.size.y)
 	var punta := clampf(float(valor) / float(maxi(meta, 1)), 0.0, 1.0) * ancho
-	var tope := ancho - movil.size.x - meta_l.get_minimum_size().x - 30.0
+	# En la barra del ORO la meta ya no está pegada al canto: vive dentro de la
+	# estrella final, que sobresale media hacia fuera. La móvil tiene que
+	# frenar antes de meterse debajo de esa estrella.
+	var reserva := bar.size.y * STAR_GOAL_H * 0.5 + 8.0 \
+		if bar == money_bar and not star_marks.is_empty() \
+		else meta_l.get_minimum_size().x + 18.0
+	var tope := ancho - reserva - movil.size.x
 	movil.position = Vector2(
 		clampf(punta - movil.size.x - 2.0, 6.0, maxf(tope, 6.0)), 0.0)
 

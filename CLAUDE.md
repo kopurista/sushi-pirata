@@ -2205,17 +2205,39 @@ que no hay problema.
   más grueso (10) porque acaba sola sobre el relleno. Dos topes al colocar la
   móvil: por la izquierda para que no se salga del canto sin relleno, y por la
   derecha para que no se monte sobre la cifra de la meta.
-  **Las muescas de estrella son BARRAS "/", no palotes "|"**, y del color del
-  MARCO de la barra (`BAR_STROKE`, sacado del borde de `barra_oro_fondo.png`):
-  así se leen como parte del dibujo de la barra. Van **A SANGRE**, de canto a
-  canto: se dibujan más largas que el canal y las recorta el `clip_contents`
-  de la propia barra, que es lo que da un corte recto arriba y abajo pese al
-  giro. Una marca girada NO puede vivir de anclas —el giro necesita el pivote
-  en su centro, y el centro sale del tamaño ya resuelto—, así que se recolocan
-  por fotograma en `_place_star_marks`.
+  **LAS SEPARACIONES DE LA BARRA DEL ORO SON LAS ESTRELLAS DEL JUEGO**
+  (`estrella_vacia/llena.png`, las mismas del cartel de resultados), una por
+  umbral: nacen apagadas y **al alcanzar su oro se rellenan y BRILLAN**
+  —fogonazo que se apaga más bote elástico, en `_light_star_mark`—, porque
+  cruzar un umbral es la noticia del turno. Se apagan también si el oro baja
+  (castigos), pero sin bote: perder una estrella no se celebra. Fueron unas
+  muescas "/" dibujadas; con la estrella de verdad el jugador ve DE QUÉ va
+  cada tramo sin que nadie se lo cuente.
+  · La **apagada se ACLARA, no se atenúa**: `estrella_vacia.png` ya es marrón
+    oscuro (111/76/38) y bajándole el brillo se hundía en el canal de la
+    barra, como un agujero. El `modulate` por encima de 1 MULTIPLICA, así que
+    sube el brillo en vez de teñir.
+  · **Las DOS PRIMERAS se corren a la IZQUIERDA lo que mide su propia cifra**
+    (`_mobile_value_width`, medido con la fuente real de la etiqueta, que los
+    umbrales van de dos a cuatro cifras): la cifra que sube va pegada POR
+    DETRÁS a la punta del relleno, así que centrando la estrella en su umbral
+    exacto el número se quedaba a media estrella de distancia justo al
+    ganarla. Corridas, el número aterriza ENCIMA de su estrella.
+  · **La TERCERA es la meta y va aparte**: **centrada en el final de la
+    barra** —medio cuerpo por fuera— y con el oro que cuesta **escrito
+    DENTRO**. Del mismo tamaño que las otras: se probó más grande y se comía
+    la fila. Por eso la cifra del objetivo ya no vive pegada al canto: se
+    coloca a mano encima de esa estrella y su cuerpo de letra **se remide**
+    contra el hueco útil (`STAR_GOAL_TEXT`, que una estrella tiene las puntas
+    fuera y solo el centro sirve de papel), porque los objetivos van de dos a
+    cuatro cifras según el nivel.
+  · La barra va **sin `clip_contents`**: las estrellas cabalgan el canal a
+    propósito y recortándolas se les comía las puntas.
+  · El tope derecho de la cifra móvil sale de esa estrella final, no de un
+    número a mano: las dos se apartan a la vez y nunca se montan.
   **La barra del oro es más LARGA que la del bote** (266 vs 178): es la que
-  tiene que dar cabida a objetivos de tres y cuatro cifras sin que el número de
-  la meta se monte sobre las muescas. Más de eso no cabe: con el reloj visible
+  tiene que dar cabida a objetivos de tres y cuatro cifras sin que las tres
+  estrellas se amontonen. Más de eso no cabe: con el reloj visible
   (abordajes) la fila de arriba se queda sin hueco.
   **La del oro va PARTIDA EN TRES TRAMOS** (`_mark_star_steps`), con una muesca
   en el umbral de 1 y de 2 estrellas: así se ve cuánto falta para la SIGUIENTE
