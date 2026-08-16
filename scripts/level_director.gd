@@ -61,8 +61,20 @@ func _run() -> void:
 			await _nivel_7()
 		"nivel_8":
 			await _nivel_8()
+		"nivel_9":
+			await _nivel_9()
 		"nivel_10":
 			await _nivel_10()
+		"nivel_11":
+			await _nivel_11()
+		"nivel_12":
+			await _nivel_12()
+		"nivel_13":
+			await _nivel_13()
+		"nivel_14":
+			await _nivel_14()
+		"nivel_15":
+			await _nivel_15()
 
 
 ## Mientras una lección está en curso, TODO el que se siente entra con la
@@ -169,7 +181,16 @@ func _mejor_variedad() -> int:
 
 
 ## Saca de la cola al primer cliente de ese tipo y lo manda al principio.
+##
+## EN UN NIVEL CON CUPO NO SE ADELANTA A NADIE SI YA NO QUEDAN LLEGADAS
+## APUNTADAS: adelantar gasta un hueco del horario, y si el horario está vacío
+## lo que se hace es INVENTAR un cliente. Pasó en el nivel 2 — si el segundo
+## grumete ya había entrado por su cuenta antes de que saltara el refuerzo, los
+## tres adelantos solo podían gastar dos huecos y la isla acababa con CINCO
+## clientes en vez de cuatro.
 func _adelantar_tipo(tipo: String) -> void:
+	if not lv.unlimited and lv.arrival_queue.is_empty():
+		return
 	for i in lv.type_queue.size():
 		if lv.type_queue[i] == tipo:
 			lv.type_queue.remove_at(i)
@@ -318,7 +339,7 @@ func _nivel_1() -> void:
 # problema: un plato en la cinta se lo queda el primero que pase.
 
 ## Platos que hay que tener guardados para que la lección de cajas dé el paso.
-const CAJAS_PEDIDAS := 3
+const CAJAS_PEDIDAS := 4
 ## Fracción de paciencia del primer cliente a la que entra el refuerzo si aún
 ## no ha llegado a su segundo plato.
 const REFUERZO_PACIENCIA := 2.0 / 3.0
@@ -334,8 +355,7 @@ func _nivel_2() -> void:
 	pb.refresh_extra_ui()
 	await _say([
 		{ "text": "**Playa del Coco**. Hoy te voy a enseñar el truco que separa a un cocinero de un friegaplatos.", "mood": "feliz" },
-		{ "text": "Ah, y aviso: ayer invitaba la casa. Desde hoy cada receta que embarques gasta **un uso** de sus ingredientes de la **despensa**.", "mood": "serio" },
-		{ "text": "Los usos se ganan con cada receta nueva... y más adelante habrá dónde comprarlos. Empieza tranquilo, que de momento solo hay una boca.", "mood": "hablando" },
+		{ "text": "Empieza tranquilo, que de momento solo hay una boca. Ya te avisaré yo cuando toque.", "mood": "hablando" },
 	])
 	_play()
 	_vigilar_basura()
@@ -359,8 +379,11 @@ func _nivel_2() -> void:
 	if lv.ended:
 		return
 
-	# --- ...y entran los otros TRES a la vez ---
-	for i in 3:
+	# --- ...y entra DE GOLPE toda la clientela que quede ---
+	# Se traen los que FALTAN, no un 3 clavado: si el segundo grumete ya había
+	# entrado por su cuenta, tres adelantos habrían dejado la isla con cinco
+	# clientes en un nivel diseñado para cuatro.
+	for i in maxi(int(lv.total_clients) - int(lv.clients_spawned), 0):
 		_adelantar_tipo("E")
 	await get_tree().create_timer(1.4).timeout
 	if lv.ended:
@@ -539,32 +562,10 @@ func _nivel_4() -> void:
 	])
 	_play()
 
-	# --- Al cerrar el turno: Saverio y la TIENDA ---
-	# SOLO SI SE HA APROBADO. El puesto lo abre `unlocks_shop` mirando las
-	# estrellas del puerto, así que presentarlo tras un intento fallido dejaba
-	# a Saverio invitando a una tienda que sigue cerrada (y `pending_shop_visit`
-	# llevaría a una pantalla a la que aún no se puede entrar). Se mide igual
-	# que `_finalize_results`: dinero base + propinas contra el umbral de 2★.
-	await _esperar(func() -> bool: return lv.ended)
-	var aprobado: bool = lv.star_money.size() > 1 \
-			and lv._star_money() >= int(lv.star_money[1])
-	if aprobado and not GameState.shop_intro_done:
-		await _say([
-			{ "text": "¡Buen turno! Y mira quién ha estado descargando en el muelle mientras cocinabas...", "mood": "feliz" },
-			{ "text": "**Saverio**, el mejor tendero de estos mares. Encantado, cocinero.", "who": "saverio", "mood": "explicando" },
-			{ "text": "Yo vendo **usos** de ingredientes, y saco **género nuevo** cada día. A partir de hoy mi puesto es tuyo.", "who": "saverio", "mood": "hablando" },
-			{ "text": "¡NEGOCIOS! ¡RAAAK!", "who": "gigi", "mood": "loro" },
-			{ "text": "Hasta ahora te he ido surtiendo yo la despensa, %s. Desde este puerto, el género se compra." % GameState.player_title(), "mood": "serio" },
-			{ "text": "Anda, pásate por el puesto y échale un ojo. Lo tienes siempre en el **menú**, botón **Tienda**.", "mood": "hablando" },
-		])
-		GameState.shop_intro_done = true
-		# Y el juego lleva al jugador al puesto en cuanto cierre el cartel de
-		# resultados (level3d lo mira al salir).
-		GameState.pending_shop_visit = true
-		GameState.save_game()
-	# Si no se cierra a mano, el retrato se queda encima del panel de resultados.
-	dialog.close()
-	_clear_focus()
+	# (La presentación de SAVERIO y la tienda NO va aquí: se ve al VOLVER AL
+	# MAPA, en `main_menu._presentar_saverio`. Encadenada al cierre del turno se
+	# comía el cartel de resultados, que es lo que el jugador quiere leer justo
+	# después de una jornada.)
 
 
 # ------------------------------------------------------------------- nivel 5
@@ -574,7 +575,7 @@ func _nivel_4() -> void:
 func _nivel_5() -> void:
 	await _focus_node(lv.tip_bar, 20.0)
 	await _say([
-		{ "text": "¿Ves esa barra azul nueva? Es el **bote de propinas**. Desde hoy, los clientes contentos dejan algo extra.", "mood": "feliz" },
+		{ "text": "¿Ves esa barra nueva, la de debajo del oro? Es el **bote de propinas**. Desde hoy, los clientes contentos dejan algo extra.", "mood": "feliz" },
 		{ "text": "La propina NO cuenta para el objetivo: va al bote. Y cuando el bote se llena...", "mood": "hablando" },
 		{ "text": "¡REGALO! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
 		{ "text": "...te dan a elegir un **potenciador**: una ayuda para el resto del turno.", "mood": "riendo" },
@@ -656,7 +657,9 @@ func _nivel_6() -> void:
 
 # ------------------------------------------------------------------- nivel 7
 # Estrecho del Rayo: el primer ABORDAJE (reloj y clientela sin fin) y los
-# primeros PIRATAS y CAPITANES del juego, con el nigiri de atún para estrenar.
+# primeros PIRATAS del juego. Los capitanes NO salen aquí: llegan con Pablo, en
+# el 10. El pirata es el TERCER cliente (`client_order` del puerto), así que no
+# hay que adelantar a nadie: solo esperar a que se siente.
 
 func _nivel_7() -> void:
 	await _focus_node(lv.time_label, 24.0)
@@ -667,37 +670,31 @@ func _nivel_7() -> void:
 		{ "text": "¡AL ABORDAJE! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
 	])
 	_play()
+	_vigilar_basura()
 	await _tras_la_preparacion()
 
-	# --- El primer PIRATA de la campaña ---
+	# --- El primer PIRATA de la campaña (el tercero en subir a bordo) ---
 	await _esperar(func() -> bool:
-		return lv.ended or _progreso() >= TARDIO_PROGRESO \
-				or _cliente_tipo("A") != null)
-	if lv.ended:
-		return
-	if _cliente_tipo("A") == null:
-		_adelantar_tipo("A")
-		await _esperar(func() -> bool:
-			return lv.ended or _cliente_tipo("A") != null)
+		return lv.ended or _cliente_tipo("A") != null)
 	if lv.ended:
 		return
 	var pirata := _cliente_tipo("A")
-	# Un momento para verlo entrar antes de que nadie hable.
-	await get_tree().create_timer(1.4).timeout
+	# Un momento para verlo sentarse antes de que nadie hable.
+	await get_tree().create_timer(1.2).timeout
 	if pirata != null and is_instance_valid(pirata):
 		_focus_client(pirata)
 	await _say([
 		{ "text": "¡ESE NO ES UN GRUMETE! ¡UN **PIRATA** EN LA BARRA! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
 		{ "text": "Hasta hoy solo te habían venido **grumetes**, que comen de **1 estrella**. Se acabó lo fácil.", "mood": "serio" },
-		{ "text": "Los **piratas** comen de **2 estrellas** y los **capitanes** de **3**. Cada uno mira las estrellas del plato antes de cogerlo... y pagan en la misma proporción.", "mood": "hablando" },
+		{ "text": "Un **pirata** come de **2 estrellas**. Mira las estrellas del pergamino antes de servir: de un plato de una, casi ni se entera.", "mood": "hablando" },
 	])
 
-	# El regalo: una receta de nivel 2 que entra en la tabla en plena partida.
+	# El regalo: la primera receta de 2 estrellas, en la tabla y en marcha.
 	_regalar_receta("nigiri_atun")
 	await _focus_node(lv.prep_board.buttons["nigiri_atun"], 12.0)
 	await _say_raised([
 		{ "text": "Por eso te traigo el **nigiri de atún**: **dos estrellas**. Tuyo, y te lo pongo en la tabla para que lo estrenes con él.", "mood": "feliz" },
-		{ "text": "Las **estrellas** del pergamino son el nivel del plato. Mira siempre quién está sentado antes de servir.", "mood": "serio" },
+		{ "text": "Y ojo: paga bastante mejor que lo que venías sirviendo.", "mood": "serio" },
 	])
 	_play("¡El **nigiri de atún**! Estrénalo con el pirata.")
 	await lv.prep_board.dish_served
@@ -705,8 +702,45 @@ func _nivel_7() -> void:
 
 
 # ------------------------------------------------------------------- nivel 8
-# Flota de Pablo el Rubio: cliente especial, tsuke don y el CORTE LENTO (que
-# hasta el rediseño de la escuela se enseñaba con el sashimi del viejo nivel 6).
+# ISLA DE GADES: aquí espera CAI, el pirata-pescador japonés. Habla poco y mal
+# —solo sabe japonés— así que sus líneas son cortas, con fallos, y a veces son
+# un "..." (para eso tiene su expresión `callado`). Si el jugador lo sacia, se
+# une a la tripulación y trae consigo la PESCA.
+
+func _nivel_8() -> void:
+	await _say([
+		{ "text": "**Isla de Gades**. Poca cosa: una playa, cuatro barcas... y ese de ahí, que lleva un rato mirándonos.", "mood": "hablando" },
+		{ "text": "...", "who": "cai", "mood": "callado" },
+		{ "text": "Ehm. Buenas tardes. ¿Vienes a comer?", "mood": "sorprendido" },
+		{ "text": "Me llamo Cai. Pescador. Mucho pescado, poca comida buena.", "who": "cai", "mood": "serio" },
+		{ "text": "Tú cocinas. Si yo lleno... yo doy caña. Caña buena. Mi caña.", "who": "cai", "mood": "hablando" },
+		{ "text": "¡RAAAK! ¡¿UNA CAÑA?! ¡Le damos de comer y nos da un PALO!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "Cállate, plumas. Un pescador no regala su caña a cualquiera. Vamos a llenarle la barriga, %s." % GameState.player_title(), "mood": "loro_resignado" },
+	])
+	_play()
+	_vigilar_basura()
+
+
+# ------------------------------------------------------------------- nivel 9
+# Puerto Tormenta: LOS BONIFICADORES. David los explica antes de cocinar y
+# regala el del PALADAR, el único que se puede ganar todavía; el foco obliga a
+# ponérselo antes de zarpar (lo hace `prep_screen`, ver `prep_dialog`).
+
+func _nivel_9() -> void:
+	await _say([
+		{ "text": "**Puerto Tormenta**. Diez bocas en dos oleadas, y la mitad son **piratas**: sin platos de dos estrellas aquí no se come.", "mood": "serio" },
+		{ "text": "Y hoy estrenas otra cosa. ¿Notas algo raro en tu **paladar de capitán**?", "mood": "hablando" },
+		{ "text": "¡EL MULTIPLICADOR LLEGA MÁS ARRIBA! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "Eso es. Con ese bonificador puesto, la chapa de tus clientes puede subir hasta **x6** en vez de quedarse en x5.", "mood": "feliz" },
+		{ "text": "Los bonificadores se **mejoran con doblones** en el menú, y cada mejora sube su tope. Ah, y se ganan repitiendo su hazaña: la suya es llevar a un cliente al máximo.", "mood": "hablando" },
+	])
+	_play()
+	_vigilar_basura()
+
+
+# ------------------------------------------------------------------- nivel 10
+# Flota de Pablo el Rubio: los primeros CAPITANES, el tsuke don y el CORTE
+# LENTO. Al cerrar, Pablo paga la broma con dos lingotes y David los explica.
 
 const RECETA_PABLO := "salmon_tsuke_don"
 const AVISO_TSUKE := "¡El **tsuke don**! ¡Córtalo DESPACIO y que se lo pongas al de las gafas!"
@@ -716,7 +750,7 @@ var _ensenando_corte := false
 var _regano_corte := false
 
 
-func _nivel_8() -> void:
+func _nivel_10() -> void:
 	await _say([
 		{ "text": "Eso de ahí enfrente no es un puerto, %s: es la **flota de Pablo el Rubio**." % GameState.player_title(), "mood": "hablando" },
 		{ "text": "¡PIRATAS! ¡NOS ABORDAN! ¡ESCONDED EL ARROZ! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
@@ -746,7 +780,7 @@ func _nivel_8() -> void:
 		_focus_client(pablo)
 	await _say([
 		{ "text": "¡Qué barco tan mono tenéis! Se ve pequeñito desde el mío.", "who": "pablo", "mood": "guason" },
-		{ "text": "Tú sirve, %s: a este lo conozco, come de **tres estrellas** o no come." % GameState.player_title(), "mood": "hablando" },
+		{ "text": "Ese es un **CAPITÁN**, %s: el paladar más fino que hay. Come de **tres estrellas** o no come." % GameState.player_title(), "mood": "hablando" },
 	])
 
 	# El regalo: el tsuke don, y con él el CORTE LENTO.
@@ -777,6 +811,27 @@ func _nivel_8() -> void:
 	])
 	_play()
 
+	# --- Al cerrar el turno: Pablo paga la broma en LINGOTES ---
+	await _esperar(func() -> bool: return lv.ended)
+	var aprobado: bool = lv.star_money.size() > 1 \
+			and lv._star_money() >= int(lv.star_money[1])
+	if aprobado and not GameState.ingots_intro_done:
+		GameState.ingots_intro_done = true
+		GameState.ingots += LINGOTES_PABLO
+		GameState.save_game()
+		await _say([
+			{ "text": "Se acabó el pescado. Toma, cocinero: **%d lingotes de oro**. Que no se diga." % LINGOTES_PABLO, "who": "pablo", "mood": "feliz" },
+			{ "text": "¡LINGOTES! ¡RAAAK! ¡BRILLAN MÁS QUE LAS MONEDAS!", "who": "gigi", "mood": "loro_sorpresa" },
+			{ "text": "Y valen más, plumas. Los **lingotes** son la moneda de verdad: con ellos se compran **sacos de arroz** y bolsas de doblones cuando andas justo.", "mood": "hablando" },
+			{ "text": "Los tienes arriba del todo, en el menú, con su botón **+**. Gástalos con cabeza: no caen todos los días.", "mood": "serio" },
+		])
+	dialog.close()
+	_clear_focus()
+
+
+## Lingotes con los que Pablo paga la broma del puñal al cerrar su nivel.
+const LINGOTES_PABLO := 2
+
 
 ## Gigi regaña la PRIMERA vez que el corte sale demasiado rápido.
 func _on_corte_fallado() -> void:
@@ -794,6 +849,8 @@ func _on_plato_servido(recipe_id: String, _precio: int, _extras: Array,
 		_nivel: int, _comer: float = 0.0) -> void:
 	if recipe_id == RECETA_PABLO:
 		_tsuke_servido = true
+	if recipe_id == RECETA_RAPIDA:
+		_futomaki_servido = true
 
 
 ## El cliente especial del puerto (Pablo el Rubio), si ya está en la barra.
@@ -804,14 +861,118 @@ func _pablo() -> Node3D:
 	return null
 
 
-# ------------------------------------------------------------------- nivel 10
+# ------------------------------------------------------------------- nivel 11
+# Cala del Hambre: tres bocas que mastican al doble de velocidad. El capitán
+# pide tsuke don, que es la receta MÁS LENTA de la carta, y ahí está la lección:
+# a veces no gana el plato que más paga, sino el que sale a tiempo.
+
+const RECETA_RAPIDA := "futomaki_salmon"
+
+var _futomaki_servido := false
+
+
+func _nivel_11() -> void:
+	await _say([
+		{ "text": "**Cala del Hambre**. Solo tres clientes... pero fíjate en cómo mastican.", "mood": "hablando" },
+		{ "text": "¡SE LO TRAGAN TODO! ¡RAAAK! ¡NO LES DA TIEMPO NI A SABOREARLO!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "Aquí el **bocado** dura la mitad, así que vuelven a pedir enseguida. Sirve rápido o se te acumulan.", "mood": "serio" },
+	])
+	_play()
+	_vigilar_basura()
+	await _tras_la_preparacion()
+
+	# --- El capitán se come su primer tsuke don → el futomaki ---
+	await _esperar(func() -> bool:
+		return lv.ended or _alguien_comio(RECETA_PABLO))
+	if lv.ended:
+		return
+	await get_tree().create_timer(0.6).timeout
+	await _say([
+		{ "text": "¿Has visto lo que ha costado ese plato? El **tsuke don** paga como ninguno... pero se prepara despacio.", "mood": "serio" },
+		{ "text": "Y con clientes así, un plato lento es un cliente vacío esperando. Hace falta algo que salga **rápido** y llene.", "mood": "hablando" },
+	])
+	_regalar_receta(RECETA_RAPIDA)
+	await _focus_node(lv.prep_board.buttons[RECETA_RAPIDA], 12.0)
+	await _say_raised([
+		{ "text": "El **futomaki de salmón**: tres estrellas y **maestría**. Lo haces una vez y salen tres piezas.", "mood": "feliz" },
+		{ "text": "Esa es la jugada: un plato caro para el capitán y un rollo rápido para tapar los huecos.", "mood": "riendo" },
+	])
+	if not lv.prep_board.dish_served.is_connected(_on_plato_servido):
+		lv.prep_board.dish_served.connect(_on_plato_servido)
+	_play("¡El **futomaki**! Tres piezas de una tacada.")
+
+
+# ------------------------------------------------------------------- nivel 12
+# Ensenada del Naufragio: hay clientes que no pagan en oro. El capitán del
+# puerto lleva encima un COLECCIONABLE y lo suelta si se le sirve bien
+# (`collectible_client` del puerto, que lo entrega solo en level3d).
+
+func _nivel_12() -> void:
+	await _say([
+		{ "text": "**Ensenada del Naufragio**. Y hoy vengo con un chisme que te va a gustar.", "mood": "feliz" },
+		{ "text": "Por estas aguas hay clientes que no llevan oro encima... pero llevan **tesoros**.", "mood": "hablando" },
+		{ "text": "¡CHATARRA! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+		{ "text": "**Coleccionables**, plumas. Piezas para la vitrina del camarote. No dan oro ni sirven para cocinar: se tienen, y punto.", "mood": "loro_resignado" },
+		{ "text": "Hoy baja uno de esos a la barra. Sírvele bien y verás lo que deja sobre el mostrador.", "mood": "serio" },
+	])
+	_play()
+	_vigilar_basura()
+	await _tras_la_preparacion()
+
+	# Cuando el cliente del tesoro suelta su pieza, David lo remata. La entrega
+	# la hace el propio nivel (`_check_treasure`) con su ventana de aviso.
+	await _esperar(func() -> bool: return lv.ended or lv.treasure_given)
+	if lv.ended:
+		return
+	await get_tree().create_timer(0.8).timeout
+	await _say([
+		{ "text": "¡Ahí lo tienes! A la **vitrina** del Inventario, con el resto de la colección.", "mood": "riendo" },
+	])
+	_play()
+
+
+# ------------------------------------------------------------------- nivel 13
+# Rada de los Dos Fuegos: el AYUDANTE DE COCINA. Aquí se presenta y desde aquí
+# se puede ganar (`unlocks_perk` del puerto).
+
+func _nivel_13() -> void:
+	await _say([
+		{ "text": "**Rada de los Dos Fuegos**: diez comandas y un solo par de manos. Las tuyas.", "mood": "serio" },
+		{ "text": "Por eso hoy vengo a hablarte de un bonificador nuevo: el **ayudante de cocina**.", "mood": "hablando" },
+		{ "text": "¡OTRO EN LA COCINA! ¡RAAAK! ¡QUE FRIEGUE ÉL!", "who": "gigi", "mood": "loro" },
+		{ "text": "Con él puesto aparece un botón en la tabla: empiezas una receta, se la pasas... y la termina él solo mientras tú haces otra.", "mood": "feliz" },
+		{ "text": "Necesita su descanso entre plato y plato, y ese descanso se acorta **mejorándolo** con doblones.", "mood": "hablando" },
+		{ "text": "Para ganártelo, dale de comer **cuatro platos a cuatro clientes distintos** en una misma jornada. Hoy es buen día para eso.", "mood": "serio" },
+	])
+	_play()
+	_vigilar_basura()
+
+
+# ------------------------------------------------------------------- nivel 14
+# Muelle de las Bandejas: el BARCO COMBINADO. El puerto lo permite (`boat`) y
+# aquí se gana su bonificador.
+
+func _nivel_14() -> void:
+	await _say([
+		{ "text": "**Muelle de las Bandejas**. Aquí no se sirve plato a plato: se sirve por **bandejas**.", "mood": "feliz" },
+		{ "text": "El **barco de sushi** junta cuatro platos que tengas guardados —de clases distintas— en una sola bandeja.", "mood": "hablando" },
+		{ "text": "Y esa bandeja casi nadie la deja pasar: la cogen los tres paladares, paga lo que valen sus platos MÁS una prima por variedad...", "mood": "serio" },
+		{ "text": "...y se come despacísimo, así que aparca al cliente un buen rato. Su botón está bajo las cajas.", "mood": "hablando" },
+		{ "text": "¡BANDEJA! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "Para ganártelo: ten **3 platos guardados en 2 cajas distintas** a la vez. Cocina de más, que hoy sobra clientela.", "mood": "riendo" },
+	])
+	_play()
+	_vigilar_basura()
+
+
+# ------------------------------------------------------------------- nivel 15
 # Guarida del Kappa: el JEFE. Primero se da de comer a la tripulación; cuando
 # hay suficientes barrigas llenas, el Kappa vacía la barra y empieza el duelo:
 # BOSS_PLATES platos antes de que su paciencia (que corre deprisa) toque fondo.
 # Esta coreografía corre TAMBIÉN en las repeticiones (en mudo): sin ella no
 # habría jefe al que ganar.
 
-func _nivel_10() -> void:
+func _nivel_15() -> void:
 	await _decir([
 		{ "text": "Estas aguas están demasiado tranquilas... Sirve y mantén los ojos abiertos.", "mood": "serio" },
 		{ "text": "¡GLUB, GLUB! ¡ALGO BURBUJEA! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },

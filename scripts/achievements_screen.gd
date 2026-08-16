@@ -33,6 +33,9 @@ func _ready() -> void:
 	_setup_ui()
 	_show_group(current_group)
 	GameState.take_transition()
+	# La PRIMERA visita la explica David: qué son las medallas y que hay que
+	# COBRARLAS. Sin eso, el jugador ve tarjetas bonitas y no toca ninguna.
+	_explicar_logros.call_deferred()
 
 
 func _process(delta: float) -> void:
@@ -611,3 +614,23 @@ func _progress_bar(value: int, target: int, medal: int, done: bool) -> Control:
 	l.add_theme_constant_override("outline_size", 5)
 	wrap.add_child(l)
 	return wrap
+
+
+## Explicación de la pantalla, solo la primera vez que se entra.
+func _explicar_logros() -> void:
+	if GameState.logros_intro_done:
+		return
+	GameState.logros_intro_done = true
+	GameState.save_game()
+	var caja := DialogueBox.new()
+	caja.z_index = 220
+	ui.add_child(caja)
+	caja.say([
+		{ "text": "Este es tu **cuaderno de hazañas**, %s. Cada ficha es algo que el juego lleva contando por su cuenta." % GameState.player_title(), "mood": "feliz" },
+		{ "text": "Cada una tiene tres metas: **bronce**, **plata** y **oro**. Según vas jugando se van encendiendo solas.", "mood": "hablando" },
+		{ "text": "¡Y PAGAN! ¡RAAAK! ¡PERO HAY QUE COBRARLAS!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "Eso: una medalla ganada no es una medalla cobrada. **Toca la ficha** para llevarte sus doblones, o dale a **Reclamar todo** y se cobran de golpe.", "mood": "serio" },
+		{ "text": "El **globo rojo** te dice dónde queda algo por cobrar. Si lo ves en el menú, es que te dejas oro encima de la mesa.", "mood": "hablando" },
+	])
+	await caja.finished
+	await caja.close_and_free()

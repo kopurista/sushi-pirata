@@ -16,7 +16,7 @@ extends "res://scripts/level_select3d.gd"
 ## ningún nodo del mapa asome. Va atado a `CampaignData.MAP_POS["nivel_1"]`:
 ## al entrar el nivel 10 la ruta entera bajó un MAP_STEP (215 px) y este ancla
 ## bajó lo mismo, o el nivel 1 asomaba por arriba estando en el menú.
-const MENU_ANCHOR := Vector2(360.0, 3349.0)
+const MENU_ANCHOR := Vector2(360.0, 4424.0)
 ## Cuánto se sube la vista respecto al barco cuando manda el menú. POSITIVO =
 ## el barco queda por ENCIMA del centro de pantalla: desde que el logotipo se
 ## quedó en la portada, el barco es quien ocupa su hueco de arriba y los
@@ -238,6 +238,19 @@ func _menu_popups() -> void:
 			and int(GameState.level_stars.get("nivel_1", 0)) >= 2:
 		await get_tree().create_timer(0.7).timeout
 		await _felicitar_nivel_1()
+	# CAI SE UNE A LA TRIPULACIÓN: al volver del puerto que abre la PESCA. Como
+	# Saverio, al cerrar el diálogo lleva al jugador de la mano a su pantalla —
+	# que aquí es la clase entera de pescar.
+	if GameState.fishing_unlocked() and not GameState.cai_intro_done:
+		await get_tree().create_timer(0.7).timeout
+		await _presentar_cai()
+		return
+	# SAVERIO Y LA TIENDA: al VOLVER AL MAPA tras superar el puerto que la abre.
+	# Encadenado al cierre del turno se comía el cartel de resultados.
+	if GameState.shop_unlocked() and not GameState.shop_intro_done:
+		await get_tree().create_timer(0.7).timeout
+		await _presentar_saverio()
+		return
 	# BONUS DIARIO: después del anuncio de recetas, para no apilar carteles.
 	if GameState.tutorial_done and GameState.daily_available():
 		await get_tree().create_timer(0.9).timeout
@@ -270,6 +283,50 @@ func _felicitar_nivel_1() -> void:
 	caja.say(lineas)
 	await caja.finished
 	await caja.close_and_free()
+
+
+## CAI se enrola. Al superar la Isla de Gades quiere pagar con su caña, y David
+## le hace una oferta mejor. Al cerrar, directo a su clase de pesca.
+func _presentar_cai() -> void:
+	GameState.cai_intro_done = true
+	GameState.save_game()
+	var caja := DialogueBox.new()
+	caja.z_index = 200
+	ui_layer.add_child(caja)
+	caja.say([
+		{ "text": "Barriga llena. Trato es trato. Toma: mi caña.", "who": "cai", "mood": "serio" },
+		{ "text": "Quieto ahí, pescador. Un hombre no regala sus manos con su caña.", "mood": "hablando" },
+		{ "text": "...", "who": "cai", "mood": "callado" },
+		{ "text": "Lo que te ofrezco es un sitio en mi barco. Tú pescas, %s cocina, y comemos todos." % GameState.player_title(), "mood": "feliz" },
+		{ "text": "¡OTRA BOCA! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "Sí. Yo voy.", "who": "cai", "mood": "feliz" },
+		{ "text": "Ven. Yo enseño ahora.", "who": "cai", "mood": "hablando" },
+	])
+	await caja.finished
+	await caja.close_and_free()
+	_go_fishing()
+
+
+## SAVERIO abre su puesto. Se ve al volver al mapa con el puerto de la tienda
+## ya superado, y al cerrar el diálogo el juego lleva al jugador allí de la mano:
+## David acaba de decirle que se pase, y hacerle buscar el botón en el menú justo
+## después rompía la escena.
+func _presentar_saverio() -> void:
+	GameState.shop_intro_done = true
+	GameState.save_game()
+	var caja := DialogueBox.new()
+	caja.z_index = 200
+	ui_layer.add_child(caja)
+	caja.say([
+		{ "text": "¡Buen turno, %s! Y mira quién estaba descargando en el muelle mientras cocinabas..." % GameState.player_title(), "mood": "feliz" },
+		{ "text": "**Saverio**, el mejor tendero de estos mares. Encantado, cocinero.", "who": "saverio", "mood": "explicando" },
+		{ "text": "Yo vendo **usos** de ingredientes, y saco **género nuevo** cada día. A partir de hoy mi puesto es tuyo.", "who": "saverio", "mood": "hablando" },
+		{ "text": "¡NEGOCIOS! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+		{ "text": "Anda, pásate por el puesto y échale un ojo. Lo tienes siempre en el **menú**, botón **Tienda**.", "mood": "hablando" },
+	])
+	await caja.finished
+	await caja.close_and_free()
+	GameState.fade_to_scene("res://scenes/shop_screen.tscn", 0.4, 0.5)
 
 
 ## Antes del PRIMER bonus diario, David explica de qué va el mapa del tesoro.

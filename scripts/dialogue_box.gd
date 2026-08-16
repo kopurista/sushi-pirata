@@ -62,6 +62,14 @@ const SPEAKERS := {
 		"dir": "res://assets/characters/pablo", "file": "pablo",
 		"name": "Pablo el Rubio", "side": "right", "plate": "left", "mood": "serio",
 	},
+	# CAI, el pirata-pescador japonés de la Isla de Gades. Habla poco y mal
+	# (solo sabe japonés), así que sus líneas son cortas y a veces son un "..."
+	# — para eso está su expresión `callado`. Como Saverio y Pablo, sale a la
+	# DERECHA: la izquierda es siempre de David.
+	"cai": {
+		"dir": "res://assets/characters/cai", "file": "cai",
+		"name": "Cai", "side": "right", "plate": "left", "mood": "serio",
+	},
 }
 const DEFAULT_SPEAKER := "david"
 

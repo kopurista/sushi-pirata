@@ -196,6 +196,9 @@ var crank_angle := 0.0
 var zone: Control = null
 var cast_btn: Button = null
 var instruction: Label = null
+## Cifra del coste en el botón de pescar (dice GRATIS con las tiradas que
+## regala Cai al terminar su clase).
+var cast_cost_label: Label = null
 var back_btn: Button = null
 var album_btn: Button = null
 var fight_box: Control = null
@@ -214,6 +217,9 @@ func _ready() -> void:
 	size = GameState.canvas_size()
 	_setup_ui()
 	_set_state(State.READY)
+	# CAI recibe al jugador: la primera vez con su clase entera, y a partir de
+	# ahí con un saludo distinto cada visita.
+	_cai_entrada.call_deferred()
 
 
 func _process(delta: float) -> void:
@@ -252,7 +258,9 @@ func _setup_ui() -> void:
 
 	back_btn = PrepBoard.make_back_button()
 	back_btn.position = Vector2(18.0, 96.0 + st)
-	back_btn.pressed.connect(func() -> void: closed.emit())
+	back_btn.pressed.connect(func() -> void:
+		await _cai_salida()
+		closed.emit())
 	add_child(back_btn)
 	# (Sin lazo de título: el tablón del botón ya dice dónde estamos.)
 
@@ -313,6 +321,7 @@ func _setup_ui() -> void:
 	moneda.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fila_coste.add_child(moneda)
 	var coste := Label.new()
+	cast_cost_label = coste
 	coste.text = "%d" % FishData.FISHING_COST
 	coste.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	coste.add_theme_font_size_override("font_size", 26)
@@ -390,6 +399,10 @@ const ENERGY_BAR_X := -38.0
 ## (textura horizontal del set girada -90°: el 9-slice se dibuja en
 ## horizontal y la rotación lo pone de pie sin deformar los topes).
 func _setup_fight_ui() -> void:
+	# Idempotente: la clase de Cai la monta antes de tiempo para poder
+	# enseñarla, y sin esta salida montaba una segunda caña encima.
+	if fight_box != null and is_instance_valid(fight_box):
+		return
 	fight_box = Control.new()
 	fight_box.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	fight_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -544,6 +557,7 @@ func _start_attempt() -> void:
 		instruction.text = "Sin doblones para el cebo..."
 		return
 	money_changed.emit()
+	_refresh_cast_label()
 	# EL SORTEO, ANTES DE VER LA SOMBRA: el premio ya está decidido y de él
 	# sale la dificultad de la pelea (y el tamaño de la sombra).
 	roll = GameState.fishing_roll()
@@ -1232,6 +1246,10 @@ func _show_chest_reveal() -> void:
 ## propósito: el coleccionable pausa el árbol con su ventana y un tween aquí
 ## se quedaría congelado a medias.
 func _fill_chest_loot(fila: HBoxContainer, premio: Dictionary) -> void:
+	# LA PRIMERA VEZ QUE SALE UN COLECCIONABLE, Cai explica qué es. Aquí y no
+	# en el menú: es el momento en que el jugador tiene la pieza delante.
+	if str(premio.get("kind", "")) == "collectible" and not GameState.col_intro_done:
+		_cai_explica_coleccion.call_deferred()
 	var texto := ""
 	var icon_tex: Texture2D = null
 	match str(premio.get("kind", "")):
@@ -1444,3 +1462,204 @@ func _open_ficha(fish_id: String, album_overlay: Control) -> void:
 	cerrar.offset_bottom = 590.0
 	panel.add_child(cerrar)
 	cerrar.pressed.connect(func() -> void: veil.queue_free())
+
+
+# ============================================================== CAI Y SU CLASE
+#
+# CAI, el pescador de la Isla de Gades, es la voz de esta pantalla: da la clase
+# la primera vez y saluda y se despide cada visita. Habla poco y mal (solo sabe
+# japonés), así que sus frases son cortas, con fallos de concordancia y sin
+# artículos — no es un descuido de escritura, es su acento.
+
+## SALUDOS al entrar a pescar. Se sortea uno y no se repite el anterior.
+const CAI_SALUDOS: Array = [
+	"Mar tranquilo hoy. Bueno para pescar.",
+	"Ah. Cocinero. Tú vienes. Bien.",
+	"Hoy pican. Yo lo huelo.",
+	"Agua fría. Peces con hambre.",
+	"Silencio. Pez escucha ruido.",
+	"Caña lista. Manos tuyas.",
+	"Yo miro. Tú pescas.",
+	"Pescado grande hoy, quizá. Quizá no. Mar decide.",
+	"Buen día. Mucha agua, mucho pez.",
+	"...  Ah. Perdona. Yo pensaba en pez.",
+]
+## DESPEDIDAS al salir.
+const CAI_DESPEDIDAS: Array = [
+	"Vuelve. Pez espera.",
+	"Buen brazo. Mejor cada día.",
+	"Yo guardo caña. Tú guardas pescado.",
+	"Mar te recuerda. Vuelve pronto.",
+	"Hasta luego, cocinero.",
+	"Hoy suficiente. Mañana más.",
+	"...  Adiós.",
+	"Cuidado con sedal. Sedal enfada rápido.",
+	"Yo aquí. Siempre aquí.",
+	"Come bien. Pesca mejor.",
+]
+## La última frase dicha, para no repetirla dos veces seguidas.
+static var _cai_ultima := ""
+
+## Tiradas que regala Cai al acabar su clase.
+const CAI_TIRADAS_GRATIS := 3
+
+
+static func _cai_frase(saco: Array) -> String:
+	var f: String = str(saco.pick_random())
+	if f == _cai_ultima and saco.size() > 1:
+		f = str(saco.pick_random())
+	_cai_ultima = f
+	return f
+
+
+## Caja de diálogo de Cai sobre la pantalla de pesca. Sin velo propio: aquí lo
+## pone la propia clase cuando hace falta señalar algo.
+func _cai_caja() -> DialogueBox:
+	var caja := DialogueBox.new()
+	caja.z_index = 220
+	add_child(caja)
+	return caja
+
+
+## Saludo de entrada (o la CLASE, la primera vez).
+func _cai_entrada() -> void:
+	if not GameState.fishing_intro_done:
+		await _clase_de_pesca()
+		return
+	var caja := _cai_caja()
+	caja.say([{ "text": _cai_frase(CAI_SALUDOS), "who": "cai", "mood": "serio" }])
+	await caja.finished
+	await caja.close_and_free()
+
+
+## Despedida al salir. La llama el botón "Atrás" antes de cerrar la pantalla.
+func _cai_salida() -> void:
+	if not GameState.fishing_intro_done:
+		return
+	var caja := _cai_caja()
+	caja.say([{ "text": _cai_frase(CAI_DESPEDIDAS), "who": "cai", "mood": "serio" }])
+	await caja.finished
+	await caja.close_and_free()
+
+
+## Velo oscuro con UN control por encima (mismo apaño que las guías del menú: el
+## z_index no cambia quién recibe el toque, pero aquí el velo se lo traga todo a
+## propósito — durante la clase no se juega).
+func _foco_pesca(nodo: Control) -> ColorRect:
+	var velo := ColorRect.new()
+	velo.color = Color(0, 0, 0, 0.7)
+	velo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	velo.z_index = 150
+	velo.mouse_filter = Control.MOUSE_FILTER_STOP
+	velo.modulate.a = 0.0
+	add_child(velo)
+	velo.create_tween().tween_property(velo, "modulate:a", 1.0, 0.25)
+	if nodo != null and is_instance_valid(nodo):
+		nodo.z_index = 180
+	return velo
+
+
+func _quitar_foco(velo: ColorRect, nodo: Control, z: int) -> void:
+	if nodo != null and is_instance_valid(nodo):
+		nodo.z_index = z
+	if velo == null or not is_instance_valid(velo):
+		return
+	velo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tw := velo.create_tween()
+	tw.tween_property(velo, "modulate:a", 0.0, 0.22)
+	tw.tween_callback(velo.queue_free)
+
+
+## LA CLASE DE PESCA. Cai explica, señalando, las cuatro cosas que hay que
+## saber: el botón, la sombra, la picada y la pelea (sedal y presa). Se enseña
+## el APARATO DE LA PELEA de verdad —la caña con sus dos barras— aunque no haya
+## pez enganchado: verlo antes de necesitarlo es justo lo que evita el primer
+## intento perdido. Al acabar deja `CAI_TIRADAS_GRATIS` lanzamientos gratis.
+func _clase_de_pesca() -> void:
+	GameState.fishing_intro_done = true
+	GameState.free_casts = CAI_TIRADAS_GRATIS
+	GameState.save_game()
+	var caja := _cai_caja()
+
+	caja.say([
+		{ "text": "Aquí. Yo enseño. Mira bien.", "who": "cai", "mood": "serio" },
+		{ "text": "Mar da dos cosas: **pescado**... y **cofres**. Cofre tiene tesoro dentro.", "who": "cai", "mood": "hablando" },
+	], true)
+	await caja.finished
+
+	# 1) EL BOTÓN: cuesta doblones, y de ahí sale todo.
+	var z_btn := cast_btn.z_index
+	var velo := _foco_pesca(cast_btn)
+	caja.say([
+		{ "text": "Esto es caña. Tocas, cuesta doblones... y empieza.", "who": "cai", "mood": "hablando" },
+	], true)
+	await caja.finished
+	_quitar_foco(velo, cast_btn, z_btn)
+
+	# 2) EL AGUA: la sombra nada, y hay que lanzar POR DELANTE de ella.
+	caja.say([
+		{ "text": "Luego ves **sombra** en agua. Sombra nada. Sombra grande, premio grande.", "who": "cai", "mood": "hablando" },
+		{ "text": "Tocas agua **delante** de sombra. No encima. Delante. Pez va, no espera.", "who": "cai", "mood": "serio" },
+		{ "text": "Pez hace trampa: se acerca, se va, se acerca. Eso NO es picada.", "who": "cai", "mood": "hablando" },
+		{ "text": "Picada de verdad: flotador se **hunde**. Entonces tocas rápido. Un segundo, no más.", "who": "cai", "mood": "sorprendido" },
+	], true)
+	await caja.finished
+
+	# 3) LA PELEA: la caña con sus dos barras, enseñada de verdad.
+	_setup_fight_ui()
+	if fight_box != null:
+		fight_box.visible = true
+	var z_caña := fight_box.z_index if fight_box != null else 0
+	velo = _foco_pesca(fight_box)
+	caja.say([
+		{ "text": "Pez enganchado. Ahora pelea. Dos barras.", "who": "cai", "mood": "serio" },
+		{ "text": "Barra en caña es **sedal**. Verde bien. Rojo malo. Rojo del todo... sedal rompe.", "who": "cai", "mood": "hablando" },
+		{ "text": "Barra al lado es **fuerza de pez**. Tú aprietas, baja. Tú sueltas, sube. Baja a cero, pez tuyo.", "who": "cai", "mood": "hablando" },
+		{ "text": "Aprietas y mantienes. No toques-toques-toques: eso rompe sedal y no cansa pez.", "who": "cai", "mood": "serio" },
+		{ "text": "A veces pez corre fuerte. Entonces sí: tocas rápido, muchas veces. Solo entonces.", "who": "cai", "mood": "hablando" },
+	], true)
+	await caja.finished
+	_quitar_foco(velo, fight_box, z_caña)
+	if fight_box != null:
+		fight_box.visible = false
+
+	caja.say([
+		{ "text": "Ya sabes. Ahora tú.", "who": "cai", "mood": "feliz" },
+		{ "text": "Tres tiradas mías. Regalo. Después pagas tú.", "who": "cai", "mood": "hablando" },
+	])
+	await caja.finished
+	await caja.close_and_free()
+	_refresh_cast_label()
+
+
+## El botón de pescar dice GRATIS mientras queden tiradas de regalo de Cai: si
+## siguiera enseñando el precio, el jugador creería que le están cobrando.
+func _refresh_cast_label() -> void:
+	if cast_cost_label == null or not is_instance_valid(cast_cost_label):
+		return
+	if GameState.free_casts > 0:
+		cast_cost_label.text = "GRATIS x%d" % GameState.free_casts
+	else:
+		cast_cost_label.text = "%d" % FishData.FISHING_COST
+
+
+## Cai explica los COLECCIONABLES la primera vez que sale uno del cofre. Espera
+## a que la ventana modal de la pieza se cierre: si hablara encima, se pisarían
+## dos carteles.
+func _cai_explica_coleccion() -> void:
+	if GameState.col_intro_done:
+		return
+	GameState.col_intro_done = true
+	GameState.save_game()
+	while get_tree().paused:
+		await get_tree().process_frame
+	await get_tree().create_timer(0.5).timeout
+	var caja := _cai_caja()
+	caja.say([
+		{ "text": "Eso no se come. Eso se **guarda**.", "who": "cai", "mood": "serio" },
+		{ "text": "**Coleccionables**. Mar los esconde, gente los pierde. Tú los encuentras.", "who": "cai", "mood": "hablando" },
+		{ "text": "No dan oro. No dan comida. Solo... están. En vitrina de tu camarote, en **Inventario**.", "who": "cai", "mood": "hablando" },
+		{ "text": "A mí me gusta mirarlos. ...  Es bonito.", "who": "cai", "mood": "feliz" },
+	])
+	await caja.finished
+	await caja.close_and_free()

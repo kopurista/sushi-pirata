@@ -57,6 +57,9 @@ const FISH_TIERS := {
 ## moneda repetida no ayudaba a distinguir ninguna.
 const ICONS := {
 	# --- Cocina ---
+	"bonificadores": "res://assets/ui/ic_perks.png",
+	"mejoras": "res://assets/ui/perk_limite.png",
+	"maestria_perk": "res://assets/ui/perk_barco.png",
 	"grumetes": "res://assets/ui/head_E.png",
 	"piratas": "res://assets/ui/head_A.png",
 	"capitanes": "res://assets/ui/head_G.png",
@@ -182,6 +185,23 @@ const ACHIEVEMENTS: Array = [
 		"id": "dinero_arcade", "group": "travesia", "name": "Récord de Arcade",
 		"desc": "Gana %d doblones en una partida de Arcade.",
 		"stat": "best_money_arcade", "tiers": [80, 140, 220],
+	},
+	# --- BONIFICADORES: conseguirlos y mejorarlos. Las estadísticas las suben
+	# GameState.unlock_perk y upgrade_perk, que es donde ocurre el suceso.
+	{
+		"id": "bonificadores", "group": "travesia", "name": "Tripulación de lujo",
+		"desc": "Consigue %d bonificadores permanentes.",
+		"stat": "perks_unlocked", "tiers": [1, 2, 4],
+	},
+	{
+		"id": "mejoras", "group": "travesia", "name": "Siempre a más",
+		"desc": "Mejora un bonificador %d veces.",
+		"stat": "perk_upgrades", "tiers": [1, 5, 12],
+	},
+	{
+		"id": "maestria_perk", "group": "travesia", "name": "Al máximo",
+		"desc": "Lleva un bonificador hasta el nivel %d.",
+		"stat": "best_perk_level", "tiers": [2, 3, 5],
 	},
 	{
 		"id": "dinero_total", "group": "travesia", "name": "Cofre del tesoro",

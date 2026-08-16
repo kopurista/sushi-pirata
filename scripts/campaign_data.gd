@@ -158,6 +158,10 @@ const PORTS: Array = [
 		# a partir del segundo intento sale como en cualquier otro nivel, y de
 		# eso se encarga level3d mirando si el puerto ya se ha jugado.
 		"no_exit": true,
+		# El primer grumete entra EN CUANTO acaba la preparación: los 5 s de
+		# rigor eran cinco segundos mirando una cinta vacía en la primera
+		# jornada del juego.
+		"first_arrival": 0.0,
 		# Cuatro clientes en las sillas que la cinta alcanza antes.
 		"near_seats": true,
 		"director": "nivel_1",
@@ -288,26 +292,74 @@ const PORTS: Array = [
 	{
 		"id": "nivel_7",
 		"name": "Estrecho del Rayo",
-		"desc": "¡Abordaje! Reloj, clientela sin fin y paladares que no son de grumete.",
-		"client_mix": { "E": 3, "A": 2, "G": 1 },
+		"desc": "¡Abordaje! Reloj, clientela sin fin y los primeros piratas.",
+		# Abordaje: esta mezcla es solo la PRIMERA tanda.
+		"client_mix": { "E": 4, "A": 2 },
+		# EL PIRATA ES EL TERCERO EN ENTRAR, y a propósito: tiene que llegar
+		# pronto para que dé tiempo a estrenar el nigiri de atún con él, pero
+		# después de un par de grumetes para que la novedad se note.
+		"client_order": ["E", "E", "A", "E", "E", "A"],
 		"arrival_span": 100.0,
 		"patience_mult": 0.9,
 		"arrival_scale": 0.8,
 		"goal_stars": 2,
-		# Primer abordaje: 150 s con carta media ~$5 → techo ~90.
 		"star_money": [32, 55, 88],
-		"reward_recipes": ["sashimi_atun_rojo"],
-		"reward_recipes_3": ["nigiri_ebi"],
-		# Primeros PIRATAS y CAPITANES del juego: David presenta los paladares y
-		# regala una receta de 2 estrellas para estrenarla con el pirata.
+		# El 4º hueco de la carta lo ocupa el REGALO de David (nigiri de atún),
+		# que llega con el pirata: por eso solo se pueden elegir tres.
+		"recipe_slots": 3,
 		"gift_recipes": ["nigiri_atun"],
-		"late_type": "A",
-		"reward_rice_3": 2,
+		"reward_recipes": [],
+		"reward_recipes_3": ["maki_atun"],
+		"near_seats": true,
 		"director": "nivel_7",
 		"no_perks": true,
 	},
 	{
 		"id": "nivel_8",
+		"name": "Isla de Gades",
+		"desc": "Un pescador silencioso espera en la orilla con su caña.",
+		"client_mix": { "E": 4, "A": 2 },
+		"client_order": ["E", "A", "E", "E", "A", "E"],
+		"arrival_span": 120.0,
+		"patience_mult": 0.95,
+		"arrival_scale": 0.85,
+		"goal_stars": 2,
+		"star_money": [26, 46, 72],
+		# Isla: carta cerrada con lo aprendido hasta aquí.
+		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "nigiri_atun",
+			"te_verde"],
+		# Superarlo trae a CAI a la tripulación y con él la PESCA.
+		"unlocks_fishing": true,
+		"reward_recipes": [],
+		"reward_recipes_3": ["dorayaki"],
+		"near_seats": true,
+		"director": "nivel_8",
+		"no_perks": true,
+	},
+	{
+		"id": "nivel_9",
+		"name": "Puerto Tormenta",
+		"desc": "Diez bocas en dos oleadas, y la mitad son piratas.",
+		"client_mix": { "E": 6, "A": 4 },
+		# DOS TANDAS DE CINCO, cada una de tres grumetes y dos piratas: el orden
+		# es explícito porque con la baraja no había forma de garantizarlo.
+		"client_order": ["E", "E", "E", "A", "A", "E", "E", "E", "A", "A"],
+		"arrival_batch": 5,
+		"arrival_span": 130.0,
+		"patience_mult": 0.9,
+		"arrival_scale": 0.8,
+		"goal_stars": 2,
+		"star_money": [40, 68, 105],
+		# EL NIVEL DE LOS BONIFICADORES: David los explica antes de empezar y
+		# regala el del PALADAR, que es el único que se puede ganar todavía.
+		"unlocks_perk": "paladar",
+		"prep_dialog": "nivel_9",
+		"director": "nivel_9",
+		"reward_recipes": [],
+		"reward_recipes_3": ["udon"],
+	},
+	{
+		"id": "nivel_10",
 		"name": "Flota del capitán Pablo el Rubio",
 		"desc": "Abordaje a la flota de un viejo conocido de David.",
 		"client_mix": { "E": 2, "A": 2, "G": 1 },
@@ -316,44 +368,104 @@ const PORTS: Array = [
 		"arrival_scale": 0.7,
 		"goal_stars": 2,
 		"star_money": [36, 62, 95],
-		"boat": true,
-		# Carta LIBRE, pero solo tres huecos LA PRIMERA VEZ: al repetir el
-		# puerto se juega con los cuatro de siempre (ver prep_screen).
+		# Carta LIBRE, pero solo tres huecos: el cuarto lo ocupa el tsuke don
+		# que regala David cuando Pablo se sienta.
 		"recipe_slots": 3,
 		# El capitán del nivel es Pablo el Rubio: mismo comportamiento que un
 		# capitán normal, pero con su propio modelo (ver CharacterData).
 		"special_client": { "who": "pablo", "type": "G" },
 		# Pablo entra el ÚLTIMO; si el jugador va sobrado, el guion lo adelanta.
 		"late_type": "G",
-		"director": "nivel_8",
+		"director": "nivel_10",
 		# David avisa en el selector de recetas antes de zarpar.
-		"prep_dialog": "nivel_8",
+		"prep_dialog": "nivel_10",
 		"gift_recipes": ["salmon_tsuke_don"],
 		# Mientras corre el guion, el tsuke don es SOLO para Pablo (es su
 		# regalo); al repetir el puerto ya se le puede servir a cualquiera.
 		"exclusive_dishes": { "salmon_tsuke_don": "pablo" },
 		"reward_recipes": [],
 		"reward_recipes_3": ["aburi"],
-		"reward_ingots_3": 2,
 	},
 	{
-		"id": "nivel_9",
-		"name": "Puerto Tormenta",
-		"desc": "El puerto más bravo del mar: once bocas sin tregua.",
-		"client_mix": { "E": 6, "A": 3, "G": 2 },
-		"arrival_span": 150.0,
-		"patience_mult": 0.85,
-		"arrival_scale": 0.65,
+		"id": "nivel_11",
+		"name": "Cala del Hambre",
+		"desc": "Tres bocas, una de ellas con un hambre que no es normal.",
+		"client_mix": { "E": 1, "A": 1, "G": 1 },
+		"client_order": ["E", "A", "G"],
+		"arrival_span": 80.0,
+		"patience_mult": 1.0,
+		"arrival_scale": 0.9,
 		"goal_stars": 2,
-		# SIN GUION a propósito: el examen de todo lo aprendido antes del jefe.
-		"star_money": [40, 68, 105],
-		"boat": true,
-		"reward_recipes": ["udon"],
-		"reward_recipes_3": ["taiyaki"],
-		"reward_rice_3": 2,
+		"star_money": [24, 42, 64],
+		# LA BARRA DE BOCADO CORRE: aquí mastican mucho más rápido de lo normal,
+		# así que el hueco entre plato y plato se encoge y hay que cocinar
+		# DEPRISA. Es la premisa de la lección (el futomaki).
+		"bite_speed": 1.8,
+		"fixed_recipes": ["maki_aguacate", "nigiri_atun", "salmon_tsuke_don"],
+		"gift_recipes": ["futomaki_salmon"],
+		"reward_recipes": [],
+		"reward_recipes_3": ["sashimi_atun_rojo"],
+		"near_seats": true,
+		"director": "nivel_11",
 	},
 	{
-		"id": "nivel_10",
+		"id": "nivel_12",
+		"name": "Ensenada del Naufragio",
+		"desc": "Corre la voz de que alguien paga en tesoros, no en oro.",
+		"client_mix": { "E": 4, "A": 3, "G": 1 },
+		"arrival_span": 130.0,
+		"patience_mult": 0.9,
+		"arrival_scale": 0.8,
+		"goal_stars": 2,
+		"star_money": [44, 74, 112],
+		# CLIENTE CON TESORO: un capitán que, bien servido, paga con un
+		# COLECCIONABLE en vez de con oro (ver `collectible_client`). Es la
+		# lección del nivel y de aquí en adelante puede pasar en cualquiera.
+		"collectible_client": {
+			"who": "capitan", "type": "G", "item": "tricornio", "plates": 3,
+		},
+		"late_type": "G",
+		"director": "nivel_12",
+		"reward_recipes": [],
+		"reward_recipes_3": ["gunkan_tartar"],
+	},
+	{
+		"id": "nivel_13",
+		"name": "Rada de los Dos Fuegos",
+		"desc": "Demasiadas comandas para un solo par de manos.",
+		"client_mix": { "E": 5, "A": 3, "G": 2 },
+		"arrival_span": 120.0,
+		"patience_mult": 0.85,
+		"arrival_scale": 0.7,
+		"goal_stars": 2,
+		"star_money": [48, 82, 125],
+		# EL AYUDANTE: aquí se presenta y desde aquí se puede ganar.
+		"unlocks_perk": "ayudante",
+		"prep_dialog": "nivel_13",
+		"director": "nivel_13",
+		"reward_recipes": [],
+		"reward_recipes_3": ["nigiri_pulpo"],
+	},
+	{
+		"id": "nivel_14",
+		"name": "Muelle de las Bandejas",
+		"desc": "Aquí no se sirve plato a plato: se sirve por bandejas.",
+		"client_mix": { "E": 5, "A": 4, "G": 2 },
+		"arrival_span": 130.0,
+		"patience_mult": 0.85,
+		"arrival_scale": 0.7,
+		"goal_stars": 2,
+		"star_money": [52, 88, 135],
+		# EL BARCO COMBINADO: el puerto lo permite y aquí se gana su bonificador.
+		"boat": true,
+		"unlocks_perk": "barco",
+		"prep_dialog": "nivel_14",
+		"director": "nivel_14",
+		"reward_recipes": [],
+		"reward_recipes_3": ["chirashi"],
+	},
+	{
+		"id": "nivel_15",
 		"name": "Guarida del Kappa",
 		"desc": "Algo enorme y hambriento ronda estas aguas...",
 		"client_mix": { "E": 3, "A": 2, "G": 1 },
@@ -362,12 +474,12 @@ const PORTS: Array = [
 		"arrival_scale": 0.8,
 		"goal_stars": 2,
 		# JEFE: superar el nivel exige que el Kappa coma BOSS_PLATES platos (ver
-		# level_director._nivel_10). El dinero solo decide la 3ª estrella.
-		"star_money": [30, 55, 90],
+		# level_director._nivel_15). El dinero solo decide la 3ª estrella.
+		"star_money": [40, 70, 110],
 		"boss": "kappa",
 		"boat": true,
-		"director": "nivel_10",
-		"prep_dialog": "nivel_10",
+		"director": "nivel_15",
+		"prep_dialog": "nivel_15",
 		"reward_recipes": ["tempura"],
 		"reward_recipes_3": ["temaki"],
 		"reward_ingots_3": 2,
@@ -390,9 +502,14 @@ const KINDS: Dictionary = {
 	"nivel_5": "isla",
 	"nivel_6": "puerto",
 	"nivel_7": "abordaje",
-	"nivel_8": "abordaje",
+	"nivel_8": "isla",
 	"nivel_9": "puerto",
 	"nivel_10": "abordaje",
+	"nivel_11": "isla",
+	"nivel_12": "puerto",
+	"nivel_13": "puerto",
+	"nivel_14": "puerto",
+	"nivel_15": "abordaje",
 }
 
 const KIND_NAMES: Dictionary = {
@@ -417,7 +534,7 @@ const KIND_TEXTURES: Dictionary = {
 ## la ruta se corrió +215 hacia abajo, con el nivel 10 estrenando lo alto; el
 ## fondeadero del menú (`main_menu.MENU_ANCHOR`) bajó otro tanto, o el nivel 1
 ## asomaba por arriba estando en el menú.
-const MAP_HEIGHT := 2395
+const MAP_HEIGHT := 3430
 
 const LANE_LEFT := 175.0
 const LANE_CENTER := 360.0
@@ -432,16 +549,21 @@ const LANE_RIGHT := 545.0
 const MAP_STEP := 215.0
 
 const MAP_POS: Dictionary = {
-	"nivel_1": Vector2(LANE_CENTER, 2145.0),
-	"nivel_2": Vector2(LANE_LEFT, 1930.0),
-	"nivel_3": Vector2(LANE_RIGHT, 1715.0),
-	"nivel_4": Vector2(LANE_CENTER, 1500.0),
-	"nivel_5": Vector2(LANE_LEFT, 1285.0),
-	"nivel_6": Vector2(LANE_RIGHT, 1070.0),
-	"nivel_7": Vector2(LANE_CENTER, 855.0),
-	"nivel_8": Vector2(LANE_LEFT, 640.0),
-	"nivel_9": Vector2(LANE_RIGHT, 425.0),
-	"nivel_10": Vector2(LANE_CENTER, 210.0),
+	"nivel_1": Vector2(LANE_CENTER, 3220.0),
+	"nivel_2": Vector2(LANE_LEFT, 3005.0),
+	"nivel_3": Vector2(LANE_RIGHT, 2790.0),
+	"nivel_4": Vector2(LANE_CENTER, 2575.0),
+	"nivel_5": Vector2(LANE_LEFT, 2360.0),
+	"nivel_6": Vector2(LANE_RIGHT, 2145.0),
+	"nivel_7": Vector2(LANE_CENTER, 1930.0),
+	"nivel_8": Vector2(LANE_LEFT, 1715.0),
+	"nivel_9": Vector2(LANE_RIGHT, 1500.0),
+	"nivel_10": Vector2(LANE_CENTER, 1285.0),
+	"nivel_11": Vector2(LANE_LEFT, 1070.0),
+	"nivel_12": Vector2(LANE_RIGHT, 855.0),
+	"nivel_13": Vector2(LANE_CENTER, 640.0),
+	"nivel_14": Vector2(LANE_LEFT, 425.0),
+	"nivel_15": Vector2(LANE_RIGHT, 210.0),
 }
 
 

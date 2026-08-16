@@ -75,6 +75,58 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   y `easy_next` se fueron con los potenciadores manuales que los encendían, y
   con ellos `_simplify_steps` y `recycle_recipe`.)
 
+## LA CAMPAÑA SON 15 NIVELES (rediseño del 16-8-2026)
+
+El reparto de lecciones, una por nivel (el detalle en la cabecera de
+`campaign_data.gd`). Los SEIS PRIMEROS son todos de grumetes: se aprende a
+cocinar antes de aprender a leer paladares.
+
+| # | Nivel | Tipo | Lección |
+|---|---|---|---|
+| 1 | Cala Tortuga | isla | paciencia, bocado, oro y papelera |
+| 2 | Playa del Coco | isla | las CAJAS (4 platos guardados) |
+| 3 | Isla del Bambú | isla | el PICOTEO (edamame) |
+| 4 | Arrecife del Ron | puerto | multiplicador, hastío y paladar; abre la TIENDA |
+| 5 | Cala del Calamar | isla | POSTRES, propinas y potenciadores |
+| 6 | Bahía del Kraken | puerto | los EXTRAS |
+| 7 | Estrecho del Rayo | abordaje | primer ABORDAJE y primeros PIRATAS |
+| 8 | Isla de Gades | isla | CAI y la PESCA |
+| 9 | Puerto Tormenta | puerto | los BONIFICADORES (regala el paladar) |
+| 10 | Flota de Pablo | abordaje | CAPITANES, corte lento y LINGOTES |
+| 11 | Cala del Hambre | isla | bocado acelerado y el futomaki |
+| 12 | Ensenada del Naufragio | puerto | clientes que pagan con COLECCIONABLES |
+| 13 | Rada de los Dos Fuegos | puerto | el AYUDANTE |
+| 14 | Muelle de las Bandejas | puerto | el BARCO combinado |
+| 15 | Guarida del Kappa | abordaje | el JEFE; superarlo abre el ARCADE |
+
+Campos nuevos de puerto que salieron de aquí: **`client_order`** (orden EXACTO
+de llegada, porque con la baraja no había forma de garantizar que el pirata
+fuera el tercero del 7 ni que cada tanda del 9 llevara dos), **`first_arrival`**
+(el 1 lo pone a 0), **`bite_speed`** (el 11 mastica al doble),
+**`collectible_client`** ({who, type, item, plates}: paga con una pieza de
+vitrina en vez de con oro) y **`unlocks_perk`** (compuerta: un bonificador no
+se puede ganar antes del puerto que lo presenta).
+
+**LOS BONIFICADORES SE MEJORAN, NO SE COMPRAN POR USOS** (`PerkData`): cinco
+niveles por bonificador (500 / 2.000 / 5.000 / 10.000 doblones) y la pantalla
+de Bonificadores vende NIVELES. Los USOS se ganan repitiendo su hazaña —
+`unlock_perk` regala uno CADA VEZ que se cumple, no solo la primera. Efectos:
+ayudante 60→30 s de descanso, paladar x6→x10, cocina veloz 60→40 % de
+enfriamiento (en PORCENTAJE, no en fracción: "%d%%" de 0.6 imprimía "0%") y
+barco +0→+75 % de prima por variedad.
+
+**CAI** (`assets/characters/cai`, hablante `cai`): el pescador de la Isla de
+Gades. Habla poco y mal —solo sabe japonés— así que sus frases son cortas, sin
+artículos y a veces son un "..." (para eso está su expresión `callado`). Es la
+voz de la pantalla de PESCA: da la clase la primera vez (`_clase_de_pesca`,
+con foco sobre el botón y sobre la caña, y 3 tiradas gratis al acabar) y saluda
+y se despide en cada visita (10 frases de cada). También explica los
+COLECCIONABLES la primera vez que sale uno del cofre.
+
+**Explicaciones de PANTALLA**: los LOGROS y el INVENTARIO se explican la
+primera vez que se entra en ellos (`logros_intro_done` /
+`inventario_intro_done`), no desde un nivel.
+
 ## Guiones narrados (la campaña ES el tutorial)
 
 - **LA ENSEÑANZA VA INTEGRADA EN LOS NIVELES 1-10** (rediseño del 14-8-2026):

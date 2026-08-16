@@ -165,13 +165,17 @@ func _build_perk_row(id: String) -> Control:
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
 	col.add_theme_constant_override("separation", 4)
+	var nivel := GameState.get_perk_level(id)
 	var name_l := Label.new()
-	name_l.text = str(data.get("name", id)) if known else "Potenciador por descubrir"
+	name_l.text = "%s  ·  Nivel %d" % [str(data.get("name", id)), nivel] if known \
+			else "Bonificador por descubrir"
 	name_l.add_theme_font_size_override("font_size", 24)
 	name_l.add_theme_color_override("font_color", DARK)
 	col.add_child(name_l)
 	var desc := Label.new()
-	desc.text = str(data.get("desc", "")) if known \
+	# Ya conseguido, lo que interesa es QUÉ HACE HOY (con su nivel), no la
+	# descripción genérica; sin conseguir, CÓMO se consigue.
+	desc.text = PerkData.level_text(id, nivel) if known \
 			else "Cómo conseguirlo: %s" % str(data.get("unlock", ""))
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc.custom_minimum_size = Vector2(240, 0)
@@ -180,30 +184,37 @@ func _build_perk_row(id: String) -> Control:
 	col.add_child(desc)
 	if known:
 		var uses := Label.new()
-		uses.text = "Usos: %d" % GameState.get_perk_uses(id)
-		uses.add_theme_font_size_override("font_size", 19)
+		# Los usos NO se compran: se ganan repitiendo el combo del bonificador,
+		# así que la tarjeta recuerda cuál es.
+		uses.text = "Usos: %d  ·  %s" % [GameState.get_perk_uses(id),
+			str(data.get("unlock", ""))]
+		uses.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		uses.custom_minimum_size = Vector2(240, 0)
+		uses.add_theme_font_size_override("font_size", 15)
 		uses.add_theme_color_override("font_color", Color(0.2, 0.45, 0.12))
 		col.add_child(uses)
 	row.add_child(col)
 
+	# EL BOTÓN COMPRA NIVELES, NO USOS. Con el nivel máximo se queda como sello.
 	if known:
-		var cost := int(data.get("cost", 0))
+		var cost := PerkData.upgrade_cost(nivel)
 		var buy := Button.new()
-		buy.custom_minimum_size = Vector2(180, 78)
+		buy.custom_minimum_size = Vector2(180, 90)
 		buy.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		PrepBoard.skin_button(buy)
-		buy.add_theme_font_size_override("font_size", 20)
-		buy.text = "+1 uso\n$%d" % cost
-		buy.disabled = GameState.money < cost
-		buy.pressed.connect(func() -> void:
-			if GameState.money < cost:
-				return
-			GameState.money -= cost
-			GameState.bump_stat("money_spent", cost)
-			GameState.add_perk_uses(id, 1)
-			GameState.save_game()
-			money_label.text = "%d" % GameState.money
-			_refresh())
+		buy.add_theme_font_size_override("font_size", 19)
+		if cost <= 0:
+			buy.text = "Nivel máximo"
+			buy.disabled = true
+		else:
+			buy.text = "Mejorar\na nivel %d\n$%d" % [nivel + 1, cost]
+			buy.disabled = GameState.money < cost
+			buy.tooltip_text = PerkData.level_text(id, nivel + 1)
+			buy.pressed.connect(func() -> void:
+				if not GameState.upgrade_perk(id):
+					return
+				money_label.text = "%d" % GameState.money
+				_refresh())
 		row.add_child(buy)
 	var pad_r := Control.new()
 	pad_r.custom_minimum_size = Vector2(26, 0)

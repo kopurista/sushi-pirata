@@ -236,6 +236,10 @@ var slow_eat: float = 1.0
 ## mastica, y en cuanto el grumete pica el té ese motivo desaparece pero le
 ## quedaba casi un minuto de barra bajando. Se reinicia con cada plato.
 var bite_speed: float = 1.0
+## Ritmo de bocado BASE de este cliente, al que vuelve con cada plato. Lo pone
+## el puerto (`bite_speed` en CampaignData): el nivel 11 come con un hambre que
+## no es normal y ahi la barra corre para todos.
+var bite_base: float = 1.0
 ## Personaje CONCRETO en vez del que le tocaría por tipo (`CharacterData.MODELS`):
 ## lo usan Pablo el Rubio y el Kappa, que comen como su tipo pero con su propio
 ## modelo. "" = el del tipo de siempre.
@@ -920,7 +924,7 @@ func _start_eating(plate_global: Vector3) -> void:
 	_eat_t = 0.0
 	# Plato nuevo: vuelve a tener derecho a un picoteo y al ritmo normal.
 	snack_taken = false
-	bite_speed = 1.0
+	bite_speed = bite_base
 	# SOJA: el bocado corre más. Como la paciencia NO baja mientras se come,
 	# acortar el bocado devuelve al cliente a la espera antes de tiempo — esa
 	# es su contrapartida por contar como plato nuevo.
@@ -1051,7 +1055,10 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 ## Tope vigente del multiplicador: el base, el del bonificador "Paladar de
 ## capitán" si está puesto, y otro ×2 mientras corra "Doble variedad".
 func variety_cap() -> int:
-	var tope := VARIETY_MAX_PERK if GameState.has_perk("paladar") else VARIETY_MAX
+	# Con el bonificador puesto manda SU NIVEL de mejora (x6 el nivel 1, x10 el
+	# 5); sin él, el tope base de siempre.
+	var tope := int(GameState.perk_value("paladar")) if GameState.has_perk("paladar") \
+			else VARIETY_MAX
 	if level_ref != null and "variety_x2_timer" in level_ref \
 			and level_ref.variety_x2_timer > 0.0:
 		tope *= 2

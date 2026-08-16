@@ -65,6 +65,8 @@ func _ready() -> void:
 	backdrop = SceneBackdrop.build(self, "", 17.0, 40.0, 6.0)
 	_setup_ui()
 	_show_tab("recetario")
+	# La PRIMERA visita la explica David (recetario, despensa y vitrina).
+	_explicar_inventario.call_deferred()
 	if GameState.take_transition() == "inventario":
 		call_deferred("_play_intro")
 
@@ -1040,3 +1042,24 @@ func _make_filter_chip(text: String, is_on: Callable, action: Callable) -> Butto
 	PrepBoard.add_press_feedback(b, 0.94)
 	b.pressed.connect(action)
 	return b
+
+
+## Explicación de la pantalla, solo la primera vez que se entra.
+func _explicar_inventario() -> void:
+	if GameState.inventario_intro_done:
+		return
+	GameState.inventario_intro_done = true
+	GameState.save_game()
+	var caja := DialogueBox.new()
+	caja.z_index = 220
+	ui.add_child(caja)
+	caja.say([
+		{ "text": "Tu **camarote**, %s. Aquí está todo lo que llevas encima." % GameState.player_title(), "mood": "feliz" },
+		{ "text": "El **recetario** es el libro de la izquierda: TODAS las recetas del juego. Las que aún no sabes salen en sombra, para que veas lo que te falta por aprender.", "mood": "hablando" },
+		{ "text": "Toca una y te cuenta lo que hace, quién se la come y **cómo se prepara**, paso a paso. Si un gesto se te resiste, míralo aquí antes de zarpar.", "mood": "serio" },
+		{ "text": "En la **despensa** están tus ingredientes y los usos que te quedan. Un uso es una jornada, no un plato.", "mood": "hablando" },
+		{ "text": "¡Y LA VITRINA! ¡RAAAK! ¡LOS CACHIVACHES!", "who": "gigi", "mood": "loro" },
+		{ "text": "La **colección**, plumas. Piezas que se pescan o que deja algún cliente agradecido. No sirven para nada... y aun así las quieres todas.", "mood": "riendo" },
+	])
+	await caja.finished
+	await caja.close_and_free()

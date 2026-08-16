@@ -5,34 +5,60 @@ class_name PerkData
 ## juego.
 const UNLOCKS_ENABLED := true
 
-## Potenciadores PERMANENTES (distintos de los de `powerup_data.gd`, que salen
-## del bote de propinas dentro de un nivel).
+## BONIFICADORES PERMANENTES (distintos de los potenciadores de
+## `powerup_data.gd`, que salen del bote de propinas dentro de un nivel).
 ##
-## Se desbloquean logrando un combo concreto durante una partida, se eligen
-## ANTES de empezar el nivel (junto con las recetas) y cada partida jugada
-## gasta 1 uso. Los usos se compran con doblones desde el Inventario.
+## Cómo funcionan, de punta a punta:
+##  1. Se GANAN haciendo una acción concreta dentro de una partida. La acción es
+##     REPETIBLE: cada vez que se cumple, el jugador se lleva OTRO uso (la
+##     primera vez, además, desbloquea el bonificador).
+##  2. Se ELIGEN antes de zarpar, junto con las recetas, y cada partida jugada
+##     gasta 1 uso.
+##  3. Se MEJORAN con doblones en la pantalla de Bonificadores del menú. Cinco
+##     niveles: el 1 es el de salida y los cuatro siguientes cuestan
+##     `UPGRADE_COSTS`. Lo que hace cada nivel lo dice `LEVELS` de cada
+##     bonificador, y cada uno tiene su unidad (segundos de descanso del
+##     ayudante, tope del multiplicador...).
+##
+## LA PANTALLA DE BONIFICADORES NO VENDE USOS: los usos se ganan jugando. Lo que
+## se compra ahí son NIVELES. Vendía usos hasta el rediseño del 16-8-2026, y
+## eso convertía el sistema en "paga y llévate otro turno con ventaja" en vez de
+## "juega bien y ganarás la ventaja".
+
+## Lo que cuesta subir a cada nivel (el índice 0 es el salto del 1 al 2).
+const UPGRADE_COSTS: Array = [500, 2000, 5000, 10000]
+## Nivel máximo de cualquier bonificador.
+const MAX_LEVEL := 5
 
 const PERKS: Dictionary = {
 	"cocina_veloz": {
 		"name": "Cocina veloz",
-		"desc": "Todas las recetas tardan la MITAD en volver a estar listas durante toda la partida.",
+		"desc": "Los enfriamientos de todas las recetas duran menos durante toda la partida.",
 		"icon": "res://assets/ui/ic_arcade.png",
-		"cost": 45,
 		"unlock": "Consigue que un mismo cliente se coma 5 platos en una partida.",
+		# PORCENTAJE al que queda el enfriamiento (60 = un 60% de lo normal).
+		# Va en porcentaje y no en fracción porque su rótulo lo enseña así y
+		# "%d%%" de 0.6 imprimía "0%". Quien lo aplica divide entre 100.
+		"levels": [60, 55, 50, 45, 40],
+		"level_text": "Enfriamientos al %d%% de lo normal.",
 	},
 	"ayudante": {
 		"name": "Ayudante de cocina",
-		"desc": "Un ayudante se suma a la cocina: al empezar una receta puedes pasársela con su botón y la termina él solo. Descansa 30 s entre plato y plato.",
+		"desc": "Un ayudante se suma a la cocina: al empezar una receta puedes pasársela con su botón y la termina él solo.",
 		"icon": "res://assets/ui/ic_inventario.png",
-		"cost": 70,
-		"unlock": "Sirve 18 platos en una misma partida.",
+		"unlock": "Dale de comer 4 platos a 4 clientes distintos en una partida.",
+		# Segundos de descanso entre plato y plato.
+		"levels": [60.0, 54.0, 48.0, 40.0, 30.0],
+		"level_text": "Descansa %d s entre plato y plato.",
 	},
 	"paladar": {
 		"name": "Paladar de capitán",
-		"desc": "El multiplicador de variedad de cada cliente puede llegar a x10 en vez de x5, así que rinden el doble por plato y el doble al despedirlos con postre.",
+		"desc": "Sube el TOPE del multiplicador de variedad de cada cliente, así que rinden más por plato y más al despedirlos con postre.",
 		"icon": "res://assets/ui/perk_limite.png",
-		"cost": 90,
-		"unlock": "Consigue que 4 clientes lleguen a x5 de variedad en una misma partida.",
+		"unlock": "Consigue que un cliente llegue a x5 de variedad en una partida.",
+		# Tope del multiplicador.
+		"levels": [6, 7, 8, 9, 10],
+		"level_text": "El multiplicador puede llegar a x%d.",
 	},
 	# El BARCO es el único bonificador que no AÑADE algo nuevo, sino que habilita
 	# una mecánica que ya existía: sin él, su botón no aparece ni en los puertos
@@ -41,19 +67,23 @@ const PERKS: Dictionary = {
 	# y el bonificador si el jugador se lo ha ganado.
 	"barco": {
 		"name": "Barco de sushi",
-		"desc": "Habilita el barco combinado: junta cuatro platos guardados de clases distintas y sal a la cinta con una bandeja que casi nadie deja pasar.",
+		"desc": "Habilita el barco combinado: junta platos guardados de clases distintas y sal a la cinta con una bandeja que casi nadie deja pasar.",
 		"icon": "res://assets/ui/perk_barco.png",
-		"cost": 60,
 		"unlock": "Ten 3 platos guardados en 2 cajas distintas en una misma partida.",
+		# Prima EXTRA (en %) sobre lo que paga el barco por su variedad.
+		"levels": [0, 15, 30, 50, 75],
+		"level_text": "El barco paga un %d%% más de prima por variedad.",
 	},
 }
 
 ## Platos que debe comer UN cliente para desbloquear "cocina_veloz".
 const UNLOCK_PLATES_ONE_CLIENT := 5
-## Platos servidos en una partida para desbloquear "ayudante".
-const UNLOCK_PLATES_TOTAL := 18
+## Clientes DISTINTOS a los que hay que darles `UNLOCK_HELPER_PLATES` platos
+## para desbloquear (o volver a ganar) el "ayudante".
+const UNLOCK_HELPER_CLIENTS := 4
+const UNLOCK_HELPER_PLATES := 4
 ## Clientes que deben llegar al multiplicador tope para desbloquear "paladar".
-const UNLOCK_VARIETY_CLIENTS := 4
+const UNLOCK_VARIETY_CLIENTS := 1
 ## Cajas con al menos UNLOCK_BOAT_STACK platos para desbloquear "barco".
 const UNLOCK_BOAT_BOXES := 2
 const UNLOCK_BOAT_STACK := 3
@@ -65,3 +95,28 @@ static func get_perk(id: String) -> Dictionary:
 
 static func ids() -> Array:
 	return PERKS.keys()
+
+
+## Valor del efecto en ese nivel (1..MAX_LEVEL). Fuera de rango se acota, así
+## que un guardado con un nivel raro no rompe nada.
+static func value_at(id: String, level: int) -> float:
+	var niveles: Array = get_perk(id).get("levels", [])
+	if niveles.is_empty():
+		return 0.0
+	var i := clampi(level - 1, 0, niveles.size() - 1)
+	return float(niveles[i])
+
+
+## Frase de lo que hace en ese nivel ("Descansa 48 s entre plato y plato").
+static func level_text(id: String, level: int) -> String:
+	var plantilla := str(get_perk(id).get("level_text", ""))
+	if plantilla == "":
+		return ""
+	return plantilla % value_at(id, level)
+
+
+## Lo que cuesta pasar de `level` al siguiente (0 = ya está al máximo).
+static func upgrade_cost(level: int) -> int:
+	if level >= MAX_LEVEL or level < 1:
+		return 0
+	return int(UPGRADE_COSTS[level - 1])

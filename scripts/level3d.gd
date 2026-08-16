@@ -31,8 +31,11 @@ const TIME_LIMIT := 150.0
 const ARRIVAL_SPAN := 150.0
 ## Margen antes del final en el que ya no llega ningun cliente.
 const ARRIVAL_TAIL := 22.0
-## Momento de la primera llegada, en segundos desde que arranca el turno.
+## Momento de la primera llegada, en segundos desde que arranca el turno. Un
+## puerto puede adelantarla con `first_arrival` (el nivel 1 la pone a 0: el
+## primer grumete entra en cuanto se acaba la preparación, sin espera muerta).
 const FIRST_ARRIVAL := 5.0
+var first_arrival := FIRST_ARRIVAL
 ## Tope de espera del cartel de fin mientras alguien termina su ultimo bocado
 ## (un plato de nivel 3 puede llevar 17 s): red de seguridad, no debe hacer falta.
 const END_BITE_MAX := 25.0
@@ -191,6 +194,16 @@ var near_seats := false
 var seat_order: Array[int] = []
 ## Clientes por llegada (1 = de uno en uno). Ver el reparto del horario.
 var arrival_batch := 1
+## Multiplicador del BOCADO de todo el puerto (>1 = mastican más deprisa, así
+## que vuelven antes a pedir y hay que cocinar más rápido). Lo usa el nivel 11.
+var bite_speed_mult := 1.0
+## CLIENTE QUE PAGA CON UN TESORO: {who, type, item, plates}. Uno de ese tipo
+## sale con su modelo propio y, si se le sirven `plates` platos, suelta un
+## COLECCIONABLE en vez de más oro. Se presenta en el nivel 12.
+var collectible_client: Dictionary = {}
+## El cliente del tesoro de esta partida (ya sentado), y si ya lo ha pagado.
+var treasure_client: Node3D = null
+var treasure_given := false
 ## Segundos entre llegada y llegada (se deduce de arrival_span y la clientela).
 var arrival_step := 12.0
 var star_money: Array = DEFAULT_STAR_MONEY
@@ -422,7 +435,18 @@ func _ready() -> void:
 			for t in mix:
 				for i in int(mix[t]):
 					type_queue.append(t)
-			type_queue.shuffle()
+			# `client_order` fija el ORDEN EXACTO de llegada en vez de barajar.
+			# Lo piden los niveles cuyo guion depende de quién entra cuándo: en
+			# el 7 el pirata tiene que ser el TERCERO (para que dé tiempo a
+			# darle de comer), y en el 9 cada tanda es de tres grumetes y dos
+			# piratas. Barajando, esas dos cosas salían a suertes.
+			var orden: Array = port.get("client_order", [])
+			if not orden.is_empty():
+				type_queue.clear()
+				for t in orden:
+					type_queue.append(str(t))
+			else:
+				type_queue.shuffle()
 			# `late_type`: ese tipo entra SIEMPRE el último (el pirata del
 			# nivel 3, que David presenta al final de la partida).
 			var tarde := str(port.get("late_type", ""))
@@ -456,6 +480,14 @@ func _ready() -> void:
 		near_seats = bool(port.get("near_seats", false))
 		# Cuántos entran DE GOLPE en cada llegada (1 = de uno en uno).
 		arrival_batch = maxi(int(port.get("arrival_batch", 1)), 1)
+		# Cuándo entra el PRIMERO (el nivel 1 lo pone a 0: en cuanto acaba la
+		# preparación, sin espera muerta mirando la cinta vacía).
+		first_arrival = float(port.get("first_arrival", FIRST_ARRIVAL))
+		# BOCADO ACELERADO de todo el puerto (el 11: comen con un hambre que no
+		# es normal, así que el hueco entre plato y plato se encoge).
+		bite_speed_mult = float(port.get("bite_speed", 1.0))
+		# CLIENTE QUE PAGA CON UN TESORO (el 12 en adelante).
+		collectible_client = port.get("collectible_client", {})
 		# El botón de Salir se monta ANTES de leer el puerto (va con el resto
 		# del HUD), así que aquí ya está construido: hay que retirarlo a mano.
 		if no_exit and exit_button != null:
@@ -551,16 +583,19 @@ func _ready() -> void:
 	# paso sale de repartir la clientela del puerto por su ventana de llegadas:
 	# eso es lo que da el RITMO, y se respeta haya reloj o no.
 	var last := (arrival_span - ARRIVAL_TAIL) * arrival_scale
-	arrival_step = maxf((last - FIRST_ARRIVAL) / float(maxi(total_clients - 1, 1)), 1.5)
+	# Suelo del sorteo: con `first_arrival` a 0 (el nivel 1) un mínimo fijo de
+	# 2 s habría devuelto la espera muerta que se quería quitar.
+	var pronto := minf(first_arrival, 2.0)
+	arrival_step = maxf((last - first_arrival) / float(maxi(total_clients - 1, 1)), 1.5)
 	if unlimited:
 		# Abordaje: no hay cupo de clientes. Se sigue llamando a gente con ese
 		# mismo paso mientras quede reloj para que les dé tiempo a comer algo
 		# (nadie entra en los ultimos ARRIVAL_TAIL segundos). Si la barra esta
 		# llena las llegadas se acumulan y entran segun se libere un taburete.
 		var tope := time_limit - ARRIVAL_TAIL
-		var t := FIRST_ARRIVAL
+		var t := first_arrival
 		while t <= tope:
-			arrival_queue.append(clampf(t + randf_range(-3.0, 3.0) * arrival_scale, 2.0, tope))
+			arrival_queue.append(clampf(t + randf_range(-3.0, 3.0) * arrival_scale, pronto, tope))
 			t += arrival_step
 	elif arrival_batch > 1:
 		# LLEGADAS EN TANDAS (el nivel 4 de dos en dos, el 6 de cuatro en
@@ -569,14 +604,14 @@ func _ready() -> void:
 		# que entra junto. Si no hay sillas libres, el spawner los va soltando
 		# según se vacían.
 		var tandas: int = maxi(ceili(float(total_clients) / float(arrival_batch)), 1)
-		arrival_step = maxf((last - FIRST_ARRIVAL) / float(maxi(tandas - 1, 1)), 4.0)
+		arrival_step = maxf((last - first_arrival) / float(maxi(tandas - 1, 1)), 4.0)
 		for i in total_clients:
-			var center := FIRST_ARRIVAL + float(i / arrival_batch) * arrival_step
-			arrival_queue.append(clampf(center + randf_range(-1.0, 1.0), 2.0, last))
+			var center := first_arrival + float(i / arrival_batch) * arrival_step
+			arrival_queue.append(clampf(center + randf_range(-1.0, 1.0), pronto, last))
 	else:
 		for i in total_clients:
-			var center := FIRST_ARRIVAL + i * arrival_step
-			arrival_queue.append(clampf(center + randf_range(-6.0, 6.0) * arrival_scale, 2.0, last))
+			var center := first_arrival + i * arrival_step
+			arrival_queue.append(clampf(center + randf_range(-6.0, 6.0) * arrival_scale, pronto, last))
 	arrival_queue.sort()
 	_apply_hud_layout()
 	_mark_star_steps()
@@ -591,10 +626,13 @@ func _ready() -> void:
 # ------------------------------------------ potenciadores permanentes (perks)
 
 ## Aplica los potenciadores elegidos antes de empezar (ver PerkData).
+## Cada bonificador aplica el valor de SU NIVEL de mejora (ver PerkData): el
+## nivel 1 es el de salida y los cuatro siguientes se compran con doblones.
 func _apply_perks() -> void:
 	if GameState.has_perk("cocina_veloz"):
-		prep_board.cooldown_perm_mult = 0.5
+		prep_board.cooldown_perm_mult = GameState.perk_value("cocina_veloz") / 100.0
 	if GameState.has_perk("ayudante"):
+		prep_board.helper_rest = GameState.perk_value("ayudante")
 		_setup_helper()
 
 
@@ -630,20 +668,38 @@ func _check_perk_unlocks() -> Array:
 	# cuando el diseño de la campaña lo pida (ver PerkData.UNLOCKS_ENABLED).
 	if not PerkData.UNLOCKS_ENABLED:
 		return []
+	# LAS CONDICIONES SON REPETIBLES: `unlock_perk` regala un uso CADA VEZ que se
+	# cumplen, y solo devuelve true la primera (que es cuando además se anuncia).
+	# Así los usos se ganan jugando, que es de donde salen — la pantalla de
+	# Bonificadores vende NIVELES, no usos.
 	var newly: Array = []
 	var most := 0
+	var bien_servidos := 0
 	for r in client_reports:
-		most = maxi(most, int(r.get("eaten", []).size()))
+		var n: int = int(r.get("eaten", []).size())
+		most = maxi(most, n)
+		if n >= PerkData.UNLOCK_HELPER_PLATES:
+			bien_servidos += 1
+	for c in seat_clients:
+		if c is Node3D and is_instance_valid(c) \
+				and c.eaten_ids.size() >= PerkData.UNLOCK_HELPER_PLATES:
+			bien_servidos += 1
+			most = maxi(most, int(c.eaten_ids.size()))
 	if most >= PerkData.UNLOCK_PLATES_ONE_CLIENT \
 			and GameState.unlock_perk("cocina_veloz"):
 		newly.append("cocina_veloz")
-	if dishes_served >= PerkData.UNLOCK_PLATES_TOTAL \
+	# El AYUDANTE sigue bloqueado hasta el puerto que lo presenta (el 13): sin
+	# esa escena, aparecería un muñeco en la cocina sin que nadie lo explique.
+	if bien_servidos >= PerkData.UNLOCK_HELPER_CLIENTS \
+			and GameState.perk_gate_open("ayudante") \
 			and GameState.unlock_perk("ayudante"):
 		newly.append("ayudante")
 	if clients_maxed >= PerkData.UNLOCK_VARIETY_CLIENTS \
+			and GameState.perk_gate_open("paladar") \
 			and GameState.unlock_perk("paladar"):
 		newly.append("paladar")
-	if boxes_stacked and GameState.unlock_perk("barco"):
+	if boxes_stacked and GameState.perk_gate_open("barco") \
+			and GameState.unlock_perk("barco"):
 		newly.append("barco")
 	return newly
 
@@ -2324,7 +2380,15 @@ func _try_spawn_client() -> bool:
 	if not head_who.has(c.client_type):
 		head_who[c.client_type] = CharacterData.who_for_type(c.client_type) \
 				if c.who_override == "" else c.who_override
+	# EL CLIENTE DEL TESORO ocupa el primer hueco de su tipo que salga: sale con
+	# su modelo propio (como el cliente especial) y, bien servido, paga con un
+	# coleccionable. Se marca aquí para que el nivel pueda vigilarlo.
+	if not collectible_client.is_empty() and treasure_client == null \
+			and c.client_type == str(collectible_client.get("type", "")):
+		c.who_override = str(collectible_client.get("who", ""))
+		c.gender = CharacterData.MALE
 	c.patience_scale = patience_mult
+	c.bite_base = bite_speed_mult
 	# En la escuela (sin bote) las propinas ni se tiran: sin esto el cliente
 	# soltaba su "+$N" verde flotante hacia un bote que no está en pantalla.
 	c.tips_enabled = not no_powerups
@@ -2341,6 +2405,9 @@ func _try_spawn_client() -> bool:
 	c.finished.connect(_on_client_finished.bind(idx))
 	c.plate_served.connect(_on_client_served)
 	seat_clients[idx] = c
+	if not collectible_client.is_empty() and treasure_client == null \
+			and c.who_override == str(collectible_client.get("who", "")):
+		treasure_client = c
 	clients_spawned += 1
 	_update_client_heads()
 	return true
@@ -2477,7 +2544,25 @@ func _on_client_served(food: int, tip: int) -> void:
 	money_earned += food
 	if tip > 0:
 		_add_tip(tip)
+	_check_treasure()
 	_check_goal_reached()
+
+
+## EL CLIENTE DEL TESORO paga con un COLECCIONABLE en vez de con más oro: en
+## cuanto se le han servido los platos que pedía, suelta su pieza. Se anuncia
+## por la capa global de avisos (`unlock_collectible`), que ya sabe esperar a
+## que el árbol esté en un momento razonable.
+func _check_treasure() -> void:
+	if treasure_given or treasure_client == null \
+			or not is_instance_valid(treasure_client):
+		return
+	var piden := int(collectible_client.get("plates", 3))
+	if treasure_client.eaten_ids.size() < piden:
+		return
+	treasure_given = true
+	var pieza := str(collectible_client.get("item", ""))
+	if pieza != "":
+		GameState.unlock_collectible(pieza)
 
 
 ## DINERO BASE: solo el precio de los platos. Es lo que marca el contador del
@@ -3789,17 +3874,10 @@ func _on_retry_pressed() -> void:
 
 
 ## "Siguiente" devuelve al MAPA de la campaña (no al menú principal), que es
-## desde donde se elige el puerto siguiente.
-##
-## Con la TIENDA recién abierta (nivel 4) el juego lleva al jugador DIRECTO al
-## puesto de Saverio: David acaba de decirle que se pase, y hacerle buscar el
-## botón en el menú justo después rompía la escena.
+## desde donde se elige el puerto siguiente. (La visita guiada a la tienda ya no
+## se dispara aquí: la lleva el mapa, en `main_menu._presentar_saverio`.)
 func _on_menu_pressed() -> void:
 	get_tree().paused = false
-	if GameState.pending_shop_visit:
-		GameState.pending_shop_visit = false
-		GameState.fade_to_scene("res://scenes/shop_screen.tscn", 0.35, 0.45)
-		return
 	if GameState.is_adventure():
 		GameState.transition = "mapa"
 	GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45)

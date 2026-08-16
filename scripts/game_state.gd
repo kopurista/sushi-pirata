@@ -120,9 +120,17 @@ var daily_intro_done := false
 ## un nivel: atada al nivel, David y Gigi repetían la parrafada cada vez que se
 ## colaba un plato en cualquier puerto narrado.
 var trash_intro_done := false
-## De SESIÓN (no se guarda): al cerrar el nivel que abre la tienda, el juego
-## lleva al jugador allí en vez de devolverlo al mapa.
-var pending_shop_visit := false
+## Pablo ya pago la broma del punal con sus lingotes y David los explico.
+var ingots_intro_done := false
+## Cai ya ha dado su clase de pesca (y con ella las tiradas gratis).
+var fishing_intro_done := false
+## Cai ya se ha enrolado (la escena del mapa al superar la Isla de Gades).
+var cai_intro_done := false
+## Cai ya ha explicado qué son los COLECCIONABLES (al pescar el primero).
+var col_intro_done := false
+## Explicaciones de PANTALLA: se dan la primera vez que se entra en cada una.
+var logros_intro_done := false
+var inventario_intro_done := false
 ## David ya explicó para qué sirve el ARROZ (al elegir el primer puerto).
 var rice_intro_done := false
 ## Ya se vio la escena de Pablo y Saverio en la tienda (tras su nivel).
@@ -137,12 +145,12 @@ var map_intro_done := false
 ## la fase de preparación, así que fallar y repetir NO obliga a volver a pasar
 ## por las explicaciones.
 var narrated_ports: Array = []
-## Usos de ingredientes que regala el juego al desbloquear una receta. TODA
-## receta nueva llega con DIEZ usos de lo que pide: la campaña-escuela no tiene
-## tienda hasta el nivel 4, así que hasta entonces el jugador no puede reponer
-## nada y una receta recién regalada tiene que dar para varias jornadas.
-const TUTORIAL_GIFT := 10
-const PORT_GIFT := 10
+## Usos de ingredientes que regala el juego al desbloquear una receta: CINCO de
+## cada cosa que pida. Da para unas cuantas jornadas sin volver la despensa
+## irrelevante, y si aun así se agota antes de que abra la tienda, David repone
+## (ver `gift_missing_ingredients`).
+const TUTORIAL_GIFT := 5
+const PORT_GIFT := 5
 ## Y si aun así se queda a CERO de algo antes de que abra la tienda, David
 ## aparece y le regala esta cantidad (ver `gift_missing_ingredients`).
 const RESCUE_GIFT := 3
@@ -157,6 +165,9 @@ var ingredients: Dictionary = {}
 ## comprados de cada uno: id -> usos restantes.
 var unlocked_perks: Array[String] = []
 var perk_uses: Dictionary = {}
+## Nivel de MEJORA de cada bonificador (1..PerkData.MAX_LEVEL). Se sube con
+## doblones desde la pantalla de Bonificadores; los usos NO se compran.
+var perk_level: Dictionary = {}
 ## Tienda: el tendero saca CADA DÍA (fecha real) un surtido de 8 ingredientes.
 ## `shop_day` guarda el día del surtido actual para saber cuándo renovarlo.
 var shop_stock: Array[String] = []
@@ -378,7 +389,7 @@ func gift_missing_ingredients(recipe_ids: Array) -> Array[String]:
 
 ## Puerto que abre el modo Arcade al superarlo. Todavía no está en la campaña
 ## (llega hasta el 9), así que el Arcade sigue cerrado hasta que se añada.
-const ARCADE_PORT := "nivel_10"
+const ARCADE_PORT := "nivel_15"
 
 
 ## El modo Arcade se gana jugando: hace falta haber SUPERADO el puerto que lo
@@ -749,15 +760,19 @@ func is_perk_unlocked(id: String) -> bool:
 	return id in unlocked_perks
 
 
-## Desbloquea un potenciador por combo. Devuelve true si era nuevo (para
-## anunciarlo en el panel de resultados). El primer uso va de regalo.
+## Desbloquea un bonificador por combo. Devuelve true si era NUEVO (para
+## anunciarlo en el panel de resultados). El uso lo da `unlock_perk` siempre:
+## la acción es REPETIBLE y cada vez que se cumple deja otro uso, así que la
+## primera vez desbloquea Y regala, y las siguientes solo regalan.
 func unlock_perk(id: String) -> bool:
-	if id in unlocked_perks:
-		return false
-	unlocked_perks.append(id)
+	var nuevo := not id in unlocked_perks
+	if nuevo:
+		unlocked_perks.append(id)
+		perk_level[id] = 1
+		bump_stat("perks_unlocked", 1)
 	perk_uses[id] = int(perk_uses.get(id, 0)) + 1
 	save_game()
-	return true
+	return nuevo
 
 
 func get_perk_uses(id: String) -> int:
@@ -766,6 +781,47 @@ func get_perk_uses(id: String) -> int:
 
 func add_perk_uses(id: String, amount: int) -> void:
 	perk_uses[id] = get_perk_uses(id) + amount
+
+
+## ¿Está ABIERTA la compuerta de campaña de este bonificador? Cada uno lo
+## presenta un puerto (`unlocks_perk` en CampaignData) y hasta ese momento no se
+## puede ganar aunque se cumpla su combo: aparecería una mecánica sin explicar.
+## Un bonificador que no lo pida ningún puerto está abierto desde siempre.
+func perk_gate_open(id: String) -> bool:
+	for p in CampaignData.PORTS:
+		if str(p.get("unlocks_perk", "")) != id:
+			continue
+		return int(level_stars.get(p["id"], 0)) >= int(p.get("goal_stars", 1))
+	return true
+
+
+## Nivel de mejora (1..PerkData.MAX_LEVEL). Un bonificador sin desbloquear
+## devuelve 1 igualmente: es lo que valdría el día que se gane.
+func get_perk_level(id: String) -> int:
+	return clampi(int(perk_level.get(id, 1)), 1, PerkData.MAX_LEVEL)
+
+
+## Valor del EFECTO del bonificador con el nivel que tenga hoy el jugador.
+func perk_value(id: String) -> float:
+	return PerkData.value_at(id, get_perk_level(id))
+
+
+## Sube un nivel pagando su coste. Devuelve false si no se puede (ya está al
+## máximo, no está desbloqueado o falta dinero).
+func upgrade_perk(id: String) -> bool:
+	if not is_perk_unlocked(id):
+		return false
+	var nivel := get_perk_level(id)
+	var coste := PerkData.upgrade_cost(nivel)
+	if coste <= 0 or money < coste:
+		return false
+	money -= coste
+	bump_stat("money_spent", coste)
+	perk_level[id] = nivel + 1
+	bump_stat("perk_upgrades", 1)
+	max_stat("best_perk_level", nivel + 1)
+	save_game()
+	return true
 
 
 ## Gasta 1 uso de cada potenciador elegido al empezar el nivel. Los que no
@@ -1049,7 +1105,17 @@ func add_triforce_piece(n := 1) -> void:
 # NO muta nada; `fishing_apply` entrega el premio SOLO si la captura se logra.
 
 ## Cobra el intento de pesca. false (sin tocar nada) si no llega el dinero.
+## TIRADAS GRATIS que quedan (las tres que regala Cai al terminar su clase).
+## Se gastan ANTES que el monedero: al salir del tutorial, las tres primeras
+## veces que se lanza la caña no cuestan nada.
+var free_casts := 0
+
+
 func fishing_pay() -> bool:
+	if free_casts > 0:
+		free_casts -= 1
+		save_game()
+		return true
 	if money < FishData.FISHING_COST:
 		return false
 	money -= FishData.FISHING_COST
@@ -1436,6 +1502,7 @@ func save_game() -> void:
 		"ingredients": ingredients,
 		"unlocked_perks": unlocked_perks,
 		"perk_uses": perk_uses,
+		"perk_level": perk_level,
 		"shop_stock": shop_stock,
 		"shop_day": shop_day,
 		"daily_day": daily_day,
@@ -1457,6 +1524,13 @@ func save_game() -> void:
 		"level1_outro_done": level1_outro_done,
 		"daily_intro_done": daily_intro_done,
 		"trash_intro_done": trash_intro_done,
+		"ingots_intro_done": ingots_intro_done,
+		"fishing_intro_done": fishing_intro_done,
+		"cai_intro_done": cai_intro_done,
+		"col_intro_done": col_intro_done,
+		"logros_intro_done": logros_intro_done,
+		"inventario_intro_done": inventario_intro_done,
+		"free_casts": free_casts,
 		"rice_intro_done": rice_intro_done,
 		"pablo_shop_done": pablo_shop_done,
 		"menu_intro_done": menu_intro_done,
@@ -1509,6 +1583,15 @@ func load_game() -> void:
 	var perk_dict: Dictionary = parsed.get("perk_uses", {})
 	for k in perk_dict.keys():
 		perk_uses[str(k)] = int(perk_dict[k])
+	# Guardados de antes de las MEJORAS: todo lo desbloqueado arranca en el
+	# nivel 1, que es donde estaba de hecho.
+	perk_level = {}
+	var nivel_dict: Dictionary = parsed.get("perk_level", {})
+	for k in nivel_dict.keys():
+		perk_level[str(k)] = int(nivel_dict[k])
+	for pid in unlocked_perks:
+		if not perk_level.has(pid):
+			perk_level[pid] = 1
 	shop_stock = _to_string_array(parsed.get("shop_stock", []))
 	shop_day = str(parsed.get("shop_day", ""))
 	daily_day = int(parsed.get("daily_day", 0))
@@ -1586,6 +1669,13 @@ func load_game() -> void:
 	level1_outro_done = bool(parsed.get("level1_outro_done", tutorial_done))
 	daily_intro_done = bool(parsed.get("daily_intro_done", tutorial_done))
 	trash_intro_done = bool(parsed.get("trash_intro_done", tutorial_done))
+	ingots_intro_done = bool(parsed.get("ingots_intro_done", tutorial_done))
+	fishing_intro_done = bool(parsed.get("fishing_intro_done", tutorial_done))
+	cai_intro_done = bool(parsed.get("cai_intro_done", tutorial_done))
+	col_intro_done = bool(parsed.get("col_intro_done", tutorial_done))
+	logros_intro_done = bool(parsed.get("logros_intro_done", tutorial_done))
+	inventario_intro_done = bool(parsed.get("inventario_intro_done", tutorial_done))
+	free_casts = int(parsed.get("free_casts", 0))
 	rice_intro_done = bool(parsed.get("rice_intro_done", false))
 	pablo_shop_done = bool(parsed.get("pablo_shop_done", false))
 	# Guardados de antes de la guía del menú: si el tutorial ya está hecho, la
@@ -1648,6 +1738,7 @@ func _new_game() -> void:
 	level_scores = {}
 	ingredients = {}
 	unlocked_perks = []
+	perk_level = {}
 	perk_uses = {}
 	shop_stock = []
 	shop_day = ""
@@ -1669,6 +1760,13 @@ func _new_game() -> void:
 	level1_outro_done = false
 	daily_intro_done = false
 	trash_intro_done = false
+	ingots_intro_done = false
+	fishing_intro_done = false
+	cai_intro_done = false
+	col_intro_done = false
+	logros_intro_done = false
+	inventario_intro_done = false
+	free_casts = 0
 	rice_intro_done = false
 	pablo_shop_done = false
 	menu_intro_done = false

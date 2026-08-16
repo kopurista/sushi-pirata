@@ -29,6 +29,10 @@ var perks_selected: Array[String] = []
 ## Pivote del modelo 3D del fondo (se mece con el oleaje).
 var backdrop: Node3D = null
 var leaving := false
+## Fila de bonificadores (se rehace si el aviso previo regala uno).
+var perk_bar: Control = null
+## Gigi ya ha avisado de que la carta no lleva platos de dos estrellas.
+var _avisado_piratas := false
 var _t := 0.0
 
 @onready var content: Control = $UI/Root/Margin/VBox/Scroll/Content
@@ -146,6 +150,34 @@ func _aviso_antes_de_zarpar() -> void:
 		return
 	var lineas: Array = []
 	match guion:
+		"nivel_9":
+			# EL NIVEL DE LOS BONIFICADORES. David los explica y REGALA el del
+			# paladar aquí mismo, en el selector, para que el jugador lo vea
+			# aparecer en su fila y se lo ponga antes de zarpar (el botón de
+			# ¡Zarpar! no le deja salir sin él: ver `_on_start_pressed`).
+			GameState.unlock_perk("paladar")
+			lineas = [
+				{ "text": "Antes de zarpar, una palabra sobre los **bonificadores**.", "mood": "hablando" },
+				{ "text": "No son los potenciadores del bote: esos duran un turno y salen solos. Los **bonificadores** se eligen AQUÍ, antes de empezar, y valen para toda la jornada.", "mood": "serio" },
+				{ "text": "Cada uno se gana haciendo algo concreto en partida, y cada vez que lo repitas te llevas otro uso. Y se **mejoran con doblones** desde el menú.", "mood": "hablando" },
+				{ "text": "Toma el primero: **Paladar de capitán**. Con él, la chapa de tus clientes llega a **x6** en vez de quedarse en x5.", "mood": "feliz" },
+				{ "text": "¡PÓNTELO, GRUMETE! ¡ESTÁ AHÍ ABAJO! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+			]
+			# La fila de bonificadores se construyó antes de este regalo: se
+			# rehace para que el pergamino nuevo salga sin tener que volver.
+			_rebuild_perk_bar.call_deferred()
+		"nivel_13":
+			lineas = [
+				{ "text": "Diez comandas, %s. Hoy vas a echar de menos un segundo par de manos." % GameState.player_title(), "mood": "serio" },
+				{ "text": "Y las hay: el bonificador del **ayudante de cocina** se gana dándole de comer **cuatro platos a cuatro clientes distintos** en una jornada.", "mood": "hablando" },
+				{ "text": "Hoy hay clientela de sobra para eso. Tú ponte a ello.", "mood": "feliz" },
+			]
+		"nivel_14":
+			lineas = [
+				{ "text": "Este muelle sirve por **bandejas**, no por platos sueltos.", "mood": "hablando" },
+				{ "text": "El bonificador del **barco de sushi** se gana teniendo **3 platos guardados en 2 cajas distintas** a la vez. Cocina de más y tenlo.", "mood": "serio" },
+				{ "text": "¡BANDEJAS! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+			]
 		"nivel_4":
 			# La primera vez que el jugador PISA el selector: hasta aquí las
 			# tres islas venían con la carta puesta.
@@ -155,7 +187,7 @@ func _aviso_antes_de_zarpar() -> void:
 				{ "text": "Cada receta que embarques gasta **un uso** de sus ingredientes de la despensa, así que mira también lo que te queda.", "mood": "hablando" },
 				{ "text": "¡ELIGE BIEN! ¡RAAAK!", "who": "gigi", "mood": "loro" },
 			]
-		"nivel_8":
+		"nivel_10":
 			lineas = [
 				{ "text": "Antes de zarpar, escúchame bien: hoy abordamos la **flota de Pablo el Rubio**.", "mood": "serio" },
 				{ "text": "Pablo es un viejo amigo mío, pero de los que se ríen mientras te cobran. Y es **capitán**, así que come de tres estrellas.", "mood": "hablando" },
@@ -163,7 +195,7 @@ func _aviso_antes_de_zarpar() -> void:
 				{ "text": "De lo gordo ya me encargo yo cuando llegue Pablo. Tú confía y cocina.", "mood": "feliz" },
 				{ "text": "¡CONFÍA Y COCINA! ¡RAAAK!", "who": "gigi", "mood": "loro" },
 			]
-		"nivel_10":
+		"nivel_15":
 			lineas = [
 				{ "text": "Estas aguas... las conozco. Aquí vive el **Kappa**: un espíritu del río con más hambre que toda mi tripulación junta.", "mood": "serio" },
 				{ "text": "Come de TODO — una, dos y tres estrellas — pero se **aburre rapidísimo**. Llévale la carta más **variada** que puedas.", "mood": "hablando" },
@@ -282,9 +314,10 @@ func _add_perk_bar(board_script: GDScript) -> void:
 		return
 
 	var box := VBoxContainer.new()
+	perk_bar = box
 	box.add_theme_constant_override("separation", 6)
 	var title := Label.new()
-	title.text = "Potenciadores"
+	title.text = "Bonificadores"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 22)
 	title.add_theme_color_override("font_color", Color(1, 0.9, 0.55))
@@ -571,7 +604,62 @@ func _update_ui() -> void:
 	PrepBoard.set_dimmed(start_button, start_button.disabled)
 
 
+## Vuelve a montar la fila de bonificadores. Hace falta cuando el aviso previo
+## REGALA uno (el paladar del nivel 9): la fila se construyó en el `_ready`, o
+## sea antes del regalo, y sin esto el pergamino nuevo no aparecía hasta salir
+## de la pantalla y volver a entrar.
+func _rebuild_perk_bar() -> void:
+	if perk_bar != null and is_instance_valid(perk_bar):
+		perk_bar.queue_free()
+		perk_bar = null
+	_add_perk_bar(load("res://scripts/prep_board.gd"))
+
+
+## Recetas de 2 estrellas en la selección. Lo mira el aviso de los piratas.
+func _lleva_dos_estrellas() -> bool:
+	for id in selected:
+		if int(RecipeData.get_recipe(id).get("level", 1)) >= 2:
+			return true
+	return false
+
+
 func _on_start_pressed() -> void:
+	# EL PUERTO DE LOS PIRATAS (nivel 9) no perdona una carta de solo grumetes:
+	# la mitad de la clientela come de dos estrellas y sin un plato así se
+	# quedarían mirando la cinta. Gigi avisa, pero NO bloquea: si el jugador
+	# insiste, allá él.
+	if GameState.is_adventure() and not _lleva_dos_estrellas() \
+			and not _avisado_piratas and _puerto_con_piratas():
+		_avisado_piratas = true
+		var aviso := DialogueBox.new()
+		$UI.add_child(aviso)
+		aviso.say([
+			{ "text": "¡ALTO AHÍ! ¡RAAAK! ¡En ese puerto hay **piratas**!", "who": "gigi", "mood": "loro_grito" },
+			{ "text": "Y los piratas comen de **dos estrellas**. No llevas ni un plato así: se te van a quedar mirando la cinta con cara de pocos amigos.", "who": "gigi", "mood": "loro" },
+			{ "text": "Hazle caso, %s. Cambia una receta o prepárate para verlos marchar." % GameState.player_title(), "mood": "loro_resignado" },
+		])
+		await aviso.finished
+		await aviso.close_and_free()
+		return
+	# EL BONIFICADOR DE REGALO SE LLEVA PUESTO. En el nivel que lo presenta no
+	# tiene sentido zarpar sin él: la lección entera va de eso.
+	if GameState.is_adventure():
+		var regalo := str(CampaignData.get_port(GameState.current_port)
+				.get("unlocks_perk", ""))
+		if regalo != "" and GameState.is_perk_unlocked(regalo) \
+				and GameState.get_perk_uses(regalo) > 0 \
+				and not regalo in perks_selected \
+				and not GameState.port_beaten(GameState.current_port):
+			var falta := DialogueBox.new()
+			$UI.add_child(falta)
+			falta.say([
+				{ "text": "¡QUE TE LO PONGAS, HE DICHO! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+				{ "text": "Toca el **%s** de ahí abajo antes de zarpar. Para algo te lo he dado."
+					% str(PerkData.get_perk(regalo).get("name", regalo)), "mood": "loro_resignado" },
+			])
+			await falta.finished
+			await falta.close_and_free()
+			return
 	# SIN ARROZ NO SE ZARPA. Se avisa aquí y no al montar el nivel: allí ya
 	# sería tarde y el jugador vería la pantalla parpadear.
 	if not GameState.can_play():
@@ -612,3 +700,11 @@ func _rescate_de_david(recetas: Array) -> void:
 	await caja.close_and_free()
 	# Las tarjetas ya se dibujaron con la despensa vieja: se repintan.
 	get_tree().reload_current_scene()
+
+
+## ¿Este puerto trae PIRATAS? Es lo que hace que una carta de solo platos de una
+## estrella sea un problema (ver el aviso de `_on_start_pressed`).
+func _puerto_con_piratas() -> bool:
+	var mix: Dictionary = CampaignData.get_port(GameState.current_port) \
+			.get("client_mix", {})
+	return int(mix.get("A", 0)) > 0 or int(mix.get("G", 0)) > 0

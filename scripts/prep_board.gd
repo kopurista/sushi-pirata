@@ -1373,7 +1373,11 @@ var allowed_recipes: Array = []
 ## AYUDANTE (potenciador permanente): botón con su cara que termina de golpe la
 ## receta recién empezada. Solo existe si el jugador lo lleva a la partida; se
 ## enciende en el PRIMER paso de una elaboración y luego enfría medio minuto.
-const HELPER_COOLDOWN := 30.0
+## Descanso del ayudante entre plato y plato. Es el valor del NIVEL 1 del
+## bonificador; `level3d._apply_perks` sobreescribe `helper_rest` con el que
+## toque segun las mejoras compradas (ver PerkData).
+const HELPER_COOLDOWN := 60.0
+var helper_rest := HELPER_COOLDOWN
 ## Trozo del retrato de cuerpo entero que se ve en el disco del ayudante, en
 ## fracciones de la imagen: la cabeza y algo de hombros.
 const HELPER_FACE := Rect2(0.28, 0.03, 0.44, 0.30)
@@ -1449,7 +1453,13 @@ func _boat_price(picked: Array) -> int:
 	for id in picked:
 		total += int(RecipeData.get_recipe(id).get("price", 0))
 		kinds[id] = true
-	return total + int(BOAT_VARIETY_BONUS.get(kinds.size(), 0))
+	# La prima por variedad crece con el NIVEL del bonificador "Barco de sushi"
+	# (0% en el nivel 1, +75% en el 5): es lo único que mejora al subirlo, ya
+	# que el barco no da nada más que habilitar la bandeja.
+	var prima := float(BOAT_VARIETY_BONUS.get(kinds.size(), 0))
+	if GameState.has_perk("barco"):
+		prima *= 1.0 + GameState.perk_value("barco") / 100.0
+	return total + int(round(prima))
 
 
 ## Nivel (estrellas) del barco: la MEDIA de los niveles de sus platos,
@@ -2371,7 +2381,7 @@ func _update_helper_button() -> void:
 func _helper_take_over() -> void:
 	if not _helper_ready():
 		return
-	helper_cooldown = HELPER_COOLDOWN
+	helper_cooldown = helper_rest
 	helper_used.emit()
 	_finish_prep(true)
 	# El plato aparece hecho de golpe: los ingredientes que había preparados
