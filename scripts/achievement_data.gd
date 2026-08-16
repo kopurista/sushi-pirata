@@ -90,6 +90,8 @@ const ICONS := {
 	"pesca_cofres": "res://assets/ui/cofre.png",
 	"pesca_lapa": "res://assets/ui/fish_pez_lapa.png",
 	"pesca_basura": "res://assets/ui/col_botella.png",
+	"pesca_sedal_roto": "res://assets/ui/pesca_cana.png",
+	"pesca_escapes": "res://assets/ui/fish_pez_volador.png",
 }
 
 ## `stat`: clave de `GameState.stats`, un Array de claves que se SUMAN, o una
@@ -194,7 +196,7 @@ const ACHIEVEMENTS: Array = [
 	{
 		"id": "gastado", "group": "travesia", "name": "Cliente del tendero",
 		"desc": "Gástate %d doblones en la tienda.",
-		"stat": "money_spent", "tiers": [200, 1500, 8000],
+		"stat": "shop_spent", "tiers": [200, 1500, 8000],
 	},
 
 	# --- Travesía ------------------------------------------------------------
@@ -266,6 +268,16 @@ const ACHIEVEMENTS: Array = [
 		"id": "pesca_basura", "group": "pesca", "name": "Limpiando el fondo",
 		"desc": "Saca %d trastos del mar: botellas, ruedas y botas.",
 		"stat": "fish_junk", "tiers": [5, 25, 100],
+	},
+	{
+		"id": "pesca_sedal_roto", "group": "pesca", "name": "Mano dura",
+		"desc": "Revienta el sedal %d veces tirando de más.",
+		"stat": "fish_line_broken", "tiers": [5, 20, 60],
+	},
+	{
+		"id": "pesca_escapes", "group": "pesca", "name": "El que se escapó",
+		"desc": "Deja que se te escape un pez %d veces.",
+		"stat": "fish_escaped", "tiers": [5, 20, 60],
 	},
 ]
 

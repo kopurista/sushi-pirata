@@ -744,15 +744,20 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
     enganchado costaba los doblones apostados. La condición es la misma con
     la que se esconde el "Atrás" (todo lo que no sea READY ni REVEAL), porque
     los doblones se pagan al LANZAR, no al morder.
-  · **LOGROS de pesca**: seis a mano MÁS UNO POR PEZ (ver el bloque de logros),
+  · **LOGROS de pesca**: ocho a mano MÁS UNO POR PEZ (ver el bloque de logros),
     en su **apartado propio** ("pesca", la tercera
     pestaña de la pantalla de logros) — capturas (`fish_caught`), álbum
     (`derived:pesca_album`, que cuenta por `FishData.caught_count` y cuya
     meta de ORO es el catálogo entero: **al añadir un pez hay que subirla**),
     legendarios (`fish_legendary`), cofres (`chests_fished`), peces con lapa
-    (`fish_lapa`) y basura (`fish_junk`). Las estadísticas se suben desde
-    `GameState.fishing_apply`, que es donde ocurre el suceso. El gasto de los
-    intentos suma a `money_spent`.
+    (`fish_lapa`), basura (`fish_junk`), **sedal roto** (`fish_line_broken`,
+    sumado en `fishing_game._tick_fight` justo donde `tension >= 1.0`) y
+    **pez escapado** (`fish_escaped`, mismo sitio con `energy >= 1.0`) — los
+    dos son sucesos de la PELEA, no del robo de cebo ni del susto por finta,
+    que son otras ramas de `_escaped()`. Las estadísticas de captura se suben
+    desde `GameState.fishing_apply`, que es donde ocurre el suceso. El gasto
+    de los intentos suma a `money_spent` (el general de "todo lo gastado" que
+    siembra `money_total`), pero **NO** a `shop_spent` — ver el aviso de abajo.
   · Iconos `assets/ui/fish_*.png` + `ic_pesca.png` + `pesca_cana.png`: Ludo
     (item-icon, Western Cartoon, como los coleccionables) → `_gen/ui2/fish/`
     (y `menu/ic_pesca`) → `build_fishing()` de `tools/ui2_prep.py` (con
@@ -871,6 +876,15 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   bebe de `derived:coleccion` y **su meta de ORO tiene que ser el tamaño del
   catálogo de coleccionables**: al añadir uno, subirla con él.
 - **LOGROS: aviso, globo y reclamo** (montado con los coleccionables):
+  · **`money_spent` NO ES "gastado en la tienda"**: es el total de TODO lo
+    gastado (tienda, recarga del surtido, intentos de pesca, usos de
+    bonificadores), y se usa para sembrar `money_total` en guardados viejos.
+    El logro "Cliente del tendero" mira `shop_spent`, un contador APARTE que
+    solo suman `shop_screen` (comprar ingredientes) y `GameState.reroll_shop`
+    (recargar el surtido) — las DOS acciones que de verdad son "comprarle a
+    Saverio". Pescar bumpeaba el mismo `money_spent` que miraba el logro y
+    el "cliente del tendero" saltaba pescando: **cualquier gasto nuevo que no
+    sea la tienda de Saverio va a `money_spent` y NUNCA a `shop_spent`.**
   · **EL TUTORIAL NO CUENTA**: `bump_stat`/`max_stat` (y `mark_day_played`)
     salen sin apuntar nada con `is_tutorial()` — la clase de David no suma
     platos, clientes ni días a las estadísticas ni a los logros. Es el ÚNICO

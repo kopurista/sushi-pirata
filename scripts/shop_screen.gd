@@ -1002,6 +1002,7 @@ func _open_buy_dialog(ing: String) -> void:
 			return
 		GameState.money -= total
 		GameState.bump_stat("money_spent", total)
+		GameState.bump_stat("shop_spent", total)
 		GameState.add_ingredient_uses(ing, qty)
 		GameState.save_game()
 		overlay.queue_free()

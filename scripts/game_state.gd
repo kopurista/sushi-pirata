@@ -737,6 +737,7 @@ func reroll_shop() -> bool:
 		return false
 	money -= SHOP_REROLL_COST
 	bump_stat("money_spent", SHOP_REROLL_COST)
+	bump_stat("shop_spent", SHOP_REROLL_COST)
 	roll_shop_stock()
 	save_game()
 	return true

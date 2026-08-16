@@ -811,10 +811,12 @@ func _tick_fight(delta: float) -> void:
 	energy_bar.modulate = Color(1, 0.7, 0.7) \
 		if en_velocidad and fmod(_t, 0.22) < 0.11 else Color.WHITE
 	if tension >= 1.0:
+		GameState.bump_stat("fish_line_broken")
 		_escaped("¡El sedal se ha roto!")
 		return
 	# Recuperada del todo, la presa se suelta del anzuelo y se va.
 	if energy >= 1.0:
+		GameState.bump_stat("fish_escaped")
 		_escaped("¡Se ha escapado!")
 		return
 	if energy <= 0.0:
