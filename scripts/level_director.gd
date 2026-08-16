@@ -666,8 +666,14 @@ func _nivel_6() -> void:
 # sitio del juego donde se consigue. Le pone precio él mismo, en su propio
 # retrato: PLATOS_BANDERA platos y el trapo es tuyo.
 
-## Platos que hay que servirle al pirata para que suelte su bandera.
-const PLATOS_BANDERA := 5
+## Platos que hay que servirle al pirata para que suelte su bandera. TRES, no
+## cinco: en un abordaje de 2:30, con el pirata entrando el tercero y comiendo
+## de dos estrellas, cinco eran casi todo el turno dedicado a un solo cliente.
+const PLATOS_BANDERA := 3
+## EL pirata del nivel 7 y su trato, que se resuelve por señal (ver
+## `_on_pirata_come`).
+var _pirata_bandera: Node3D = null
+var _bandera_dada := false
 
 
 ## QUÉ SON LOS COLECCIONABLES. Se cuenta UNA sola vez en toda la partida y
@@ -737,36 +743,62 @@ func _nivel_7() -> void:
 	await get_tree().create_timer(1.0).timeout
 	if not is_instance_valid(pirata) or lv.ended:
 		return
+	# LA CUENTA LA LLEVA EL PROPIO PIRATA, POR SEÑAL. Estaba en un `_esperar`
+	# que además de la cuenta miraba `lv.ended`, y eso perdía la bandera en el
+	# caso más normal de todos: `eaten_ids` cuenta platos TERMINADOS, no
+	# servidos, así que el último plato se estaba masticando cuando se acabó el
+	# reloj del abordaje —o cuando al pirata se le agotó la paciencia— y el
+	# guion salía por la puerta de atrás con la cuenta en N-1. Se le habían
+	# servido los platos, pero el trato no se cumplía nunca.
+	# Ahora el premio lo entrega `_on_pirata_come` en cuanto el plato baja, sin
+	# preguntarle al nivel si sigue vivo. Lo único que se pierde si el turno se
+	# cierra en ese instante es la escena de agradecimiento.
+	_pirata_bandera = pirata
+	if not pirata.plate_served.is_connected(_on_pirata_come):
+		pirata.plate_served.connect(_on_pirata_come)
+	# EL RETRATO ES EL DEL PIRATA QUE HAY SENTADO: si el spawner lo sacó
+	# femenino, habla la pirata. Se compone con `DialogueBox.speaker_for`, nunca
+	# a mano, para que no se pueda quedar desparejado del taburete.
+	var quien := DialogueBox.speaker_for("pirata", str(pirata.gender))
 	_focus_client(pirata)
 	await _say([
-		{ "text": "Eh, cocinero. Baja un momento.", "who": "pirata", "mood": "nervioso" },
-		{ "text": "Mi capitán me manda a comer y vuelvo con el buche vacío... y esta noche me deja fregando la sentina.", "who": "pirata", "mood": "hablando" },
+		{ "text": "Eh, cocinero. Baja un momento.", "who": quien, "mood": "nervioso" },
+		{ "text": "Mi capitán me manda a comer y vuelvo con el buche vacío... y esta noche me deja fregando la sentina.", "who": quien, "mood": "hablando" },
 		{ "text": "Ponme **%d platos** y te doy mi **bandera**. La llevo desde el primer abordaje, pero prefiero cenar." % PLATOS_BANDERA,
-			"who": "pirata", "mood": "serio" },
-		{ "text": "¡CINCO PLATOS POR UN TRAPO! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+			"who": quien, "mood": "serio" },
+		{ "text": "¡%d PLATOS POR UN TRAPO! ¡RAAAK!" % PLATOS_BANDERA, "who": "gigi", "mood": "loro" },
 		{ "text": "Ese trapo es un **coleccionable**, plumas. Tú sírvele, %s." % GameState.player_title(), "mood": "loro_resignado" },
 	])
-	_play("¡Cinco platos para el **pirata**! Lo demás ya vendrá.")
+	_play("¡%d platos para el **pirata**! Lo demás ya vendrá." % PLATOS_BANDERA)
 
 	# --- Se cumple el trato: la bandera en mano ---
-	await _esperar(func() -> bool:
-		return lv.ended or not is_instance_valid(pirata) \
-			or pirata.eaten_ids.size() >= PLATOS_BANDERA)
-	if lv.ended or not is_instance_valid(pirata) \
-			or pirata.eaten_ids.size() < PLATOS_BANDERA:
+	await _esperar(func() -> bool: return lv.ended or _bandera_dada)
+	if lv.ended or not _bandera_dada or not is_instance_valid(pirata):
 		return
 	_focus_client(pirata)
 	await _say([
-		{ "text": "Uf. Hacía años que no comía así.", "who": "pirata", "mood": "feliz" },
-		{ "text": "Lo prometido. Cuídala mejor que yo.", "who": "pirata", "mood": "hablando" },
+		{ "text": "Uf. Hacía años que no comía así.", "who": quien, "mood": "feliz" },
+		{ "text": "Lo prometido. Cuídala mejor que yo.", "who": quien, "mood": "hablando" },
 	])
-	# La ventana del coleccionable la saca `GameState` (capa global de avisos),
-	# así que primero se suelta el foco y después se entrega.
 	_play()
-	GameState.unlock_collectible("bandera")
 	await get_tree().create_timer(0.4).timeout
 	await _explicar_coleccionables()
 	_play()
+
+
+## Cada plato que se termina EL pirata del nivel 7. Cumplida la cuenta, la
+## bandera se entrega AQUÍ MISMO y no en el guion: así el premio no depende de
+## que al nivel le quede reloj ni de que al pirata le quede paciencia. La
+## ventana del coleccionable la saca `GameState` en su capa global de avisos,
+## que sobrevive incluso al cartel de resultados.
+func _on_pirata_come(_precio: int, _propina: int) -> void:
+	if _bandera_dada or _pirata_bandera == null \
+			or not is_instance_valid(_pirata_bandera):
+		return
+	if _pirata_bandera.eaten_ids.size() < PLATOS_BANDERA:
+		return
+	_bandera_dada = true
+	GameState.unlock_collectible("bandera")
 
 
 # ------------------------------------------------------------------- nivel 8

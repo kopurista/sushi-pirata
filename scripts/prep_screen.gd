@@ -33,6 +33,8 @@ var leaving := false
 var perk_bar: Control = null
 ## Gigi ya ha avisado de que la carta no lleva platos de dos estrellas.
 var _avisado_piratas := false
+## Tarjetas ELEGIBLES por id, para poder apagarlas cuando la carta se llena.
+var recipe_cards: Dictionary = {}
 var _t := 0.0
 
 @onready var content: Control = $UI/Root/Margin/VBox/Scroll/Content
@@ -579,6 +581,9 @@ func _build_card(id: String, board_script: GDScript) -> Button:
 		return b
 
 	b.toggled.connect(_on_recipe_toggled.bind(id, b))
+	# Solo se apuntan las tarjetas ELEGIBLES: las que se quedaron sin
+	# ingredientes salen antes por su propia rama y ya van marcadas.
+	recipe_cards[id] = b
 	return b
 
 
@@ -602,6 +607,17 @@ func _update_ui() -> void:
 	start_button.disabled = selected.is_empty()
 	# Apagado por OPACIDAD, no aclarando la letra: sobre el oro no se leía.
 	PrepBoard.set_dimmed(start_button, start_button.disabled)
+	# CON LA CARTA LLENA, LO QUE NO CABE SE APAGA. Tocar una receta más no hacía
+	# nada (`_on_recipe_toggled` la devuelve a su sitio) y no había forma de
+	# saber por qué: parecía que la tarjeta no respondía. Atenuadas se lee de un
+	# vistazo que ya no queda hueco, y las elegidas siguen a plena luz para
+	# poder soltar una y cambiarla.
+	var llena := selected.size() >= slots
+	for id in recipe_cards:
+		var carta: Button = recipe_cards[id]
+		if not is_instance_valid(carta):
+			continue
+		PrepBoard.set_dimmed(carta, llena and not (id in selected))
 
 
 ## Vuelve a montar la fila de bonificadores. Hace falta cuando el aviso previo

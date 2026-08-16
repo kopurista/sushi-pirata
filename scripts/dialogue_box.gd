@@ -72,23 +72,48 @@ const SPEAKERS := {
 	},
 	# LOS CLIENTES DE SIEMPRE, sin nombre propio: cuando a un guion le hace
 	# falta que hable el que está sentado en la barra (el pirata del nivel 7 y
-	# su bandera). Sus retratos salen del MISMO concepto con el que se
-	# modelaron los clientes 3D, reencuadrados de cintura para arriba, así que
-	# el de la caja y el del taburete son el mismo personaje. Como Saverio,
-	# Pablo y Cai, salen a la DERECHA: la izquierda es siempre de David.
+	# su bandera). Como Saverio, Pablo y Cai salen a la DERECHA: la izquierda es
+	# siempre de David.
+	#
+	# CADA TIPO TIENE SUS DOS GÉNEROS, con el mismo diseño que su modelo 3D. El
+	# hablante femenino se pide con el sufijo "_f" y quien lo saca de un guion
+	# NO lo escribe a mano: `speaker_for(tipo, genero)` lo compone, así que el
+	# retrato de la caja siempre es el del cliente que hay en el taburete.
 	"grumete": {
 		"dir": "res://assets/characters/grumete", "file": "grumete",
+		"name": "Grumete", "side": "right", "plate": "left", "mood": "serio",
+	},
+	"grumete_f": {
+		"dir": "res://assets/characters/grumete_f", "file": "grumete_f",
 		"name": "Grumete", "side": "right", "plate": "left", "mood": "serio",
 	},
 	"pirata": {
 		"dir": "res://assets/characters/pirata", "file": "pirata",
 		"name": "Pirata", "side": "right", "plate": "left", "mood": "serio",
 	},
+	"pirata_f": {
+		"dir": "res://assets/characters/pirata_f", "file": "pirata_f",
+		"name": "Pirata", "side": "right", "plate": "left", "mood": "serio",
+	},
 	"capitan": {
 		"dir": "res://assets/characters/capitan", "file": "capitan",
 		"name": "Capitán", "side": "right", "plate": "left", "mood": "serio",
 	},
+	"capitan_f": {
+		"dir": "res://assets/characters/capitan_f", "file": "capitan_f",
+		"name": "Capitana", "side": "right", "plate": "left", "mood": "serio",
+	},
 }
+
+## Hablante de un CLIENTE por tipo y género: "pirata" o "pirata_f". Se pasa el
+## `gender` del propio `client3d`, así que el retrato de la caja es siempre el
+## del que está sentado en la barra. Si faltara el femenino, cae al masculino en
+## vez de dejar la caja sin retrato.
+static func speaker_for(tipo: String, genero: String) -> String:
+	var fem := "%s_f" % tipo
+	if genero == CharacterData.FEMALE and SPEAKERS.has(fem):
+		return fem
+	return tipo if SPEAKERS.has(tipo) else DEFAULT_SPEAKER
 const DEFAULT_SPEAKER := "david"
 
 ## GEOMETRÍA de la caja y los retratos, en offsets desde el borde INFERIOR.

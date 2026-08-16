@@ -354,12 +354,24 @@ primera vez que se entra en ellos (`logros_intro_done` /
   siguen sorteando con las proporciones de la mezcla— y es a propósito: es EL
   pirata de la **BANDERA PIRATA**, y con dos no habría forma de saber a cuál se
   le está sirviendo. Habla POR SÍ MISMO (retrato propio) y pone precio a su
-  bandera: `PLATOS_BANDERA` (5) platos y es tuya, porque su capitán lo manda a
+  bandera: `PLATOS_BANDERA` (3) platos y es tuya, porque su capitán lo manda a
   comer y no quiere volver con el buche vacío. Al cumplirlo se entrega el
   coleccionable y David explica QUÉ SON los coleccionables — **este es el único
   sitio del juego donde se consigue la bandera**. Estuvo colgada de "un
   abordaje superado con 3 estrellas" (`complete_port`) y así aparecía sola en
   el cartel de resultados, sin ninguna escena detrás.
+  **EL PREMIO LO ENTREGA UNA SEÑAL, NO EL GUION** (`_on_pirata_come`, colgado
+  del `plate_served` del pirata). Estuvo en un `_esperar` que miraba la cuenta
+  Y `lv.ended`, y eso lo perdía en el caso más normal: `eaten_ids` cuenta
+  platos TERMINADOS, no servidos, así que el último se estaba masticando cuando
+  se acababa el reloj del abordaje —o cuando al pirata se le agotaba la
+  paciencia— y el guion salía con la cuenta en N-1 y sin decir nada, después de
+  que el jugador le hubiera servido los platos. Ahora la bandera cae en cuanto
+  el plato baja, sin preguntarle al nivel si le queda tiempo; lo único que se
+  pierde si el turno se cierra en ese instante es la escena de agradecimiento.
+  Y **son TRES platos, no cinco**: en un abordaje de 2:30, con el pirata
+  entrando el tercero y comiendo de dos estrellas, cinco eran casi todo el
+  turno dedicado a un solo cliente.
   **N8**: la flota de **Pablo el Rubio**: broma del puñal, Pablo tardío que se
   adelanta al 80%, regalo del **salmón tsuke don** y con él la lección del
   CORTE LENTO (`free_mistakes` hasta servir el primero, y Gigi regaña vía
@@ -1337,21 +1349,39 @@ primera vez que se entra en ellos (`logros_intro_done` /
   dibujo de David con el loro chillando y solo cambia el nombre del tablón.
   Gigi tiene mal genio, se enfada con los clientes y es quien salta cuando el
   jugador se equivoca; David hace de contrapunto (`loro_resignado`).
-  **LOS CLIENTES DE SIEMPRE TAMBIÉN HABLAN** (`grumete`, `pirata`, `capitan`):
-  retratos sin nombre propio para cuando un guion necesita que hable el que
-  está sentado en la barra — el pirata del nivel 7 y su bandera. Salen del
-  MISMO concepto con el que se modelaron los clientes 3D
-  (`assets/models/source/{grumete,pirata,capitan}.webp`) reencuadrados de
-  cintura para arriba con `editImage`, así que el de la caja y el del taburete
-  son el mismo personaje; de ahí salen las expresiones, una a una, cambiando
-  SOLO la cara. Van a la DERECHA, como Saverio, Pablo y Cai.
-  **El capitán costó dos pasadas**: pedir "muéstralo de cintura para arriba"
-  devolvía el cuerpo entero otra vez; lo que funcionó fue pedir el RECORTE por
-  referencias del propio dibujo ("desde lo alto del sombrero hasta la hebilla
-  del cinturón, y nada por debajo") en vez de describir el encuadre.
-  Se componen a 544×704 con el sujeto al 0,80 del alto y abajo (el encuadre de
-  Pablo), y con UNA SOLA escala por personaje: las expresiones vienen del mismo
-  recorte, así que cambiar de mood no puede mover la cabeza.
+  **LOS CLIENTES DE SIEMPRE TAMBIÉN HABLAN**, y en sus DOS GÉNEROS: `grumete`,
+  `pirata`, `capitan` y sus `_f`. Son retratos sin nombre propio para cuando un
+  guion necesita que hable el que está sentado en la barra (el pirata del nivel
+  7 y su bandera). Van a la DERECHA, como Saverio, Pablo y Cai.
+  **El hablante NO se escribe a mano: se compone con
+  `DialogueBox.speaker_for(tipo, genero)`**, pasándole el `gender` del propio
+  `client3d`, así que el retrato de la caja es siempre el del cliente que está
+  en el taburete. Si faltara el femenino, cae al masculino en vez de dejar la
+  caja pelada.
+  **SE GENERAN CON `generateWithStyle`, NO restilizando el modelo con
+  `editImage`.** Se intentó lo segundo —partir del busto low poly y pedirle a
+  `editImage` que lo dibujara en 2D— y NO funciona: la geometría achatada del
+  origen se arrastra y sale una mascota vectorial de contorno grueso, que no
+  tiene nada que ver con David y compañía. Con `generateWithStyle`, la
+  referencia de estilo puesta en `david_serio.png` y el personaje DESCRITO por
+  texto (ropa, colores y rasgos sacados de su modelo 3D), sale a la primera en
+  la familia correcta. Tres cosas que costaron una pasada cada una:
+  · **El estilo se pide como CARTOON PLANO**, con "flat cel shading, thin
+    outlines, simplified stylised anatomy" y prohibiendo explícitamente
+    "photorealistic / airbrushed / glossy": pidiéndolo sin eso sale un retrato
+    pintado con músculos y piel realistas, demasiado lejos del resto.
+  · **Con `reference_image` en `editImage`, los COLORES de la referencia se
+    cuelan**: el pañuelo del pirata salía AZUL, que es el de Cai. Hay que decir
+    "de la referencia, SOLO la técnica de dibujo; los colores, del original".
+  · **Lo que tiene que estar EN CUADRO se nombra**: el cinturón del pirata se
+    quedaba fuera hasta que se pidió "con su hebilla visible sobre el estómago,
+    dentro del encuadre".
+  Del resultado se quita el fondo por INUNDACIÓN desde los bordes (los blancos
+  interiores —las rayas del grumete, la camisa del capitán— están encerrados
+  por la línea de entintado y sobreviven) y se componen a 544×704 con el sujeto
+  al 0,80 del alto y abajo, el encuadre de Pablo. **UNA SOLA escala y UN SOLO
+  recorte por personaje**, sacados de su "serio": las expresiones vienen
+  alineadas píxel a píxel, así que cambiar de mood no puede mover la cabeza.
   **Saverio sale a la DERECHA** y David a la izquierda: en la escena de la
   tienda están los dos a la vez y el que no habla se queda apagado y hundido.
   **Una línea puede llevar `side`** para forzar el lado SOLO en esa escena:
@@ -1654,6 +1684,13 @@ primera vez que se entra en ellos (`logros_intro_done` /
   Debajo, la fila de **potenciadores permanentes** disponibles (solo aventura),
   y el botón "¡Zarpar!". Arriba, "Atrás" (al mapa en aventura, al menú en
   Arcade). NO lleva el título "Sushi Pirata".
+  **CON LA CARTA LLENA, LO QUE NO CABE SE APAGA** (`recipe_cards` +
+  `_update_ui`): las no elegidas bajan a opacidad y las elegidas se quedan a
+  plena luz, para poder soltar una y cambiarla. Tocar una receta de más nunca
+  hizo nada —`_on_recipe_toggled` la devuelve a su sitio— pero no había forma
+  de saber por qué: parecía que la tarjeta no respondía. Solo se apuntan en
+  `recipe_cards` las ELEGIBLES; las que se quedaron sin ingredientes salen
+  antes por su propia rama y ya van marcadas.
 - `scenes/*.tscn` — main_menu, level_select3d, shop_screen, inventory_screen,
   level3d, prep_screen, client, plate. (main_menu/level_select3d/shop_screen/
   inventory_screen son raíces vacías: toda su UI se construye por código.)
