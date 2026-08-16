@@ -1947,9 +1947,14 @@ const STAR_MARK_TEX := "res://assets/ui/estrella_%s.png"
 ## pasa (el verde lleno y el canal oscuro).
 const STAR_MARK_H := 1.34
 ## La ÚLTIMA va CENTRADA EN EL FINAL de la barra, medio cuerpo por fuera: es la
-## meta del turno, y dentro lleva escrito el oro que cuesta. Del MISMO tamaño
-## que las otras dos, que más grande se comía la fila.
-const STAR_GOAL_H := STAR_MARK_H
+## meta del turno, y dentro lleva escrito el oro que cuesta. Un pelo mayor que
+## las otras dos, lo justo para que quepa esa cifra sin encogerla.
+const STAR_GOAL_H := 1.62
+## La cifra del objetivo va SIEMPRE a este cuerpo, y es la ESTRELLA la que da de
+## sí si hace falta -nunca al revés-: con el cuerpo remedido, el mismo número se
+## leía de un tamaño en un nivel y de otro en el siguiente. El objetivo más
+## largo de la campaña es 135, de tres cifras.
+const STAR_GOAL_FONT := 20
 ## Hueco de la cifra dentro de la estrella, en fracción de su lado: una
 ## estrella tiene las puntas fuera y solo el cuerpo central sirve de papel.
 const STAR_GOAL_TEXT := 0.62
@@ -2028,7 +2033,7 @@ func _place_star_marks() -> void:
 	for i in star_marks.size():
 		var m: Dictionary = star_marks[i]
 		var meta_star: bool = i == star_marks.size() - 1
-		var lado := alto * (STAR_GOAL_H if meta_star else STAR_MARK_H)
+		var lado := _goal_star_side(alto) if meta_star else alto * STAR_MARK_H
 		var n: TextureRect = m["nodo"]
 		n.size = Vector2(lado, lado)
 		# El pivote va al centro para que el bote de encendido crezca desde la
@@ -2048,35 +2053,50 @@ func _place_star_marks() -> void:
 		var ganada: bool = oro >= float(m["meta"])
 		if ganada != bool(m["on"]):
 			m["on"] = ganada
-			_light_star_mark(n, ganada)
+			_light_star_mark(n, ganada, meta_star)
 
 
-## La cifra del objetivo, CENTRADA DENTRO de la estrella de la meta. El cuerpo
-## de letra se remide contra el hueco útil de la estrella (`STAR_GOAL_TEXT`),
-## porque los objetivos van de dos a cuatro cifras según el nivel y con un
-## cuerpo fijo los de tres se salían por las puntas.
+## Lo que mide la estrella de la meta: su tamaño base, y si el objetivo del
+## nivel no cabe dentro a `STAR_GOAL_FONT`, lo que haga falta para que quepa.
+## Se mide contra la cifra del OBJETIVO, no contra el texto que la etiqueta
+## lleve puesto: al llenarse la barra pasa a enseñar lo conseguido, y si la
+## estrella se dimensionara con eso daría un salto de tamaño al cerrar el turno.
+func _goal_star_side(alto: float) -> float:
+	var base := alto * STAR_GOAL_H
+	if money_meta == null or star_money.is_empty():
+		return base
+	var f := money_meta.get_theme_font("font")
+	if f == null:
+		return base
+	var ancho_txt := f.get_string_size(str(int(star_money.back())),
+		HORIZONTAL_ALIGNMENT_LEFT, -1, STAR_GOAL_FONT).x
+	return maxf(base, ancho_txt / STAR_GOAL_TEXT)
+
+
+## La cifra del objetivo, CENTRADA DENTRO de la estrella de la meta y siempre
+## al mismo cuerpo (quien se adapta es la estrella, ver `_goal_star_side`).
 func _place_goal_value(estrella: TextureRect, lado: float) -> void:
 	if money_meta == null:
 		return
 	money_meta.size = Vector2(lado, lado)
 	money_meta.position = estrella.position
-	var hueco := lado * STAR_GOAL_TEXT
-	var cuerpo := int(lado * 0.34)
-	while cuerpo > 10:
-		money_meta.add_theme_font_size_override("font_size", cuerpo)
-		if money_meta.get_minimum_size().x <= hueco:
-			break
-		cuerpo -= 2
+	money_meta.add_theme_font_size_override("font_size", STAR_GOAL_FONT)
 
 
-## Encender una estrella de la barra: se rellena Y BRILLA -un fogonazo que se
-## apaga y un bote elástico-, porque cruzar un umbral es la noticia del turno y
-## sin el golpe se pasaba sin verla. El `modulate` por encima de 1 es a
-## propósito: multiplica, así que sube el brillo en vez de teñir.
+## Encender una estrella de la barra: se rellena Y BRILLA con un fogonazo que
+## se apaga, porque cruzar un umbral es la noticia del turno y sin el golpe se
+## pasaba sin verla. El `modulate` por encima de 1 es a propósito: multiplica,
+## así que sube el brillo en vez de teñir.
+##
+## **NINGUNA ESTRELLA CAMBIA DE TAMAÑO AL GANARSE.** El bote elástico que
+## llevaban las dos primeras se quitó: son marcas de una escala, y una marca
+## que crece y encoge mueve la referencia justo cuando el jugador la está
+## mirando para saber por dónde va. Solo la de la META lo conserva, que ahí no
+## hay escala que mover: es el final del turno.
 ##
 ## Se apaga también (con el castigo por plato tirado o por cliente que se va de
 ## vacío el oro BAJA), pero sin bote: perder una estrella no se celebra.
-func _light_star_mark(n: TextureRect, ganada: bool) -> void:
+func _light_star_mark(n: TextureRect, ganada: bool, bote: bool = false) -> void:
 	n.texture = load(STAR_MARK_TEX % ("llena" if ganada else "vacia"))
 	n.modulate = STAR_MARK_ON if ganada else STAR_MARK_OFF
 	if not ganada:
@@ -2084,10 +2104,11 @@ func _light_star_mark(n: TextureRect, ganada: bool) -> void:
 		return
 	var tw := create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(n, "scale", Vector2(1.75, 1.75), 0.12) \
-		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_property(n, "scale", Vector2.ONE, 0.26) \
-		.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT).set_delay(0.12)
+	if bote:
+		tw.tween_property(n, "scale", Vector2(1.55, 1.55), 0.12) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(n, "scale", Vector2.ONE, 0.26) \
+			.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT).set_delay(0.12)
 	tw.tween_property(n, "modulate", Color(2.2, 2.1, 1.6), 0.10)
 	tw.tween_property(n, "modulate", STAR_MARK_ON, 0.30).set_delay(0.10)
 

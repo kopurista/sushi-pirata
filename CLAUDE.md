@@ -2208,11 +2208,15 @@ que no hay problema.
   **LAS SEPARACIONES DE LA BARRA DEL ORO SON LAS ESTRELLAS DEL JUEGO**
   (`estrella_vacia/llena.png`, las mismas del cartel de resultados), una por
   umbral: nacen apagadas y **al alcanzar su oro se rellenan y BRILLAN**
-  —fogonazo que se apaga más bote elástico, en `_light_star_mark`—, porque
-  cruzar un umbral es la noticia del turno. Se apagan también si el oro baja
-  (castigos), pero sin bote: perder una estrella no se celebra. Fueron unas
+  —fogonazo que se apaga, en `_light_star_mark`—, porque cruzar un umbral es la
+  noticia del turno. Se apagan también si el oro baja (castigos). Fueron unas
   muescas "/" dibujadas; con la estrella de verdad el jugador ve DE QUÉ va
   cada tramo sin que nadie se lo cuente.
+  · **NINGUNA de las dos primeras CAMBIA DE TAMAÑO al ganarse**: llevaron un
+    bote elástico y se quitó. Son las marcas de una escala, y una marca que
+    crece y encoge mueve la referencia justo cuando el jugador la mira para
+    saber por dónde va. El bote se lo queda solo la de la META, que ahí no hay
+    escala que mover: es el final del turno.
   · La **apagada se ACLARA, no se atenúa**: `estrella_vacia.png` ya es marrón
     oscuro (111/76/38) y bajándole el brillo se hundía en el canal de la
     barra, como un agujero. El `modulate` por encima de 1 MULTIPLICA, así que
@@ -2230,12 +2234,17 @@ que no hay problema.
     para dibujarse por encima de las estrellas en ese tramo final.
   · **La TERCERA es la meta y va aparte**: **centrada en el final de la
     barra** —medio cuerpo por fuera— y con el oro que cuesta **escrito
-    DENTRO**. Del mismo tamaño que las otras: se probó más grande y se comía
-    la fila. Por eso la cifra del objetivo ya no vive pegada al canto: se
-    coloca a mano encima de esa estrella y su cuerpo de letra **se remide**
-    contra el hueco útil (`STAR_GOAL_TEXT`, que una estrella tiene las puntas
-    fuera y solo el centro sirve de papel), porque los objetivos van de dos a
-    cuatro cifras según el nivel.
+    DENTRO**. Solo un pelo mayor que las otras dos (`STAR_GOAL_H` 1.62), lo
+    justo para que quepa esa cifra; con 2.1 se comía la fila. Por eso el
+    objetivo ya no vive pegado al canto: se coloca a mano encima de esa
+    estrella. **Su cuerpo de letra es FIJO** (`STAR_GOAL_FONT`) y quien da de
+    sí es la ESTRELLA si el número no cabe (`_goal_star_side`, contra el hueco
+    útil `STAR_GOAL_TEXT` — una estrella tiene las puntas fuera y solo el
+    centro sirve de papel). Al revés —remidiendo el cuerpo— el mismo número se
+    leía de un tamaño en un nivel y de otro en el siguiente. La estrella se
+    dimensiona contra el OBJETIVO, no contra lo que la etiqueta lleve puesto:
+    al llenarse la barra pasa a enseñar lo conseguido, y midiendo con eso
+    daría un salto de tamaño al cerrar el turno.
   · La barra va **sin `clip_contents`**: las estrellas cabalgan el canal a
     propósito y recortándolas se les comía las puntas.
   · El tope derecho de la cifra móvil sale de esa estrella final, no de un
