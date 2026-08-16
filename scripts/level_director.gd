@@ -673,7 +673,11 @@ const PLATOS_BANDERA := 3
 ## EL pirata del nivel 7 y su trato, que se resuelve por señal (ver
 ## `_on_pirata_come`).
 var _pirata_bandera: Node3D = null
+## La CUENTA está hecha (la apunta la señal) y el premio ya se ha ENTREGADO
+## (lo hace el guion, después de que el pirata hable). Son dos cosas distintas
+## a propósito: ver `_on_pirata_come` y `_entregar_bandera`.
 var _bandera_dada := false
+var _bandera_entregada := false
 
 
 ## QUÉ SON LOS COLECCIONABLES. Se cuenta UNA sola vez en toda la partida y
@@ -772,18 +776,39 @@ func _nivel_7() -> void:
 	_play("¡%d platos para el **pirata**! Lo demás ya vendrá." % PLATOS_BANDERA)
 
 	# --- Se cumple el trato: la bandera en mano ---
+	# LA SEÑAL SOLO APUNTA QUE LA CUENTA ESTÁ HECHA; QUIEN ENTREGA ES ESTE
+	# GUION, Y DESPUÉS DE HABLAR. La ventana del coleccionable la saca
+	# `GameState` en su capa global de avisos, así que entregándola desde la
+	# señal se colaba ENCIMA del pirata antes de que le diera tiempo a decir
+	# nada: primero salía el cartel del premio y después el "lo prometido".
+	# El premio sigue sin depender de que al nivel le quede reloj: si el turno
+	# se cierra con la cuenta hecha, se entrega igual (abajo), y lo único que
+	# se pierde es la escena.
 	await _esperar(func() -> bool: return lv.ended or _bandera_dada)
-	if lv.ended or not _bandera_dada or not is_instance_valid(pirata):
+	if not _bandera_dada:
 		return
-	_focus_client(pirata)
-	await _say([
-		{ "text": "Uf. Hacía años que no comía así.", "who": quien, "mood": "feliz" },
-		{ "text": "Lo prometido. Cuídala mejor que yo.", "who": quien, "mood": "hablando" },
-	])
-	_play()
-	await get_tree().create_timer(0.4).timeout
+	if not lv.ended and is_instance_valid(pirata):
+		_focus_client(pirata)
+		await _say([
+			{ "text": "Uf. Hacía años que no comía así.", "who": quien, "mood": "feliz" },
+			{ "text": "Lo prometido. Cuídala mejor que yo.", "who": quien, "mood": "hablando" },
+		])
+		_play()
+		await get_tree().create_timer(0.4).timeout
+	_entregar_bandera()
+	if lv.ended:
+		return
 	await _explicar_coleccionables()
 	_play()
+
+
+## Entrega DE VERDAD el coleccionable (una sola vez, se llame desde donde se
+## llame). Separado de la cuenta a propósito: ver `_on_pirata_come`.
+func _entregar_bandera() -> void:
+	if _bandera_entregada:
+		return
+	_bandera_entregada = true
+	GameState.unlock_collectible("bandera")
 
 
 ## Cada plato que se termina EL pirata del nivel 7. Cumplida la cuenta, la
@@ -797,8 +822,10 @@ func _on_pirata_come(_precio: int, _propina: int) -> void:
 		return
 	if _pirata_bandera.eaten_ids.size() < PLATOS_BANDERA:
 		return
+	# AQUÍ SOLO SE APUNTA QUE LA CUENTA ESTÁ HECHA. La entrega (y con ella la
+	# ventana del coleccionable) la hace el guion cuando el pirata ha terminado
+	# de hablar; ver `_entregar_bandera`.
 	_bandera_dada = true
-	GameState.unlock_collectible("bandera")
 
 
 # ------------------------------------------------------------------- nivel 8
@@ -807,18 +834,84 @@ func _on_pirata_come(_precio: int, _propina: int) -> void:
 # un "..." (para eso tiene su expresión `callado`). Si el jugador lo sacia, se
 # une a la tripulación y trae consigo la PESCA.
 
+## Platos que hay que servirle a Cai para llenarle la barriga.
+const PLATOS_CAI := 3
+
+var _cai: Node3D = null
+var _cai_lleno := false
+
+
 func _nivel_8() -> void:
 	await _say([
-		{ "text": "**Isla de Gades**. Poca cosa: una playa, cuatro barcas... y ese de ahí, que lleva un rato mirándonos.", "mood": "hablando" },
+		{ "text": "**Isla de Gades**. Poca cosa: una playa, cuatro barcas... y ese de ahí, que lleva un rato mirando nuestra cinta.", "mood": "hablando" },
+		{ "text": "Un pescador. De los que comen pescado todos los días y nunca lo prueban bien hecho.", "mood": "serio" },
+		{ "text": "¡PUES QUE SE SIENTE! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "En eso estamos. Llénale la barriga, %s, que un pescador agradecido vale más que un cofre." % GameState.player_title(), "mood": "hablando" },
+	])
+	_play()
+	_vigilar_basura()
+	await _tras_la_preparacion()
+
+	# --- CAI SE SIENTA. Es el primer pirata del puerto y trae su propio modelo
+	#     (`special_client`), así que hay que esperar a que llegue a la barra.
+	#     Y lo primero que dice no es nada: es su "..." —habla poco y mal— y
+	#     por eso David tiene que romper el hielo por él.
+	await _esperar(func() -> bool:
+		return lv.ended or _cliente_who("cai") != null)
+	if lv.ended:
+		return
+	_cai = _cliente_who("cai")
+	if _cai == null:
+		return
+	await get_tree().create_timer(1.2).timeout
+	if not is_instance_valid(_cai) or lv.ended:
+		return
+	if not _cai.plate_served.is_connected(_on_cai_come):
+		_cai.plate_served.connect(_on_cai_come)
+	_focus_client(_cai)
+	await _say([
 		{ "text": "...", "who": "cai", "mood": "callado" },
 		{ "text": "Ehm. Buenas tardes. ¿Vienes a comer?", "mood": "sorprendido" },
 		{ "text": "Me llamo Cai. Pescador. Mucho pescado, poca comida buena.", "who": "cai", "mood": "serio" },
 		{ "text": "Tú cocinas. Si yo lleno... yo doy caña. Caña buena. Mi caña.", "who": "cai", "mood": "hablando" },
 		{ "text": "¡RAAAK! ¡¿UNA CAÑA?! ¡Le damos de comer y nos da un PALO!", "who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "Cállate, plumas. Un pescador no regala su caña a cualquiera. Vamos a llenarle la barriga, %s." % GameState.player_title(), "mood": "loro_resignado" },
+		{ "text": "Cállate, plumas. Un pescador no regala su caña a cualquiera. **%d platos**, y a ver qué saca." % PLATOS_CAI, "mood": "loro_resignado" },
+	])
+	_play("¡**%d platos** para el pescador! Come de **dos estrellas**." % PLATOS_CAI)
+
+	# --- Barriga llena: lo dice él, y el resto se cierra ya en el mapa ---
+	await _esperar(func() -> bool: return lv.ended or _cai_lleno)
+	if lv.ended or not _cai_lleno or not is_instance_valid(_cai):
+		return
+	_focus_client(_cai)
+	await _say([
+		{ "text": "...", "who": "cai", "mood": "callado" },
+		{ "text": "Bueno. Muy bueno. Yo no como así nunca.", "who": "cai", "mood": "feliz" },
+		{ "text": "Cuando acabes, hablamos tú y yo.", "who": "cai", "mood": "hablando" },
 	])
 	_play()
-	_vigilar_basura()
+
+
+## Cada plato que termina Cai. `GameState.cai_saciado` se guarda porque el
+## trato se cierra DESPUÉS, ya en el mapa (`main_menu._presentar_cai`): sin
+## esto, quien le diera de comer y cerrase el turno con el objetivo llegaría al
+## mapa y Cai le hablaría de una barriga que nadie le ha llenado.
+func _on_cai_come(_precio: int, _propina: int) -> void:
+	if _cai_lleno or _cai == null or not is_instance_valid(_cai):
+		return
+	if _cai.eaten_ids.size() < PLATOS_CAI:
+		return
+	_cai_lleno = true
+	GameState.cai_saciado = true
+	GameState.save_game()
+
+
+## El cliente del puerto que lleva ese modelo especial (Cai, Pablo, el Kappa).
+func _cliente_who(quien: String) -> Node3D:
+	for c in lv.seat_clients:
+		if c is Node3D and is_instance_valid(c) and c.who_override == quien:
+			return c
+	return null
 
 
 # ------------------------------------------------------------------- nivel 9

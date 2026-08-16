@@ -139,6 +139,19 @@ voz de la pantalla de PESCA: da la clase la primera vez (`_clase_de_pesca`,
 con foco sobre el botón y sobre la caña, y 3 tiradas gratis al acabar) y saluda
 y se despide en cada visita (10 frases de cada). También explica los
 COLECCIONABLES la primera vez que sale uno del cofre.
+**Y SE SIENTA A COMER**: en la Isla de Gades no mira desde la orilla, es un
+CLIENTE con su propio modelo (`cai_rig.glb`, `special_client` del puerto) que
+come como un **pirata** (2 estrellas, el tipo lo pone el puerto y no el
+modelo). Lo primero que dice al sentarse es su "...", y por eso David tiene que
+romper el hielo por él. El trato son `level_director.PLATOS_CAI` (3) platos, y
+al cumplirlos se apunta `GameState.cai_saciado` —persistente, porque la escena
+del trato NO ocurre en el nivel sino después, ya en el mapa
+(`main_menu._presentar_cai`)—; sin ese apunte, quien cerrara el turno por
+objetivo llegaría al mapa y Cai le hablaría de una barriga que nadie le llenó.
+**El mapa YA NO ARRASTRA A LA PANTALLA DE PESCA** al cerrar esa escena: la
+clase de Cai se da cuando el jugador entra en Pesca por su cuenta
+(`fishing_intro_done`), así que no se pierde nada y no se le cambia de sitio
+justo al volver de un nivel.
 
 **Explicaciones de PANTALLA**: los LOGROS y el INVENTARIO se explican la
 primera vez que se entra en ellos (`logros_intro_done` /
@@ -360,15 +373,19 @@ primera vez que se entra en ellos (`logros_intro_done` /
   sitio del juego donde se consigue la bandera**. Estuvo colgada de "un
   abordaje superado con 3 estrellas" (`complete_port`) y así aparecía sola en
   el cartel de resultados, sin ninguna escena detrás.
-  **EL PREMIO LO ENTREGA UNA SEÑAL, NO EL GUION** (`_on_pirata_come`, colgado
-  del `plate_served` del pirata). Estuvo en un `_esperar` que miraba la cuenta
-  Y `lv.ended`, y eso lo perdía en el caso más normal: `eaten_ids` cuenta
-  platos TERMINADOS, no servidos, así que el último se estaba masticando cuando
-  se acababa el reloj del abordaje —o cuando al pirata se le agotaba la
+  **LA CUENTA Y LA ENTREGA SON DOS COSAS DISTINTAS**, y hay una razón para cada
+  una. La CUENTA la apunta una señal (`_on_pirata_come`, colgada del
+  `plate_served` del pirata) porque estuvo dentro de un `_esperar` que miraba
+  también `lv.ended`, y eso perdía el premio en el caso más normal: `eaten_ids`
+  cuenta platos TERMINADOS, no servidos, así que el último se estaba masticando
+  cuando se acababa el reloj del abordaje —o cuando al pirata se le agotaba la
   paciencia— y el guion salía con la cuenta en N-1 y sin decir nada, después de
-  que el jugador le hubiera servido los platos. Ahora la bandera cae en cuanto
-  el plato baja, sin preguntarle al nivel si le queda tiempo; lo único que se
-  pierde si el turno se cierra en ese instante es la escena de agradecimiento.
+  que el jugador le hubiera servido los platos. La ENTREGA
+  (`_entregar_bandera`) la hace el GUION y **después de que el pirata hable**:
+  la ventana del coleccionable la saca `GameState` en su capa global de avisos,
+  así que entregándola desde la señal se colaba encima de él y salía el cartel
+  del premio antes que el "lo prometido". Si el turno se cierra con la cuenta
+  hecha, se entrega igual y lo único que se pierde es la escena.
   Y **son TRES platos, no cinco**: en un abordaje de 2:30, con el pirata
   entrando el tercero y comiendo de dos estrellas, cinco eran casi todo el
   turno dedicado a un solo cliente.

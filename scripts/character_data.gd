@@ -60,6 +60,15 @@ const MODELS := {
 	"kappa": {
 		MALE: "res://assets/models/kappa_rig.glb",
 	},
+	# CAI, el pescador de la Isla de Gades. En el nivel 8 no se queda mirando
+	# desde la orilla: se sienta en la barra y hay que darle de comer, así que
+	# necesita su propio modelo. Come como un PIRATA (2 estrellas), que es lo
+	# que le pega a un pescador; el tipo lo pone el puerto, no este modelo.
+	# Como Pablo y el Kappa, es un personaje concreto y no tiene variante
+	# femenina.
+	"cai": {
+		MALE: "res://assets/models/cai_rig.glb",
+	},
 	"chef": {
 		MALE: "res://assets/models/chef_rig.glb",
 		FEMALE: "res://assets/models/chef_fem_rig.glb",
@@ -78,6 +87,7 @@ const HEADS := {
 	"vip": { MALE: "res://assets/ui/head_V.png", FEMALE: "res://assets/ui/head_V_f.png" },
 	"pablo": { MALE: "res://assets/ui/head_P.png" },
 	"kappa": { MALE: "res://assets/ui/head_K.png" },
+	"cai": { MALE: "res://assets/ui/head_C.png" },
 }
 
 ## Tipo de cliente (el de client_mix / TAKE_CHANCES) -> personaje.
@@ -115,4 +125,11 @@ static func _pick(table: Dictionary, who: String, gender: String) -> String:
 	var wanted: String = entry.get(gender, "")
 	if wanted != "" and ResourceLoader.exists(wanted):
 		return wanted
-	return entry.get(MALE, "")
+	var macho: String = entry.get(MALE, "")
+	if macho != "":
+		return macho
+	# RED DE SEGURIDAD PARA LOS PERSONAJES DE UN SOLO PUERTO. Un `who` que no
+	# esté en la tabla devolvía "" y quien lo cargara se quedaba con un hueco
+	# —le pasaría a la fila de cabezas del HUD con un cliente especial sin
+	# icono propio—, así que se cae al del GRUMETE, que existe siempre.
+	return table.get("grumete", {}).get(MALE, "")

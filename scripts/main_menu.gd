@@ -305,18 +305,29 @@ func _presentar_cai() -> void:
 	var caja := DialogueBox.new()
 	caja.z_index = 200
 	ui_layer.add_child(caja)
+	# Si el jugador cerró el turno sin llegar a llenarle la barriga, Cai se
+	# enrola igual —el nivel está superado— pero no finge un trato que no hubo.
+	var lleno := GameState.cai_saciado
 	caja.say([
-		{ "text": "Barriga llena. Trato es trato. Toma: mi caña.", "who": "cai", "mood": "serio" },
+		{ "text": "Barriga llena. Trato es trato. Toma: mi caña." if lleno
+			else "Tú cocinas bien. Yo lo he visto. Toma: mi caña.",
+			"who": "cai", "mood": "serio" },
 		{ "text": "Quieto ahí, pescador. Un hombre no regala sus manos con su caña.", "mood": "hablando" },
 		{ "text": "...", "who": "cai", "mood": "callado" },
 		{ "text": "Lo que te ofrezco es un sitio en mi barco. Tú pescas, %s cocina, y comemos todos." % GameState.player_title(), "mood": "feliz" },
 		{ "text": "¡OTRA BOCA! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
 		{ "text": "Sí. Yo voy.", "who": "cai", "mood": "feliz" },
-		{ "text": "Ven. Yo enseño ahora.", "who": "cai", "mood": "hablando" },
+		{ "text": "Cuando quieras, tú avisas. Yo enseño.", "who": "cai", "mood": "hablando" },
+		{ "text": "Ya lo has oído: tienes **Pesca** en el menú, con los demás pergaminos. Cuando te apetezca, Cai te da la clase.", "mood": "hablando" },
 	])
 	await caja.finished
 	await caja.close_and_free()
-	_go_fishing()
+	# AQUÍ NO SE VA A NINGUNA PARTE. Esta escena arrastraba al jugador a la
+	# pantalla de pesca nada más cerrar el diálogo (como hace Saverio con su
+	# puesto), y eso le cambiaba de sitio justo cuando acababa de volver al
+	# mapa. La clase de Cai sigue estando, pero la da cuando el jugador ENTRA
+	# en Pesca por su cuenta (`fishing_game._clase_de_pesca`, con su bandera
+	# `fishing_intro_done`), así que no se pierde nada.
 
 
 ## SAVERIO abre su puesto. Se ve al volver al mapa con el puerto de la tienda

@@ -330,8 +330,11 @@ const PORTS: Array = [
 		"id": "nivel_8",
 		"name": "Isla de Gades",
 		"desc": "Un pescador silencioso espera en la orilla con su caña.",
+		# CAI SE SIENTA A COMER: es el PRIMER pirata que entra (`special_client`
+		# le pone su modelo) y el trato del nivel es llenarle la barriga.
 		"client_mix": { "E": 4, "A": 2 },
 		"client_order": ["E", "A", "E", "E", "A", "E"],
+		"special_client": { "who": "cai", "type": "A" },
 		"arrival_span": 120.0,
 		"patience_mult": 0.95,
 		"arrival_scale": 0.85,

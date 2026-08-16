@@ -127,6 +127,10 @@ var ingots_intro_done := false
 ## a la vista las cajas de lingotes, doblones y arroz: dentro del nivel no hay
 ## ninguna de las tres y la explicacion de David senalaba a una pantalla vacia.
 var pending_ingots := 0
+## A Cai le han llenado la barriga en la Isla de Gades: es lo que cierra su
+## trato cuando el jugador vuelve al mapa. Se guarda porque la escena del
+## trato NO ocurre en el nivel, sino despues, en el mapa.
+var cai_saciado := false
 ## Cai ya ha dado su clase de pesca (y con ella las tiradas gratis).
 var fishing_intro_done := false
 ## Cai ya se ha enrolado (la escena del mapa al superar la Isla de Gades).
@@ -1534,6 +1538,7 @@ func save_game() -> void:
 		"pending_ingots": pending_ingots,
 		"fishing_intro_done": fishing_intro_done,
 		"cai_intro_done": cai_intro_done,
+		"cai_saciado": cai_saciado,
 		"col_intro_done": col_intro_done,
 		"logros_intro_done": logros_intro_done,
 		"inventario_intro_done": inventario_intro_done,
@@ -1680,6 +1685,7 @@ func load_game() -> void:
 	pending_ingots = int(parsed.get("pending_ingots", 0))
 	fishing_intro_done = bool(parsed.get("fishing_intro_done", tutorial_done))
 	cai_intro_done = bool(parsed.get("cai_intro_done", tutorial_done))
+	cai_saciado = bool(parsed.get("cai_saciado", tutorial_done))
 	col_intro_done = bool(parsed.get("col_intro_done", tutorial_done))
 	logros_intro_done = bool(parsed.get("logros_intro_done", tutorial_done))
 	inventario_intro_done = bool(parsed.get("inventario_intro_done", tutorial_done))
@@ -1772,6 +1778,7 @@ func _new_game() -> void:
 	pending_ingots = 0
 	fishing_intro_done = false
 	cai_intro_done = false
+	cai_saciado = false
 	col_intro_done = false
 	logros_intro_done = false
 	inventario_intro_done = false

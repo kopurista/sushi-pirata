@@ -13,13 +13,14 @@ extends Node3D
 ## que es el que sale en el juego: los femeninos se sacaban de la version sin
 ## riguear y, al rehacerlos, el icono se quedo con la cara antigua.
 const OUT := {
-	# SOLO el Kappa en esta pasada: regenerar los demás es jugar a la lotería
-	# de render (salen manchados a veces) y no hay motivo para tocarlos.
+	# SOLO el personaje NUEVO en cada pasada: regenerar los demás es jugar a la
+	# lotería de render (salen manchados a veces) y no hay motivo para tocarlos.
 	# La lista completa, por si hay que rehacer alguno:
 	#   "E": "grumete_rig", "A": "pirata_rig", "G": "capitan_rig",
 	#   "E_f": "grumete_fem_rig", "A_f": "pirata_fem_rig",
-	#   "G_f": "capitan_fem_rig", "P": "pablo_rig",
-	"K": "kappa_rig",
+	#   "G_f": "capitan_fem_rig", "P": "pablo_rig", "K": "kappa_rig",
+	#   "C": "cai_rig",
+	"C": "cai_rig",
 }
 const SIZE := 192
 ## Encuadre en fracciones de la ALTURA TOTAL del personaje, no del hueso de la
