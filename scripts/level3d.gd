@@ -2102,9 +2102,13 @@ func _light_star_mark(n: TextureRect, ganada: bool) -> void:
 	n.modulate = STAR_MARK_ON if ganada else STAR_MARK_OFF
 	# Un bote a medias que se quedara colgado dejaría la estrella de otro
 	# tamaño: se mata antes de empezar el siguiente y se vuelve al tamaño bueno.
-	var previo: Tween = n.get_meta("bote", null) as Tween
-	if previo != null and previo.is_valid():
-		previo.kill()
+	# Con `has_meta` antes: `get_meta` con valor por defecto SIGUE gritando por
+	# consola si la clave no existe, y aquí no existe la primera vez de cada
+	# estrella.
+	if n.has_meta("bote"):
+		var previo: Tween = n.get_meta("bote") as Tween
+		if previo != null and previo.is_valid():
+			previo.kill()
 	n.scale = Vector2.ONE
 	if not ganada:
 		return
