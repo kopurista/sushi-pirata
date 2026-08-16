@@ -150,11 +150,21 @@ tocar. Era una parrafada seguida con dos focos y luego "ahora tú".
   (`speed_next = 0`) cuando le toca, no antes: el tirón es lo único que no se
   puede explicar sin verlo y en un intento normal de tier 0 puede no salir
   ninguno. Cai avisa ANTES de que empiece.
-· **LA PELEA SE CONGELA MIENTRAS CAI HABLA** (`leccion_en_curso`). La caja de
-  diálogo se traga todos los toques, así que con el pez enganchado el jugador
-  no puede hacer nada mientras lee — y el tirón seguía corriendo: medido con
-  un jugador simulado, la presa se soltaba durante la propia frase que
-  explicaba cómo aguantarla.
+· **MIENTRAS CAI HABLA NO CORRE NADA** (`leccion_en_curso` corta el `_process`
+  entero, no solo la pelea). La caja de diálogo se traga todos los toques, así
+  que cualquier cosa que avance por debajo es tiempo que el jugador no puede
+  jugar: explicando la FINTA, el pez se llevaba el cebo en mitad de la frase
+  que decía cómo evitarlo, y con el pez enganchado la presa se soltaba durante
+  la frase que explicaba cómo aguantarla (las dos, medidas con un jugador
+  simulado). Congelar solo la pelea no bastaba: hay que congelar también la
+  sombra, las fintas y la ventana de la picada.
+· **SI AUN ASÍ SE ESCAPA, LA CLASE NO SE CORTA**: se repite el intento hasta
+  `CLASE_INTENTOS` (3) veces, con Cai encogiéndose de hombros ("Se fue. Pasa.
+  Otra vez."). Antes se quedaba a medias y el jugador no llegaba a aprender la
+  pelea.
+· **El botón dice "Lanzar caña" y ESCONDE LA MONEDA** mientras dura la clase
+  (`_refresh_cast_label` mira `clase`): paga Cai, y enseñar "100" al lado hacía
+  creer que se estaba cobrando la tirada.
 · Al acabar, `CAI_TIRADAS_GRATIS` (3) lanzamientos de regalo.
 **Y SE SIENTA A COMER**: en la Isla de Gades no mira desde la orilla, es un
 CLIENTE con su propio modelo (`cai_rig.glb`, `special_client` del puerto) que

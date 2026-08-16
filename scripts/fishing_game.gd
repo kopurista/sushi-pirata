@@ -198,6 +198,9 @@ var leccion_en_curso := false
 ## Cuánto perdona el sedal y cuánto tira la presa mientras Cai enseña.
 const CLASE_TENSION := 0.4
 const CLASE_TIRON := 0.35
+## Intentos que da la clase antes de rendirse: si el pez se escapa, se
+## vuelve a empezar en vez de dejar al jugador sin aprender la pelea.
+const CLASE_INTENTOS := 3
 var phases_left := 0
 var speed_left := 0.0
 var speed_next := 0.0
@@ -216,6 +219,9 @@ var instruction: Label = null
 ## Cifra del coste en el botón de pescar (dice GRATIS con las tiradas que
 ## regala Cai al terminar su clase).
 var cast_cost_label: Label = null
+## La moneda que acompaña al precio: en la clase de Cai se esconde, porque
+## esa tirada no cuesta nada y el "100" hacia creer que si.
+var cast_coin: TextureRect = null
 var back_btn: Button = null
 var album_btn: Button = null
 var fight_box: Control = null
@@ -247,6 +253,13 @@ func _process(delta: float) -> void:
 			and not cast_btn.button_pressed:
 		var k := 1.0 + 0.015 * sin(_t * 2.4)
 		cast_btn.scale = Vector2(k, k)
+	# MIENTRAS CAI HABLA NO CORRE NADA. La caja se traga todos los toques, asi
+	# que cualquier cosa que avance por debajo es tiempo que el jugador no
+	# puede jugar: explicando la finta, el pez se llevaba el cebo en mitad de
+	# la frase que decia como evitarlo.
+	if leccion_en_curso:
+		zone.queue_redraw()
+		return
 	match state:
 		State.SHADOW, State.APPROACH, State.FEINT:
 			_tick_precast(delta)
@@ -258,8 +271,7 @@ func _process(delta: float) -> void:
 			if bite_t <= 0.0:
 				_escaped("Se ha llevado el cebo...")
 		State.FIGHT:
-			if not leccion_en_curso:
-				_tick_fight(delta)
+			_tick_fight(delta)
 			zone.queue_redraw()
 
 
@@ -337,6 +349,7 @@ func _setup_ui() -> void:
 	moneda.custom_minimum_size = Vector2(32, 32)
 	moneda.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	moneda.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cast_coin = moneda
 	fila_coste.add_child(moneda)
 	var coste := Label.new()
 	cast_cost_label = coste
@@ -1640,6 +1653,7 @@ func _clase_de_pesca() -> void:
 	GameState.free_casts = CAI_TIRADAS_GRATIS
 	GameState.save_game()
 	clase = true
+	_refresh_cast_label()
 
 	await _leccion([
 		{ "text": "Yo enseño poco. Tú haces mucho. Asi se aprende.", "who": "cai", "mood": "serio" },
@@ -1653,70 +1667,82 @@ func _clase_de_pesca() -> void:
 		{ "text": "Esto es caña. Tocas ahí y empieza. Tócalo.", "who": "cai", "mood": "hablando" },
 	])
 	_quitar_foco(velo, cast_btn, z_btn)
-	await _esperar_pesca(func() -> bool: return state != State.READY)
 
-	# 2) LA SOMBRA. Que la vea nadar y lance el delante.
-	await _leccion([
-		{ "text": "Eso es **sombra**. Sombra grande, premio grande.", "who": "cai", "mood": "hablando" },
-		{ "text": "Tocas agua **delante** de sombra. No encima. Prueba.", "who": "cai", "mood": "serio" },
-	])
-	await _esperar_pesca(func() -> bool: return bobber_out or state == State.READY)
-	if state == State.READY:
-		clase = false
-		return
+	# EL INTENTO SE REPITE SI SALE MAL. Con todo congelado mientras Cai habla no
+	# deberia escaparse ninguno, pero si pasa, la clase NO se queda a medias:
+	# Cai se encoge de hombros y se vuelve a empezar. Antes se cortaba ahi y el
+	# jugador se quedaba sin aprender la pelea.
+	var intentos := 0
+	while intentos < CLASE_INTENTOS:
+		intentos += 1
+		if state != State.READY:
+			await _esperar_pesca(func() -> bool: return state == State.READY, 12.0)
+		if intentos > 1:
+			await _leccion([
+				{ "text": "Se fue. Pasa. Otra vez.", "who": "cai", "mood": "callado" },
+			])
+		await _esperar_pesca(func() -> bool: return state != State.READY)
 
-	# 3) LA FINTA Y LA PICADA. Se avisa ANTES de que el pez amague.
-	await _leccion([
-		{ "text": "Ahora espera. Pez hace trampa: viene, se va. Eso no es picada.", "who": "cai", "mood": "hablando" },
-		{ "text": "Picada de verdad: flotador se **hunde**. Ahí tocas, rápido.", "who": "cai", "mood": "sorprendido" },
-	])
-	await _esperar_pesca(func() -> bool:
-		return state == State.FIGHT or state == State.READY or state == State.ESCAPED)
-	if state != State.FIGHT:
-		clase = false
-		return
-
-	# 4) LA PELEA. Foco en la caña y a recoger de verdad.
-	var z_cana := fight_box.z_index if fight_box != null else 0
-	velo = _foco_pesca(fight_box)
-	await _leccion([
-		{ "text": "Enganchado. Dos barras: **sedal** y **fuerza de pez**.", "who": "cai", "mood": "serio" },
-		{ "text": "Aprietas y **mantienes**: pez se cansa. Sedal rojo, sueltas.", "who": "cai", "mood": "hablando" },
-	])
-	_quitar_foco(velo, fight_box, z_cana)
-	# Hasta que le haya sacado un buen trozo de barra el solo.
-	await _esperar_pesca(func() -> bool:
-		return energy <= 0.55 or state != State.FIGHT)
-	if state != State.FIGHT:
-		clase = false
-		return
-
-	# 5) EL TIRON. Se provoca AQUI para que Cai pueda explicarlo con el delante.
-	speed_next = 0.0
-	await _esperar_pesca(func() -> bool:
-		return speed_left > 0.0 or state != State.FIGHT)
-	if state != State.FIGHT:
-		clase = false
-		return
-	await _leccion([
-		{ "text": "¡Corre! Ahora no mantienes. Ahora **tocas rápido**.", "who": "cai", "mood": "sorprendido" },
-	])
-	await _esperar_pesca(func() -> bool:
-		return speed_left <= 0.0 or state != State.FIGHT)
-
-	# 6) EL REMATE.
-	if state == State.FIGHT:
+		# 2) LA SOMBRA. Que la vea nadar y lance por delante.
 		await _leccion([
-			{ "text": "Ya pasó. Aprieta otra vez. Acaba tú.", "who": "cai", "mood": "hablando" },
+			{ "text": "Eso es **sombra**. Sombra grande, premio grande.", "who": "cai", "mood": "hablando" },
+			{ "text": "Tocas agua **delante** de sombra. No encima. Prueba.", "who": "cai", "mood": "serio" },
 		])
-	await _esperar_pesca(func() -> bool:
-		return state == State.REVEAL or state == State.READY or state == State.ESCAPED)
+		await _esperar_pesca(func() -> bool: return bobber_out or state == State.READY)
+		if state == State.READY:
+			continue
+
+		# 3) LA FINTA Y LA PICADA, avisadas ANTES de que el pez amague.
+		await _leccion([
+			{ "text": "Ahora espera. Pez hace trampa: viene, se va. Eso no es picada.", "who": "cai", "mood": "hablando" },
+			{ "text": "Picada de verdad: flotador se **hunde**. Ahí tocas, rápido.", "who": "cai", "mood": "sorprendido" },
+		])
+		await _esperar_pesca(func() -> bool:
+			return state == State.FIGHT or state == State.READY or state == State.ESCAPED)
+		if state != State.FIGHT:
+			continue
+
+		# 4) LA PELEA. Foco en la caña y a recoger de verdad.
+		var z_cana := fight_box.z_index if fight_box != null else 0
+		velo = _foco_pesca(fight_box)
+		await _leccion([
+			{ "text": "Enganchado. Dos barras: **sedal** y **fuerza de pez**.", "who": "cai", "mood": "serio" },
+			{ "text": "Aprietas y **mantienes**: pez se cansa. Sedal rojo, sueltas.", "who": "cai", "mood": "hablando" },
+		])
+		_quitar_foco(velo, fight_box, z_cana)
+		await _esperar_pesca(func() -> bool:
+			return energy <= 0.55 or state != State.FIGHT)
+		if state != State.FIGHT:
+			continue
+
+		# 5) EL TIRON. Se provoca AQUI para que Cai lo explique con el delante.
+		speed_next = 0.0
+		await _esperar_pesca(func() -> bool:
+			return speed_left > 0.0 or state != State.FIGHT)
+		if state != State.FIGHT:
+			continue
+		await _leccion([
+			{ "text": "¡Corre! Ahora no mantienes. Ahora **tocas rápido**.", "who": "cai", "mood": "sorprendido" },
+		])
+		await _esperar_pesca(func() -> bool:
+			return speed_left <= 0.0 or state != State.FIGHT)
+
+		# 6) EL REMATE.
+		if state == State.FIGHT:
+			await _leccion([
+				{ "text": "Ya pasó. Aprieta otra vez. Acaba tú.", "who": "cai", "mood": "hablando" },
+			])
+		await _esperar_pesca(func() -> bool:
+			return state == State.REVEAL or state == State.READY or state == State.ESCAPED)
+		if state == State.REVEAL:
+			break
+
 	clase = false
+	_refresh_cast_label()
 	await _leccion([
 		{ "text": "Eso. Ya sabes pescar.", "who": "cai", "mood": "feliz" },
 		{ "text": "Tres tiradas mías. Regalo. Después pagas tú.", "who": "cai", "mood": "hablando" },
 	])
-	_refresh_cast_label()
 
 
 ## Una leccion: Cai dice lo suyo y SE QUITA. La caja se traga todos los toques
@@ -1750,7 +1776,12 @@ func _esperar_pesca(cond: Callable, tope := 90.0) -> void:
 func _refresh_cast_label() -> void:
 	if cast_cost_label == null or not is_instance_valid(cast_cost_label):
 		return
-	if GameState.free_casts > 0:
+	# EN LA CLASE PAGA CAI: ni precio ni moneda, solo lo que hay que hacer.
+	if cast_coin != null and is_instance_valid(cast_coin):
+		cast_coin.visible = not clase
+	if clase:
+		cast_cost_label.text = "Lanzar caña"
+	elif GameState.free_casts > 0:
 		cast_cost_label.text = "GRATIS x%d" % GameState.free_casts
 	else:
 		cast_cost_label.text = "%d" % FishData.FISHING_COST
