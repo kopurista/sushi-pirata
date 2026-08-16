@@ -2384,9 +2384,11 @@ func _try_spawn_client() -> bool:
 	# PRIMERO de ese tipo que ha pisado el barco en esta partida.
 	if not head_gender.has(c.client_type):
 		head_gender[c.client_type] = c.gender
+	# `head_who` ya solo guarda el personaje GENÉRICO del tipo: los especiales
+	# tienen chapa propia (ver `_update_heads_row`), así que colar su cara aquí
+	# hacía que todos los de su tipo salieran con ella.
 	if not head_who.has(c.client_type):
-		head_who[c.client_type] = CharacterData.who_for_type(c.client_type) \
-				if c.who_override == "" else c.who_override
+		head_who[c.client_type] = CharacterData.who_for_type(c.client_type)
 	# EL CLIENTE DEL TESORO ocupa el primer hueco de su tipo que salga: sale con
 	# su modelo propio (como el cliente especial) y, bien servido, paga con un
 	# coleccionable. Se marca aquí para que el nivel pueda vigilarlo.
@@ -3739,16 +3741,28 @@ func _update_client_heads() -> void:
 	# piratas y capitanes hay, y separarlos en dos caras por cada tipo llenaba
 	# la fila de iconos para no decir nada nuevo. La cara de cada tipo es la del
 	# primero que llego (`head_gender`), y ahi se queda toda la partida.
+	# LOS CLIENTES ESPECIALES VAN EN SU PROPIA CHAPA, aparte del recuento de su
+	# tipo. Antes su cara se colaba en la insignia del tipo (era la del primero
+	# que llegó), así que en la Isla de Gades TODOS los piratas de la fila salían
+	# con la cara de Cai y parecía un error del juego. Ahora Cai —y Pablo, y el
+	# Kappa— tienen su propio icono al lado del de los suyos.
 	var counts := { "E": 0, "A": 0, "G": 0 }
+	var propios: Array[String] = []
 	for c in seat_clients:
 		if c == null or not is_instance_valid(c):
+			continue
+		if str(c.who_override) != "":
+			if not (str(c.who_override) in propios):
+				propios.append(str(c.who_override))
 			continue
 		counts[c.client_type] = int(counts.get(c.client_type, 0)) + 1
 	for type in ["E", "A", "G"]:
 		if int(counts[type]) > 0:
 			heads_row.add_child(_head_badge(
-				str(head_who.get(type, CharacterData.who_for_type(type))),
+				CharacterData.who_for_type(type),
 				str(head_gender.get(type, CharacterData.MALE)), int(counts[type])))
+	for quien in propios:
+		heads_row.add_child(_head_badge(quien, CharacterData.MALE, 1))
 
 
 ## Icono de cabeza con su contador. El "xN" va DEBAJO y superpuesto sobre el

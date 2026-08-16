@@ -92,11 +92,21 @@ func _tick(_delta: float) -> void:
 
 ## Espera a que se cumpla una condición, sin bloquear el juego.
 ##
-## El `is_inside_tree()` no sobra: al cambiar de escena (salir del nivel, o el
-## cartel de resultados) el director se va del árbol con la corrutina a medias,
-## y `get_tree()` devolvía null en el siguiente fotograma.
+## SI EL NIVEL SE HA IDO, NO VUELVE NUNCA. Salía del bucle con un simple
+## `is_inside_tree()` y devolvía el control al guion, que daba por hecho que
+## había vuelto porque su CONDICIÓN se cumplió y seguía con la línea siguiente
+## sobre un nivel que ya no existía: al pulsar **Salir** en mitad del nivel 7,
+## el `create_timer` de después reventaba con `get_tree()` a null y el guion
+## moría a gritos en la consola. Aparcar la corrutina para siempre es la única
+## forma de pararla —GDScript no deja matarlas— y no filtra nada: cuando el
+## director se libera con su nivel, la corrutina se va con él.
 func _esperar(cond: Callable) -> void:
-	while is_inside_tree() and not bool(cond.call()):
+	while true:
+		if not _vivo():
+			await _jamas
+			return
+		if bool(cond.call()):
+			return
 		await get_tree().process_frame
 
 
@@ -288,7 +298,7 @@ func _nivel_1() -> void:
 	var alumno := _cliente_tipo()
 	if alumno == null:
 		return
-	await get_tree().create_timer(0.5).timeout
+	await _pausa(0.5)
 	if not is_instance_valid(alumno):
 		return
 	_focus_bar(alumno.patience_bar())
@@ -308,7 +318,7 @@ func _nivel_1() -> void:
 	if lv.ended:
 		return
 	var comensal := _comiendo()
-	await get_tree().create_timer(0.5).timeout
+	await _pausa(0.5)
 	if comensal == null or not is_instance_valid(comensal):
 		comensal = _comiendo()
 	if comensal != null:
@@ -385,7 +395,7 @@ func _nivel_2() -> void:
 	# clientes en un nivel diseñado para cuatro.
 	for i in maxi(int(lv.total_clients) - int(lv.clients_spawned), 0):
 		_adelantar_tipo("E")
-	await get_tree().create_timer(1.4).timeout
+	await _pausa(1.4)
 	if lv.ended:
 		return
 	await _leccion_cajas()
@@ -717,7 +727,7 @@ func _nivel_7() -> void:
 		return
 	var pirata := _cliente_tipo("A")
 	# Un momento para verlo sentarse antes de que nadie hable.
-	await get_tree().create_timer(1.2).timeout
+	await _pausa(1.2)
 	if pirata != null and is_instance_valid(pirata):
 		_focus_client(pirata)
 	await _say([
@@ -744,7 +754,7 @@ func _nivel_7() -> void:
 	# se le está sirviendo.
 	if pirata == null or not is_instance_valid(pirata) or lv.ended:
 		return
-	await get_tree().create_timer(1.0).timeout
+	await _pausa(1.0)
 	if not is_instance_valid(pirata) or lv.ended:
 		return
 	# LA CUENTA LA LLEVA EL PROPIO PIRATA, POR SEÑAL. Estaba en un `_esperar`
@@ -794,10 +804,19 @@ func _nivel_7() -> void:
 			{ "text": "Lo prometido. Cuídala mejor que yo.", "who": quien, "mood": "hablando" },
 		])
 		_play()
-		await get_tree().create_timer(0.4).timeout
+		await _pausa(0.4)
 	_entregar_bandera()
 	if lv.ended:
 		return
+	# DAVID ESPERA A QUE SE CIERRE LA VENTANA DEL COLECCIONABLE. La saca
+	# `GameState` en su capa global de avisos, que va por encima de todo: si
+	# David arrancaba a hablar en el mismo momento, la caja de diálogo salía
+	# debajo del cartel de la bandera y las dos cosas se pisaban.
+	await _esperar(func() -> bool:
+		return lv.ended or not GameState.notices_busy())
+	if lv.ended:
+		return
+	await _pausa(0.35)
 	await _explicar_coleccionables()
 	_play()
 
@@ -863,7 +882,7 @@ func _nivel_8() -> void:
 	_cai = _cliente_who("cai")
 	if _cai == null:
 		return
-	await get_tree().create_timer(1.2).timeout
+	await _pausa(1.2)
 	if not is_instance_valid(_cai) or lv.ended:
 		return
 	if not _cai.plate_served.is_connected(_on_cai_come):
@@ -968,7 +987,7 @@ func _nivel_10() -> void:
 		return
 	var pablo := _pablo()
 	# Un momento para verlo sentarse antes de que nadie hable.
-	await get_tree().create_timer(1.4).timeout
+	await _pausa(1.4)
 	if pablo != null and is_instance_valid(pablo):
 		_focus_client(pablo)
 	await _say([
@@ -1083,7 +1102,7 @@ func _nivel_11() -> void:
 		return lv.ended or _alguien_comio(RECETA_PABLO))
 	if lv.ended:
 		return
-	await get_tree().create_timer(0.6).timeout
+	await _pausa(0.6)
 	await _say([
 		{ "text": "¿Has visto lo que ha costado ese plato? El **tsuke don** paga como ninguno... pero se prepara despacio.", "mood": "serio" },
 		{ "text": "Y con clientes así, un plato lento es un cliente vacío esperando. Hace falta algo que salga **rápido** y llene.", "mood": "hablando" },
@@ -1124,7 +1143,7 @@ func _nivel_12() -> void:
 	await _esperar(func() -> bool: return lv.ended or lv.treasure_given)
 	if lv.ended:
 		return
-	await get_tree().create_timer(0.8).timeout
+	await _pausa(0.8)
 	if GameState.col_intro_done:
 		await _say([
 			{ "text": "¡Ahí lo tienes! A la **vitrina** del Inventario, con el resto de la colección.", "mood": "riendo" },
@@ -1222,7 +1241,7 @@ func _nivel_15() -> void:
 			return lv._try_spawn_client() and _kappa() != null)
 		kappa = _kappa()
 	kappa.make_boss()
-	await get_tree().create_timer(1.2).timeout
+	await _pausa(1.2)
 	_focus_client(kappa)
 	await _decir([
 		{ "text": "Escúchame rápido: el Kappa come de TODO, a una velocidad de escándalo... y se **impacienta** igual de rápido.", "mood": "serio" },

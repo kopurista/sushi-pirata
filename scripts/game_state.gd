@@ -1076,6 +1076,12 @@ func _ensure_notices() -> NoticeLayer:
 	return _notices
 
 
+## ¿Hay algún aviso (toast o ventana de coleccionable) en pantalla o en cola?
+## Lo pregunta quien tiene que hablar DESPUÉS de un cartel, para no pisarlo.
+func notices_busy() -> bool:
+	return _notices != null and is_instance_valid(_notices) and _notices.is_busy()
+
+
 func has_collectible(id: String) -> bool:
 	return id in collectibles
 

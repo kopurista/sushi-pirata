@@ -135,10 +135,27 @@ primer toque sin decir qué se llevaba a cambio.
 **CAI** (`assets/characters/cai`, hablante `cai`): el pescador de la Isla de
 Gades. Habla poco y mal —solo sabe japonés— así que sus frases son cortas, sin
 artículos y a veces son un "..." (para eso está su expresión `callado`). Es la
-voz de la pantalla de PESCA: da la clase la primera vez (`_clase_de_pesca`,
-con foco sobre el botón y sobre la caña, y 3 tiradas gratis al acabar) y saluda
-y se despide en cada visita (10 frases de cada). También explica los
-COLECCIONABLES la primera vez que sale uno del cofre.
+voz de la pantalla de PESCA, y saluda y se despide en cada visita (10 frases de
+cada). También explica los COLECCIONABLES la primera vez que sale uno del cofre.
+**SU CLASE ES DE PRÁCTICA, NO DE TEORÍA** (`_clase_de_pesca`): dice UNA cosa,
+se quita de en medio y el jugador la HACE; solo entonces viene la siguiente, y
+cada lección se cierra sola al cumplirla, así que no se puede escuchar sin
+tocar. Era una parrafada seguida con dos focos y luego "ahora tú".
+· **El intento va AMAÑADO** (`clase`): pez de tier 0 y pequeño, sin cobrar
+  (paga Cai), el sedal perdona (`CLASE_TENSION`), la presa tira flojo
+  (`CLASE_TIRON`) y **ni el sedal se rompe ni el pez se suelta** — se quedan
+  clavados a 0,93. La primera pelea de la vida del jugador no se puede perder,
+  solo entender.
+· **UNA fase de velocidad GARANTIZADA**, y la provoca el guion
+  (`speed_next = 0`) cuando le toca, no antes: el tirón es lo único que no se
+  puede explicar sin verlo y en un intento normal de tier 0 puede no salir
+  ninguno. Cai avisa ANTES de que empiece.
+· **LA PELEA SE CONGELA MIENTRAS CAI HABLA** (`leccion_en_curso`). La caja de
+  diálogo se traga todos los toques, así que con el pez enganchado el jugador
+  no puede hacer nada mientras lee — y el tirón seguía corriendo: medido con
+  un jugador simulado, la presa se soltaba durante la propia frase que
+  explicaba cómo aguantarla.
+· Al acabar, `CAI_TIRADAS_GRATIS` (3) lanzamientos de regalo.
 **Y SE SIENTA A COMER**: en la Isla de Gades no mira desde la orilla, es un
 CLIENTE con su propio modelo (`cai_rig.glb`, `special_client` del puerto) que
 come como un **pirata** (2 estrellas, el tipo lo pone el puerto y no el
@@ -248,6 +265,18 @@ primera vez que se entra en ellos (`logros_intro_done` /
   en aventura lo dispara la lectura del puerto, pero sin puerto hay que llamar
   `prep_board.refresh_extra_ui()` A MANO tras poner `hide_storage` (las cajas
   se quedaban dibujadas en pleno caos).
+- **UN GUION QUE SE QUEDA SIN NIVEL SE APARCA PARA SIEMPRE**
+  (`StoryDirector._jamas`, una señal que no se emite nunca). Al pulsar **Salir**
+  —o Repetir, o al cerrarse el turno— el director se va del árbol con su
+  corrutina a medias, y GDScript no deja matarlas. `_esperar` salía del bucle
+  con un `is_inside_tree()` y DEVOLVÍA el control, así que el guion daba por
+  hecho que su condición se había cumplido y seguía con la línea siguiente
+  sobre un nivel liberado: el `create_timer` de después reventaba con
+  `get_tree()` a null y el guion moría a gritos en la consola (era el "se rompe
+  al salir" del nivel 7). Ahora `_esperar`, `_say` y `_pausa` aparcan la
+  corrutina en un `await` que jamás se resuelve; cuando el director se libera
+  con su nivel, la corrutina se va con él. **TODA espera de un director va por
+  `_pausa`, nunca por `get_tree().create_timer` a pelo.**
 - `scripts/story_director.gd` (`StoryDirector`) es la BASE de todo guion sobre
   `level3d`: pausa el árbol entero al hablar (`get_tree().paused`, con la caja
   y el director en `PROCESS_MODE_ALWAYS`), retiene el reloj (`lv.clock_hold`),
@@ -401,15 +430,20 @@ primera vez que se entra en ellos (`logros_intro_done` /
   `{who, type}` hace que UNO de los clientes de ese tipo salga con un modelo
   propio (`client3d.who_override` → `CharacterData.MODELS`), sin tocar el
   equilibrio: come, paga y aguanta como los de su tipo. Con `late_type` del
-  mismo tipo, entra el último. Lo usan Pablo el Rubio (nivel 8) y el guion del
-  jefe (que rellena `special_who` a mano para traer al Kappa). La fila de
-  cabezas del HUD sigue contando por TIPO, pero la CARA sale de `head_who`
-  (el personaje del primero de ese tipo que llegó), así que en su nivel el
-  capitán de la fila es Pablo (o el Kappa). Sus iconos los genera
-  `tools/head_icons.gd` con encuadre propio en `FRAME_OVERRIDE` (el sombrero
-  de Pablo es muy alto, y el Kappa es un cabezón: media altura es cabeza).
-  **OJO: `head_icons` ahora solo trae al Kappa en `OUT`** — regenerar los
-  demás es jugar a la lotería de render; la lista completa queda comentada.
+  mismo tipo, entra el último. Lo usan Pablo el Rubio (nivel 10), Cai (nivel 8)
+  y el guion del jefe (que rellena `special_who` a mano para traer al Kappa).
+  **CADA ESPECIAL LLEVA SU PROPIA CHAPA EN LA FILA DE CABEZAS**, aparte del
+  recuento de su tipo (`_update_heads_row`). Antes su cara se colaba en la
+  insignia del TIPO —era la del primero que llegó—, así que en la Isla de Gades
+  TODOS los piratas de la fila salían con la cara de Cai y parecía un error del
+  juego; ahora Cai (y Pablo, y el Kappa) tienen su icono al lado del de los
+  suyos, y `head_who` solo guarda ya el personaje genérico. Sus iconos los
+  genera `tools/head_icons.gd` con encuadre propio en `FRAME_OVERRIDE` (el
+  sombrero de Pablo es muy alto, y el Kappa es un cabezón: media altura es
+  cabeza). **OJO: `head_icons` solo trae en `OUT` al personaje NUEVO de cada
+  pasada** — regenerar los demás es jugar a la lotería de render; la lista
+  completa queda comentada. Y si un especial se queda sin icono,
+  `CharacterData._pick` cae al del grumete en vez de dejar el hueco vacío.
 - **EL JEFE DEL NIVEL 10: EL KAPPA** (`boss: "kappa"` en el puerto,
   coreografía en `level_director._nivel_10`, comportamiento en
   `client3d.make_boss`):

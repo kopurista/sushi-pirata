@@ -70,6 +70,14 @@ func _done() -> void:
 	_pump()
 
 
+## ¿Queda algún aviso en pantalla o en la cola? Lo pregunta quien tiene que
+## hablar DESPUÉS de un cartel: el guion del nivel 7 espera a que el jugador
+## cierre la ventana de la bandera antes de soltar a David, porque si no las
+## dos cosas se pisaban en la misma pantalla.
+func is_busy() -> bool:
+	return _busy or not _queue.is_empty()
+
+
 # ------------------------------------------------------------------- toast
 
 func _show_toast(item: Dictionary) -> void:

@@ -15,6 +15,14 @@ extends Node
 ##
 ## Las clases hijas solo tienen que implementar `_run()`.
 
+## SEÑAL QUE NO SE EMITE NUNCA. Es el freno de mano de los guiones: cuando el
+## nivel se va (Salir, Repetir, fin de turno) el director se queda fuera del
+## árbol con su corrutina a medias, y GDScript no permite matarla. Aparcándola
+## en un `await` que jamás se resuelve, el guion deja de correr sus líneas sobre
+## un nivel que ya no existe — y cuando el director se libera con su nivel, la
+## corrutina se va con él. Ver `_esperar`, `_say` y `_pausa`.
+signal _jamas
+
 ## Segundos de quietud antes de que Gigi espabile al jugador.
 const INACTIVIDAD := 10.0
 ## Respiro antes de que alguien hable cuando se venía de jugar: que una acción
@@ -162,7 +170,25 @@ func _espabila() -> void:
 ## `espera` sustituye al respiro por defecto (algunos momentos piden más).
 ## `congelar` a false deja el juego CORRIENDO mientras se habla: para cuando lo
 ## interesante es justo lo que está pasando detrás (un cliente que se marcha).
+## ¿Sigue el guion en pie? False en cuanto el nivel se ha ido.
+func _vivo() -> bool:
+	return is_inside_tree() and lv != null and is_instance_valid(lv)
+
+
+## Espera N segundos SIN reventar si el nivel ya se ha ido: sin esto,
+## `get_tree()` devuelve null y el `create_timer` de la línea siguiente al
+## `_esperar` mata el guion con un error en consola (pasó al pulsar Salir).
+func _pausa(seg: float) -> void:
+	if not _vivo():
+		await _jamas
+		return
+	await get_tree().create_timer(seg).timeout
+
+
 func _say(lines: Array, espera := -1.0, congelar := true) -> void:
+	if not _vivo():
+		await _jamas
+		return
 	# Tipo explícito: `lv` es un Node3D pelado, así que `clock_hold` llega como
 	# Variant y el `:=` no puede deducir nada de él.
 	var venia_jugando: bool = not lv.clock_hold
@@ -207,6 +233,9 @@ func _say_raised(lines: Array, espera := -1.0,
 ## jugador se queda parado.
 func _play(aviso := "") -> void:
 	narrating = false
+	# Con el nivel ya fuera, tocar `lv` sería tocar un nodo liberado.
+	if not _vivo():
+		return
 	lv.clock_hold = false
 	_recordatorio = aviso
 	_quieto = 0.0

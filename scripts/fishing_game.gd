@@ -189,6 +189,15 @@ var hold_time := 0.0
 var idle_time := 0.0
 var tension := 0.0
 var energy := 1.0
+## CLASE DE CAI EN CURSO: el intento va amañado (ver `_clase_de_pesca`). El pez
+## es el más fácil que existe, no se cobra, el sedal perdona, la presa no se
+## escapa y hay UNA fase de velocidad garantizada y floja.
+var clase := false
+## Cai esta diciendo una leccion: la pelea se queda congelada (ver `_leccion`).
+var leccion_en_curso := false
+## Cuánto perdona el sedal y cuánto tira la presa mientras Cai enseña.
+const CLASE_TENSION := 0.4
+const CLASE_TIRON := 0.35
 var phases_left := 0
 var speed_left := 0.0
 var speed_next := 0.0
@@ -249,7 +258,8 @@ func _process(delta: float) -> void:
 			if bite_t <= 0.0:
 				_escaped("Se ha llevado el cebo...")
 		State.FIGHT:
-			_tick_fight(delta)
+			if not leccion_en_curso:
+				_tick_fight(delta)
 			zone.queue_redraw()
 
 
@@ -566,16 +576,24 @@ func _set_state(s: int) -> void:
 
 
 func _start_attempt() -> void:
-	if not GameState.fishing_pay():
-		instruction.text = "Sin doblones para el cebo..."
-		return
-	money_changed.emit()
-	_refresh_cast_label()
-	# EL SORTEO, ANTES DE VER LA SOMBRA: el premio ya está decidido y de él
-	# sale la dificultad de la pelea (y el tamaño de la sombra).
-	roll = GameState.fishing_roll()
-	tier = int(roll.get("tier", 0))
-	catch_size = clampf(float(roll.get("size", 0.5)), 0.0, 1.0)
+	# EN LA CLASE PAGA CAI y el pez está elegido: el más fácil que existe, para
+	# que la primera pelea de la vida del jugador no pueda salir mal.
+	if clase:
+		roll = GameState.fishing_roll()
+		roll["tier"] = 0
+		tier = 0
+		catch_size = 0.2
+	else:
+		if not GameState.fishing_pay():
+			instruction.text = "Sin doblones para el cebo..."
+			return
+		money_changed.emit()
+		_refresh_cast_label()
+		# EL SORTEO, ANTES DE VER LA SOMBRA: el premio ya está decidido y de él
+		# sale la dificultad de la pelea (y el tamaño de la sombra).
+		roll = GameState.fishing_roll()
+		tier = int(roll.get("tier", 0))
+		catch_size = clampf(float(roll.get("size", 0.5)), 0.0, 1.0)
 	var inner := WATER.grow(-SHADOW_MARGIN)
 	shadow_base = Vector2(randf_range(inner.position.x, inner.end.x),
 		randf_range(inner.position.y, inner.end.y))
@@ -756,12 +774,26 @@ func _start_fight() -> void:
 		_: phases_left = randi_range(2, 3)
 	speed_left = 0.0
 	speed_next = randf_range(1.2, 2.6)
+	# EN LA CLASE, UNA fase de velocidad y ni una más: el tirón es lo único que
+	# no se puede explicar sin verlo, y en un intento normal de tier 0 puede no
+	# salir ninguno. El guion la provoca cuando le toca (`speed_next = 0`), no
+	# antes, para que Cai llegue a avisar. Y la presa arranca a media barra:
+	# hay pelea que sentir, pero no un muro.
+	if clase:
+		phases_left = 1
+		speed_next = 999.0
+		energy = 0.7
+		line_t = lerpf(LINE_T_NEAR, LINE_T_FAR, energy)
 	instruction.text = "¡Mantén para recoger!\nSuelta si el sedal sufre"
 	_set_state(State.FIGHT)
 
 
 func _tick_fight(delta: float) -> void:
 	var fuerza := _fish_strength()
+	# EN LA CLASE el sedal perdona y el pez tira flojo: la primera pelea de
+	# la vida del jugador no se puede perder, solo entender.
+	var k_ten := CLASE_TENSION if clase else 1.0
+	var k_tiron := CLASE_TIRON if clase else 1.0
 	var en_velocidad := speed_left > 0.0
 	if en_velocidad:
 		speed_left -= delta
@@ -778,7 +810,7 @@ func _tick_fight(delta: float) -> void:
 		var manteniendo := holding and hold_time >= HOLD_MIN
 		if manteniendo:
 			speed_relief = 0.0
-			tension += TENSION_BASE * (1.0 + TENSION_TIER * tier) * delta
+			tension += TENSION_BASE * (1.0 + TENSION_TIER * tier) * k_ten * delta
 		else:
 			tension = maxf(tension - SPEED_TENSION_DECAY * delta, 0.0)
 		# La presa SIEMPRE intenta subir todo lo posible; cada toque no la
@@ -788,7 +820,7 @@ func _tick_fight(delta: float) -> void:
 		if speed_relief > 0.0:
 			energy -= SPEED_DRAIN_TAPPING * delta
 		else:
-			energy += (SPEED_REGAIN_BASE + SPEED_REGAIN_TIER * tier) \
+			energy += k_tiron * (SPEED_REGAIN_BASE + SPEED_REGAIN_TIER * tier) \
 				* fuerza * delta
 		if speed_left <= 0.0:
 			instruction.text = "¡Mantén para recoger!\nSuelta si el sedal sufre"
@@ -810,13 +842,14 @@ func _tick_fight(delta: float) -> void:
 			# pero no recoge ni un palmo.
 			if hold_time >= HOLD_MIN:
 				energy -= DRAIN_HOLD * delta
-			tension += TENSION_BASE * (1.0 + TENSION_TIER * tier) * delta
+			tension += TENSION_BASE * (1.0 + TENSION_TIER * tier) * k_ten * delta
 		else:
 			hold_time = 0.0
 			idle_time += delta
 			# Cuanto más tiempo sin recoger, más deprisa recupera el pez.
 			var rampa := minf(1.0 + idle_time * REGAIN_RAMP, REGAIN_RAMP_MAX)
-			energy += (REGAIN_BASE + REGAIN_TIER * tier) * fuerza * rampa * delta
+			energy += k_tiron * (REGAIN_BASE + REGAIN_TIER * tier) * fuerza \
+				* rampa * delta
 			tension -= TENSION_RELIEF * delta
 	energy = clampf(energy, 0.0, 1.0)
 	tension = clampf(tension, 0.0, 1.0)
@@ -837,6 +870,11 @@ func _tick_fight(delta: float) -> void:
 	# La barra de la presa parpadea en la fase de velocidad: es el aviso.
 	energy_bar.modulate = Color(1, 0.7, 0.7) \
 		if en_velocidad and fmod(_t, 0.22) < 0.11 else Color.WHITE
+	# EN LA CLASE NO SE PIERDE: el sedal se queda a un pelo de romperse y la
+	# presa a un pelo de soltarse, para que el susto se vea sin castigo.
+	if clase:
+		tension = minf(tension, 0.93)
+		energy = minf(energy, 0.93)
 	if tension >= 1.0:
 		GameState.bump_stat("fish_line_broken")
 		_escaped("¡El sedal se ha roto!")
@@ -1587,68 +1625,124 @@ func _quitar_foco(velo: ColorRect, nodo: Control, z: int) -> void:
 	var tw := velo.create_tween()
 	tw.tween_property(velo, "modulate:a", 0.0, 0.22)
 	tw.tween_callback(velo.queue_free)
-
-
-## LA CLASE DE PESCA. Cai explica, señalando, las cuatro cosas que hay que
-## saber: el botón, la sombra, la picada y la pelea (sedal y presa). Se enseña
-## el APARATO DE LA PELEA de verdad —la caña con sus dos barras— aunque no haya
-## pez enganchado: verlo antes de necesitarlo es justo lo que evita el primer
-## intento perdido. Al acabar deja `CAI_TIRADAS_GRATIS` lanzamientos gratis.
+## LA CLASE DE PESCA, DE PRACTICA. Cai no suelta la teoria de un tiron: dice UNA
+## cosa, se quita de en medio y el jugador la HACE; solo entonces viene la
+## siguiente. Cada leccion se cierra sola cuando el jugador cumple, asi que no
+## hay forma de quedarse escuchando sin tocar nada.
+##
+## EL INTENTO VA AMANADO (`clase`): el pez es el mas facil que existe, el sedal
+## perdona, el pez no se escapa y hay UNA fase de velocidad GARANTIZADA y floja
+## — porque el tiron es lo unico que no se puede explicar sin verlo, y en una
+## partida normal puede no salir. Cai paga la clase, asi que tampoco cuesta
+## doblones. Al acabar deja `CAI_TIRADAS_GRATIS` lanzamientos gratis.
 func _clase_de_pesca() -> void:
 	GameState.fishing_intro_done = true
 	GameState.free_casts = CAI_TIRADAS_GRATIS
 	GameState.save_game()
-	var caja := _cai_caja()
+	clase = true
 
-	caja.say([
-		{ "text": "Aquí. Yo enseño. Mira bien.", "who": "cai", "mood": "serio" },
-		{ "text": "Mar da dos cosas: **pescado**... y **cofres**. Cofre tiene tesoro dentro.", "who": "cai", "mood": "hablando" },
-	], true)
-	await caja.finished
+	await _leccion([
+		{ "text": "Yo enseño poco. Tú haces mucho. Asi se aprende.", "who": "cai", "mood": "serio" },
+		{ "text": "Hoy pago yo. Tú mira y toca.", "who": "cai", "mood": "hablando" },
+	])
 
-	# 1) EL BOTÓN: cuesta doblones, y de ahí sale todo.
+	# 1) EL BOTON. Se enfoca y no se sigue hasta que lo pulsa.
 	var z_btn := cast_btn.z_index
 	var velo := _foco_pesca(cast_btn)
-	caja.say([
-		{ "text": "Esto es caña. Tocas, cuesta doblones... y empieza.", "who": "cai", "mood": "hablando" },
-	], true)
-	await caja.finished
+	await _leccion([
+		{ "text": "Esto es caña. Tocas ahí y empieza. Tócalo.", "who": "cai", "mood": "hablando" },
+	])
 	_quitar_foco(velo, cast_btn, z_btn)
+	await _esperar_pesca(func() -> bool: return state != State.READY)
 
-	# 2) EL AGUA: la sombra nada, y hay que lanzar POR DELANTE de ella.
-	caja.say([
-		{ "text": "Luego ves **sombra** en agua. Sombra nada. Sombra grande, premio grande.", "who": "cai", "mood": "hablando" },
-		{ "text": "Tocas agua **delante** de sombra. No encima. Delante. Pez va, no espera.", "who": "cai", "mood": "serio" },
-		{ "text": "Pez hace trampa: se acerca, se va, se acerca. Eso NO es picada.", "who": "cai", "mood": "hablando" },
-		{ "text": "Picada de verdad: flotador se **hunde**. Entonces tocas rápido. Un segundo, no más.", "who": "cai", "mood": "sorprendido" },
-	], true)
-	await caja.finished
+	# 2) LA SOMBRA. Que la vea nadar y lance el delante.
+	await _leccion([
+		{ "text": "Eso es **sombra**. Sombra grande, premio grande.", "who": "cai", "mood": "hablando" },
+		{ "text": "Tocas agua **delante** de sombra. No encima. Prueba.", "who": "cai", "mood": "serio" },
+	])
+	await _esperar_pesca(func() -> bool: return bobber_out or state == State.READY)
+	if state == State.READY:
+		clase = false
+		return
 
-	# 3) LA PELEA: la caña con sus dos barras, enseñada de verdad.
-	_setup_fight_ui()
-	if fight_box != null:
-		fight_box.visible = true
-	var z_caña := fight_box.z_index if fight_box != null else 0
+	# 3) LA FINTA Y LA PICADA. Se avisa ANTES de que el pez amague.
+	await _leccion([
+		{ "text": "Ahora espera. Pez hace trampa: viene, se va. Eso no es picada.", "who": "cai", "mood": "hablando" },
+		{ "text": "Picada de verdad: flotador se **hunde**. Ahí tocas, rápido.", "who": "cai", "mood": "sorprendido" },
+	])
+	await _esperar_pesca(func() -> bool:
+		return state == State.FIGHT or state == State.READY or state == State.ESCAPED)
+	if state != State.FIGHT:
+		clase = false
+		return
+
+	# 4) LA PELEA. Foco en la caña y a recoger de verdad.
+	var z_cana := fight_box.z_index if fight_box != null else 0
 	velo = _foco_pesca(fight_box)
-	caja.say([
-		{ "text": "Pez enganchado. Ahora pelea. Dos barras.", "who": "cai", "mood": "serio" },
-		{ "text": "Barra en caña es **sedal**. Verde bien. Rojo malo. Rojo del todo... sedal rompe.", "who": "cai", "mood": "hablando" },
-		{ "text": "Barra al lado es **fuerza de pez**. Tú aprietas, baja. Tú sueltas, sube. Baja a cero, pez tuyo.", "who": "cai", "mood": "hablando" },
-		{ "text": "Aprietas y mantienes. No toques-toques-toques: eso rompe sedal y no cansa pez.", "who": "cai", "mood": "serio" },
-		{ "text": "A veces pez corre fuerte. Entonces sí: tocas rápido, muchas veces. Solo entonces.", "who": "cai", "mood": "hablando" },
-	], true)
-	await caja.finished
-	_quitar_foco(velo, fight_box, z_caña)
-	if fight_box != null:
-		fight_box.visible = false
+	await _leccion([
+		{ "text": "Enganchado. Dos barras: **sedal** y **fuerza de pez**.", "who": "cai", "mood": "serio" },
+		{ "text": "Aprietas y **mantienes**: pez se cansa. Sedal rojo, sueltas.", "who": "cai", "mood": "hablando" },
+	])
+	_quitar_foco(velo, fight_box, z_cana)
+	# Hasta que le haya sacado un buen trozo de barra el solo.
+	await _esperar_pesca(func() -> bool:
+		return energy <= 0.55 or state != State.FIGHT)
+	if state != State.FIGHT:
+		clase = false
+		return
 
-	caja.say([
-		{ "text": "Ya sabes. Ahora tú.", "who": "cai", "mood": "feliz" },
+	# 5) EL TIRON. Se provoca AQUI para que Cai pueda explicarlo con el delante.
+	speed_next = 0.0
+	await _esperar_pesca(func() -> bool:
+		return speed_left > 0.0 or state != State.FIGHT)
+	if state != State.FIGHT:
+		clase = false
+		return
+	await _leccion([
+		{ "text": "¡Corre! Ahora no mantienes. Ahora **tocas rápido**.", "who": "cai", "mood": "sorprendido" },
+	])
+	await _esperar_pesca(func() -> bool:
+		return speed_left <= 0.0 or state != State.FIGHT)
+
+	# 6) EL REMATE.
+	if state == State.FIGHT:
+		await _leccion([
+			{ "text": "Ya pasó. Aprieta otra vez. Acaba tú.", "who": "cai", "mood": "hablando" },
+		])
+	await _esperar_pesca(func() -> bool:
+		return state == State.REVEAL or state == State.READY or state == State.ESCAPED)
+	clase = false
+	await _leccion([
+		{ "text": "Eso. Ya sabes pescar.", "who": "cai", "mood": "feliz" },
 		{ "text": "Tres tiradas mías. Regalo. Después pagas tú.", "who": "cai", "mood": "hablando" },
 	])
+	_refresh_cast_label()
+
+
+## Una leccion: Cai dice lo suyo y SE QUITA. La caja se traga todos los toques
+## mientras esta puesta, asi que no puede quedarse en pantalla mientras el
+## jugador practica: se monta una por leccion y se cierra al acabarla.
+func _leccion(lineas: Array) -> void:
+	# LA PELEA SE PARA MIENTRAS CAI HABLA. La caja se traga todos los toques,
+	# asi que con el pez enganchado el jugador no puede hacer NADA mientras
+	# lee — y el tiron seguia corriendo: medido, la presa se soltaba durante
+	# la propia frase que explicaba como aguantarla.
+	leccion_en_curso = true
+	var caja := _cai_caja()
+	caja.say(lineas)
 	await caja.finished
 	await caja.close_and_free()
-	_refresh_cast_label()
+	leccion_en_curso = false
+
+
+## Espera a que se cumpla algo del minijuego sin bloquear el juego (el jugador
+## tiene que poder tocar). Con tope: si algo se tuerce, la clase sigue en vez
+## de dejar al jugador encerrado sin poder salir.
+func _esperar_pesca(cond: Callable, tope := 90.0) -> void:
+	var t := 0.0
+	while is_inside_tree() and t < tope and not bool(cond.call()):
+		t += get_process_delta_time()
+		await get_tree().process_frame
 
 
 ## El botón de pescar dice GRATIS mientras queden tiradas de regalo de Cai: si
