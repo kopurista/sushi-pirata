@@ -2053,7 +2053,7 @@ func _place_star_marks() -> void:
 		var ganada: bool = oro >= float(m["meta"])
 		if ganada != bool(m["on"]):
 			m["on"] = ganada
-			_light_star_mark(n, ganada, meta_star)
+			_light_star_mark(n, ganada)
 
 
 ## Lo que mide la estrella de la meta: su tamaño base, y si el objetivo del
@@ -2088,29 +2088,35 @@ func _place_goal_value(estrella: TextureRect, lado: float) -> void:
 ## pasaba sin verla. El `modulate` por encima de 1 es a propósito: multiplica,
 ## así que sube el brillo en vez de teñir.
 ##
-## **NINGUNA ESTRELLA CAMBIA DE TAMAÑO AL GANARSE.** El bote elástico que
-## llevaban las dos primeras se quitó: son marcas de una escala, y una marca
-## que crece y encoge mueve la referencia justo cuando el jugador la está
-## mirando para saber por dónde va. Solo la de la META lo conserva, que ahí no
-## hay escala que mover: es el final del turno.
+## EL BOTE VA EN SU PROPIO TWEEN Y EN SECUENCIA, no en paralelo con retardo.
+## Con `set_parallel` los dos tramos de `scale` arrancan a la vez y el segundo
+## **captura su valor de partida al empezar el paso, no al vencer su retardo**:
+## interpolaba de 1 a 1, mandaba el primero y la estrella se QUEDABA AGRANDADA
+## para siempre. El fogonazo va aparte, en otro tween, que así corre a la vez
+## sin tener que mezclarlos.
 ##
 ## Se apaga también (con el castigo por plato tirado o por cliente que se va de
 ## vacío el oro BAJA), pero sin bote: perder una estrella no se celebra.
-func _light_star_mark(n: TextureRect, ganada: bool, bote: bool = false) -> void:
+func _light_star_mark(n: TextureRect, ganada: bool) -> void:
 	n.texture = load(STAR_MARK_TEX % ("llena" if ganada else "vacia"))
 	n.modulate = STAR_MARK_ON if ganada else STAR_MARK_OFF
+	# Un bote a medias que se quedara colgado dejaría la estrella de otro
+	# tamaño: se mata antes de empezar el siguiente y se vuelve al tamaño bueno.
+	var previo: Tween = n.get_meta("bote", null) as Tween
+	if previo != null and previo.is_valid():
+		previo.kill()
+	n.scale = Vector2.ONE
 	if not ganada:
-		n.scale = Vector2.ONE
 		return
-	var tw := create_tween()
-	tw.set_parallel(true)
-	if bote:
-		tw.tween_property(n, "scale", Vector2(1.55, 1.55), 0.12) \
-			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		tw.tween_property(n, "scale", Vector2.ONE, 0.26) \
-			.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT).set_delay(0.12)
-	tw.tween_property(n, "modulate", Color(2.2, 2.1, 1.6), 0.10)
-	tw.tween_property(n, "modulate", STAR_MARK_ON, 0.30).set_delay(0.10)
+	var ts := create_tween()
+	ts.tween_property(n, "scale", Vector2(1.55, 1.55), 0.12) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	ts.tween_property(n, "scale", Vector2.ONE, 0.26) \
+		.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	n.set_meta("bote", ts)
+	var tm := create_tween()
+	tm.tween_property(n, "modulate", Color(2.2, 2.1, 1.6), 0.10)
+	tm.tween_property(n, "modulate", STAR_MARK_ON, 0.30)
 
 
 func _make_hud_bar(tex: String, cap: int, tamano: Vector2, tinte: Color,

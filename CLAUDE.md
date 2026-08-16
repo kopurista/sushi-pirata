@@ -2208,15 +2208,20 @@ que no hay problema.
   **LAS SEPARACIONES DE LA BARRA DEL ORO SON LAS ESTRELLAS DEL JUEGO**
   (`estrella_vacia/llena.png`, las mismas del cartel de resultados), una por
   umbral: nacen apagadas y **al alcanzar su oro se rellenan y BRILLAN**
-  —fogonazo que se apaga, en `_light_star_mark`—, porque cruzar un umbral es la
-  noticia del turno. Se apagan también si el oro baja (castigos). Fueron unas
-  muescas "/" dibujadas; con la estrella de verdad el jugador ve DE QUÉ va
-  cada tramo sin que nadie se lo cuente.
-  · **NINGUNA de las dos primeras CAMBIA DE TAMAÑO al ganarse**: llevaron un
-    bote elástico y se quitó. Son las marcas de una escala, y una marca que
-    crece y encoge mueve la referencia justo cuando el jugador la mira para
-    saber por dónde va. El bote se lo queda solo la de la META, que ahí no hay
-    escala que mover: es el final del turno.
+  —fogonazo más bote elástico, en `_light_star_mark`—, porque cruzar un umbral
+  es la noticia del turno. Se apagan también si el oro baja (castigos), pero
+  sin bote: perder una estrella no se celebra. Fueron unas muescas "/"
+  dibujadas; con la estrella de verdad el jugador ve DE QUÉ va cada tramo sin
+  que nadie se lo cuente.
+  · **EL BOTE VA EN SU PROPIO TWEEN Y EN SECUENCIA**, nunca en paralelo con un
+    retardo. Con `set_parallel` los dos tramos de `scale` arrancan a la vez y
+    el segundo **captura su valor de partida al empezar el paso, no al vencer
+    su retardo**: interpolaba de 1 a 1, mandaba el primero y la estrella se
+    QUEDABA AGRANDADA para siempre. El fogonazo va en otro tween aparte, que
+    así corre a la vez sin tener que mezclarlos. Además se MATA el bote
+    anterior antes de lanzar otro, o uno a medias deja la estrella de otro
+    tamaño. Medido fotograma a fotograma: sube a 1.59, rebota a 0.79 y vuelve
+    a 1.0000 clavado.
   · La **apagada se ACLARA, no se atenúa**: `estrella_vacia.png` ya es marrón
     oscuro (111/76/38) y bajándole el brillo se hundía en el canal de la
     barra, como un agujero. El `modulate` por encima de 1 MULTIPLICA, así que
