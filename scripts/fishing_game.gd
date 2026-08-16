@@ -1233,7 +1233,13 @@ func _show_chest_reveal() -> void:
 		espera.kill()
 		btn.disabled = true
 		PrepBoard.set_dimmed(btn, true)
-		pista.queue_free()
+		# SE ESCONDE, NO SE LIBERA. Este botón hace DOS papeles y su lambda se
+		# llama dos veces; Godot resuelve TODAS las capturas en cada llamada,
+		# así que con la pista liberada en la primera pulsación, la segunda
+		# soltaba un "Lambda capture at index 4 was freed". No rompía nada —esa
+		# rama ni la toca— pero es un error en la consola por un nodo que de
+		# todas formas muere con el cartel.
+		pista.visible = false
 		var tw := create_tween()
 		tw.tween_property(cofre, "rotation_degrees", 9.0, 0.08)
 		tw.tween_property(cofre, "rotation_degrees", -9.0, 0.08)
