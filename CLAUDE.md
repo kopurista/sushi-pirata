@@ -171,9 +171,15 @@ CLIENTE con su propio modelo (`cai_rig.glb`, `special_client` del puerto) que
 come como un **pirata** (2 estrellas, el tipo lo pone el puerto y no el
 modelo). Lo primero que dice al sentarse es su "...", y por eso David tiene que
 romper el hielo por él. El trato son `level_director.PLATOS_CAI` (3) platos, y
-al cumplirlos se apunta `GameState.cai_saciado` —persistente, porque la escena
-del trato NO ocurre en el nivel sino después, ya en el mapa
-(`main_menu._presentar_cai`)—; sin ese apunte, quien cerrara el turno por
+al cumplirlos se apunta `GameState.cai_saciado`.
+**LA PESCA SE ABRE POR SUPERAR EL NIVEL, NO POR LOS 3 PLATOS** (decidido, no
+re-litigar): atarla a los platos dejaría sin pesca —para siempre y sin vuelta
+atrás— a quien cerrara el turno por objetivo antes de alimentarlo, y eso es una
+trampa. Lo que cambian los 3 platos es la ESCENA: con la barriga llena Cai se
+enrola pagando su trato, y sin ella se enrola igual pero con otra frase, sin
+fingir una comida que no hubo. Por eso `cai_saciado` es PERSISTENTE: la escena
+del trato no ocurre en el nivel sino después, ya en el mapa
+(`main_menu._presentar_cai`), y sin ese apunte quien cerrara el turno por
 objetivo llegaría al mapa y Cai le hablaría de una barriga que nadie le llenó.
 **El mapa YA NO ARRASTRA A LA PANTALLA DE PESCA** al cerrar esa escena: la
 clase de Cai se da cuando el jugador entra en Pesca por su cuenta
