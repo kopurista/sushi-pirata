@@ -42,6 +42,14 @@ const BAND_CENTER_OFF := 140.0
 const SCROLL_MIN := 424.0
 const SCROLL_MAX := CampaignData.MAP_HEIGHT - 300.0
 
+## EL PLANO DEL MAR TIENE QUE CUBRIR TAMBIÉN EL FONDEADERO DEL MENÚ, que está
+## muy por debajo del mapa (`main_menu.MENU_ANCHOR`), y el puerto de la portada,
+## que además se corre 1500 px a la izquierda. Estuvo dimensionado solo contra
+## el mapa y en la portada se veía el borde del agua abajo a la izquierda.
+## Van en píxeles de mapa y en unidades de mundo respectivamente.
+const SEA_BOTTOM_PX := 5200.0
+const SEA_SIZE := 190.0
+
 ## Modelo 3D de cada tipo de nodo y huella horizontal objetivo (u).
 const KIND_MODELS := {
 	"isla": "res://assets/models/map_isla.glb",
@@ -173,17 +181,23 @@ func _setup_environment() -> void:
 func _setup_sea() -> void:
 	var tex: Texture2D = load("res://assets/map/mar.png")
 	var mesh := PlaneMesh.new()
-	mesh.size = Vector2(98.0, 98.0)
+	mesh.size = Vector2(SEA_SIZE, SEA_SIZE)
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
-	mi.position = D_HAT * ((CampaignData.MAP_HEIGHT * 0.5 + 640.0) / PPU_Y)
+	# El plano se centra entre el TOPE DEL MAPA y el fondeadero del menú, que
+	# es el punto más bajo al que llega la cámara (y desde la PORTADA se corre
+	# además PORT_OFF hacia la izquierda). Centrado solo en el mapa, la esquina
+	# inferior izquierda de la portada se salía del agua y se veía el vacío.
+	var hasta := maxf(CampaignData.MAP_HEIGHT, SEA_BOTTOM_PX)
+	mi.position = D_HAT * ((hasta * 0.5 + 640.0) / PPU_Y)
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/water_map_3d.gdshader")
 	mat.set_shader_parameter("sea_tex", tex)
 	# Tiles algo mayores que en 2D; el shader ademas aplana el mosaico contra
 	# un azul profundo (a pelo, el enrejado de rombos leia como una manta).
 	var tile_u := float(tex.get_width()) / PPU_X * 1.25
-	mat.set_shader_parameter("tile_scale", Vector2(98.0 / tile_u, 98.0 / tile_u))
+	mat.set_shader_parameter("tile_scale",
+		Vector2(SEA_SIZE / tile_u, SEA_SIZE / tile_u))
 	mat.set_shader_parameter("tint", Vector3(0.55, 0.68, 0.9))
 	# El plano del mar no proyecta sombra sobre nada: fuera del pase de sombras.
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

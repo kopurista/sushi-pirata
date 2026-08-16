@@ -28,6 +28,11 @@ const MENU_BAND_OFF := 130.0
 ## Al zarpar no hay fundido: la cámara viaja con el barco hasta el menú, igual
 ## que el viaje a Aventura. `PORT_OFF` va por `cam_side`, que ya es el
 ## desplazamiento lateral del encuadre (lo usa la transición a la tienda).
+## Punto DEL BARCO (coordenadas locales suyas) del que cuelga el sedal de la
+## pesca. Despejado contra `FishingGame.ROD_TIP` con el barco en reposo: es esa
+## misma punta, pero atada al casco en vez de al lienzo (ver `_process`).
+const ROD_LOCAL := Vector3(0.0, -0.537, 1.744)
+
 const PORT_OFF := -1500.0
 const PORT_PX := MENU_ANCHOR + Vector2(PORT_OFF, 0.0)
 ## En la portada la vista se centra por ENCIMA del barco (px de mapa): arriba
@@ -238,6 +243,13 @@ func _menu_popups() -> void:
 			and int(GameState.level_stars.get("nivel_1", 0)) >= 2:
 		await get_tree().create_timer(0.7).timeout
 		await _felicitar_nivel_1()
+	# PABLO PAGA LO QUE COMIÓ. La promesa se hace en su nivel y el pago se cobra
+	# AQUÍ, con las tres cajas de recursos a la vista: es la primera vez que el
+	# jugador oye hablar de los lingotes y David puede señalarle el contador de
+	# arriba mientras se lo cuenta.
+	if GameState.pending_ingots > 0:
+		await get_tree().create_timer(0.7).timeout
+		await _pagar_pablo()
 	# CAI SE UNE A LA TRIPULACIÓN: al volver del puerto que abre la PESCA. Como
 	# Saverio, al cerrar el diálogo lleva al jugador de la mano a su pantalla —
 	# que aquí es la clase entera de pescar.
@@ -327,6 +339,31 @@ func _presentar_saverio() -> void:
 	await caja.finished
 	await caja.close_and_free()
 	GameState.fade_to_scene("res://scenes/shop_screen.tscn", 0.4, 0.5)
+
+
+## PABLO PAGA. La deuda se apunta al cerrar su nivel (`GameState.pending_ingots`)
+## y se cobra AQUÍ, ya de vuelta en el mapa: los lingotes entran en la caja de
+## arriba mientras David los explica, con el contador a la vista y su botón "+"
+## a un dedo. En el nivel no había ninguna caja en pantalla y la explicación
+## señalaba a un sitio vacío.
+func _pagar_pablo() -> void:
+	var lingotes := GameState.pending_ingots
+	GameState.pending_ingots = 0
+	GameState.ingots_intro_done = true
+	GameState.ingots += lingotes
+	GameState.save_game()
+	_refresh_resources()
+	var caja := DialogueBox.new()
+	caja.z_index = 200
+	ui_layer.add_child(caja)
+	caja.say([
+		{ "text": "Casi se me olvida: Pablo pagó lo que comió. **%d lingotes de oro**, ya en tu bodega." % lingotes, "mood": "feliz" },
+		{ "text": "¡LINGOTES! ¡RAAAK! ¡BRILLAN MÁS QUE LAS MONEDAS!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "Y valen más, plumas. Los **lingotes** son la moneda de verdad: con ellos se compran **sacos de arroz** y bolsas de doblones cuando andas justo.", "mood": "hablando" },
+		{ "text": "Mira arriba del todo, %s: ahí los tienes contados, con su botón **+** al lado. Gástalos con cabeza: no caen todos los días." % GameState.player_title(), "mood": "serio" },
+	])
+	await caja.finished
+	await caja.close_and_free()
 
 
 ## Antes del PRIMER bonus diario, David explica de qué va el mapa del tesoro.
@@ -884,6 +921,17 @@ func _process(delta: float) -> void:
 			# Si acaba de caer un saco, se repinta la caja entera.
 			if GameState.rice != antes:
 				_refresh_resources()
+	# La punta de la caña VIAJA CON EL BARCO. Estaba clavada en píxeles de
+	# lienzo (`FishingGame.ROD_TIP`), medida con el barco cabeceando; con
+	# "menos animaciones" el barco se queda plano, la borda sube unos píxeles
+	# y la línea blanca del sedal nacía fuera del casco. `ROD_LOCAL` es el
+	# punto del BARCO que cae en esa medida cuando está en reposo (despejado
+	# con la base de proyección de la cámara), así que proyectarlo por
+	# fotograma vale para cualquier pose y cualquier ajuste de gráficos.
+	if fishing_ui != null and is_instance_valid(fishing_ui) \
+			and ship_pivot != null and cam != null:
+		fishing_ui.rod_tip = cam.unproject_position(
+			ship_pivot.global_transform * ROD_LOCAL)
 	if not in_menu:
 		return
 	_mt += delta
@@ -1303,11 +1351,17 @@ func _explicar_arroz() -> DialogueBox:
 func _guiar_a_aventura() -> void:
 	if GameState.menu_intro_done or aventura_btn == null:
 		return
-	# Una pausa para que la interfaz termine de entrar antes de oscurecerla.
-	await get_tree().create_timer(0.8).timeout
+	# EL VELO VA LO PRIMERO, sin esperar. Antes se dejaban 0,8 s para que la
+	# interfaz terminara de entrar y en ese hueco el menú estaba vivo: daba
+	# tiempo de sobra a abrir la Tienda o los Logros antes de que David llegara
+	# a decir nada. El velo traga los toques desde el primer fotograma, así que
+	# ahora la espera se hace CON la puerta cerrada.
 	if leaving or start_mode:
 		return
 	var velo := _velo_guia()
+	await get_tree().create_timer(0.55).timeout
+	if leaving or start_mode or not is_instance_valid(velo):
+		return
 	# El tablón entero por debajo del velo salvo el pergamino de Aventura.
 	var z_antes := aventura_btn.z_index
 	aventura_btn.z_index = 180
@@ -1975,7 +2029,7 @@ func _go_fishing() -> void:
 	if leaving or fishing_ui != null:
 		return
 	if not GameState.fishing_unlocked():
-		_show_locked_notice("La Pesca se abre al superar\nel nivel 5 de la Aventura.")
+		_show_locked_notice("La Pesca se abre al superar\nla Isla de Gades (nivel 8).")
 		return
 	leaving = true
 	_ui_out(false)

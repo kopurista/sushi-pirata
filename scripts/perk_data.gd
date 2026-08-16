@@ -73,6 +73,10 @@ const PERKS: Dictionary = {
 		# Prima EXTRA (en %) sobre lo que paga el barco por su variedad.
 		"levels": [0, 15, 30, 50, 75],
 		"level_text": "El barco paga un %d%% más de prima por variedad.",
+		# EL NIVEL 1 DEL BARCO NO SUMA NADA: lo que da es el barco EN SÍ, que sin
+		# este bonificador no existe. Con la plantilla general decía "paga un 0%
+		# más de prima", que se lee como un bonificador roto.
+		"level_text_1": "Habilita el barco combinado en los puertos que lo permiten.",
 	},
 }
 
@@ -109,6 +113,11 @@ static func value_at(id: String, level: int) -> float:
 
 ## Frase de lo que hace en ese nivel ("Descansa 48 s entre plato y plato").
 static func level_text(id: String, level: int) -> String:
+	# Un bonificador puede traer una frase PROPIA para su nivel de salida, si en
+	# ese nivel su efecto todavía no suma nada (el barco).
+	var suyo := str(get_perk(id).get("level_text_%d" % level, ""))
+	if suyo != "":
+		return suyo
 	var plantilla := str(get_perk(id).get("level_text", ""))
 	if plantilla == "":
 		return ""

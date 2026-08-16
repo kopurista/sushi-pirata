@@ -615,27 +615,55 @@ func _rebuild_perk_bar() -> void:
 	_add_perk_bar(load("res://scripts/prep_board.gd"))
 
 
-## Recetas de 2 estrellas en la selección. Lo mira el aviso de los piratas.
-func _lleva_dos_estrellas() -> bool:
+## ¿Lleva la selección algún plato de N estrellas o más?
+func _lleva_estrellas(n: int) -> bool:
 	for id in selected:
-		if int(RecipeData.get_recipe(id).get("level", 1)) >= 2:
+		if int(RecipeData.get_recipe(id).get("level", 1)) >= n:
 			return true
 	return false
 
 
+## QUÉ CLIENTELA SE VA A QUEDAR MIRANDO LA CINTA, si es que alguna: devuelve
+## "A" (piratas sin platos de 2★), "G" (capitanes sin platos de 3★) o "".
+##
+## NO AVISA EN EL PUERTO QUE ESTRENA ESE TIPO DE CLIENTE. En el primer nivel con
+## piratas el jugador no PUEDE llevar un plato de dos estrellas —todavía no
+## tiene ninguno— y es David quien se lo regala dentro del nivel, así que el
+## aviso solo servía para asustar por algo que ya está resuelto. Lo mismo con el
+## primer capitán. A partir de ahí sí: ahí ya es un descuido del jugador.
+func _clientela_desatendida() -> String:
+	var mix: Dictionary = CampaignData.get_port(GameState.current_port) \
+			.get("client_mix", {})
+	for caso in [["G", 3], ["A", 2]]:
+		var tipo: String = caso[0]
+		if int(mix.get(tipo, 0)) <= 0:
+			continue
+		if GameState.current_port == CampaignData.first_port_with(tipo):
+			continue
+		if not _lleva_estrellas(int(caso[1])):
+			return tipo
+	return ""
+
+
 func _on_start_pressed() -> void:
-	# EL PUERTO DE LOS PIRATAS (nivel 9) no perdona una carta de solo grumetes:
-	# la mitad de la clientela come de dos estrellas y sin un plato así se
-	# quedarían mirando la cinta. Gigi avisa, pero NO bloquea: si el jugador
-	# insiste, allá él.
-	if GameState.is_adventure() and not _lleva_dos_estrellas() \
-			and not _avisado_piratas and _puerto_con_piratas():
+	# UNA CARTA DE SOLO GRUMETES NO DA DE COMER A UN PUERTO CON PIRATAS (o con
+	# capitanes): comen de dos y de tres estrellas y sin un plato así se quedan
+	# mirando la cinta. Gigi avisa, pero NO bloquea: si el jugador insiste, allá
+	# él. Y NO avisa en el nivel que estrena cada tipo (ver
+	# `_clientela_desatendida`).
+	var falta := "" if not GameState.is_adventure() or _avisado_piratas \
+			else _clientela_desatendida()
+	if falta != "":
 		_avisado_piratas = true
+		var quien := "capitanes" if falta == "G" else "piratas"
+		var estrellas := "tres" if falta == "G" else "dos"
 		var aviso := DialogueBox.new()
 		$UI.add_child(aviso)
 		aviso.say([
-			{ "text": "¡ALTO AHÍ! ¡RAAAK! ¡En ese puerto hay **piratas**!", "who": "gigi", "mood": "loro_grito" },
-			{ "text": "Y los piratas comen de **dos estrellas**. No llevas ni un plato así: se te van a quedar mirando la cinta con cara de pocos amigos.", "who": "gigi", "mood": "loro" },
+			{ "text": "¡ALTO AHÍ! ¡RAAAK! ¡En ese puerto hay **%s**!" % quien,
+				"who": "gigi", "mood": "loro_grito" },
+			{ "text": "Y los %s comen de **%s estrellas**. No llevas ni un plato así: se te van a quedar mirando la cinta con cara de pocos amigos." % [quien, estrellas],
+				"who": "gigi", "mood": "loro" },
 			{ "text": "Hazle caso, %s. Cambia una receta o prepárate para verlos marchar." % GameState.player_title(), "mood": "loro_resignado" },
 		])
 		await aviso.finished
@@ -650,15 +678,15 @@ func _on_start_pressed() -> void:
 				and GameState.get_perk_uses(regalo) > 0 \
 				and not regalo in perks_selected \
 				and not GameState.port_beaten(GameState.current_port):
-			var falta := DialogueBox.new()
-			$UI.add_child(falta)
-			falta.say([
+			var recado := DialogueBox.new()
+			$UI.add_child(recado)
+			recado.say([
 				{ "text": "¡QUE TE LO PONGAS, HE DICHO! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
 				{ "text": "Toca el **%s** de ahí abajo antes de zarpar. Para algo te lo he dado."
 					% str(PerkData.get_perk(regalo).get("name", regalo)), "mood": "loro_resignado" },
 			])
-			await falta.finished
-			await falta.close_and_free()
+			await recado.finished
+			await recado.close_and_free()
 			return
 	# SIN ARROZ NO SE ZARPA. Se avisa aquí y no al montar el nivel: allí ya
 	# sería tarde y el jugador vería la pantalla parpadear.
@@ -702,9 +730,5 @@ func _rescate_de_david(recetas: Array) -> void:
 	get_tree().reload_current_scene()
 
 
-## ¿Este puerto trae PIRATAS? Es lo que hace que una carta de solo platos de una
-## estrella sea un problema (ver el aviso de `_on_start_pressed`).
-func _puerto_con_piratas() -> bool:
-	var mix: Dictionary = CampaignData.get_port(GameState.current_port) \
-			.get("client_mix", {})
-	return int(mix.get("A", 0)) > 0 or int(mix.get("G", 0)) > 0
+## (El antiguo `_puerto_con_piratas` se fundió en `_clientela_desatendida`, que
+## además distingue piratas de capitanes y calla en el nivel que los estrena.)

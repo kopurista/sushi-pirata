@@ -122,6 +122,11 @@ var daily_intro_done := false
 var trash_intro_done := false
 ## Pablo ya pago la broma del punal con sus lingotes y David los explico.
 var ingots_intro_done := false
+## LINGOTES QUE PABLO DEBE Y AUN NO HA PAGADO. Se apunta al cerrar su nivel y
+## los entrega el MAPA al volver (`main_menu._pagar_pablo`), que es donde estan
+## a la vista las cajas de lingotes, doblones y arroz: dentro del nivel no hay
+## ninguna de las tres y la explicacion de David senalaba a una pantalla vacia.
+var pending_ingots := 0
 ## Cai ya ha dado su clase de pesca (y con ella las tiradas gratis).
 var fishing_intro_done := false
 ## Cai ya se ha enrolado (la escena del mapa al superar la Isla de Gades).
@@ -917,9 +922,10 @@ func complete_port(port_id: String, stars: int) -> Array:
 	# Premio de las TRES estrellas, aparte y solo la primera vez que se sacan.
 	# Va por separado del anterior a propósito: se puede aprobar hoy con 2 y
 	# volver mañana, con mejor carta, a por las 3.
-	# COLECCIONABLE "bandera pirata": un ABORDAJE superado con las 3 estrellas.
-	if stars >= 3 and CampaignData.get_kind(port_id) == "abordaje":
-		unlock_collectible("bandera")
+	# (La BANDERA PIRATA ya no se gana aquí: se la regala EN MANO el pirata del
+	# Estrecho del Rayo cuando se le da bien de comer, ver
+	# `level_director._nivel_7`. Colgada de "un abordaje con 3 estrellas" no
+	# tenía ninguna escena detrás: aparecía sola en el cartel de resultados.)
 	if stars >= 3 and prev_best < 3:
 		for r in port.get("reward_recipes_3", []):
 			if unlock_recipe(r):
@@ -1525,6 +1531,7 @@ func save_game() -> void:
 		"daily_intro_done": daily_intro_done,
 		"trash_intro_done": trash_intro_done,
 		"ingots_intro_done": ingots_intro_done,
+		"pending_ingots": pending_ingots,
 		"fishing_intro_done": fishing_intro_done,
 		"cai_intro_done": cai_intro_done,
 		"col_intro_done": col_intro_done,
@@ -1670,6 +1677,7 @@ func load_game() -> void:
 	daily_intro_done = bool(parsed.get("daily_intro_done", tutorial_done))
 	trash_intro_done = bool(parsed.get("trash_intro_done", tutorial_done))
 	ingots_intro_done = bool(parsed.get("ingots_intro_done", tutorial_done))
+	pending_ingots = int(parsed.get("pending_ingots", 0))
 	fishing_intro_done = bool(parsed.get("fishing_intro_done", tutorial_done))
 	cai_intro_done = bool(parsed.get("cai_intro_done", tutorial_done))
 	col_intro_done = bool(parsed.get("col_intro_done", tutorial_done))
@@ -1761,6 +1769,7 @@ func _new_game() -> void:
 	daily_intro_done = false
 	trash_intro_done = false
 	ingots_intro_done = false
+	pending_ingots = 0
 	fishing_intro_done = false
 	cai_intro_done = false
 	col_intro_done = false

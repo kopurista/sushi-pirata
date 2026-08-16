@@ -899,7 +899,7 @@ func _eat_snack(recipe_id: String, data: Dictionary) -> void:
 	# no cuesta ninguno, pero ocupa un hueco de la carta y, como todos los
 	# picoteos, tampoco SUMA.
 	if data.get("clears_boredom", false):
-		tried.clear()
+		_limpiar_paladar()
 	var price: int = int(round(data.get("price", 0) * pay_mult)) + SNACK_BONUS
 	# EL PICOTEO QUE SÍ SUMA VARIEDAD ("variety_snack", hoy solo el sunomono):
 	# cobra el bono de oro del multiplicador VIGENTE y sube un punto la primera
@@ -993,7 +993,7 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 		* float(recipe.get("patience_mult", 1.0))
 	if recipe.get("leaves_seat", false) or recipe.get("snack", false):
 		if recipe.get("clears_boredom", false):
-			tried.clear()
+			_limpiar_paladar()
 		# El sunomono ("variety_snack") es el único picoteo que SUMA racha; ver
 		# `_eat_snack`, que es la otra puerta por la que entra un picoteo.
 		if recipe.get("variety_snack", false) and not tried.has(current_id):
@@ -1005,7 +1005,7 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 		# PLATO QUE LIMPIA EL PALADAR sin ser picoteo (la sopa de miso): borra el
 		# historial —todo vuelve a contar como nuevo— pero NO toca la racha: ni
 		# la sube ni la rompe. Recarga como un plato normal de su nivel.
-		tried.clear()
+		_limpiar_paladar()
 		patience = minf(patience + base * patience_max, patience_max)
 	elif not tried.has(current_id) or not current_extras.is_empty():
 		# BONO DEL MULTIPLICADOR: cada plato nuevo paga su precio + 1 doblón
@@ -1020,7 +1020,7 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 			# partir de aquí todo vuelve a contar como nuevo. Se paga con un
 			# punto de multiplicador (a diferencia del té verde, que reinicia
 			# el arco pero deja la racha a cero).
-			tried.clear()
+			_limpiar_paladar()
 			_set_variety(maxi(variety - 1, 0), false)
 		else:
 			tried[current_id] = true
@@ -1063,6 +1063,23 @@ func variety_cap() -> int:
 			and level_ref.variety_x2_timer > 0.0:
 		tope *= 2
 	return tope
+
+
+## PALADAR LIMPIO: todo vuelve a contar como nuevo. Borra el historial de
+## platos Y LA ESCALERA DEL HASTÍO, que es lo que se dejaba fuera.
+##
+## `repeat_count` solo subía y no lo reiniciaba nadie, así que "limpiar el
+## paladar" era media limpieza: el cliente olvidaba QUÉ había comido, pero
+## seguía contando CUÁNTAS veces le habían repetido, y la primera repetición
+## después del jengibre caía en el peldaño siguiente de la escalera — con la
+## escalera ya arriba, DRENANDO la barra. Pagar 10 doblones y un punto de
+## multiplicador por un paladar limpio y que el siguiente repetido castigara
+## igual que antes es justo lo que se veía como "el jengibre no ajusta bien".
+## Lo usan las tres cosas que limpian: el té verde, la sopa de miso y el
+## jengibre.
+func _limpiar_paladar() -> void:
+	tried.clear()
+	repeat_count = 0
 
 
 func _set_variety(n: int, pop: bool) -> void:

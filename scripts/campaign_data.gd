@@ -263,8 +263,12 @@ const PORTS: Array = [
 		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "te_verde"],
 		"gift_recipes": ["mochi"],
 		# PRIMER NIVEL CON BOTE DE PROPINAS: aquí se estrenan los potenciadores
-		# de partida. Y superarlo abre la PESCA del menú.
-		"unlocks_fishing": true,
+		# de partida. La PESCA NO se abre aquí: la trae Cai en la Isla de Gades
+		# (nivel 8), que es quien da la clase. Este puerto se quedó con el
+		# `unlocks_fishing` de cuando la pesca era suya, y como
+		# `GameState.fishing_unlocked` devuelve en el PRIMER puerto que lo
+		# lleve, el nivel 8 no pintaba nada: la pesca se abría en el 5 y el
+		# jugador llegaba a la pantalla sin haber recibido la clase.
 		"director": "nivel_5",
 		"no_extras": true,
 		"no_perks": true,
@@ -294,11 +298,19 @@ const PORTS: Array = [
 		"name": "Estrecho del Rayo",
 		"desc": "¡Abordaje! Reloj, clientela sin fin y los primeros piratas.",
 		# Abordaje: esta mezcla es solo la PRIMERA tanda.
-		"client_mix": { "E": 4, "A": 2 },
+		# UN SOLO PIRATA EN TODO EL NIVEL. Es EL pirata de la bandera: el
+		# coleccionable se gana dándole de comer a ÉL, así que si subieran más
+		# por la borda no habría forma de saber a cuál se le está sirviendo.
+		# Por eso los pesos de las llegadas sin fin son solo de grumete: en un
+		# abordaje, agotada la primera tanda, el sorteo sigue con las
+		# proporciones de la mezcla si el puerto no trae pesos propios.
+		"client_mix": { "E": 5, "A": 1 },
+		"client_weights": { "E": 1 },
 		# EL PIRATA ES EL TERCERO EN ENTRAR, y a propósito: tiene que llegar
-		# pronto para que dé tiempo a estrenar el nigiri de atún con él, pero
-		# después de un par de grumetes para que la novedad se note.
-		"client_order": ["E", "E", "A", "E", "E", "A"],
+		# pronto para que dé tiempo a estrenar el nigiri de atún con él y a
+		# darle sus platos, pero después de un par de grumetes para que la
+		# novedad se note.
+		"client_order": ["E", "E", "A", "E", "E", "E"],
 		"arrival_span": 100.0,
 		"patience_mult": 0.9,
 		"arrival_scale": 0.8,
@@ -602,6 +614,22 @@ static func kind_texture(id: String) -> String:
 ## Posición del nivel en el lienzo del mapa.
 static func map_pos(id: String) -> Vector2:
 	return MAP_POS.get(id, Vector2.ZERO)
+
+
+## EL PUERTO QUE ESTRENA UN TIPO DE CLIENTE ("A" piratas, "G" capitanes): el
+## primero de la campaña cuya mezcla lo trae. Se calcula de los datos y no se
+## escribe a mano, así que mover un nivel de sitio no lo deja mintiendo.
+##
+## Lo mira el aviso de Gigi del selector de recetas: en el nivel que ESTRENA un
+## tipo, regañar al jugador por no llevar platos de esas estrellas no tiene
+## sentido — evidentemente no los lleva, si es la primera vez que los ve, y es
+## David quien le regala la receta dentro del propio nivel.
+static func first_port_with(tipo: String) -> String:
+	for p in PORTS:
+		var mix: Dictionary = p.get("client_mix", {})
+		if int(mix.get(tipo, 0)) > 0:
+			return str(p.get("id", ""))
+	return ""
 
 
 ## Devuelve el diccionario del nivel con ese id, o {} si no existe.

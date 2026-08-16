@@ -37,7 +37,7 @@ const ITEMS: Array = [
 	},
 	{
 		"id": "bandera", "name": "Bandera pirata",
-		"desc": "Supera un abordaje con 3 estrellas.",
+		"desc": "Regalo del pirata del Estrecho del Rayo, por darle bien de comer.",
 	},
 	{
 		"id": "mapa_tesoro", "name": "Mapa del tesoro",

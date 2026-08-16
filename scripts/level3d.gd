@@ -1752,9 +1752,16 @@ func _ask_start() -> void:
 	# cartel ESPERA a que termine de hablar: salir a la vez le tapaba la
 	# conversación y había que quitárselo de encima para poder leerla.
 	for hijo in get_children():
-		if hijo is StoryDirector:
-			while is_instance_valid(hijo) and hijo.dialog != null 					and hijo.dialog.is_talking():
-				await get_tree().process_frame
+		if not (hijo is StoryDirector):
+			continue
+		# Se espera a `narrating` (se apaga en el primer `_play` del guion), no
+		# a `is_talking()`: los dos arrancan en diferido y aquí el guion aún
+		# está midiendo su foco, así que lo encontraba callado y el cartel salía
+		# encima con su paño negro, oscureciendo lo que el foco iluminaba.
+		var tope := 0.0
+		while is_instance_valid(hijo) and hijo.narrating and tope < 90.0:
+			tope += get_process_delta_time()
+			await get_tree().process_frame
 	var overlay := ColorRect.new()
 	overlay.name = "StartGate"
 	overlay.color = Color(0, 0, 0, 0.5)

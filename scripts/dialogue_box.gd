@@ -70,6 +70,24 @@ const SPEAKERS := {
 		"dir": "res://assets/characters/cai", "file": "cai",
 		"name": "Cai", "side": "right", "plate": "left", "mood": "serio",
 	},
+	# LOS CLIENTES DE SIEMPRE, sin nombre propio: cuando a un guion le hace
+	# falta que hable el que está sentado en la barra (el pirata del nivel 7 y
+	# su bandera). Sus retratos salen del MISMO concepto con el que se
+	# modelaron los clientes 3D, reencuadrados de cintura para arriba, así que
+	# el de la caja y el del taburete son el mismo personaje. Como Saverio,
+	# Pablo y Cai, salen a la DERECHA: la izquierda es siempre de David.
+	"grumete": {
+		"dir": "res://assets/characters/grumete", "file": "grumete",
+		"name": "Grumete", "side": "right", "plate": "left", "mood": "serio",
+	},
+	"pirata": {
+		"dir": "res://assets/characters/pirata", "file": "pirata",
+		"name": "Pirata", "side": "right", "plate": "left", "mood": "serio",
+	},
+	"capitan": {
+		"dir": "res://assets/characters/capitan", "file": "capitan",
+		"name": "Capitán", "side": "right", "plate": "left", "mood": "serio",
+	},
 }
 const DEFAULT_SPEAKER := "david"
 

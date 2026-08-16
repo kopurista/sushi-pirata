@@ -50,6 +50,14 @@ enum State { READY, SHADOW, APPROACH, FEINT, BITE, FIGHT, REVEAL, ESCAPED }
 ## Punta de la caña (borde derecho del barco DEL MENÚ, medido sobre captura)
 ## y rectángulo de agua útil para lanzar y para la sombra.
 const ROD_TIP := Vector2(505, 395)
+## PUNTA DE LA CAÑA VIGENTE. `ROD_TIP` es la medida de reposo con la pose que
+## tiene el barco cuando cabecea; el barco es 3D y con "menos animaciones" se
+## queda plano, así que la borda se dibuja unos píxeles más arriba y la línea
+## blanca nacía FUERA del casco. `main_menu` la reescribe por fotograma
+## proyectando un punto del propio barco (ver `ROD_LOCAL` allí), así que el
+## sedal queda pegado a la borda con cualquier ajuste de gráficos. Si nadie la
+## toca (una pantalla que no sea el menú), se queda en la medida de reposo.
+var rod_tip := ROD_TIP
 const WATER := Rect2(50.0, 545.0, 620.0, 550.0)
 const SHADOW_MARGIN := 70.0
 ## Radio del campo de visión del pez: el anzuelo tiene que caer a esto.
@@ -322,7 +330,11 @@ func _setup_ui() -> void:
 	fila_coste.add_child(moneda)
 	var coste := Label.new()
 	cast_cost_label = coste
-	coste.text = "%d" % FishData.FISHING_COST
+	# El texto lo pone `_refresh_cast_label` al final del montaje: escribiendo
+	# aquí el precio a pelo, la PRIMERA tirada de una visita con regalos de Cai
+	# pendientes decía "100" (y la de después ya decía "GRATIS x2"), como si el
+	# juego hubiera cobrado el intento que en realidad salía gratis.
+	coste.text = ""
 	coste.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	coste.add_theme_font_size_override("font_size", 26)
 	coste.add_theme_color_override("font_color", Color(1, 0.86, 0.4))
@@ -367,6 +379,7 @@ func _setup_ui() -> void:
 	add_child(album_btn)
 
 	_setup_fight_ui()
+	_refresh_cast_label()
 
 
 ## Dónde se dibuja la CAÑA-HUD y dónde caen, EN FRACCIONES de su rectángulo,
@@ -586,7 +599,7 @@ func _pick_wander() -> Vector2:
 ## Lanza (o relanza) el sedal al punto tocado. Relanzar es gratis: el intento
 ## ya está cobrado.
 func _cast_to(punto: Vector2) -> void:
-	cast_from = ROD_TIP
+	cast_from = rod_tip
 	cast_to = Vector2(clampf(punto.x, WATER.position.x, WATER.end.x),
 		clampf(punto.y, WATER.position.y, WATER.end.y))
 	casting = true
@@ -601,8 +614,8 @@ func _tick_precast(delta: float) -> void:
 		# RECOGER el sedal: solo MANTENIENDO la pantalla (la única forma de
 		# volver a lanzar si el pez pasa del anzuelo).
 		if retrieving and bobber_out and not casting:
-			bobber = bobber.move_toward(ROD_TIP, RETRIEVE_SPEED * delta)
-			if bobber.distance_to(ROD_TIP) < 26.0:
+			bobber = bobber.move_toward(rod_tip, RETRIEVE_SPEED * delta)
+			if bobber.distance_to(rod_tip) < 26.0:
 				bobber_out = false
 				retrieving = false
 				instruction.text = "Toca el agua para lanzar el sedal"
@@ -812,7 +825,7 @@ func _tick_fight(delta: float) -> void:
 	# `line_t` persigue ese destino con retardo para que el viaje se vea.
 	var destino_t := lerpf(LINE_T_NEAR, LINE_T_FAR, energy)
 	line_t = move_toward(line_t, destino_t, LINE_FOLLOW * delta)
-	bobber = ROD_TIP + (fight_far - ROD_TIP) * line_t
+	bobber = rod_tip + (fight_far - rod_tip) * line_t
 	bobber.y = maxf(bobber.y, WATER.position.y + 14.0)
 	_animate_rod(delta, en_velocidad)
 	tension_bar.value = tension
@@ -926,7 +939,7 @@ func _draw_sea() -> void:
 	if state == State.FIGHT:
 		# Enganchado: DEBAJO de la boya, tirando mar adentro (de espaldas al
 		# barco), y viaja con ella por el sedal.
-		heading = (bobber - ROD_TIP).angle()
+		heading = (bobber - rod_tip).angle()
 		spos = bobber + Vector2(0.0, _fish_r() * 0.55 + 10.0) \
 			+ Vector2(randf_range(-3.0, 3.0), randf_range(-2.0, 2.0))
 	var r := _fish_r()
@@ -944,11 +957,11 @@ func _draw_sea() -> void:
 	elif state == State.FIGHT:
 		pos += Vector2(randf_range(-3.0, 3.0), randf_range(-2.0, 2.0))
 	var sag := 10.0 if state == State.FIGHT or casting else 56.0
-	var mid := (ROD_TIP + pos) * 0.5 + Vector2(0.0, sag)
+	var mid := (rod_tip + pos) * 0.5 + Vector2(0.0, sag)
 	var pts := PackedVector2Array()
 	for i in 13:
 		var t := i / 12.0
-		var a := ROD_TIP.lerp(mid, t)
+		var a := rod_tip.lerp(mid, t)
 		var b := mid.lerp(pos, t)
 		pts.append(a.lerp(b, t))
 	zone.draw_polyline(pts, Color(0.93, 0.93, 0.88, 0.85), 2.4, true)

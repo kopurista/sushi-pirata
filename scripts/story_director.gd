@@ -39,6 +39,17 @@ var focus_mat: ShaderMaterial
 ## el tutorial no se veía ni el reloj, ni el oro, ni los clientes... pero sí los
 ## de más adelante.
 var _focus_on := false
+## ¿Está el guion dando su PRESENTACIÓN de apertura? Lo mira `level3d._ask_start`
+## para no sacar el cartel de "¿Comenzamos?" encima de David: ese cartel trae un
+## paño negro al 50% a pantalla completa y, sumado al foco del guion, dejaba lo
+## enfocado tan oscuro como el resto (era el "se aplican dos sombras" del nigiri
+## del nivel 1 y de la barra de propinas del 5).
+## No vale con preguntar `dialog.is_talking()`: los dos arrancan en diferido y
+## el guion todavía está esperando fotogramas para medir el foco cuando el
+## cartel se monta, así que lo encuentra callado. Se apaga en el primer `_play`,
+## que es justo cuando el guion le devuelve el turno al jugador — y los quince
+## directores llaman a `_play` antes de esperar al fin de la preparación.
+var narrating := true
 ## Aviso que suelta Gigi si el jugador se queda parado ("" = vigía apagado).
 var _recordatorio := ""
 var _quieto := 0.0
@@ -195,6 +206,7 @@ func _say_raised(lines: Array, espera := -1.0,
 ## Suelta el reloj: fase interactiva. `aviso` es lo que recordará Gigi si el
 ## jugador se queda parado.
 func _play(aviso := "") -> void:
+	narrating = false
 	lv.clock_hold = false
 	_recordatorio = aviso
 	_quieto = 0.0

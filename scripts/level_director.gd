@@ -660,6 +660,33 @@ func _nivel_6() -> void:
 # primeros PIRATAS del juego. Los capitanes NO salen aquí: llegan con Pablo, en
 # el 10. El pirata es el TERCER cliente (`client_order` del puerto), así que no
 # hay que adelantar a nadie: solo esperar a que se siente.
+#
+# Y ES **EL** PIRATA: sube uno solo en todo el nivel (ver `client_weights` del
+# puerto) porque es quien lleva encima la BANDERA PIRATA, y este es el único
+# sitio del juego donde se consigue. Le pone precio él mismo, en su propio
+# retrato: PLATOS_BANDERA platos y el trapo es tuyo.
+
+## Platos que hay que servirle al pirata para que suelte su bandera.
+const PLATOS_BANDERA := 5
+
+
+## QUÉ SON LOS COLECCIONABLES. Se cuenta UNA sola vez en toda la partida y
+## SIEMPRE con una pieza recién ganada en la mano (`col_intro_done`): la bandera
+## del pirata, el tesoro del cliente del nivel 12 o el primer cofre de la pesca,
+## lo que llegue antes. Soltado a palo seco al empezar un puerto sonaba a
+## folleto; con la pieza delante se explica solo.
+func _explicar_coleccionables() -> void:
+	if GameState.col_intro_done:
+		return
+	GameState.col_intro_done = true
+	GameState.save_game()
+	await _say([
+		{ "text": "Eso que acabas de guardarte es un **coleccionable**.", "mood": "feliz" },
+		{ "text": "No dan oro ni sirven para cocinar. Se tienen, y punto: van a la **vitrina** del Inventario, y ahí se quedan para toda la travesía.", "mood": "hablando" },
+		{ "text": "¡PARA TODA LA TRAVESÍA! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+		{ "text": "Los hay repartidos por medio mar, y cada uno se consigue de una manera. Ese es el primero.", "mood": "serio" },
+	])
+
 
 func _nivel_7() -> void:
 	await _focus_node(lv.time_label, 24.0)
@@ -698,6 +725,47 @@ func _nivel_7() -> void:
 	])
 	_play("¡El **nigiri de atún**! Estrénalo con el pirata.")
 	await lv.prep_board.dish_served
+	_play()
+
+	# --- EL TRATO DE LA BANDERA ---
+	# El pirata habla por sí mismo (retrato propio) y pone precio a su bandera.
+	# Es el ÚNICO sitio del juego donde se consigue ese coleccionable, y por eso
+	# este puerto trae un solo pirata: con dos no habría forma de saber a cuál
+	# se le está sirviendo.
+	if pirata == null or not is_instance_valid(pirata) or lv.ended:
+		return
+	await get_tree().create_timer(1.0).timeout
+	if not is_instance_valid(pirata) or lv.ended:
+		return
+	_focus_client(pirata)
+	await _say([
+		{ "text": "Eh, cocinero. Baja un momento.", "who": "pirata", "mood": "nervioso" },
+		{ "text": "Mi capitán me manda a comer y vuelvo con el buche vacío... y esta noche me deja fregando la sentina.", "who": "pirata", "mood": "hablando" },
+		{ "text": "Ponme **%d platos** y te doy mi **bandera**. La llevo desde el primer abordaje, pero prefiero cenar." % PLATOS_BANDERA,
+			"who": "pirata", "mood": "serio" },
+		{ "text": "¡CINCO PLATOS POR UN TRAPO! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+		{ "text": "Ese trapo es un **coleccionable**, plumas. Tú sírvele, %s." % GameState.player_title(), "mood": "loro_resignado" },
+	])
+	_play("¡Cinco platos para el **pirata**! Lo demás ya vendrá.")
+
+	# --- Se cumple el trato: la bandera en mano ---
+	await _esperar(func() -> bool:
+		return lv.ended or not is_instance_valid(pirata) \
+			or pirata.eaten_ids.size() >= PLATOS_BANDERA)
+	if lv.ended or not is_instance_valid(pirata) \
+			or pirata.eaten_ids.size() < PLATOS_BANDERA:
+		return
+	_focus_client(pirata)
+	await _say([
+		{ "text": "Uf. Hacía años que no comía así.", "who": "pirata", "mood": "feliz" },
+		{ "text": "Lo prometido. Cuídala mejor que yo.", "who": "pirata", "mood": "hablando" },
+	])
+	# La ventana del coleccionable la saca `GameState` (capa global de avisos),
+	# así que primero se suelta el foco y después se entrega.
+	_play()
+	GameState.unlock_collectible("bandera")
+	await get_tree().create_timer(0.4).timeout
+	await _explicar_coleccionables()
 	_play()
 
 
@@ -811,19 +879,23 @@ func _nivel_10() -> void:
 	])
 	_play()
 
-	# --- Al cerrar el turno: Pablo paga la broma en LINGOTES ---
+	# --- Al cerrar el turno: Pablo se despide y PROMETE la paga ---
+	# LOS LINGOTES NO SE ENTREGAN AQUÍ. La entrega y la explicación de David
+	# ocurren EN EL MAPA (`main_menu._pagar_pablo`), que es donde están a la
+	# vista las tres cajas —lingotes, doblones y arroz— y donde señalar el
+	# contador significa algo. Dentro del nivel no hay ninguna de las tres, así
+	# que "los tienes arriba del todo, con su botón +" se decía sobre una
+	# pantalla en la que no había nada que mirar.
 	await _esperar(func() -> bool: return lv.ended)
 	var aprobado: bool = lv.star_money.size() > 1 \
 			and lv._star_money() >= int(lv.star_money[1])
 	if aprobado and not GameState.ingots_intro_done:
-		GameState.ingots_intro_done = true
-		GameState.ingots += LINGOTES_PABLO
+		GameState.pending_ingots = LINGOTES_PABLO
 		GameState.save_game()
 		await _say([
-			{ "text": "Se acabó el pescado. Toma, cocinero: **%d lingotes de oro**. Que no se diga." % LINGOTES_PABLO, "who": "pablo", "mood": "feliz" },
-			{ "text": "¡LINGOTES! ¡RAAAK! ¡BRILLAN MÁS QUE LAS MONEDAS!", "who": "gigi", "mood": "loro_sorpresa" },
-			{ "text": "Y valen más, plumas. Los **lingotes** son la moneda de verdad: con ellos se compran **sacos de arroz** y bolsas de doblones cuando andas justo.", "mood": "hablando" },
-			{ "text": "Los tienes arriba del todo, en el menú, con su botón **+**. Gástalos con cabeza: no caen todos los días.", "mood": "serio" },
+			{ "text": "Se acabó el pescado. Y yo pago lo que como, David: esto vale bastante más que unas monedas.", "who": "pablo", "mood": "feliz" },
+			{ "text": "¡QUE SUELTE YA! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+			{ "text": "Ya te lo dará cuando volvamos a bordo, plumas. Tú, %s, vete recogiendo." % GameState.player_title(), "mood": "loro_resignado" },
 		])
 	dialog.close()
 	_clear_focus()
@@ -908,11 +980,14 @@ func _nivel_11() -> void:
 # (`collectible_client` del puerto, que lo entrega solo en level3d).
 
 func _nivel_12() -> void:
+	# (Qué SON los coleccionables ya lo contó el pirata del nivel 7 con su
+	# bandera en la mano; aquí solo se avisa de que hoy paga uno con una pieza.
+	# Si por lo que sea el jugador se quedó sin bandera, `_explicar_coleccionables`
+	# lo cuenta abajo, cuando el tesoro está sobre el mostrador.)
 	await _say([
 		{ "text": "**Ensenada del Naufragio**. Y hoy vengo con un chisme que te va a gustar.", "mood": "feliz" },
 		{ "text": "Por estas aguas hay clientes que no llevan oro encima... pero llevan **tesoros**.", "mood": "hablando" },
 		{ "text": "¡CHATARRA! ¡RAAAK!", "who": "gigi", "mood": "loro" },
-		{ "text": "**Coleccionables**, plumas. Piezas para la vitrina del camarote. No dan oro ni sirven para cocinar: se tienen, y punto.", "mood": "loro_resignado" },
 		{ "text": "Hoy baja uno de esos a la barra. Sírvele bien y verás lo que deja sobre el mostrador.", "mood": "serio" },
 	])
 	_play()
@@ -925,9 +1000,12 @@ func _nivel_12() -> void:
 	if lv.ended:
 		return
 	await get_tree().create_timer(0.8).timeout
-	await _say([
-		{ "text": "¡Ahí lo tienes! A la **vitrina** del Inventario, con el resto de la colección.", "mood": "riendo" },
-	])
+	if GameState.col_intro_done:
+		await _say([
+			{ "text": "¡Ahí lo tienes! A la **vitrina** del Inventario, con el resto de la colección.", "mood": "riendo" },
+		])
+	else:
+		await _explicar_coleccionables()
 	_play()
 
 

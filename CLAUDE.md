@@ -89,7 +89,7 @@ cocinar antes de aprender a leer paladares.
 | 4 | Arrecife del Ron | puerto | multiplicador, hastío y paladar; abre la TIENDA |
 | 5 | Cala del Calamar | isla | POSTRES, propinas y potenciadores |
 | 6 | Bahía del Kraken | puerto | los EXTRAS |
-| 7 | Estrecho del Rayo | abordaje | primer ABORDAJE y primeros PIRATAS |
+| 7 | Estrecho del Rayo | abordaje | primer ABORDAJE, EL pirata y su BANDERA |
 | 8 | Isla de Gades | isla | CAI y la PESCA |
 | 9 | Puerto Tormenta | puerto | los BONIFICADORES (regala el paladar) |
 | 10 | Flota de Pablo | abordaje | CAPITANES, corte lento y LINGOTES |
@@ -113,7 +113,24 @@ de Bonificadores vende NIVELES. Los USOS se ganan repitiendo su hazaña —
 `unlock_perk` regala uno CADA VEZ que se cumple, no solo la primera. Efectos:
 ayudante 60→30 s de descanso, paladar x6→x10, cocina veloz 60→40 % de
 enfriamiento (en PORCENTAJE, no en fracción: "%d%%" de 0.6 imprimía "0%") y
-barco +0→+75 % de prima por variedad.
+barco +0→+75 % de prima por variedad. El barco lleva además `level_text_1`
+propio ("habilita el barco combinado"), porque en su nivel de salida su efecto
+no suma nada y la plantilla general decía "paga un **0%** más de prima", que se
+lee como un bonificador roto; `PerkData.level_text` mira `level_text_<n>` antes
+que la plantilla, así que cualquier otro puede hacer lo mismo.
+
+**LA TARJETA DE UN BONIFICADOR CRECE CON SU CONTENIDO** (`perks_screen`): iba
+como una FILA de alto fijo (168 px) con el botón a la derecha, y entre el
+icono, los márgenes y un botón de 180 px a los textos les quedaban ~260 px de
+ancho, así que el nombre, el efecto y la condición se partían en cinco o seis
+renglones y se salían de la tarjeta. Ahora va en dos plantas —cabecera con
+icono y nombre, y el botón abajo a la derecha— y sin alto fijo. El botón de
+**Mejorar** lleva su precio DIBUJADO dentro, con la moneda del juego
+(`_make_upgrade_button`), en vez de tres renglones de texto pelado
+("Mejorar\na nivel 3\n$2000") que no cabían; y **PREGUNTA ANTES**
+(`_confirmar_mejora`), con lo que hace HOY el bonificador y lo que hará con la
+mejora, uno debajo del otro: son de 500 a 10.000 doblones y estaba cobrando al
+primer toque sin decir qué se llevaba a cambio.
 
 **CAI** (`assets/characters/cai`, hablante `cai`): el pescador de la Isla de
 Gades. Habla poco y mal —solo sabe japonés— así que sus frases son cortas, sin
@@ -196,6 +213,12 @@ primera vez que se entra en ellos (`logros_intro_done` /
      es el PROPIO VELO quien escucha el toque sobre el pergamino y dispara
      `_go_adventure`. Bandera `menu_intro_done` (los saves con tutorial hecho
      la dan por vista al cargar).
+     **EL VELO VA LO PRIMERO, ANTES DE LA ESPERA.** Se dejaban 0,8 s para que
+     la interfaz terminara de entrar y solo entonces se oscurecía: en ese hueco
+     el menú estaba vivo y daba tiempo de sobra a abrir la Tienda o los Logros
+     antes de que David llegara a decir nada. El velo traga los toques desde el
+     primer fotograma, así que ahora la espera se hace con la puerta cerrada
+     (y se ve entrar el tablón atenuado, que además queda bien).
   4. Mapa: `main_menu._presentar_mapa` encadena las dos explicaciones **EN LA
      MISMA CAJA** — `_explicar_arroz` (`rice_intro_done`) dice su tanda con
      `keep_open`, se quita el foco del saco y DEVUELVE la caja, que recoge
@@ -243,6 +266,16 @@ primera vez que se entra en ellos (`logros_intro_done` /
   grita "¡ESPABILA!" + el recordatorio que dejó puesto `_play(aviso)`. No salta
   con alguien hablando ni con un gesto sostenido en curso
   (`prep_board.is_gesture_locked()`), que se arruinaría.
+- **EL CARTEL DE "¿COMENZAMOS?" ESPERA A QUE EL GUION TERMINE SU PRESENTACIÓN**
+  (`level3d._ask_start` mira `StoryDirector.narrating`, que se apaga en el
+  primer `_play`): ese cartel trae un paño negro al 50% a pantalla completa y,
+  sumado al foco del guion, dejaba lo enfocado tan oscuro como el resto — eran
+  las "dos sombras" del nigiri del nivel 1 y de la barra de propinas del 5.
+  **NO vale preguntar `dialog.is_talking()`**, que es lo que hacía: los dos
+  arrancan en diferido y el guion todavía está esperando fotogramas para medir
+  su foco cuando el cartel se monta, así que lo encuentra callado. Los quince
+  directores llaman a `_play` antes de esperar al fin de la preparación, que es
+  lo que hace segura la espera (con tope de 90 s por si acaso).
 - **`slow_eat` solo se aplica al EMPEZAR un plato; para acortar el bocado YA EN
   MARCHA está `client3d.bite_speed`** (se reinicia con cada plato).
 - `scripts/level_director.gd` narra los puertos que llevan `director` en
@@ -313,9 +346,20 @@ primera vez que se entra en ellos (`logros_intro_done` /
   **N6 — LOS EXTRAS**: Saverio los saca al empezar el turno; el guion pone
   `GameState.extras_done = true` (que es lo que abre los extras en la tabla Y
   en la tienda) y regala 10 usos de cada uno. 3★: sopa de miso.
-  **N7 — PRIMER ABORDAJE Y PRIMEROS PALADARES**: reloj, clientela sin fin y
-  prima por tiempo; y los primeros PIRATAS y CAPITANES del juego, con el regalo
-  del **nigiri de atún** para estrenarlo con el pirata.
+  **N7 — PRIMER ABORDAJE Y EL PIRATA DE LA BANDERA**: reloj, clientela sin fin
+  y prima por tiempo; y el primer PIRATA del juego (los capitanes no llegan
+  hasta el 10, con Pablo), con el regalo del **nigiri de atún** para estrenarlo
+  con él. **SUBE UN SOLO PIRATA EN TODO EL NIVEL** —`client_weights` del puerto
+  es `{E: 1}`, porque en un abordaje, agotada la primera tanda, las llegadas se
+  siguen sorteando con las proporciones de la mezcla— y es a propósito: es EL
+  pirata de la **BANDERA PIRATA**, y con dos no habría forma de saber a cuál se
+  le está sirviendo. Habla POR SÍ MISMO (retrato propio) y pone precio a su
+  bandera: `PLATOS_BANDERA` (5) platos y es tuya, porque su capitán lo manda a
+  comer y no quiere volver con el buche vacío. Al cumplirlo se entrega el
+  coleccionable y David explica QUÉ SON los coleccionables — **este es el único
+  sitio del juego donde se consigue la bandera**. Estuvo colgada de "un
+  abordaje superado con 3 estrellas" (`complete_port`) y así aparecía sola en
+  el cartel de resultados, sin ninguna escena detrás.
   **N8**: la flota de **Pablo el Rubio**: broma del puñal, Pablo tardío que se
   adelanta al 80%, regalo del **salmón tsuke don** y con él la lección del
   CORTE LENTO (`free_mistakes` hasta servir el primero, y Gigi regaña vía
@@ -443,6 +487,15 @@ primera vez que se entra en ellos (`logros_intro_done` /
   fallar el corte lento no cuesta dinero (el aviso y el destello rojo siguen).
   El guion se entera por la señal `slice_failed`, aparte de `money_penalty`
   justamente para poder regañar sin cobrar.
+- **EL AVISO DE "NO LLEVAS PLATOS DE N ESTRELLAS" CALLA EN EL NIVEL QUE ESTRENA
+  ESE CLIENTE** (`prep_screen._clientela_desatendida`): Gigi regaña si el puerto
+  trae piratas y la carta no lleva ningún plato de 2★, o capitanes y ninguno de
+  3★ — pero NO en el primer puerto de la campaña con cada tipo
+  (`CampaignData.first_port_with("A"/"G")`, deducido de los datos y no escrito a
+  mano). Ahí el jugador no PUEDE llevarlo, porque todavía no tiene ninguno, y es
+  David quien se lo regala dentro del propio nivel: el aviso solo servía para
+  asustar por algo que ya estaba resuelto. Antes miraba A o G indistintamente y
+  solo comprobaba las 2★, así que en un puerto de capitanes no avisaba de nada.
 - **`prep_dialog` en un puerto**: aviso de David en el SELECTOR DE RECETAS
   antes de zarpar (`prep_screen._aviso_antes_de_zarpar`). Como los guiones de
   nivel, solo suena si el puerto no está superado.
@@ -625,9 +678,13 @@ primera vez que se entra en ellos (`logros_intro_done` /
     deja avisos de `invalid UID`.
 - **MINIJUEGO DE PESCA** (`scripts/fish_data.gd` + `scripts/fishing_game.gd`):
   el pergamino **"Pesca"** del menú, entre Arcade y Tienda (`ic_pesca`),
-  **ABIERTO DESDE EL INICIO** (decidido para probarlo sin trabas;
-  `GameState.fishing_unlocked()` devuelve true y el candado original —superar
-  el nivel 4, `unlocks_fishing`— queda apuntado ahí por si se repone).
+  **SE ABRE AL SUPERAR LA ISLA DE GADES (nivel 8)**, que es donde CAI se enrola
+  y da la clase: `GameState.fishing_unlocked()` busca el puerto con
+  `unlocks_fishing`. **OJO: devuelve en el PRIMERO que lo lleve**, así que ese
+  campo tiene que estar en UN SOLO puerto — el nivel 5 se quedó con el suyo de
+  cuando la pesca era suya y la abría dos niveles antes, con lo que el jugador
+  llegaba a la pantalla sin haber recibido la clase (los diálogos de Cai sí
+  salían, en el sitio equivocado).
   **NO cambia de escena**: como Aventura, se
   juega SOBRE el propio menú — `_go_fishing` aparta la interfaz con
   `_ui_out(false)` (las cajas de recursos SE QUEDAN, que el intento cuesta
@@ -786,9 +843,20 @@ primera vez que se entra en ellos (`logros_intro_done` /
   · Skins del chef y mapas del tesoro (misiones secundarias) están en el
     DISEÑO del cofre pero FUERA del sorteo: sus sistemas no existen todavía.
   · **La sombra, el sedal y el flotador se DIBUJAN POR CÓDIGO** (señal `draw`
-    del panel táctil): cero assets. `ROD_TIP` (505,395) está medido sobre
-    captura contra el encuadre DEL MENÚ; `WATER` es el rectángulo útil de
-    agua. Entrada solo por `InputEventScreenTouch` (el ratón llega como toque
+    del panel táctil): cero assets. `WATER` es el rectángulo útil de agua.
+    **LA PUNTA DE LA CAÑA VIAJA CON EL BARCO**: `ROD_TIP` (505,395) es la
+    medida de reposo en píxeles de lienzo, pero el barco es 3D y cabecea, así
+    que con "menos animaciones" se queda plano, la borda se dibuja unos píxeles
+    más arriba y la línea blanca nacía FUERA del casco. `main_menu` reescribe
+    `fishing_game.rod_tip` por fotograma proyectando `ROD_LOCAL`
+    —(0, -0.537, 1.744) en coordenadas DEL BARCO, despejado contra `ROD_TIP`
+    con la base de proyección de la cámara—, así que vale para cualquier pose y
+    cualquier ajuste de gráficos. Si se recoloca el barco del menú, volver a
+    despejarlo.
+  · **El rótulo del coste lo pone `_refresh_cast_label` al montar la pantalla**,
+    no el precio a pelo: con tiradas de regalo de Cai pendientes, la PRIMERA de
+    la visita decía "100" y la siguiente ya "GRATIS x2", como si el juego
+    hubiera cobrado un intento que en realidad salía gratis. Entrada solo por `InputEventScreenTouch` (el ratón llega como toque
     sintetizado), con press = picar/lanzar/mantener/tap y release = soltar.
   · **Los botones "+" de las cajas de recursos se APAGAN con un intento en
     juego** (`fishing_game.busy_changed` → `main_menu._set_plus_enabled`): el
@@ -989,8 +1057,8 @@ primera vez que se entra en ellos (`logros_intro_done` /
   `GameState.collectibles` + `triforce_pieces`.
   · **Disparadores vivos**: timón (5 vueltas al timón del menú; el arrastre y
     la inercia acumulan radianes en `main_menu._bank_wheel_turns` → stat
-    `helm_turns`), bandera pirata (ABORDAJE con 3★ en `complete_port`, también
-    repitiendo un puerto ya superado), mapa del tesoro (día 7 del bonus diario
+    `helm_turns`), bandera pirata (**EL pirata del nivel 7**, dándole
+    `level_director.PLATOS_BANDERA` platos: ver ese nivel), mapa del tesoro (día 7 del bonus diario
     en `claim_daily`), cartel de recompensa (`bounty()` ≥ `CARTEL_BOUNTY`, 1M)
     y sombrero de paja (20 platos comidos por un cliente con
     `who_override == "grumete_sombrero"` — stat `fed_sombrero`; el personaje
@@ -1002,6 +1070,12 @@ primera vez que se entra en ellos (`logros_intro_done` /
     garfio, brújula, catalejo, grog, reloj de arena y máscara marina) salen
     del COFRE del minijuego de PESCA; su `desc` lo cuenta. El repetido paga
     `FishData.DUP_COINS` (80).
+  · **QUÉ SON los coleccionables se explica UNA VEZ Y CON UNA PIEZA EN LA
+    MANO** (`level_director._explicar_coleccionables`, bandera
+    `col_intro_done`): la bandera del pirata del nivel 7, el tesoro del cliente
+    del 12 o el primer cofre de la pesca, lo que llegue antes. Estuvo soltado a
+    palo seco al empezar el puerto del 12, antes de que hubiera nada que
+    enseñar, y sonaba a folleto.
   · **Sin disparador todavía**: lo que no esté en las listas de arriba (lo
     que huele a tierra firme: tricornio, pistola, sartén, One Piece salvo el
     sombrero...) — queda bloqueado y con `desc` genérica hasta que se decida
@@ -1059,6 +1133,12 @@ primera vez que se entra en ellos (`logros_intro_done` /
   como el viaje a Aventura; sin tutorial, el barco arranca y a mitad de camino
   cae el telón hacia la bienvenida de David. `GameState.booted` (de sesión, no
   se guarda) evita repetir la portada al volver de otras pantallas.
+  · **EL PLANO DEL MAR TIENE QUE LLEGAR HASTA AQUÍ** (`level_select3d`,
+    `SEA_SIZE` 190 u centrado hasta `SEA_BOTTOM_PX`): estaba dimensionado solo
+    contra el mapa (98 u centradas en `MAP_HEIGHT`), y el fondeadero del menú
+    queda MUY por debajo del nivel 1 —y la portada, encima, 1500 px a la
+    izquierda—, así que en la esquina inferior izquierda se veía el borde del
+    agua. Al mover `MENU_ANCHOR` o `PORT_OFF`, comprobarlo.
   · **El LOGOTIPO ya solo existe en la portada**: `_set_menu_ui_visible`,
     `_ui_in/_ui_out` y `_play_menu_intro` no lo tocan. En el menú su hueco lo
     ocupa el BARCO (`MENU_BAND_OFF` pasó de -70 a **190**: positivo = barco por
@@ -1257,6 +1337,21 @@ primera vez que se entra en ellos (`logros_intro_done` /
   dibujo de David con el loro chillando y solo cambia el nombre del tablón.
   Gigi tiene mal genio, se enfada con los clientes y es quien salta cuando el
   jugador se equivoca; David hace de contrapunto (`loro_resignado`).
+  **LOS CLIENTES DE SIEMPRE TAMBIÉN HABLAN** (`grumete`, `pirata`, `capitan`):
+  retratos sin nombre propio para cuando un guion necesita que hable el que
+  está sentado en la barra — el pirata del nivel 7 y su bandera. Salen del
+  MISMO concepto con el que se modelaron los clientes 3D
+  (`assets/models/source/{grumete,pirata,capitan}.webp`) reencuadrados de
+  cintura para arriba con `editImage`, así que el de la caja y el del taburete
+  son el mismo personaje; de ahí salen las expresiones, una a una, cambiando
+  SOLO la cara. Van a la DERECHA, como Saverio, Pablo y Cai.
+  **El capitán costó dos pasadas**: pedir "muéstralo de cintura para arriba"
+  devolvía el cuerpo entero otra vez; lo que funcionó fue pedir el RECORTE por
+  referencias del propio dibujo ("desde lo alto del sombrero hasta la hebilla
+  del cinturón, y nada por debajo") en vez de describir el encuadre.
+  Se componen a 544×704 con el sujeto al 0,80 del alto y abajo (el encuadre de
+  Pablo), y con UNA SOLA escala por personaje: las expresiones vienen del mismo
+  recorte, así que cambiar de mood no puede mover la cabeza.
   **Saverio sale a la DERECHA** y David a la izquierda: en la escena de la
   tienda están los dos a la vez y el que no habla se queda apagado y hundido.
   **Una línea puede llevar `side`** para forzar el lado SOLO en esa escena:
@@ -1411,7 +1506,7 @@ primera vez que se entra en ellos (`logros_intro_done` /
 - `scripts/main_menu.gd` — menú inicial (ESCENA PRINCIPAL, raíz **Node3D**):
   CUATRO botones de modo con icono propio — **Aventura** (campaña), **Arcade**
   (partida libre, sin tocar el progreso), **Pesca** (el minijuego, ver su
-  bloque; abierta desde el inicio) y
+  bloque; se abre con la Isla de Gades) y
   **Tienda** — apoyados sobre el
   **SUBMENÚ inferior**: una barra de madera oscura con cuerda en el canto
   (`submenu_barra.png`, estilo propio, exportada al alto exacto de dibujo con
@@ -2055,6 +2150,12 @@ que no hay problema.
   juego cerrado; `tick_rice()` cobra de golpe todos los que hayan caído. Va
   contra el reloj del aparato, así que adelantarlo regala arroz: asumido
   mientras no haya cuentas en servidor.
+- **PABLO PROMETE EN EL NIVEL Y PAGA EN EL MAPA**: al cerrar el nivel 10 el
+  guion solo apunta la deuda (`GameState.pending_ingots`) y la entrega la hace
+  `main_menu._pagar_pablo` al volver al mapa, que es donde están a la vista las
+  tres cajas —lingotes, doblones y arroz— y donde "míralos arriba del todo, con
+  su botón +" señala algo. Dentro del nivel no hay ninguna de las tres y la
+  explicación apuntaba a una pantalla vacía. Mismo patrón que Saverio y Cai.
 - **LINGOTES DE ORO** (`GameState.ingots`, empieza en 5): la moneda que se
   comprará con dinero real. Con ellos se compran sacos (1 saco = 1 lingote,
   5 = 3, 10 = 7, en `main_menu.PACKS_ARROZ`). Los paquetes de lingotes
@@ -2828,6 +2929,16 @@ que no hay problema.
     platos vuelven a contar como nuevos, ESE INCLUIDO — el mismo plato se le
     puede repetir acto seguido y contará como nuevo), pero BAJA un punto de
     multiplicador. Es un té verde de pago que conserva casi toda la racha.
+    **LIMPIAR EL PALADAR BORRA TAMBIÉN LA ESCALERA DEL HASTÍO**
+    (`client3d._limpiar_paladar`, que vacía `tried` Y pone `repeat_count` a 0).
+    `repeat_count` solo subía y no lo reiniciaba nadie, así que la limpieza era
+    media limpieza: el cliente olvidaba QUÉ había comido pero seguía contando
+    CUÁNTAS veces le habían repetido, y la primera repetición después del
+    jengibre caía en el peldaño siguiente — con la escalera ya arriba,
+    DRENANDO la barra. Pagar 10 doblones y un punto de multiplicador para que
+    el siguiente repetido castigara igual que antes es lo que se veía como
+    "el jengibre no ajusta bien el multiplicador". Lo usan las TRES cosas que
+    limpian: el jengibre, el té verde y la sopa de miso.
   · **wasabi** → +15% de PROBABILIDAD de propina, pero en vez de recargar
     paciencia **DRENA** exactamente lo que habría recargado.
   · **soja** → +15% de CUANTÍA de la propina, pero el bocado corre a
