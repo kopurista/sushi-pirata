@@ -86,6 +86,11 @@ const ICONS := {
 	"partidas": "res://assets/ui/timon.png",
 	"dias": "res://assets/ui/reloj.png",
 	"coleccion": "res://assets/ui/col_trifuerza.png",
+	# El de dinero en arcade ya usa ic_arcade: las oleadas van con el barco
+	# enemigo del mapa, que es la estampa del abordaje sin fin.
+	"arcade_oleadas": "res://assets/map/barco_enemigo.png",
+	"maestro_cocinero": "res://assets/ui/ic_maestrias.png",
+	"maestrias": "res://assets/ui/skill_golpe_vista.png",
 	# --- Pesca ---
 	"pesca_capturas": "res://assets/ui/ic_pesca.png",
 	"pesca_album": "res://assets/ui/ic_album.png",
@@ -185,6 +190,21 @@ const ACHIEVEMENTS: Array = [
 		"id": "dinero_arcade", "group": "travesia", "name": "Récord de Arcade",
 		"desc": "Gana %d doblones en una partida de Arcade.",
 		"stat": "best_money_arcade", "tiers": [80, 140, 220],
+	},
+	{
+		"id": "arcade_oleadas", "group": "travesia", "name": "Contra la marea",
+		"desc": "Aguanta hasta la oleada %d del Arcade sin fin.",
+		"stat": "arcade_wave", "tiers": [10, 25, 40],
+	},
+	{
+		"id": "maestro_cocinero", "group": "travesia", "name": "Oficio de a bordo",
+		"desc": "Alcanza el nivel %d de cocinero.",
+		"stat": "chef_level", "tiers": [25, 100, 300],
+	},
+	{
+		"id": "maestrias", "group": "travesia", "name": "Manos que aprenden",
+		"desc": "Ten %d maestrías aprendidas a la vez.",
+		"stat": "skills_owned", "tiers": [3, 9, 15],
 	},
 	# --- BONIFICADORES: conseguirlos y mejorarlos. Las estadísticas las suben
 	# GameState.unlock_perk y upgrade_perk, que es donde ocurre el suceso.

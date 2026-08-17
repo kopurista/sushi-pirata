@@ -54,15 +54,29 @@ func announce_collectible(id: String, extra := "") -> void:
 	_pump()
 
 
+## SUBIDA DE NIVEL DEL COCINERO: ventana modal con el nivel alcanzado y TODO
+## lo que ha soltado (punto de maestría, oro, lingotes, despensa...). Se llama
+## desde donde el jugador esté mirando — el cartel de fin de nivel o la barra
+## del menú—, no desde `add_chef_xp`, para que no salte a media animación.
+func announce_level_up(resumen: Dictionary) -> void:
+	if resumen.is_empty():
+		return
+	_queue.append({ "kind": "level", "data": resumen })
+	_pump()
+
+
 func _pump() -> void:
 	if _busy or _queue.is_empty():
 		return
 	_busy = true
 	var item: Dictionary = _queue.pop_front()
-	if item["kind"] == "toast":
-		_show_toast(item)
-	else:
-		_show_collectible(item)
+	match str(item["kind"]):
+		"toast":
+			_show_toast(item)
+		"level":
+			_show_level_up(item["data"])
+		_:
+			_show_collectible(item)
 
 
 func _done() -> void:
@@ -225,6 +239,141 @@ func _show_collectible(item: Dictionary) -> void:
 	var tw := create_tween().set_parallel()
 	tw.tween_property(panel, "scale", Vector2.ONE, 0.35) \
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(panel, "modulate:a", 1.0, 0.2)
+
+
+# --------------------------------------------- ventana de subida de nivel
+
+## Alto de cada renglón de botín y de la cabecera de la ventana.
+const LVL_ROW_H := 52.0
+
+
+func _show_level_up(data: Dictionary) -> void:
+	var desde := int(data.get("desde", 0))
+	var hasta := int(data.get("hasta", 0))
+	var premios: Dictionary = data.get("premios", {})
+	# Orden fijo, de lo más gordo a lo más pequeño: la vista siempre lee igual.
+	var orden := ["points", "ingots", "gold", "rice", "ingredients", "extras"]
+	var filas: Array[String] = []
+	for k in orden:
+		if int(premios.get(k, 0)) > 0:
+			filas.append(str(k))
+
+	var cs := GameState.canvas_size()
+	var root := Control.new()
+	root.position = Vector2.ZERO
+	root.size = cs
+	add_child(root)
+	var veil := ColorRect.new()
+	veil.color = Color(0, 0, 0, 0.0)
+	veil.set_anchors_preset(Control.PRESET_FULL_RECT)
+	veil.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(veil)
+	create_tween().tween_property(veil, "color:a", 0.6, 0.25)
+
+	var tree := get_tree()
+	_paused_by_us = tree != null and not tree.paused
+	if _paused_by_us:
+		tree.paused = true
+
+	var panel_w := 540.0
+	# El alto sale de DÓNDE TERMINA el último renglón (los botines van de 1 a
+	# 6 líneas): con una fórmula más corta, el botón se comía la última.
+	var panel_h := 346.0 + LVL_ROW_H * float(filas.size())
+	var panel := Control.new()
+	panel.position = Vector2((cs.x - panel_w) * 0.5, (cs.y - panel_h) * 0.5)
+	panel.size = Vector2(panel_w, panel_h)
+	panel.pivot_offset = panel.size * 0.5
+	root.add_child(panel)
+	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
+		PrepBoard.PANEL_MARGIN))
+
+	# Titular: un nivel, o el tramo entero si cayeron varios de golpe.
+	var titulo := PrepBoard.make_big_title(
+		"¡Nivel %d!" % hasta if hasta - desde <= 1
+		else "¡Niveles %d a %d!" % [desde + 1, hasta], 46)
+	titulo.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	titulo.offset_top = 34.0
+	titulo.offset_bottom = 108.0
+	panel.add_child(titulo)
+
+	# La CHAPA del nivel: la estrella del juego con la cifra dentro.
+	var chapa := TextureRect.new()
+	chapa.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	chapa.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	chapa.texture = load("res://assets/ui/estrella_llena.png")
+	chapa.position = Vector2((panel_w - 108.0) * 0.5, 112.0)
+	chapa.size = Vector2(108, 108)
+	chapa.pivot_offset = Vector2(54, 54)
+	panel.add_child(chapa)
+	var n_l := _label(str(hasta), 40, Color(0.36, 0.20, 0.04))
+	n_l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	n_l.offset_top = 4.0
+	n_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	n_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	chapa.add_child(n_l)
+	chapa.scale = Vector2(0.2, 0.2)
+	chapa.rotation_degrees = -160.0
+	var tc := chapa.create_tween().set_parallel(true)
+	tc.tween_property(chapa, "scale", Vector2.ONE, 0.5).set_delay(0.1) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tc.tween_property(chapa, "rotation_degrees", 0.0, 0.5).set_delay(0.1) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+	# El botín, renglón a renglón, entrando en cascada.
+	var y := 236.0
+	var i := 0
+	for k in filas:
+		var fila := HBoxContainer.new()
+		fila.alignment = BoxContainer.ALIGNMENT_CENTER
+		fila.add_theme_constant_override("separation", 12)
+		fila.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		fila.offset_top = y
+		fila.offset_bottom = y + LVL_ROW_H
+		panel.add_child(fila)
+		var ic := TextureRect.new()
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		var ruta := SkillData.reward_icon(k)
+		if ResourceLoader.exists(ruta):
+			ic.texture = load(ruta)
+		ic.custom_minimum_size = Vector2(40, 40)
+		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		fila.add_child(ic)
+		fila.add_child(_label(SkillData.reward_text(k, int(premios[k])), 26,
+			Color(0.30, 0.19, 0.07)))
+		fila.modulate.a = 0.0
+		fila.position.x = -30.0
+		var tf := fila.create_tween().set_parallel(true)
+		tf.tween_property(fila, "modulate:a", 1.0, 0.25) \
+				.set_delay(0.45 + 0.12 * i)
+		tf.tween_property(fila, "position:x", 0.0, 0.35) \
+				.set_delay(0.45 + 0.12 * i) \
+				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		y += LVL_ROW_H
+		i += 1
+
+	var seguir := Button.new()
+	seguir.text = "¡Bien!"
+	PrepBoard.skin_button(seguir)
+	seguir.add_theme_font_size_override("font_size", 26)
+	seguir.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	seguir.offset_left = 150.0
+	seguir.offset_right = -150.0
+	seguir.offset_top = panel_h - 94.0
+	seguir.offset_bottom = panel_h - 28.0
+	panel.add_child(seguir)
+	seguir.pressed.connect(func() -> void:
+		if _paused_by_us and get_tree() != null:
+			get_tree().paused = false
+		root.queue_free()
+		_done())
+
+	panel.scale = Vector2(0.7, 0.7)
+	panel.modulate.a = 0.0
+	var tw := create_tween().set_parallel()
+	tw.tween_property(panel, "scale", Vector2.ONE, 0.35) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_property(panel, "modulate:a", 1.0, 0.2)
 
 

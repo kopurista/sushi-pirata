@@ -834,6 +834,13 @@ func _set_menu_ui_visible(on: bool) -> void:
 	for node in [menu_panel, submenu_bar]:
 		if node != null:
 			node.visible = on
+	# La barra de nivel es del MENÚ (en el mapa y en la portada no pinta nada);
+	# su propia visibilidad interna decide además si hay experiencia que enseñar.
+	if level_bar != null:
+		if on:
+			_refresh_level_bar()
+		else:
+			level_bar.visible = false
 	# El cielo solo se APAGA desde aquí. Encenderlo es trabajo de `_sky_in`,
 	# que recoloca antes: encendido desde este lado, gaviotas y nubes se
 	# renderizaban un fotograma en su posición vieja (el parpadeo).
@@ -1203,6 +1210,277 @@ func _setup_resource_bar(st: float) -> void:
 	rice_box.add_child(rice_timer_label)
 	_refresh_resources()
 	_place_resources(false, false)
+	_setup_level_bar(st)
+
+
+# --- Barra de NIVEL DEL COCINERO --------------------------------------------
+# Centrada bajo las cajas de recursos y sobre el barco: es el marcador del
+# nivel Y el ACCESO a la pantalla de Maestrías (por eso el submenú no lleva
+# icono propio). Aparece cuando hay experiencia que enseñar, y al volver de
+# una jornada ANIMA el relleno con lo recién ganado, con fogonazo y "¡Nivel N!"
+# en cada subida (GameState.xp_anim_from guarda desde dónde arrancar).
+
+const LVL_BAR_W := 420.0
+const LVL_BAR_H := 34.0
+const LVL_BAR_Y := 96.0
+
+var level_bar: Button = null
+var level_bar_fill: ProgressBar = null
+var level_bar_label: Label = null
+var level_bar_badge_host: Control = null
+## La estrella del canto y el "+" que lleva dentro (rojo con puntos libres).
+var level_star: TextureRect = null
+var level_plus: Label = null
+var level_plus_tween: Tween = null
+var home_lvl_y := 0.0
+## XP que la barra está ENSEÑANDO (la mueve el tween de la animación).
+var _xp_shown := 0.0
+
+
+func _setup_level_bar(st: float) -> void:
+	level_bar = Button.new()
+	for est in ["normal", "hover", "pressed", "disabled", "focus"]:
+		level_bar.add_theme_stylebox_override(est, StyleBoxEmpty.new())
+	home_lvl_y = LVL_BAR_Y + st
+	level_bar.position = Vector2((720.0 - LVL_BAR_W) * 0.5, home_lvl_y)
+	level_bar.size = Vector2(LVL_BAR_W, LVL_BAR_H + 14.0)
+	level_bar.pivot_offset = level_bar.size * 0.5
+	ui_layer.add_child(level_bar)
+
+	level_bar_fill = ProgressBar.new()
+	level_bar_fill.show_percentage = false
+	level_bar_fill.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	level_bar_fill.offset_top = 7.0
+	level_bar_fill.offset_bottom = 7.0 + LVL_BAR_H
+	level_bar_fill.offset_left = 0.0
+	level_bar_fill.offset_right = 0.0
+	level_bar_fill.add_theme_stylebox_override("background",
+		PrepBoard.make_bar_box(PrepBoard.BAR_BG_TEX))
+	level_bar_fill.add_theme_stylebox_override("fill",
+		PrepBoard.make_bar_box(PrepBoard.BAR_FILL_TEX, Color(0.42, 0.62, 0.95)))
+	level_bar_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	level_bar.add_child(level_bar_fill)
+
+	# La estrella del juego cabalga el canto izquierdo, como los iconos de las
+	# cajas de recursos, y lleva un "+" DENTRO: es lo que dice que ahí se
+	# mejoran las maestrías. El "+" se pone ROJO cuando hay puntos que gastar.
+	var estrella := TextureRect.new()
+	estrella.name = "Estrella"
+	estrella.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	estrella.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	estrella.texture = load("res://assets/ui/estrella_llena.png")
+	estrella.position = Vector2(-22.0, 0.0)
+	estrella.size = Vector2(48, 48)
+	estrella.pivot_offset = Vector2(24, 24)
+	estrella.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	level_bar.add_child(estrella)
+	level_star = estrella
+	level_plus = Label.new()
+	level_plus.text = "+"
+	level_plus.set_anchors_preset(Control.PRESET_FULL_RECT)
+	level_plus.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	level_plus.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	# La estrella tiene el hueco útil algo por encima de su centro geométrico
+	# (las dos puntas de abajo se abren): el "+" baja un pelo para caer en la
+	# panza del dibujo y no sobre el pico.
+	level_plus.offset_top = 2.0
+	level_plus.add_theme_font_size_override("font_size", 30)
+	level_plus.add_theme_color_override("font_outline_color",
+		Color(0.28, 0.14, 0.02))
+	level_plus.add_theme_constant_override("outline_size", 6)
+	level_plus.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	estrella.add_child(level_plus)
+
+	level_bar_label = Label.new()
+	level_bar_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	level_bar_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	level_bar_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	level_bar_label.add_theme_font_size_override("font_size", 22)
+	level_bar_label.add_theme_color_override("font_color", Color(1, 0.96, 0.85))
+	level_bar_label.add_theme_color_override("font_outline_color",
+		Color(0.14, 0.07, 0.02))
+	level_bar_label.add_theme_constant_override("outline_size", 8)
+	level_bar_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	level_bar_label.pivot_offset = Vector2(LVL_BAR_W * 0.5, (LVL_BAR_H + 14.0) * 0.5)
+	level_bar.add_child(level_bar_label)
+
+	# El globo de los puntos libres, cabalgando la esquina superior derecha.
+	# POSICIÓN Y TAMAÑO EXPLÍCITOS, sin `set_anchors_preset`: el preset no toca
+	# los offsets y con un anfitrión de tamaño cero el globo no llegaba a
+	# dibujarse (la trampa de siempre; ver CLAUDE.md).
+	level_bar_badge_host = Control.new()
+	level_bar_badge_host.position = Vector2(LVL_BAR_W - 34.0, -6.0)
+	level_bar_badge_host.size = Vector2(34, 34)
+	level_bar_badge_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	level_bar.add_child(level_bar_badge_host)
+
+	PrepBoard.add_press_feedback(level_bar)
+	level_bar.pressed.connect(_go_skills)
+	_xp_shown = float(GameState.chef_xp)
+	_refresh_level_bar()
+
+
+## Repinta la barra con la XP que toque enseñar (la vigente o la del tween).
+func _refresh_level_bar() -> void:
+	if level_bar == null:
+		return
+	# Sin experiencia todavía no hay nada que enseñar: la barra aparece con la
+	# primera jornada puntuada.
+	level_bar.visible = GameState.tutorial_done \
+		and (GameState.chef_xp > 0 or GameState.xp_anim_from >= 0)
+	if not level_bar.visible:
+		return
+	var xp := int(_xp_shown)
+	var nivel := SkillData.level_for_xp(xp)
+	if nivel >= SkillData.MAX_LEVEL:
+		level_bar_fill.max_value = 1
+		level_bar_fill.value = 1
+		level_bar_label.text = "Nivel %d  ·  MÁXIMO" % nivel
+	else:
+		var suelo := SkillData.xp_at_level(nivel)
+		level_bar_fill.max_value = SkillData.xp_for_next(nivel)
+		level_bar_fill.value = xp - suelo
+		level_bar_label.text = "Nivel %d" % nivel
+	for hijo in level_bar_badge_host.get_children():
+		hijo.queue_free()
+	# EL "+" DE LA ESTRELLA: crema mientras no hay nada que gastar, ROJO y
+	# latiendo en cuanto hay UN punto libre (ahora basta uno: los puntos se
+	# invierten de uno en uno). Y el globo con la cifra, para saber cuántos.
+	var libres := GameState.chef_points_free()
+	if level_plus != null:
+		if level_plus_tween != null and level_plus_tween.is_valid():
+			level_plus_tween.kill()
+			level_star.scale = Vector2.ONE
+		if libres > 0:
+			level_plus.add_theme_color_override("font_color",
+				Color(1.0, 0.25, 0.20))
+			level_star.pivot_offset = level_star.size * 0.5
+			level_plus_tween = level_star.create_tween().set_loops()
+			level_plus_tween.tween_property(level_star, "scale",
+				Vector2(1.16, 1.16), 0.6).set_trans(Tween.TRANS_SINE)
+			level_plus_tween.tween_property(level_star, "scale", Vector2.ONE,
+				0.6).set_trans(Tween.TRANS_SINE)
+		else:
+			level_plus.add_theme_color_override("font_color",
+				Color(1, 0.96, 0.86, 0.85))
+	if libres > 0:
+		PrepBoard.attach_badge(level_bar_badge_host, libres)
+
+
+## Anima el relleno con la XP pendiente: la barra da un respingo, el relleno
+## sube por tramos y cada nivel cruzado suelta su fogonazo con "¡Nivel N!".
+func _play_xp_anim_if_pending() -> void:
+	if level_bar == null or GameState.xp_anim_from < 0:
+		_refresh_level_bar()
+		return
+	var desde := GameState.xp_anim_from
+	GameState.xp_anim_from = -1
+	var hasta := GameState.chef_xp
+	if hasta <= desde:
+		_refresh_level_bar()
+		return
+	_xp_shown = float(desde)
+	_refresh_level_bar()
+	# Respingo de atención antes de empezar a llenar.
+	var tw := level_bar.create_tween()
+	tw.tween_property(level_bar, "scale", Vector2(1.06, 1.06), 0.16) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(level_bar, "scale", Vector2.ONE, 0.2) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	# El relleno viaja por NIVELES: cada tramo termina en la frontera del
+	# siguiente y ahí estalla el fogonazo. La duración se reparte por tramo.
+	var t2 := level_bar.create_tween()
+	t2.tween_interval(0.35)
+	# Al terminar de llenar, la ventana con lo que han soltado las subidas (si
+	# el jugador no pasó por el cartel de fin, que es quien la enseña primero).
+	t2.finished.connect(func() -> void:
+		var subida := GameState.take_level_up()
+		if not subida.is_empty():
+			GameState.announce_level_up(subida))
+	var actual := desde
+	while actual < hasta:
+		var nivel := SkillData.level_for_xp(actual)
+		var frontera := SkillData.xp_at_level(nivel + 1) \
+			if nivel < SkillData.MAX_LEVEL else hasta
+		var tramo: int = mini(frontera, hasta)
+		t2.tween_method(_set_xp_shown, float(actual), float(tramo),
+			clampf(0.9 * float(tramo - actual) / float(hasta - desde), 0.18, 0.9))
+		if tramo < hasta or (tramo == frontera and tramo > actual):
+			# Frontera cruzada: nivel nuevo.
+			var nuevo := SkillData.level_for_xp(tramo)
+			if nuevo > nivel:
+				t2.tween_callback(_level_up_burst.bind(nuevo))
+				t2.tween_interval(0.45)
+		actual = tramo
+
+
+func _set_xp_shown(v: float) -> void:
+	_xp_shown = v
+	_refresh_level_bar()
+
+
+## El fogonazo de la subida: destello sobre la barra, "¡Nivel N!" que salta y
+## una corona de estrellas que salen despedidas.
+func _level_up_burst(nivel: int) -> void:
+	if level_bar == null or not level_bar.visible:
+		return
+	# Destello blanco sobre la barra.
+	var flash := ColorRect.new()
+	flash.color = Color(1, 0.95, 0.7, 0.0)
+	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	level_bar.add_child(flash)
+	var tf := flash.create_tween()
+	tf.tween_property(flash, "color:a", 0.75, 0.08)
+	tf.tween_property(flash, "color:a", 0.0, 0.4)
+	tf.tween_callback(flash.queue_free)
+	# La barra da un bote.
+	var tb := level_bar.create_tween()
+	tb.tween_property(level_bar, "scale", Vector2(1.12, 1.12), 0.12) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tb.tween_property(level_bar, "scale", Vector2.ONE, 0.26) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	# "¡Nivel N!" salta desde la barra y se desvanece subiendo.
+	var pop := Label.new()
+	pop.text = "¡Nivel %d!" % nivel
+	pop.add_theme_font_size_override("font_size", 34)
+	pop.add_theme_color_override("font_color", Color(1.0, 0.86, 0.25))
+	pop.add_theme_color_override("font_outline_color", Color(0.2, 0.1, 0.02))
+	pop.add_theme_constant_override("outline_size", 10)
+	pop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pop.position = Vector2(LVL_BAR_W * 0.5 - 70.0, -6.0)
+	pop.pivot_offset = Vector2(70.0, 20.0)
+	pop.scale = Vector2(0.3, 0.3)
+	level_bar.add_child(pop)
+	var tp := pop.create_tween()
+	tp.tween_property(pop, "scale", Vector2.ONE, 0.28) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tp.tween_interval(0.35)
+	tp.set_parallel(true)
+	tp.tween_property(pop, "position:y", -64.0, 0.6) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tp.tween_property(pop, "modulate:a", 0.0, 0.6)
+	tp.chain().tween_callback(pop.queue_free)
+	# Corona de estrellas despedidas desde el centro.
+	for i in 7:
+		var e := TextureRect.new()
+		e.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		e.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		e.texture = load("res://assets/ui/estrella_llena.png")
+		e.size = Vector2(26, 26)
+		e.position = Vector2(LVL_BAR_W * 0.5 - 13.0, LVL_BAR_H * 0.5)
+		e.pivot_offset = Vector2(13, 13)
+		e.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		level_bar.add_child(e)
+		var ang := TAU * float(i) / 7.0 + randf_range(-0.2, 0.2)
+		var destino := e.position + Vector2(cos(ang), sin(ang) * 0.7) \
+			* randf_range(90.0, 150.0)
+		var te := e.create_tween().set_parallel(true)
+		te.tween_property(e, "position", destino, 0.6) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		te.tween_property(e, "rotation_degrees", randf_range(-200.0, 200.0), 0.6)
+		te.tween_property(e, "modulate:a", 0.0, 0.6).set_delay(0.15)
+		te.chain().tween_callback(e.queue_free)
 
 
 ## El botón "+" que cabalga sobre el borde derecho de una caja.
@@ -1733,6 +2011,8 @@ func _setup_submenu() -> void:
 	submenu_bar.add_child(row)
 	# SOLO ICONOS, sin rótulo: con los cinco rehechos al estilo del cartel de
 	# Perfil ya se explican solos, y el texto a cuerpo 15 solo ensuciaba.
+	# Las MAESTRÍAS no tienen icono aquí: su acceso es la BARRA DE NIVEL del
+	# centro del menú (`_setup_level_bar`), que además enseña el progreso.
 	for def in [
 			["ic_logros", func() -> void: _go_achievements()],
 			["ic_inventario", func() -> void: _go_inventory()],
@@ -1881,6 +2161,11 @@ func _ui_out(con_recursos := true) -> void:
 			.set_ease(Tween.EASE_IN)
 	ui_tween.tween_property(menu_panel, "position:y", home_box_y + 660.0, OUT_TIME)
 	ui_tween.tween_property(submenu_bar, "position:y", home_sub_y + 260.0, OUT_TIME)
+	# La barra de nivel se va SIEMPRE hacia arriba (es del menú, no del mapa
+	# ni de la pesca), aunque las cajas de recursos se queden.
+	if level_bar != null and level_bar.visible:
+		ui_tween.tween_property(level_bar, "position:y", home_lvl_y - 220.0,
+			OUT_TIME)
 	if con_recursos:
 		for caja in [ingot_box, money_box, rice_box]:
 			if caja != null:
@@ -2008,7 +2293,7 @@ func _go_arcade() -> void:
 	if leaving:
 		return
 	if not GameState.arcade_unlocked():
-		_show_locked_notice("El modo Arcade se abre al vencer\nal jefe del nivel 10 de la Aventura.")
+		_show_locked_notice("El Arcade sin fin se abre al vencer al Kappa\nen la Guarida del Kappa (nivel 15).")
 		return
 	leaving = true
 	GameState.mode = "test"
@@ -2685,6 +2970,10 @@ func _go_perks() -> void:
 	_leave_to("res://scenes/perks_screen.tscn")
 
 
+func _go_skills() -> void:
+	_leave_to("res://scenes/skills_screen.tscn")
+
+
 func _leave_to(path: String) -> void:
 	if leaving:
 		return
@@ -2732,6 +3021,18 @@ func _ui_in(con_recursos := true) -> void:
 		for caja in [ingot_box, money_box, rice_box]:
 			if caja != null:
 				ui_tween.tween_property(caja, "position:y", res_y, 0.55) 						.set_delay(0.15).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+	# La barra de nivel vuelve con el resto y, ya en su sitio, anima la
+	# experiencia que traiga pendiente (con su fogonazo por cada subida).
+	if level_bar != null:
+		_refresh_level_bar()
+		if level_bar.visible:
+			level_bar.position.y = home_lvl_y - 220.0
+			ui_tween.tween_property(level_bar, "position:y", home_lvl_y, 0.55) \
+					.set_delay(0.22).set_trans(Tween.TRANS_BACK) \
+					.set_ease(Tween.EASE_OUT)
+			ui_tween.chain().tween_callback(_play_xp_anim_if_pending)
 
 
 ## Entrada del menú viniendo de otra pantalla: el barco llega navegando desde

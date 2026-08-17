@@ -38,6 +38,18 @@ var taken: bool = false
 var traveled: float = 0.0
 var belt_length: float = 0.0
 var level_ref: Node = null
+## Vueltas que aguanta ESTE plato antes de caer al cubo. La maestría "Segunda
+## vuelta" lo sube a 2 o 3; sin ella, MAX_LAPS de siempre.
+var max_laps: int = MAX_LAPS
+## Con el rango IV de esa maestría, cada vuelta NUEVA borra los rechazos del
+## plato: todos los clientes vuelven a tener ocasión de cogerlo (el mismo
+## olvido que regala el potenciador "Nada se tira").
+var forget_each_lap := false
+## Plato marcado por "Golpe de suerte": sube un punto extra de multiplicador
+## al cliente que lo coja (lo lee client3d._scan_belt).
+var variety_bonus := false
+## Vueltas ya completadas (para saber cuándo toca el olvido o el cubo).
+var _laps_done := 0
 
 
 func _ready() -> void:
@@ -107,13 +119,23 @@ func _process(delta: float) -> void:
 	var step := speed * mult * delta
 	progress += step
 	traveled += step
-	if belt_length > 0.0 and traveled >= MAX_LAPS * belt_length:
+	if belt_length > 0.0 and traveled >= float(_laps_done + 1) * belt_length:
+		_laps_done += 1
+		if _laps_done < max_laps:
+			# "Segunda vuelta" (rango IV): la vuelta nueva borra los rechazos,
+			# o el plato daría sus vueltas extra sin que nadie pudiera cogerlo
+			# (el dado se tira UNA vez por cliente y plato).
+			if forget_each_lap and level_ref != null \
+					and level_ref.has_method("_forget_declined"):
+				level_ref._forget_declined(get_instance_id())
+			return
 		# "Nada se tira" (potenciador): en vez de caer al cubo, el plato empieza
 		# otra vuelta Y se le OLVIDA a todo el mundo que lo dejó pasar, o daría
 		# vueltas eternas sin que nadie pudiera cogerlo.
 		if level_ref != null and "no_waste_timer" in level_ref \
 				and level_ref.no_waste_timer > 0.0:
 			traveled = 0.0
+			_laps_done = 0
 			level_ref._forget_declined(get_instance_id())
 		else:
 			_tirar_a_la_basura()

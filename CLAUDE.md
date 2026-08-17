@@ -688,7 +688,150 @@ primera vez que se entra en ellos (`logros_intro_done` /
   estaba decidido el sitio de los permanentes en la progresión, y se abrió al
   entrar el BARCO como bonificador — con él apagado, el barco sería
   inalcanzable y desaparecería del juego.
-  Solo funcionan en aventura: Arcade no toca el progreso.
+  **También funcionan en el ARCADE** (desde el rediseño del arcade sin fin):
+  el modo cobra arroz y despensa como cualquier jornada, así que se juega con
+  todo puesto y los usos se gastan igual. La regla vieja de "Arcade no toca el
+  progreso" está MUERTA — ver el bloque del ARCADE SIN FIN.
+- `scripts/skill_data.gd` — **MAESTRÍAS DEL COCINERO** (`SkillData`), el
+  sistema de nivel 1-450 con tres árboles de habilidades. Solo datos y helpers
+  puros; el ESTADO (chef_xp, chef_level, skills, arcade_best) vive en GameState
+  y se guarda en el save. Las reglas, todas en la cabecera del archivo:
+  · **450 niveles = 450 puntos** (el nivel 1 ya trae el suyo) = el catálogo
+    entero (150 por árbol). Curva de XP en RECTA: 60 + 20·(n−1).
+  · **LOS PUNTOS SE INVIERTEN DE UNO EN UNO, y el RANGO es su escalón**
+    (decisión del usuario, no re-litigar). `GameState.skills` guarda los
+    PUNTOS invertidos, no el rango, y `SkillData.rank_for_points` lo deriva:
+    con coste 5, cuatro puntos NO desbloquean nada y el quinto sube al rango
+    1. Así el jugador reparte punto a punto y puede repartirse 6 puntos entre
+    dos habilidades sin que ninguna se lleve un rango entero de golpe (antes
+    el [+] gastaba los 5 de una vez, que es lo que se veía como "no reparte
+    bien"). El total no cambia: 25 puntos una habilidad normal, 50 la final.
+    En el save va bajo la clave **`skill_points`** — clave NUEVA a propósito,
+    porque un 3 en el formato viejo era el rango 3 (15 puntos) y aquí son 3
+    puntos; `load_game` convierte los guardados viejos multiplicando por el
+    coste del rango.
+  · **SUBIR DE NIVEL NO SOLO DA PUNTOS** (`SkillData.level_reward`): además
+    del punto —que va SIEMPRE— cada nivel suelta algo distinto, para que la
+    subida se sienta como abrir un cofre y no como un contador que avanza.
+    Los LINGOTES solo caen en los múltiplos de 5, y suben en los de 10 y de
+    25: son la moneda de pago y tienen que leerse como un HITO, no como
+    calderilla de cada nivel. El resto ROTA con `n % 4` (oro / despensa /
+    arroz / extras), así que dos niveles seguidos nunca dan lo mismo, y las
+    cantidades escalan con el nivel. Los entrega `GameState._grant_level_rewards`
+    en el acto (la despensa, repartida entre ingredientes que el jugador YA
+    puede cocinar: un regalo que no sirve no es un regalo).
+  · **QUIÉN ANUNCIA LA SUBIDA**: `add_chef_xp` NO saca ventana — deja el
+    resumen en `pending_level_up` y lo enseña quien tenga la pantalla delante
+    (el cartel de fin de nivel tras llenar su barra, o el menú tras la suya),
+    con `take_level_up()`. Una SOLA ventana aunque caigan cinco niveles de
+    golpe, con el botín sumado: cinco carteles seguidos serían un castigo. La
+    dibuja `NoticeLayer._show_level_up`, que ya sabe respetar la pausa que
+    tenga puesta el cartel de resultados.
+  · **LA SIEMBRA RETROACTIVA VA POR BANDERA PROPIA (`xp_seeded`), NO por "¿le
+    falta la clave chef_xp?"**: la primera versión miraba la ausencia de la
+    clave y bastaba con que el juego guardara UNA vez (con un 0 dentro) para
+    que la siembra no pudiera dispararse jamás. Pasó de verdad: una partida
+    con nueve escenarios superados se quedó sin sus estrenos. Con la bandera
+    se dispara una sola vez y se puede volver a lanzar borrándola del save.
+  · **La XP de un escenario se paga CONTRA EL RÉCORD** (`GameState.
+    scenario_xp`, llamada en `_finalize_results` con las estrellas de ANTES de
+    `complete_port`): estreno = 3 × 15·n × mult(estrellas ×0.5/×1/×1.5);
+    repetir paga la tarifa simple y MEJORAR el récord cobra solo la
+    diferencia ×3. Así un escenario deja lo mismo se borde al primer intento o
+    al quinto, y no compensa "guardarse" el aprobado.
+  · Comprar una habilidad = 5 puntos y cada rango extra 5; la QUINTA de cada
+    árbol 10 y 10. La 3ª pide las dos primeras, la 4ª la 3ª, la 5ª la 4ª.
+    `buy_skill` guarda; la pantalla CONFIRMA antes (patrón de Bonificadores).
+  · **El techo de producción es ×2,5** (decidido, no re-litigar): los tres
+    árboles al máximo multiplican el oro ~×2,45. Al tocar un valor, rehacer la
+    cuenta — los `star_money` de los escenarios futuros se escalan contra él.
+  · **EFECTOS cableados donde ocurre el suceso**, cada uno con su valor neutro
+    sin comprar: `prep_board._apply_skills()` (cooldown, hold/fry/slice/swipe/
+    taps, golpe de vista con su CONTADOR VISIBLE `vista_label`, cocina
+    abundante por double_next, buena mano en stack_max, golpe de suerte con el
+    plato DORADO y `serving_lucky` → `plate3d.variety_bonus`),
+    `client3d._ready` (recarga, precio, propinas con TOPE respetado, suelo de
+    take chance que NO toca postres de otro tipo, paladar generoso — `tried`
+    pasó de banderas a CONTADORES con `_tolerancia`/`_es_nuevo`) y
+    `level3d._apply_perks` (vueltas de plato, castigo del cubo `waste_frac`,
+    olvido por vuelta). **En el tutorial todo queda en neutro.**
+  · Los contadores deterministas (vista/abundante/suerte) son CONTADOR, no
+    dado, a propósito: se puede planear el plato gratis o el doble. El de
+    vista solo avanza con platos hechos A MANO y su gratis se consume DESPUÉS
+    del potenciador instantáneo y de la maestría de la receta.
+  · La subida de nivel sale como TOAST por NoticeLayer (uno aunque caigan
+    varios niveles de golpe) y el cartel de resultados lleva la línea
+    "+N de experiencia" (`last_xp`).
+  · **`chef_rec` en cada puerto** (CampaignData): el nivel de cocinero
+    recomendado, deducido de la curva (~2× el número del escenario). Lo enseña
+    la ficha del mapa, con "(llevas N)" si el jugador va corto: distingue "voy
+    corto de nivel" de "lo juego mal". Los 15 escenarios actuales están
+    calibrados para cocinero de nivel 1 y NO se les tocó el oro.
+  · **El ACCESO es la BARRA DE NIVEL del menú** (`main_menu._setup_level_bar`),
+    centrada entre las cajas de recursos y el barco: estrella cabalgando el
+    canto CON UN "+" DENTRO (crema en reposo, ROJO y latiendo en cuanto hay un
+    punto libre: es lo que dice que ahí se mejoran las maestrías), "Nivel N",
+    relleno de XP y el globo con los puntos libres. Tocarla abre Maestrías —
+    POR ESO EL SUBMENÚ NO LLEVA ICONO (volvió a cinco; `ic_maestrias` sigue
+    existiendo para el logro de niveles). Aparece con la primera experiencia,
+    es SOLO del menú (se va con `_ui_out`, vuelve con `_ui_in`, se apaga en
+    mapa/portada vía `_set_menu_ui_visible`).
+    OJO con el globo: su anfitrión va con **posición y tamaño explícitos**, no
+    con `set_anchors_preset` — el preset no toca los offsets y con un
+    anfitrión de tamaño cero el globo no llegaba a dibujarse (la trampa de
+    siempre, ya documentada más abajo).
+  · **LA BARRA DE XP SE LLENA EN EL CARTEL DE FIN DE NIVEL, no en el menú**
+    (`level3d._build_xp_row` / `_play_xp_gain`, llamada tras el recuento del
+    oro): ahí es donde el jugador está mirando. Va bajo la cifra del oro, con
+    el "+N de experiencia" DEBAJO —OJO: `earn_label` vive DENTRO del HBox de
+    la moneda, así que la fila se cuelga del PADRE o el texto sale al lado de
+    la cifra— y el cartel crece 62 px para que quepa. Al terminar CONSUME
+    `GameState.xp_anim_from`, así que la barra del menú aparece ya llena; si
+    el jugador se sale sin ver el cartel, la anima el menú
+    (`_play_xp_anim_if_pending`). Las dos llenan por TRAMOS DE NIVEL y cada
+    frontera cruzada suelta su fogonazo (destello, bote y "¡Nivel N!").
+  · Pantalla `skills_screen` (**Maestrías**), en TRES SECCIONES: una PESTAÑA
+    por árbol con su icono propio (`tab_cuchillo/tab_cliente/tab_chef`, de la
+    cadena `build_skills`) y dentro sus cinco habilidades en tarjetas.
+    Enseñar un árbol cada vez es lo que deja sitio para los ICONOS GRANDES:
+    con los tres a la vez se quedaban en 88 px y las cifras no se leían.
+    Cada tarjeta lleva el icono (marco por ESTADO: gris bloqueada con el
+    dibujo oscurecido, neutro disponible, color del árbol aprendida, ORO al
+    máximo), el nombre, **las ESTRELLAS = RANGO**, el **"x/N" = PUNTOS
+    ENTREGADOS** hacia el rango siguiente (dos cifras distintas a propósito;
+    la N es 5 salvo en las finales, que valen 10 por rango) y los botones de
+    reparto DEBAJO: el disco ROJO `boton_menos` y el VERDE `boton_mas`, que
+    es el mismo de las cajas de recursos. Tocar el icono abre su ficha, donde
+    también se reparte. **SIN cinta de título**: la cabecera ya identifica la
+    pantalla y el lazo rojo solo robaba alto.
+  · **CABECERA**: sin el rótulo "Nivel de cocinero" — la CHAPA de estrella con
+    el número, la barra con la experiencia ESCRITA DENTRO ("210 / 400") y a la
+    derecha el disco azul de PUNTOS LIBRES, que se apaga cuando no queda nada
+    que gastar.
+  · **CADA SUBIDA DE RANGO SE CELEBRA** (`_celebrar_rango`): la del rango 1
+    dice "¡Habilidad aprendida!" y las demás CANTAN EL CAMBIO, con el efecto
+    viejo y el nuevo uno debajo del otro ("un 8% más cortos" → "un 12% más
+    cortos"), que es lo que el jugador quiere saber al gastar un punto.
+  · **CADA HABILIDAD TIENE SU PROPIO ICONO** (`assets/ui/skill_<id>.png`,
+    `SkillData.icon` con la moneda de respaldo): Ludo → `_gen/ui2/skills/` →
+    `build_skills()` de ui2_prep (drop_white + drop_specks, NUNCA
+    keep_largest: destellos y monedas sueltas son arte). DOS TRAMPAS pagadas:
+    el image_type "icon" de Ludo METE RÓTULOS DE LOGO aunque el prompt
+    prohíba el texto (salió "GAME" dos veces seguidas, una de ellas por la
+    propia palabra "game" del prompt) — los iconos de objeto van SIEMPRE con
+    "item-icon", como los coleccionables.
+  · Tocar un icono abre su POPUP (dibujo con marco de color, nombre, rangos
+    en estrellas, descripción, "Ahora/Siguiente" y el REPARTO con [−] y [+]):
+    **LA REASIGNACIÓN ES LIBRE Y CONTINUA, punto a punto** (decisión del
+    usuario). El [+] compra en el acto (el [−] existe para arrepentirse) y el
+    paso 0→1 se celebra con la ventana de "¡Habilidad aprendida!" (corona de
+    estrellas); el [−] con rango 1 PREGUNTA ("vas a perder esta habilidad") y
+    se BLOQUEA si el punto sostiene a otra aprendida
+    (`GameState.can_refund_skill`: solo veta el último punto de un
+    prerrequisito con dependientes). `refund_skill` devuelve los puntos.
+  · El logro "Manos que aprenden" cuenta por `max_stat("skills_owned")` —
+    máximo de habilidades con rango A LA VEZ, no compras: con reasignación
+    libre, contar compras se inflaba comprando y quitando la misma.
 - **EL BARCO PIDE DOS LLAVES**: que el puerto lo permita (`boat` en
   `CampaignData`; con la campaña-escuela lo llevan los niveles 8-10, sin guion
   que lo presente — su presentación queda para los niveles futuros) **Y** que
@@ -983,6 +1126,65 @@ primera vez que se entra en ellos (`logros_intro_done` /
   "Horas extra" se cae del sorteo donde no hay reloj.
   **`elapsed` sigue contando SIEMPRE**, haya reloj o no: es lo que dispara las
   llegadas. Lo que solo pasa con reloj es que se acabe el turno al agotarse.
+- **EL ARCADE SIN FIN** (rediseño del 17-8-2026; antes "modo prueba" que no
+  tocaba el progreso — esa regla está MUERTA en todas sus copias). Vive en
+  `level3d` bajo la bandera `arcade` (`GameState.is_arcade()`, modo "test") y
+  se abre al vencer al Kappa (`ARCADE_PORT` = nivel_15; cuando entren los
+  escenarios 16-20 del primer mar, moverlo al 20):
+  · **Es una jornada de verdad**: cobra 1 saco de arroz al zarpar, la primera
+    tanda de despensa, y bonificadores con sus usos. El selector filtra por
+    recetas desbloqueadas CON ingredientes (como aventura) y enseña la fila de
+    bonificadores. Salir en preparación devuelve todo, como en aventura.
+  · **Oleadas de `WAVE_TIME` (45 s)** con llegadas CONTINUAS
+    (`_tick_arcade`): un cliente cada `arcade_spawn_gap` (11 s) × 0.98^oleada
+    — el pellizco. La paciencia baja un 1,5% por oleada (`patience_mult`). El
+    horario clásico de llegadas NO se rellena en arcade (duplicaría clientela).
+  · **El tono sube cada 5 oleadas** (`_arcade_weights`): solo grumetes hasta
+    la 5, piratas desde la 6, capitanes desde la 11.
+  · **Cada oleada cuesta 1 uso de cada ingrediente de la carta**
+    (`GameState.consume_wave_ingredients`). Lo agotado TIRA sus recetas de la
+    carta (`_drop_recipes_for` → `prep_board.allowed_recipes`, con el
+    centinela `["__ninguna__"]` si la carta queda vacía — una lista vacía
+    significa "todas"). Sin carta no hay variedad y llegan los vacíos: la
+    partida se desmorona, no se apaga. El arroz NO va por oleada: un saco por
+    partida.
+  · **Se pierde a los `VACIOS_MAX` (3) clientes que se van sin probar bocado**
+    (el contador es `empty_leavers`, vigilado en `_on_client_finished`). No
+    hay reloj ni cierre por oro: la barra del marcador es un HITO renovable
+    (`ARCADE_META_STEP` 150) cuya estrella brilla en cada cruce, y
+    `_check_goal_reached` sale en seco en arcade.
+  · **Cada 10 oleadas, un ESTORBO permanente** sorteado sin repetir
+    (`ESTORBOS`), ANUNCIADO en la oleada anterior por la tablilla de fase
+    (`_cartel_oleada`): cinta más rápida (`belt_base` — ojo, el potenciador
+    de cinta ahora vuelve a `belt_base`, no a 1.0), bocados +20%, fogón que
+    apaga una receta a ratos (fuerza cooldowns), cubo al doble (`waste_frac`),
+    cajas −1, clientela que llega al 80% de paciencia, drenaje +10%.
+  · **Cada 3 oleadas, una CARTA DE MEJORA de partida** (tres opciones,
+    reutilizando el cartel de potenciadores: `_upgrade_pool` /
+    `_make_upgrade_card` / `_apply_upgrade`). Familias: fichaje (una receta
+    del recetario QUE SE PUEDA PAGAR — sin ingrediente no se ofrece — y desde
+    su oleada su despensa se cobra igual), maestría +1 de una receta que ya la
+    tenga (`prep_board.mastery_bonus`), −30% cooldown de 1★
+    (`cooldown_l1_mult`), caja/pila extra, cinta lenta, vuelta extra de plato,
+    +15% paciencia, postres al doble PERMANENTE (`dessert_boost_perm`, que no
+    consume el potenciador de un uso), el ayudante (si no está) o su descanso
+    a la mitad, y el vacío perdonado (repetible, solo con vacíos). **REGLA DEL
+    MODO: ninguna mejora toca el PRECIO de los platos** — producción, colchón
+    y variedad sí; precio no, o el modo se vuelve fuente de dinero en vez de
+    reto.
+  · **HUD propio** (`_setup_arcade_hud`, bajo la fila superior): "Oleada N",
+    "Despensa: N" (el MÍNIMO de usos entre los ingredientes de la carta —
+    cifra sobre la que el jugador puede actuar) y "Vacíos N/3" en rojo al
+    borde. El botón de Salir pasa a ser **"Terminar"**: en marcha NO pierde
+    nada — cierra el turno por el camino normal y cobra.
+  · **Lo que paga** (`_finalize_results`, rama is_arcade): TODO el oro
+    generado al monedero + `GameState.arcade_xp(oleadas)` = Σ 15·oleada de
+    las SUPERADAS (la que estaba a medias no cuenta). Récord persistente
+    `arcade_best` + stat `arcade_wave` (logro "Contra la marea"). El cartel
+    de resultados enseña "Oleada N · ¡Récord!" en vez de estrellas.
+  · MEDIDO con sonda (12 oleadas simuladas): el cartel de mejoras pausa el
+    árbol, los fichajes reconstruyen una carta arrasada por la despensa, y el
+    cierre pagó 1.170 XP exactos (15·78) subiendo al cocinero del 1 al 9.
 - `scripts/campaign_data.gd` — los **10 niveles-escuela** de la campaña
   (`PORTS`, ordenados; la cabecera del archivo lista qué lección trae cada
   uno). Campos: `client_mix` (recuento EXACTO {E,A,G}; el nivel construye una
@@ -1532,8 +1734,8 @@ primera vez que se entra en ellos (`logros_intro_done` /
   olvidó y borrar la partida no relanzaba la intro), `is_tutorial()`,
   `complete_tutorial()` (entrega `CampaignData.INITIAL_RECIPES`, que ya es
   SOLO el maki de aguacate: el resto de la carta la regala David nivel a
-  nivel), `arcade_unlocked()` (= superar `GameState.ARCADE_PORT`, el **nivel
-  10 del Kappa**: vencer al jefe abre el Arcade); el menú manda a la intro del
+  nivel), `arcade_unlocked()` (= superar `GameState.ARCADE_PORT`, la **Guarida
+  del Kappa, nivel 15**: vencer al jefe abre el Arcade); el menú manda a la intro del
   caos si falta el tutorial (`_ir_a_la_intro`) y el botón Arcade queda apagado
   con aviso hasta ganarlo.
   **La partida nueva empieza con 50 doblones** (botín de bienvenida para la
@@ -1602,16 +1804,18 @@ primera vez que se entra en ellos (`logros_intro_done` /
   circuito, modelo normalizado por huella (0.62 u), 2 vueltas → descarte.
 - `scripts/main_menu.gd` — menú inicial (ESCENA PRINCIPAL, raíz **Node3D**):
   CUATRO botones de modo con icono propio — **Aventura** (campaña), **Arcade**
-  (partida libre, sin tocar el progreso), **Pesca** (el minijuego, ver su
+  (el ARCADE SIN FIN, ver su bloque: una jornada de verdad que gasta arroz y
+  despensa y paga oro y experiencia), **Pesca** (el minijuego, ver su
   bloque; se abre con la Isla de Gades) y
   **Tienda** — apoyados sobre el
   **SUBMENÚ inferior**: una barra de madera oscura con cuerda en el canto
   (`submenu_barra.png`, estilo propio, exportada al alto exacto de dibujo con
   margen vertical CERO como los botones con icono) con los CINCO accesos del
   jugador: **Logros, Inventario, Perfil, Bonificadores y Opciones** (iconos
-  `ic_logros/ic_inventario/ic_perfil/ic_perks/ic_opciones`; los dos últimos
-  nuevos, generados con Ludo). El submenú sustituyó a los dos botones redondos
-  de esquina que hubo antes.
+  `ic_logros/ic_inventario/ic_perfil/ic_perks/ic_opciones`). Las MAESTRÍAS no
+  van aquí: su acceso es la BARRA DE NIVEL del centro del menú (ver su
+  bloque). El submenú sustituyó a los dos botones redondos de esquina que
+  hubo antes.
   · **Perfil** abre `profile_screen` (el cartel de recompensa en pantalla
     propia; ya NO es pestaña de Opciones, que se quedó con Gráficos/Guía/
     Progreso a cuerpo 26).
@@ -1746,7 +1950,8 @@ primera vez que se entra en ellos (`logros_intro_done` /
   el fondo es el **escenario 3D del nivel elegido** (isla / puerto / barco
   enemigo, o el barco del jugador en Arcade) meciéndose sobre el mar. En
   aventura solo lista las desbloqueadas y ataja las que no tienen usos de
-  ingredientes ("Sin ingredientes"); en Arcade, todas. Recetas **agrupadas por
+  ingredientes ("Sin ingredientes"); **en Arcade igual** — solo desbloqueadas
+  y con despensa, porque el modo cobra por oleada. Recetas **agrupadas por
   nivel de estrellas**, **4 tarjetas por fila** sobre un pergamino compartido.
   Debajo, la fila de **potenciadores permanentes** disponibles (solo aventura),
   y el botón "¡Zarpar!". Arriba, "Atrás" (al mapa en aventura, al menú en
@@ -3189,7 +3394,8 @@ que no hay problema.
   sitio y uno sin comer aguanta ~50-60 s (`FIRST_PLATE_DRAIN` 0.45), así que
   el resto no llega a entrar — ni cobra su `LEAVE_PENALTY`.
   NO hay dinero extra por estrellas (economía limpia para la tienda).
-  En aventura el dinero va al monedero persistente; en Prueba no toca el progreso.
+  En aventura Y en el arcade el dinero va al monedero persistente: desde el
+  rediseño del arcade sin fin, el modo libre es una jornada de verdad.
 - **Probabilidades de coger plato** (`client3d.TAKE_CHANCES`), por tipo × nivel:
   grumete 0.95/0.20/0.10 · pirata 0.45/0.95/0.25 · capitán 0.10/0.55/0.95. Cada
   tipo tiene su nivel favorito casi asegurado y va bajando hacia los otros dos;

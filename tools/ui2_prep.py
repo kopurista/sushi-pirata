@@ -802,6 +802,36 @@ def build_submenu() -> None:
     for src, dst in (("sub/ic_perfil", "ic_perfil"), ("sub/ic_perks", "ic_perks")):
         img = drop_white(load(src))
         save(fit_max(crop_alpha(drop_specks(img), 2), 96), dst)
+    # El de MAESTRIAS (mano con cuchillo y estrellas) llega ya recortado por el
+    # removeBackground de Ludo: solo motas, recorte y tamano.
+    save(fit_max(crop_alpha(drop_specks(load("sub/ic_maestrias")), 2), 96),
+         "ic_maestrias")
+
+
+SKILL_ICONS = [
+    "fuego_constante", "pulso_firme", "corte_maestro", "manos_ligeras",
+    "golpe_vista", "buen_anfitrion", "buen_precio", "mano_suelta",
+    "buena_cara", "fama", "cocina_abundante", "buena_mano",
+    "segunda_vuelta", "golpe_suerte", "paladar_generoso",
+]
+
+
+def build_skills() -> None:
+    """Los 15 iconos de las MAESTRIAS del cocinero (skill_<id>.png, 96 px).
+    Fondo blanco fuera por inundacion (drop_white: los blancos interiores
+    sobreviven, que el arroz es arte) y drop_specks para las motas, NUNCA
+    keep_largest: varios se explican con piezas sueltas (destellos, monedas
+    botando, el corazon del paladar)."""
+    for name in SKILL_ICONS:
+        img = drop_white(load("skills/" + name))
+        save(fit_max(crop_alpha(drop_specks(img), 2), 96), "skill_" + name)
+    # Los tres iconos de SECCION (una pestana por arbol) y el boton ROJO del
+    # menos, hermano del verde `boton_mas` que ya usaban las cajas de recursos.
+    for name in ("tab_cuchillo", "tab_cliente", "tab_chef"):
+        save(fit_max(crop_alpha(drop_specks(drop_white(load("skills/" + name))), 2),
+                     96), name)
+    save(fit_max(crop_alpha(drop_specks(drop_white(load("skills/boton_menos"))), 2),
+                 52), "boton_menos")
 
 
 # ---------------------------------------------- panel del menu y su timon

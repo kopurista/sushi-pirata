@@ -317,6 +317,26 @@ var current_extras: Array = []
 var current_eat_mult: float = 0.0
 var eaten_ids: Array[String] = []
 var declined: Array[int] = []
+# --- Maestrías del cocinero: efectos sobre ESTE cliente (ver skill_data.gd).
+# Se leen una vez en _ready; en el tutorial quedan en neutro.
+## "Buen anfitrión": factor de la recarga de paciencia de los platos (solo la
+## POSITIVA de los platos nuevos y neutros — no salva al que repite ni engorda
+## el drenaje del wasabi).
+var skill_recharge := 1.0
+## "Buen precio": factor del precio de cada plato.
+var skill_price := 1.0
+## "Mano suelta" y "Buena cara": cuantía y puntos de probabilidad de propina.
+var skill_tip_amount := 1.0
+var skill_tip_chance := 0.0
+## "Fama del cocinero": suelo de probabilidad de coger cualquier plato.
+var skill_take_floor := 0.0
+## "Paladar generoso": rango 0..5 (cuántas repeticiones admite cada plato).
+var paladar_rank := 0
+## Primer plato que comió este cliente (para el rango 1 del paladar).
+var _primer_plato := ""
+## El plato que está comiendo venía MARCADO por "Golpe de suerte": al aplicarse
+## la comida sube un punto extra de multiplicador.
+var current_lucky := false
 ## Se ha acabado el nivel mientras comia: se marchara al acabar el bocado.
 var _leave_when_done := false
 var level_ref: Node = null
@@ -363,6 +383,15 @@ var _badge_tween: Tween = null
 func _ready() -> void:
 	add_to_group("clients")
 	level_ref = get_parent()
+	# MAESTRÍAS del cocinero: en el tutorial quedan en neutro (la clase de
+	# David está medida contra el juego pelado).
+	if not GameState.is_tutorial():
+		skill_recharge = 1.0 + GameState.skill_value("buen_anfitrion") / 100.0
+		skill_price = 1.0 + GameState.skill_value("buen_precio") / 100.0
+		skill_tip_amount = 1.0 + GameState.skill_value("mano_suelta") / 100.0
+		skill_tip_chance = GameState.skill_value("buena_cara") / 100.0
+		skill_take_floor = GameState.skill_value("fama") / 100.0
+		paladar_rank = GameState.skill_rank("paladar_generoso")
 	# Paciencia base ajustada a partidas de 2:30.
 	patience_max = randf_range(30.0, 40.0) * patience_scale
 	patience = patience_max
@@ -842,6 +871,12 @@ func _scan_belt(snack_only: bool = false) -> void:
 			chance = float(forced)
 		if _aroma_active() and plate_satiety == FAVORITE_TIER.get(client_type, 0):
 			chance = maxf(chance, 0.95)
+		# "Fama del cocinero": SUELO de probabilidad, no un 100% — el capitán
+		# sigue prefiriendo lo suyo y los tipos siguen significando algo. Los
+		# postres de otro tipo ya se descartaron antes del dado, así que el
+		# suelo no los toca.
+		if skill_take_floor > 0.0:
+			chance = maxf(chance, skill_take_floor)
 		# El JEFE come de TODO: nivel 1, 2 o 3, casi seguro. Su filtro no es
 		# qué coge, sino cuánto le dura (los platos gordos se mastican más).
 		if boss and not snack_only:
@@ -862,11 +897,13 @@ func _scan_belt(snack_only: bool = false) -> void:
 			# El plato puede traer su propio precio (barco combinado).
 			var base_price: int = plate.price_override if plate.price_override > 0 \
 				else int(data.get("price", 0))
-			current_price = int(round(base_price * pay_mult))
+			# "Buen precio": cada plato paga un poco más de lo que dice su ficha.
+			current_price = int(round(base_price * pay_mult * skill_price))
 			current_satiety = plate_satiety
 			current_id = rid
 			current_extras = plate.extras.duplicate()
 			current_eat_mult = plate.eat_mult_override
+			current_lucky = plate.variety_bonus
 			_start_eating(plate_pos)
 			return
 		declined.append(pid)
@@ -900,14 +937,15 @@ func _eat_snack(recipe_id: String, data: Dictionary) -> void:
 	# picoteos, tampoco SUMA.
 	if data.get("clears_boredom", false):
 		_limpiar_paladar()
-	var price: int = int(round(data.get("price", 0) * pay_mult)) + SNACK_BONUS
+	var price: int = int(round(data.get("price", 0) * pay_mult * skill_price)) \
+		+ SNACK_BONUS
 	# EL PICOTEO QUE SÍ SUMA VARIEDAD ("variety_snack", hoy solo el sunomono):
 	# cobra el bono de oro del multiplicador VIGENTE y sube un punto la primera
 	# vez que se prueba, igual que un plato normal. Los demás picoteos ni suman
 	# ni rompen la racha.
 	if data.get("variety_snack", false) and not tried.has(recipe_id):
 		price += variety
-		tried[recipe_id] = true
+		tried[recipe_id] = int(tried.get(recipe_id, 0)) + 1
 		_set_variety(variety + 1, true)
 	satiety_eaten += sat
 	money_earned += price
@@ -988,9 +1026,32 @@ func _eat_mult_of(recipe: Dictionary) -> float:
 ## Un plato nunca probado siempre reconstruye la racha tras una rotura; cuando
 ## el cliente ya lo ha probado todo, las únicas salidas son el té (reinicia el
 ## arco) o el jengibre (un repetido concreto cuenta como nuevo).
+## "Paladar generoso": cuántas VECES puede comerse un plato contando como
+## nuevo para ESTE cliente. 1 = lo normal (solo la primera vez); el rango sube
+## la tolerancia — I el primer plato del cliente, II los de 1★, III los de
+## 1★ y 2★, IV todos, V todos y dos veces los de 1★. `tried` guarda por eso
+## CONTADORES, no banderas: cuántas veces se ha comido cada plato.
+func _tolerancia(recipe_id: String, satiety: int) -> int:
+	var extra := 0
+	match paladar_rank:
+		1: extra = 1 if recipe_id == _primer_plato else 0
+		2: extra = 1 if satiety <= 1 else 0
+		3: extra = 1 if satiety <= 2 else 0
+		4: extra = 1
+		5: extra = 2 if satiety <= 1 else 1
+	return 1 + extra
+
+
+## ¿Este plato todavía cuenta como NUEVO para este cliente?
+func _es_nuevo(recipe_id: String, satiety: int) -> bool:
+	return int(tried.get(recipe_id, 0)) < _tolerancia(recipe_id, satiety)
+
+
 func _apply_meal_patience(recipe: Dictionary) -> void:
 	var base: float = PATIENCE_FOOD.get(current_satiety, 0.12) \
 		* float(recipe.get("patience_mult", 1.0))
+	if _primer_plato == "":
+		_primer_plato = current_id
 	if recipe.get("leaves_seat", false) or recipe.get("snack", false):
 		if recipe.get("clears_boredom", false):
 			_limpiar_paladar()
@@ -998,16 +1059,18 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 		# `_eat_snack`, que es la otra puerta por la que entra un picoteo.
 		if recipe.get("variety_snack", false) and not tried.has(current_id):
 			current_price += variety
-			tried[current_id] = true
+			tried[current_id] = int(tried.get(current_id, 0)) + 1
 			_set_variety(variety + 1, true)
-		patience = minf(patience + base * patience_max, patience_max)
+		patience = minf(patience + base * skill_recharge * patience_max,
+			patience_max)
 	elif recipe.get("clears_boredom", false):
 		# PLATO QUE LIMPIA EL PALADAR sin ser picoteo (la sopa de miso): borra el
 		# historial —todo vuelve a contar como nuevo— pero NO toca la racha: ni
 		# la sube ni la rompe. Recarga como un plato normal de su nivel.
 		_limpiar_paladar()
-		patience = minf(patience + base * patience_max, patience_max)
-	elif not tried.has(current_id) or not current_extras.is_empty():
+		patience = minf(patience + base * skill_recharge * patience_max,
+			patience_max)
+	elif _es_nuevo(current_id, current_satiety) or not current_extras.is_empty():
 		# BONO DEL MULTIPLICADOR: cada plato nuevo paga su precio + 1 doblón
 		# por punto del multiplicador VIGENTE (el de la chapa al cogerlo: con
 		# un x4 puesto, un plato de $3 deja $7). Los repetidos no cobran extra
@@ -1023,7 +1086,7 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 			_limpiar_paladar()
 			_set_variety(maxi(variety - 1, 0), false)
 		else:
-			tried[current_id] = true
+			tried[current_id] = int(tried.get(current_id, 0)) + 1
 			# El barco combinado vale DOBLE ("variety_worth"): es la bandeja
 			# de la variedad, sumarlo como un plato más le quitaba la gracia.
 			_set_variety(variety + int(recipe.get("variety_worth", 1)), true)
@@ -1031,10 +1094,11 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 			else 1.0 + VARIETY_RECHARGE_STEP * variety
 		var delta := base * combo * patience_max
 		if "wasabi" in current_extras:
-			# El wasabi pica: en vez de recargar, quita lo que habría recargado.
+			# El wasabi pica: en vez de recargar, quita lo que habría recargado
+			# (SIN la maestría: el "Buen anfitrión" no engorda castigos).
 			patience = maxf(patience - delta, 0.0)
 		else:
-			patience = minf(patience + delta, patience_max)
+			patience = minf(patience + delta * skill_recharge, patience_max)
 	else:
 		repeat_count += 1
 		_set_variety(0, false)
@@ -1045,6 +1109,11 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 			var drain := minf(REPEAT_DRAIN_STEP * (repeat_count - REPEAT_RECHARGE.size()),
 				REPEAT_DRAIN_MAX)
 			patience = maxf(patience - drain * patience_max, 0.0)
+	# "Golpe de suerte": el plato venía marcado y sube un punto extra al que lo
+	# coge (en un postre no: el cliente se va y no queda racha que subir).
+	if current_lucky and not recipe.get("leaves_seat", false):
+		current_lucky = false
+		_set_variety(variety + 1, true)
 	_push_bubble_icon(current_id, not current_extras.is_empty())
 
 
@@ -1299,11 +1368,17 @@ func _finish_plate() -> void:
 		var bonus := VARIETY_TIP_PER_STEP * variety
 		# Potenciador "Sobremesa dulce": el próximo postre cobra el DOBLE. Solo
 		# se consume si de verdad había multiplicador que cobrar — gastarlo en
-		# un postre a cero sería tirar el potenciador.
-		if bonus > 0 and level_ref != null and "dessert_boost" in level_ref \
-				and level_ref.dessert_boost:
-			level_ref.dessert_boost = false
-			bonus *= 2
+		# un postre a cero sería tirar el potenciador. La mejora del arcade
+		# ("los postres cobran doble") es lo mismo pero PERMANENTE, y con ella
+		# puesta el potenciador de un solo uso no se consume.
+		if bonus > 0 and level_ref != null:
+			var perm: bool = "dessert_boost_perm" in level_ref \
+					and level_ref.dessert_boost_perm
+			var una: bool = "dessert_boost" in level_ref and level_ref.dessert_boost
+			if perm or una:
+				if una and not perm:
+					level_ref.dessert_boost = false
+				bonus *= 2
 		if bonus > 0:
 			tips_earned += bonus
 			# La propina va SOLO al bote, igual que el resto (contrato de
@@ -1470,6 +1545,14 @@ func _roll_plate_tip() -> int:
 		var n: int = seen.get(id, 0)
 		tip_chance += rb * pow(0.5, n)
 		seen[id] = n + 1
+	# "Buena cara" (maestría): puntos de probabilidad extra, RESPETANDO el tope
+	# del tipo — solo empuja hasta el máximo de la tabla; lo que ya estuviera
+	# por encima (wasabi, potenciador) se queda como estaba.
+	if skill_tip_chance > 0.0:
+		tip_chance = minf(tip_chance + skill_tip_chance,
+			maxf(tip_chance, float(rules.max)))
+	# "Mano suelta" (maestría): las propinas que caen son más gordas.
+	amount_mult *= skill_tip_amount
 	# "tip_always": los postres SIEMPRE dejan propina (aunque sea 1 doblón).
 	# Es lo que compensa que valgan tan poco: el dinero lo dan por el bote, no
 	# por el precio.

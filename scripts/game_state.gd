@@ -607,6 +607,37 @@ func consume_ingredients_for_level(recipe_ids: Array) -> bool:
 	return true
 
 
+## ARCADE SIN FIN: cada oleada nueva cuesta 1 uso de cada ingrediente DISTINTO
+## de la carta vigente (el arroz no: es UN saco por partida, cobrado al zarpar
+## como en cualquier jornada). Devuelve los ingredientes que se han AGOTADO con
+## este cobro: el nivel retira de la carta las recetas que los llevan, que es
+## la segunda forma de perder — sin carta no hay variedad, sin variedad llegan
+## los vacíos.
+func consume_wave_ingredients(recipe_ids: Array) -> Array[String]:
+	var agotados: Array[String] = []
+	for ing in ingredients_for_selection(recipe_ids):
+		var quedan := get_ingredient_uses(ing)
+		if quedan <= 0:
+			continue
+		ingredients[ing] = quedan - 1
+		if quedan <= 1:
+			agotados.append(ing)
+	save_game()
+	return agotados
+
+
+## Oleadas de despensa que quedan con esta carta: el MÍNIMO de usos entre sus
+## ingredientes de pago. Es la cifra del HUD del arcade — el jugador puede
+## actuar sobre ella (soltar una receta cara, fichar barato). 999 = la carta no
+## gasta nada (todo gratis), que en la práctica es "sin límite".
+func pantry_waves_left(recipe_ids: Array) -> int:
+	var menor := -1
+	for ing in ingredients_for_selection(recipe_ids):
+		var usos := get_ingredient_uses(ing)
+		menor = usos if menor < 0 else mini(menor, usos)
+	return 999 if menor < 0 else menor
+
+
 ## Los EXTRAS (jengibre, wasabi, soja) NO van por partida: cada plato al que
 ## se le echa uno gasta una unidad. Se descuentan al servirlo a la cinta.
 func consume_extra(id: String) -> bool:
@@ -847,6 +878,275 @@ func consume_perks_for_level() -> void:
 
 func has_perk(id: String) -> bool:
 	return id in selected_perks
+
+
+# --- Maestrías del cocinero (nivel, experiencia y habilidades) ---------------
+# El catálogo y la economía viven en `skill_data.gd`; aquí está el ESTADO: la
+# experiencia acumulada, el nivel que sale de ella y los rangos comprados.
+# Los puntos NO se guardan: total = nivel (el 1 ya trae el suyo), gastado = lo
+# que suman los rangos, libre = la resta. Así un guardado no puede descuadrarse.
+
+## Experiencia acumulada del cocinero (persistente).
+var chef_xp := 0
+## Nivel vigente (1..SkillData.MAX_LEVEL). Se deriva de chef_xp al cargar y se
+## mantiene al día en add_chef_xp; se guarda solo por legibilidad del save.
+var chef_level := 1
+## ¿Ya se sembró la experiencia retroactiva de los escenarios superados ANTES
+## de que existieran las maestrías? Bandera propia y no "¿falta chef_xp?": ver
+## la explicación en `load_game`.
+var xp_seeded := false
+## PUNTOS INVERTIDOS en cada habilidad: id -> 0..max_points (sin entrada = 0).
+## Se invierten DE UNO EN UNO y el RANGO es su escalón (ver
+## `SkillData.rank_for_points`): con coste 5, cuatro puntos no desbloquean
+## nada y el quinto sube al rango 1. Guardar los puntos y derivar el rango —y
+## no al revés— es lo que permite el reparto continuo.
+var skills: Dictionary = {}
+## Mejor OLEADA alcanzada en el arcade sin fin (el récord del cartel de fin).
+var arcade_best := 0
+## XP con la que se ENTRÓ a la última tanda de ganancias (-1 = nada
+## pendiente). Lo consume la BARRA DE NIVEL del menú para animar el relleno
+## con lo recién ganado. De SESIÓN: no se guarda.
+var xp_anim_from := -1
+
+
+## ¿Partida de ARCADE? Es el modo libre de siempre ("test"), que desde el
+## rediseño del arcade sin fin SÍ toca el progreso: gasta arroz y despensa,
+## paga experiencia y dinero, y se juega con habilidades y bonificadores.
+func is_arcade() -> bool:
+	return mode == "test"
+
+
+func chef_points_total() -> int:
+	return chef_level
+
+
+func chef_points_spent() -> int:
+	var total := 0
+	for id in skills:
+		total += int(skills[id])
+	return total
+
+
+func chef_points_free() -> int:
+	return maxi(chef_points_total() - chef_points_spent(), 0)
+
+
+## Puntos INVERTIDOS en una habilidad (0..max_points).
+func skill_points(id: String) -> int:
+	return clampi(int(skills.get(id, 0)), 0, SkillData.max_points(id))
+
+
+## RANGO vigente (0..5), derivado de los puntos invertidos.
+func skill_rank(id: String) -> int:
+	return SkillData.rank_for_points(id, skill_points(id))
+
+
+## Valor del efecto con el rango que tenga hoy el jugador (0 sin comprar).
+func skill_value(id: String) -> float:
+	return SkillData.value_at(id, skill_rank(id))
+
+
+## Serie secundaria de una habilidad ("waste", "fry_widen"...), con su valor
+## por defecto para cuando no está comprada.
+func skill_aux(id: String, key: String, fallback: float) -> float:
+	return SkillData.aux_at(id, key, skill_rank(id), fallback)
+
+
+## ¿Se puede invertir UN punto más en esta habilidad AHORA?
+func can_buy_skill(id: String) -> bool:
+	if SkillData.get_skill(id).is_empty():
+		return false
+	if skill_points(id) >= SkillData.max_points(id):
+		return false
+	for p in SkillData.prereqs(id):
+		if skill_rank(p) <= 0:
+			return false
+	return chef_points_free() >= 1
+
+
+## Invierte UN punto. Devuelve false sin tocar nada si no se puede. El rango
+## sube solo cuando la inversión cruza su listón (quien llama compara el rango
+## de antes y el de después para celebrar el desbloqueo).
+func buy_skill(id: String) -> bool:
+	if not can_buy_skill(id):
+		return false
+	skills[id] = skill_points(id) + 1
+	bump_stat("skills_points_spent")
+	# Logro "conseguir x maestrías": por MÁXIMO de habilidades APRENDIDAS a la
+	# vez (rango ≥ 1), no por puntos ni por compras — con la reasignación
+	# libre, contar compras se inflaba invirtiendo y devolviendo lo mismo.
+	max_stat("skills_owned", skills_owned())
+	save_game()
+	return true
+
+
+## Habilidades con rango ≥ 1 (las APRENDIDAS: una a medio invertir no cuenta).
+func skills_owned() -> int:
+	var n := 0
+	for id in skills:
+		if skill_rank(str(id)) > 0:
+			n += 1
+	return n
+
+
+## ¿Se puede RECUPERAR un punto? Siempre que haya alguno invertido, salvo si
+## sacarlo bajaría el rango a 0 y otra habilidad aprendida depende de esta
+## (quitar Fuego constante con el Corte de maestro puesto dejaría el árbol
+## descolgado).
+func can_refund_skill(id: String) -> bool:
+	var pts := skill_points(id)
+	if pts <= 0:
+		return false
+	# Solo el punto que sostiene el rango 1 puede dejar huérfano a otro.
+	if pts == SkillData.rank_cost(id):
+		for otro in SkillData.SKILLS:
+			if skill_rank(str(otro)) > 0 and id in SkillData.prereqs(str(otro)):
+				return false
+	return true
+
+
+## Devuelve UN punto al bolsillo. La REASIGNACIÓN ES LIBRE por diseño: el
+## jugador cambia de estrategia cuando quiera, punto a punto — la pantalla es
+## quien confirma cuando el punto que sale hace PERDER la habilidad.
+func refund_skill(id: String) -> bool:
+	if not can_refund_skill(id):
+		return false
+	var pts := skill_points(id) - 1
+	if pts <= 0:
+		skills.erase(id)
+	else:
+		skills[id] = pts
+	save_game()
+	return true
+
+
+## Suma experiencia y devuelve los niveles ganados. El aviso de subida sale por
+## la capa global (un solo toast aunque caigan varios niveles de golpe: un pago
+## gordo del arcade puede subir cinco y cinco carteles serían spam).
+## Premios de las subidas de nivel aún SIN ANUNCIAR. Los entrega `add_chef_xp`
+## en el acto (el jugador ya los tiene) y los anuncia quien tenga la pantalla
+## delante: el cartel de fin de nivel o, si no pasó por él, la barra del menú.
+## { "desde": n, "hasta": n, "premios": { clave -> cantidad } }
+var pending_level_up: Dictionary = {}
+
+
+func take_level_up() -> Dictionary:
+	var out := pending_level_up
+	pending_level_up = {}
+	return out
+
+
+## Saca la ventana de subida de nivel por la capa global de avisos.
+func announce_level_up(resumen: Dictionary) -> void:
+	_ensure_notices().announce_level_up(resumen)
+
+
+func add_chef_xp(amount: int) -> int:
+	if amount <= 0 or is_tutorial():
+		return 0
+	# La barra del menú anima desde donde estaba ANTES de la primera ganancia
+	# pendiente (varias jornadas seguidas sin pasar por el menú se acumulan).
+	if xp_anim_from < 0:
+		xp_anim_from = chef_xp
+	chef_xp += amount
+	var nuevo := SkillData.level_for_xp(chef_xp)
+	var ganados := nuevo - chef_level
+	if ganados <= 0:
+		return 0
+	var desde := chef_level
+	chef_level = nuevo
+	max_stat("chef_level", chef_level)
+	# CADA NIVEL SUELTA SU PREMIO, y se suman todos los de la tanda: subir
+	# cinco de golpe con un arcade largo tiene que sentirse como cinco cofres,
+	# no como cinco carteles seguidos.
+	var premios: Dictionary = {}
+	for n in range(desde + 1, nuevo + 1):
+		for clave in SkillData.level_reward(n):
+			premios[clave] = int(premios.get(clave, 0)) + int(
+				SkillData.level_reward(n)[clave])
+	_grant_level_rewards(premios)
+	var anterior: Dictionary = pending_level_up
+	if anterior.is_empty():
+		pending_level_up = { "desde": desde, "hasta": nuevo, "premios": premios }
+	else:
+		# Dos tandas sin pasar por ninguna pantalla: se funden en una.
+		anterior["hasta"] = nuevo
+		var acum: Dictionary = anterior["premios"]
+		for clave in premios:
+			acum[clave] = int(acum.get(clave, 0)) + int(premios[clave])
+	save_game()
+	return ganados
+
+
+## Ingresa lo que sueltan las subidas de nivel. Los PUNTOS no se ingresan: se
+## deducen del nivel (`chef_points_total`), así que no hay nada que sumar.
+func _grant_level_rewards(premios: Dictionary) -> void:
+	var oro := int(premios.get("gold", 0))
+	if oro > 0:
+		money += oro
+		bump_stat("money_total", oro)
+	var lingotes := int(premios.get("ingots", 0))
+	if lingotes > 0:
+		ingots += lingotes
+	var sacos := int(premios.get("rice", 0))
+	if sacos > 0:
+		add_rice(sacos)
+	var extras := int(premios.get("extras", 0))
+	if extras > 0:
+		for e in RecipeData.EXTRAS:
+			add_ingredient_uses(str(e), extras)
+	var usos := int(premios.get("ingredients", 0))
+	if usos > 0:
+		# Reparte entre lo que piden las recetas que YA se saben cocinar: un
+		# regalo de despensa que no sirva para nada no es un regalo.
+		var utiles: Array[String] = []
+		for rid in unlocked_recipes:
+			for ing in RecipeData.get_ingredients(str(rid)):
+				if int(RecipeData.get_ingredient(str(ing)).get("cost", 0)) > 0 \
+						and not str(ing) in utiles:
+					utiles.append(str(ing))
+		utiles.shuffle()
+		for i in mini(2, utiles.size()):
+			add_ingredient_uses(utiles[i], usos)
+
+
+## Experiencia de un ESCENARIO recién cerrado. Se paga contra el RÉCORD, así
+## que hay que llamarla con las estrellas de ANTES (`prev_stars`), es decir,
+## ANTES de complete_port:
+##  · sin récord (nunca puntuado): 3 × base × mult(estrellas) — el estreno.
+##  · repetición: base × mult, y si el récord MEJORA, además 3 × base × la
+##    diferencia de multiplicadores. Mejorar de 2★ a 3★ cobra solo el salto.
+func scenario_xp(port_id: String, stars: int, prev_stars: int) -> int:
+	var n := CampaignData.port_index(port_id) + 1
+	if n <= 0 or stars <= 0:
+		return 0
+	var base := float(SkillData.XP_SCENARIO * n)
+	var m := float(SkillData.STAR_MULT[clampi(stars, 0, 3)])
+	var prev_m := float(SkillData.STAR_MULT[clampi(prev_stars, 0, 3)])
+	if prev_stars <= 0:
+		return int(round(base * m * SkillData.FIRST_MULT))
+	var pago := base * m
+	if m > prev_m:
+		pago += base * (m - prev_m) * SkillData.FIRST_MULT
+	return int(round(pago))
+
+
+## Experiencia de una partida de ARCADE: 15 × oleada por cada oleada superada.
+func arcade_xp(waves_done: int) -> int:
+	var total := 0
+	for w in range(1, maxi(waves_done, 0) + 1):
+		total += SkillData.ARCADE_WAVE_XP * w
+	return total
+
+
+## Apunta el récord de oleadas (y su estadística de logros). Devuelve true si
+## es récord nuevo.
+func record_arcade_wave(waves_done: int) -> bool:
+	max_stat("arcade_wave", waves_done)
+	if waves_done <= arcade_best:
+		return false
+	arcade_best = waves_done
+	return true
 
 
 # --- Progreso de la campaña ------------------------------------------------
@@ -1523,6 +1823,13 @@ func save_game() -> void:
 		"shop_day": shop_day,
 		"daily_day": daily_day,
 		"daily_last": daily_last,
+		"chef_xp": chef_xp,
+		"chef_level": chef_level,
+		"xp_seeded": xp_seeded,
+		# PUNTOS invertidos, no rangos: clave NUEVA a propósito, porque un 3 en
+		# el formato viejo era el rango 3 (15 puntos) y aquí son 3 puntos.
+		"skill_points": skills,
+		"arcade_best": arcade_best,
 		"collectibles": collectibles,
 		"triforce_pieces": triforce_pieces,
 		"fish_album": fish_album,
@@ -1639,6 +1946,52 @@ func load_game() -> void:
 	# lo que ha ganado" que se puede reconstruir hacia atrás.
 	if not stats.has("money_total"):
 		stats["money_total"] = money + int(stats.get("money_spent", 0))
+	# MAESTRÍAS: el nivel se DERIVA de la experiencia (el guardado lo trae solo
+	# por legibilidad), así que un save editado a mano no puede descuadrarlos.
+	chef_xp = maxi(int(parsed.get("chef_xp", 0)), 0)
+	# GUARDADOS ANTERIORES A LAS MAESTRÍAS: se siembra la experiencia con el
+	# ESTRENO de cada escenario ya superado (mismo criterio retroactivo que
+	# `money_total` y los logros). Sin esto, quien llegara con media campaña
+	# hecha arrancaría al nivel 1 sin poder recuperar nunca esos estrenos —
+	# el récord ya está puesto y las repeticiones pagan la tarifa corta.
+	#
+	# LA COMPUERTA ES UNA BANDERA PROPIA (`xp_seeded`), NO la ausencia de
+	# `chef_xp`: la primera versión miraba si faltaba la clave, y en cuanto el
+	# juego guardaba una vez (con un 0 dentro) la siembra ya no podía
+	# dispararse nunca. Pasó de verdad — una partida con nueve escenarios
+	# superados se quedó sin sus 2.430 de estreno.
+	xp_seeded = bool(parsed.get("xp_seeded", false))
+	if not xp_seeded:
+		var semilla := 0
+		for pid in level_stars:
+			semilla += scenario_xp(str(pid), int(level_stars[pid]), 0)
+		xp_seeded = true
+		if semilla > 0:
+			# Se CELEBRA: la primera visita al menú ve la barra llenarse.
+			xp_anim_from = chef_xp
+			chef_xp += semilla
+	chef_level = SkillData.level_for_xp(chef_xp)
+	skills = {}
+	if parsed.has("skill_points"):
+		var pts_dict: Dictionary = parsed["skill_points"]
+		for k in pts_dict.keys():
+			if SkillData.get_skill(str(k)).is_empty():
+				continue
+			var p := clampi(int(pts_dict[k]), 0, SkillData.max_points(str(k)))
+			if p > 0:
+				skills[str(k)] = p
+	else:
+		# GUARDADOS DEL PRIMER DÍA DE LAS MAESTRÍAS: guardaban el RANGO (1..5)
+		# porque el rango se compraba entero. Se convierten a puntos para no
+		# perder lo invertido.
+		var skill_dict: Dictionary = parsed.get("skills", {})
+		for k in skill_dict.keys():
+			if SkillData.get_skill(str(k)).is_empty():
+				continue
+			var r := clampi(int(skill_dict[k]), 0, SkillData.MAX_RANK)
+			if r > 0:
+				skills[str(k)] = r * SkillData.rank_cost(str(k))
+	arcade_best = maxi(int(parsed.get("arcade_best", 0)), 0)
 	collectibles = _to_string_array(parsed.get("collectibles", []))
 	triforce_pieces = int(parsed.get("triforce_pieces", 0))
 	fish_album = {}
@@ -1760,6 +2113,12 @@ func _new_game() -> void:
 	unlocked_perks = []
 	perk_level = {}
 	perk_uses = {}
+	chef_xp = 0
+	chef_level = 1
+	# Partida nueva: no hay nada superado que sembrar.
+	xp_seeded = true
+	skills = {}
+	arcade_best = 0
 	shop_stock = []
 	shop_day = ""
 	daily_day = 0

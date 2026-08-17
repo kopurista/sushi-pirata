@@ -239,10 +239,67 @@ var aroma_active := false
 var tip_chance_bonus := 0.0
 var tip_amount_mult := 1.0
 var belt_mult := 1.0
+## Velocidad BASE de la cinta a la que vuelve belt_mult al expirar el
+## potenciador. El arcade la toca (estorbo "la cinta acelera" y la mejora "la
+## cinta va más despacio"); fuera del arcade es 1 y todo queda como siempre.
+var belt_base := 1.0
 var patience_mult := 1.0
 var belt_timer := 0.0
 var tip_chance_timer := 0.0
 var tip_amount_timer := 0.0
+
+# --- Maestrías del cocinero: efectos del NIVEL (ver skill_data.gd) ---
+## "Segunda vuelta": vueltas de los platos, castigo del cubo y si cada vuelta
+## nueva borra los rechazos. Neutros sin la habilidad.
+var plate_laps := 1
+var plate_forget_lap := false
+var waste_frac := WASTE_PENALTY
+## Experiencia pagada por esta jornada (la enseña el cartel de resultados).
+var last_xp := 0
+
+# --- ARCADE SIN FIN (GameState.is_arcade(); ver el documento del modo) ---
+## Oleadas de WAVE_TIME segundos. Se pierde a los VACIOS_MAX clientes que se
+## van sin probar bocado, o cuando la despensa deja la carta vacía y los
+## vacíos llegan solos. Cada oleada cuesta 1 uso de cada ingrediente de la
+## carta; cada 3 hay carta de mejora; cada 10, un estorbo permanente avisado
+## una oleada antes.
+const WAVE_TIME := 45.0
+## La barra del oro no tiene objetivo en el arcade: es un hito que se renueva
+## cada vez que se alcanza (y su estrella brilla, que cruzar hitos alegra).
+const ARCADE_META_STEP := 150
+const VACIOS_MAX := 3
+var arcade := false
+var wave := 1
+var wave_t := 0.0
+var next_spawn := 0.0
+## Hueco entre llegadas de la oleada 1; el pellizco lo comprime un 2% por
+## oleada (las sillas libres son el tope natural del aluvión).
+var arcade_spawn_gap := 11.0
+## Carta VIGENTE del arcade: los fichajes la agrandan y los ingredientes
+## agotados la encogen (las recetas caídas se quedan apagadas en la fila).
+var carta: Array[String] = []
+## Estorbos ya aplicados (se sortean sin repetir) y el anunciado para la
+## próxima decena.
+var estorbos_usados: Array[String] = []
+var estorbo_anunciado := ""
+## El estorbo del fogón: cada FOGON_EVERY s una receta se apaga un rato.
+const FOGON_EVERY := 40.0
+const FOGON_OFF := 12.0
+var fogon_activo := false
+var fogon_t := 0.0
+## Mejoras de partida pendientes de elegir (cada 3 oleadas cae una).
+var pending_upgrades := 0
+## Mejoras NO repetibles ya cogidas (no vuelven a salir en el sorteo).
+var upgrades_cogidas: Array[String] = []
+## Postres con el cobro del multiplicador doblado toda la partida (mejora).
+var dessert_boost_perm := false
+## Postres que PAGAN doble su precio: no existe (regla del modo: ninguna
+## mejora toca el precio de los platos).
+## Fila del HUD del arcade: oleada, despensa restante y vacíos.
+var arcade_row: HBoxContainer = null
+var oleada_label: Label = null
+var despensa_label: Label = null
+var vacios_label: Label = null
 
 # --- Mundo 3D ---
 var cam: Camera3D
@@ -544,9 +601,24 @@ func _ready() -> void:
 		if not GameState.consume_ingredients_for_level(GameState.selected_recipes):
 			get_tree().change_scene_to_file.call_deferred("res://scenes/prep_screen.tscn")
 			return
-		# Los potenciadores permanentes elegidos gastan 1 uso por partida (solo
-		# en aventura: el modo Arcade no toca el progreso).
+		# Los potenciadores permanentes elegidos gastan 1 uso por partida.
 		GameState.consume_perks_for_level()
+	elif GameState.is_arcade():
+		# ARCADE SIN FIN: una jornada de verdad, no una prueba. Cobra su saco
+		# de arroz y la primera oleada de despensa al zarpar, y se juega con
+		# todo puesto: maestrías, bonificadores y sus usos gastados.
+		arcade = true
+		timed = false
+		unlimited = true
+		total_clients = 0
+		star_money = [ARCADE_META_STEP]
+		carta = GameState.selected_recipes.duplicate()
+		client_weights = _arcade_weights()
+		if not GameState.consume_ingredients_for_level(GameState.selected_recipes):
+			get_tree().change_scene_to_file.call_deferred("res://scenes/prep_screen.tscn")
+			return
+		GameState.consume_perks_for_level()
+		_setup_arcade_hud()
 	else:
 		GameState.selected_perks = []
 	_apply_perks()
@@ -587,7 +659,11 @@ func _ready() -> void:
 	# 2 s habría devuelto la espera muerta que se quería quitar.
 	var pronto := minf(first_arrival, 2.0)
 	arrival_step = maxf((last - first_arrival) / float(maxi(total_clients - 1, 1)), 1.5)
-	if unlimited:
+	if arcade:
+		# Las llegadas del ARCADE las gobierna _tick_arcade (continuas, con el
+		# pellizco por oleada): el horario clásico aquí duplicaría la clientela.
+		pass
+	elif unlimited:
 		# Abordaje: no hay cupo de clientes. Se sigue llamando a gente con ese
 		# mismo paso mientras quede reloj para que les dé tiempo a comer algo
 		# (nadie entra en los ultimos ARRIVAL_TAIL segundos). Si la barra esta
@@ -634,6 +710,13 @@ func _apply_perks() -> void:
 	if GameState.has_perk("ayudante"):
 		prep_board.helper_rest = GameState.perk_value("ayudante")
 		_setup_helper()
+	# MAESTRÍAS que viven en el nivel (las de la tabla las lee prep_board y las
+	# del cliente cada client3d; en el tutorial todo queda en neutro).
+	if not GameState.is_tutorial():
+		plate_laps = maxi(int(GameState.skill_value("segunda_vuelta")), 1)
+		plate_forget_lap = GameState.skill_rank("segunda_vuelta") >= 4
+		waste_frac = GameState.skill_aux("segunda_vuelta", "waste",
+			WASTE_PENALTY * 100.0) / 100.0
 
 
 ## Avatar del ayudante: solo aparece si se ha activado su potenciador. Va al
@@ -2433,10 +2516,14 @@ func _process(delta: float) -> void:
 		_end_level()
 		return
 
+	if arcade:
+		_tick_arcade(delta)
+		if ended:
+			return
 	if belt_timer > 0.0:
 		belt_timer -= delta
 		if belt_timer <= 0.0:
-			belt_mult = 1.0
+			belt_mult = belt_base
 	if tip_chance_timer > 0.0:
 		tip_chance_timer -= delta
 		if tip_chance_timer <= 0.0:
@@ -2543,6 +2630,10 @@ func _try_spawn_client() -> bool:
 	c.finished.connect(_on_client_finished.bind(idx))
 	c.plate_served.connect(_on_client_served)
 	seat_clients[idx] = c
+	# Estorbo del arcade "la clientela llega quemada": entran con la paciencia
+	# ya empezada (la barra nace al 80%).
+	if estorbo_impacientes:
+		c.patience = c.patience_max * 0.8
 	if not collectible_client.is_empty() and treasure_client == null \
 			and c.who_override == str(collectible_client.get("who", "")):
 		treasure_client = c
@@ -2670,6 +2761,13 @@ func _on_client_finished(report: Dictionary, seat_idx: int) -> void:
 	clients_finished += 1
 	_update_client_heads()
 	_update_hud()
+	# ARCADE: la vida son los vacíos. Al tercero que se va sin probar bocado,
+	# se acabó la partida (no hay reloj que agotar: se pierde el control).
+	if arcade:
+		_update_arcade_hud()
+		if empty_leavers >= VACIOS_MAX and not ended:
+			_end_level()
+			return
 	# En las islas y los puertos el turno lo acota la CLIENTELA: cuando se va el
 	# último, se acabó el trabajo. En los abordajes no, que siguen entrando.
 	if not unlimited and clients_finished >= total_clients:
@@ -2722,6 +2820,10 @@ func _star_money() -> int:
 
 
 func _check_goal_reached() -> void:
+	# En el arcade el oro no cierra nada: la barra es un hito que se renueva
+	# (ver _update_hud), y la partida solo la terminan los vacíos o el jugador.
+	if arcade:
+		return
 	if ended or goal_reached or star_money.is_empty():
 		return
 	# Con un JEFE pendiente el turno no se cierra por dinero: cortar la partida
@@ -2742,6 +2844,456 @@ func _leftover_clients() -> Dictionary:
 		out[t] = int(out.get(t, 0)) + 1
 	return out
 	_update_hud()
+
+
+# --------------------------------------------------------- ARCADE SIN FIN
+
+## Mezcla de clientela por tramo de oleadas: el TONO sube cada cinco — piratas
+## desde la 6, capitanes desde la 11 — y es el eje que obliga a subir la carta.
+func _arcade_weights() -> Dictionary:
+	if wave < 6:
+		return { "E": 1 }
+	if wave < 11:
+		return { "E": 3, "A": 1 }
+	if wave < 16:
+		return { "E": 2, "A": 2 }
+	if wave < 21:
+		return { "E": 2, "A": 3, "G": 1 }
+	return { "E": 1, "A": 2, "G": 2 }
+
+
+## El corazón del modo: llegadas continuas, el reloj de la oleada y el fogón.
+func _tick_arcade(delta: float) -> void:
+	if prep_phase or frozen or ended or clock_hold:
+		return
+	wave_t += delta
+	next_spawn -= delta
+	if next_spawn <= 0.0 and _try_spawn_client():
+		# El pellizco: cada oleada comprime las llegadas un 2%. Las sillas
+		# libres son el tope natural (nadie entra sin taburete).
+		next_spawn = arcade_spawn_gap * pow(0.98, wave - 1)
+	# Estorbo del FOGÓN: cada tanto, una receta disponible se apaga un rato.
+	if fogon_activo:
+		fogon_t -= delta
+		if fogon_t <= 0.0:
+			fogon_t = FOGON_EVERY
+			_apagar_fogon()
+	if wave_t >= WAVE_TIME:
+		_next_wave()
+	_try_open_upgrade()
+
+
+func _next_wave() -> void:
+	wave_t = 0.0
+	wave += 1
+	GameState.bump_stat("arcade_waves")
+	# El pellizco de la paciencia (afecta a los que lleguen desde ahora).
+	patience_mult *= 0.985
+	client_weights = _arcade_weights()
+	# LA DESPENSA DE LA OLEADA: 1 uso de cada ingrediente de la carta. Lo que
+	# se agote tira sus recetas — la segunda forma de perder.
+	var agotados := GameState.consume_wave_ingredients(carta)
+	if not agotados.is_empty():
+		_drop_recipes_for(agotados)
+	# Cada 3 oleadas cae una carta de mejora; cada 10, un estorbo (anunciado
+	# una oleada antes, para que dé tiempo a colocarse).
+	if wave % 3 == 0:
+		pending_upgrades += 1
+	if wave % 10 == 9:
+		_anunciar_estorbo()
+	elif wave % 10 == 0 and estorbo_anunciado != "":
+		_aplicar_estorbo(estorbo_anunciado)
+		estorbo_anunciado = ""
+	else:
+		_cartel_oleada("¡Oleada %d!" % wave)
+	next_spawn = 0.0
+	_update_arcade_hud()
+
+
+## La tablilla de fase hace de megáfono del arcade: entra, se lee y se va.
+func _cartel_oleada(texto: String) -> void:
+	phase_label.text = texto
+	_show_phase(true)
+	var tw := create_tween()
+	tw.tween_interval(2.4)
+	tw.tween_callback(func() -> void:
+		# Si mientras tanto ha salido otro cartel, no se pisa.
+		if not prep_phase and not frozen:
+			_show_phase(false))
+
+
+## Los ESTORBOS: lastres permanentes sorteados sin repetir. Son la razón de
+## que el modo acabe siendo imposible en vez de solo largo, y cada uno usa una
+## perilla que el juego ya tenía.
+const ESTORBOS: Dictionary = {
+	"cinta_rapida": "¡La cinta acelera!",
+	"bocado_rapido": "¡Bocados más rápidos!",
+	"fogon": "¡Un fogón se apaga a ratos!",
+	"cubo_caro": "¡El cubo cobra el doble!",
+	"cajas_menos": "¡Las cajas encogen!",
+	"impacientes": "¡La clientela llega quemada!",
+	"mas_drenaje": "¡La paciencia vuela!",
+}
+## Clientes que llegan con la paciencia ya empezada (estorbo "impacientes").
+var estorbo_impacientes := false
+
+
+func _anunciar_estorbo() -> void:
+	var pool: Array = []
+	for id in ESTORBOS:
+		if not str(id) in estorbos_usados:
+			pool.append(str(id))
+	if pool.is_empty():
+		_cartel_oleada("¡Oleada %d!" % wave)
+		return
+	estorbo_anunciado = str(pool[randi() % pool.size()])
+	_cartel_oleada("Se acerca: %s" % str(ESTORBOS[estorbo_anunciado]).to_lower())
+
+
+func _aplicar_estorbo(id: String) -> void:
+	estorbos_usados.append(id)
+	_cartel_oleada(str(ESTORBOS.get(id, "¡Estorbo!")))
+	match id:
+		"cinta_rapida":
+			belt_base = 1.3
+			belt_mult = maxf(belt_mult, belt_base)
+		"bocado_rapido":
+			bite_speed_mult *= 1.2
+		"fogon":
+			fogon_activo = true
+			fogon_t = FOGON_EVERY * 0.5
+		"cubo_caro":
+			waste_frac *= 2.0
+		"cajas_menos":
+			prep_board.stack_max = maxi(prep_board.stack_max - 1, 2)
+		"impacientes":
+			estorbo_impacientes = true
+		"mas_drenaje":
+			patience_mult *= 0.9
+
+
+## El fogón apagado: una receta DISPONIBLE entra en enfriamiento forzoso.
+func _apagar_fogon() -> void:
+	var vivas: Array[String] = []
+	for id in carta:
+		if prep_board.cooldowns.get(id, 0.0) <= 0.0:
+			vivas.append(id)
+	if vivas.is_empty():
+		return
+	var id: String = vivas[randi() % vivas.size()]
+	prep_board.cooldowns[id] = maxf(float(prep_board.cooldowns.get(id, 0.0)),
+		FOGON_OFF)
+	prep_board._flash_message("¡Fogón apagado!", Color(1.0, 0.5, 0.35))
+
+
+## Ingredientes agotados → sus recetas se CAEN de la carta (se quedan apagadas
+## en la fila, como las vetadas del tutorial). Sin carta no hay variedad, y
+## sin variedad llegan los vacíos: la partida se desmorona, no se apaga.
+func _drop_recipes_for(agotados: Array) -> void:
+	var fuera: Array[String] = []
+	for id in carta:
+		for ing in RecipeData.get_ingredients(id):
+			if str(ing) in agotados:
+				fuera.append(id)
+				break
+	if fuera.is_empty():
+		return
+	for id in fuera:
+		carta.erase(id)
+	prep_board._flash_message("¡Despensa agotada: fuera %s!"
+		% str(RecipeData.get_recipe(fuera[0]).get("name", fuera[0])),
+		Color(1.0, 0.5, 0.35))
+	# La lista de permitidas gobierna el apagado de los botones. Con la carta
+	# vacía se pone un centinela: una lista vacía significa "todas".
+	prep_board.allowed_recipes = carta.duplicate() if not carta.is_empty() \
+			else ["__ninguna__"]
+
+
+# ---------------------------------------------- mejoras de partida (arcade)
+
+## Cada 3 oleadas: tres cartas y eliges una, para TODA la partida. Reutiliza
+## el cartel de potenciadores (pausa el juego, tres tarjetas, dibujo y
+## título). Regla del modo: ninguna mejora toca el PRECIO de los platos.
+func _try_open_upgrade() -> void:
+	if pending_upgrades <= 0 or powerup_panel.visible or ended:
+		return
+	if prep_board.is_gesture_locked():
+		return
+	_open_upgrade_choice()
+
+
+## El fondo de mejoras DISPONIBLES ahora mismo: cada entrada trae etiqueta,
+## icono (se reciclan los dibujos de los potenciadores) y su efecto.
+func _upgrade_pool() -> Array[Dictionary]:
+	var pool: Array[Dictionary] = []
+	var pot := func(pid: String) -> String:
+		return str(PowerupData.get_powerup(pid).get("icon", ""))
+	# FICHAJE: una receta del recetario que se pueda PAGAR (si falta su
+	# ingrediente, no se ofrece). Desde su oleada, su despensa se cobra igual.
+	var fichables: Array[String] = []
+	for rid in GameState.unlocked_recipes:
+		if rid in carta:
+			continue
+		var d := RecipeData.get_recipe(rid)
+		if d.is_empty() or d.get("hidden", false):
+			continue
+		if not GameState.has_ingredients_for(rid):
+			continue
+		fichables.append(rid)
+	if not fichables.is_empty():
+		var rid: String = fichables[randi() % fichables.size()]
+		pool.append({ "id": "fichaje:%s" % rid,
+			"title": "Ficha: %s" % str(RecipeData.get_recipe(rid).get("name", rid)),
+			"icon": "res://assets/dishes/%s.webp" % rid })
+	# MAESTRÍA +1 de una receta de la carta que ya la tenga.
+	var con_maestria: Array[String] = []
+	for rid in carta:
+		if int(RecipeData.get_recipe(rid).get("free_uses", 0)) > 0:
+			con_maestria.append(rid)
+	if not con_maestria.is_empty():
+		var rid: String = con_maestria[randi() % con_maestria.size()]
+		var uid := "maestria:%s" % rid
+		if not uid in upgrades_cogidas:
+			pool.append({ "id": uid,
+				"title": "%s: una pieza más" % str(RecipeData.get_recipe(rid).get("name", rid)),
+				"icon": "res://assets/dishes/%s.webp" % rid })
+	# El resto del fondo, filtrado por disponibilidad.
+	var fijos: Array[Dictionary] = [
+		{ "id": "cd_l1", "title": "Platos de 1★ un 30% más rápidos",
+			"icon": pot.call("receta_instantanea") },
+		{ "id": "caja_extra", "title": "Una caja más",
+			"icon": pot.call("mas_almacen") },
+		{ "id": "pila_extra", "title": "Las cajas guardan uno más",
+			"icon": pot.call("mas_almacen") },
+		{ "id": "cinta_lenta", "title": "La cinta va más despacio",
+			"icon": pot.call("cinta_rapida") },
+		{ "id": "vuelta_extra", "title": "Los platos aguantan una vuelta más",
+			"icon": pot.call("sin_basura") },
+		{ "id": "paciencia", "title": "+15% de paciencia desde ahora",
+			"icon": pot.call("clientes_pacientes") },
+		{ "id": "postre_doble", "title": "Los postres cobran doble",
+			"icon": pot.call("sobremesa") },
+	]
+	for f in fijos:
+		if str(f["id"]) in upgrades_cogidas:
+			continue
+		pool.append(f)
+	# El ayudante entra a trabajar (si no está ya), y su descanso se recorta.
+	if helper_pivot == null and not "ayudante" in upgrades_cogidas:
+		pool.append({ "id": "ayudante", "title": "El ayudante entra a trabajar",
+			"icon": str(PerkData.get_perk("ayudante").get("icon", "")) })
+	elif helper_pivot != null and not "ayudante_veloz" in upgrades_cogidas:
+		pool.append({ "id": "ayudante_veloz",
+			"title": "El ayudante descansa la mitad",
+			"icon": str(PerkData.get_perk("ayudante").get("icon", "")) })
+	# Un vacío perdonado: recuperar una calavera (repetible, solo si hay).
+	if empty_leavers > 0:
+		pool.append({ "id": "perdon", "title": "Un vacío perdonado",
+			"icon": pot.call("variedad_extra") })
+	return pool
+
+
+func _open_upgrade_choice() -> void:
+	for child in powerup_options.get_children():
+		child.queue_free()
+	var pool := _upgrade_pool()
+	pool.shuffle()
+	if pool.is_empty():
+		# Sin nada que ofrecer (todo cogido): la mejora se pierde sin cartel.
+		pending_upgrades -= 1
+		return
+	for i in mini(3, pool.size()):
+		powerup_options.add_child(_make_upgrade_card(pool[i]))
+	powerup_panel.visible = true
+	get_tree().paused = true
+	_animate_powerup_panel()
+
+
+## Tarjeta de mejora: mismo formato que las de potenciador (dibujo + título).
+func _make_upgrade_card(entry: Dictionary) -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(0, POWERUP_CARD_H)
+	prep_board.skin_button(b)
+	b.pressed.connect(_on_upgrade_chosen.bind(str(entry["id"])))
+	var margen := (POWERUP_CARD_H - POWERUP_ICON) * 0.5
+	var icono := TextureRect.new()
+	icono.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icono.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var ruta := str(entry.get("icon", ""))
+	if ResourceLoader.exists(ruta):
+		icono.texture = load(ruta)
+	icono.position = Vector2(margen, margen)
+	icono.size = Vector2(POWERUP_ICON, POWERUP_ICON)
+	icono.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(icono)
+	var titulo := Label.new()
+	titulo.text = str(entry.get("title", ""))
+	titulo.add_theme_font_size_override("font_size", 26)
+	titulo.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	titulo.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	titulo.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	titulo.offset_left = margen * 2.0 + POWERUP_ICON
+	titulo.offset_right = -margen
+	titulo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(titulo)
+	return b
+
+
+func _on_upgrade_chosen(uid: String) -> void:
+	pending_upgrades -= 1
+	_apply_upgrade(uid)
+	_update_arcade_hud()
+	if pending_upgrades > 0:
+		_open_upgrade_choice()
+	elif pending_powerups > 0:
+		_open_powerup_choice()
+	else:
+		powerup_panel.visible = false
+		get_tree().paused = false
+
+
+func _apply_upgrade(uid: String) -> void:
+	if uid.begins_with("fichaje:"):
+		var rid := uid.substr(8)
+		carta.append(rid)
+		prep_board.add_recipe(rid)
+		# Si la lista de permitidas está en marcha (hubo caídas), el fichaje
+		# entra en ella o nacería apagado.
+		if not prep_board.allowed_recipes.is_empty():
+			prep_board.allowed_recipes = carta.duplicate()
+		return
+	if uid.begins_with("maestria:"):
+		upgrades_cogidas.append(uid)
+		var rid := uid.substr(9)
+		prep_board.mastery_bonus[rid] = int(prep_board.mastery_bonus.get(rid, 0)) + 1
+		return
+	upgrades_cogidas.append(uid)
+	match uid:
+		"cd_l1":
+			prep_board.cooldown_l1_mult = 0.7
+		"caja_extra":
+			prep_board.add_storage_slot()
+		"pila_extra":
+			prep_board.stack_max += 1
+		"cinta_lenta":
+			belt_base = minf(belt_base, 0.85)
+			if belt_timer <= 0.0:
+				belt_mult = belt_base
+		"vuelta_extra":
+			plate_laps += 1
+		"paciencia":
+			patience_mult *= 1.15
+			for c in seat_clients:
+				if c != null:
+					c.boost_patience(0.15)
+		"postre_doble":
+			dessert_boost_perm = true
+		"ayudante":
+			prep_board.helper_rest = GameState.perk_value("ayudante") \
+					if GameState.is_perk_unlocked("ayudante") else 30.0
+			prep_board._build_helper_button()
+			_setup_helper()
+		"ayudante_veloz":
+			prep_board.helper_rest *= 0.5
+			# "perdon" es repetible: no entra en cogidas.
+		"perdon":
+			upgrades_cogidas.erase("perdon")
+			empty_leavers = maxi(empty_leavers - 1, 0)
+
+
+# ----------------------------------------------------- HUD y fin del arcade
+
+## Fila propia bajo el marcador: oleada, oleadas de despensa que quedan y los
+## vacíos. La despensa se enseña porque el jugador puede ACTUAR sobre ella
+## (soltar una receta cara, fichar barato); los vacíos son la vida.
+func _setup_arcade_hud() -> void:
+	arcade_row = HBoxContainer.new()
+	arcade_row.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	arcade_row.offset_top = 104.0 + GameState.safe_top()
+	arcade_row.offset_bottom = 140.0 + GameState.safe_top()
+	arcade_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	arcade_row.add_theme_constant_override("separation", 30)
+	arcade_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	$HUD.add_child(arcade_row)
+	oleada_label = _arcade_hud_label(Color(1.0, 0.92, 0.6))
+	despensa_label = _arcade_hud_label(Color(0.85, 0.95, 1.0))
+	vacios_label = _arcade_hud_label(Color(1.0, 0.75, 0.7))
+	for l in [oleada_label, despensa_label, vacios_label]:
+		arcade_row.add_child(l)
+	_update_arcade_hud()
+
+
+func _arcade_hud_label(color: Color) -> Label:
+	var l := Label.new()
+	l.add_theme_font_size_override("font_size", 24)
+	l.add_theme_color_override("font_color", color)
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.92))
+	l.add_theme_constant_override("outline_size", 9)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return l
+
+
+## Última cifra pintada de cada marcador, para animar solo los CAMBIOS.
+var _hud_wave_last := 1
+var _hud_vacios_last := 0
+var _hud_despensa_last := 999
+
+
+func _update_arcade_hud() -> void:
+	if oleada_label == null:
+		return
+	oleada_label.text = "Oleada %d" % wave
+	# La oleada nueva da un bote (la cifra es la noticia del modo).
+	if wave != _hud_wave_last:
+		_hud_wave_last = wave
+		_hud_pop(oleada_label)
+	var quedan := GameState.pantry_waves_left(carta)
+	despensa_label.text = "Despensa: %s" % ("∞" if quedan >= 999 else str(quedan))
+	despensa_label.add_theme_color_override("font_color",
+		Color(1.0, 0.55, 0.4) if quedan <= 2 else Color(0.85, 0.95, 1.0))
+	# Al entrar en la reserva corta, un parpadeo de aviso.
+	if quedan <= 2 and _hud_despensa_last > 2:
+		_hud_blink(despensa_label)
+	_hud_despensa_last = quedan
+	vacios_label.text = "Vacíos %d/%d" % [empty_leavers, VACIOS_MAX]
+	vacios_label.add_theme_color_override("font_color",
+		Color(1.0, 0.35, 0.3) if empty_leavers >= VACIOS_MAX - 1
+		else Color(1.0, 0.75, 0.7))
+	# Cada vacío nuevo SACUDE su contador: es la vida bajando.
+	if empty_leavers > _hud_vacios_last:
+		_hud_vacios_last = empty_leavers
+		_hud_shake(vacios_label)
+
+
+func _hud_pop(l: Label) -> void:
+	l.pivot_offset = l.size * 0.5
+	var tw := l.create_tween()
+	tw.tween_property(l, "scale", Vector2(1.35, 1.35), 0.12) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(l, "scale", Vector2.ONE, 0.3) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+func _hud_blink(l: Label) -> void:
+	var tw := l.create_tween()
+	for i in 3:
+		tw.tween_property(l, "modulate:a", 0.25, 0.12)
+		tw.tween_property(l, "modulate:a", 1.0, 0.12)
+
+
+func _hud_shake(l: Label) -> void:
+	# Sacudida por ROTACIÓN y escala, no por posición: el HBoxContainer es el
+	# dueño de la posición de sus hijos y un tween sobre ella pelearía con él.
+	l.pivot_offset = l.size * 0.5
+	var tw := l.create_tween()
+	tw.tween_property(l, "modulate", Color(1.6, 0.5, 0.4), 0.08)
+	tw.parallel().tween_property(l, "scale", Vector2(1.35, 1.35), 0.1) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	for ang in [8.0, -7.0, 5.0, -3.0, 0.0]:
+		tw.tween_property(l, "rotation_degrees", ang, 0.05)
+	tw.tween_property(l, "scale", Vector2.ONE, 0.22) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(l, "modulate", Color.WHITE, 0.3)
 
 
 # ------------------------------------------------- propinas y potenciadores
@@ -2969,6 +3521,11 @@ func _on_dish_served(recipe_id: String, price_override: int = 0, extras: Array =
 	p.eat_mult_override = eat_mult_override
 	p.only_who = str(exclusive_dishes.get(recipe_id, ""))
 	p.speed = PLATE_SPEED
+	# Maestrías del plato en cinta: vueltas extra, olvido por vuelta y la marca
+	# del "Golpe de suerte" (la tabla la expone solo durante su emit).
+	p.max_laps = plate_laps
+	p.forget_each_lap = plate_forget_lap
+	p.variety_bonus = prep_board.serving_lucky
 	belt_path.add_child(p)
 	p.progress = SPAWN_PROGRESS
 	p.discarded.connect(_on_plate_discarded.bind(p))
@@ -3003,8 +3560,10 @@ func _on_plate_discarded(recipe_id: String, plate: Node3D = null) -> void:
 	# Logro "aquí no se tira nada": la partida deja de ser limpia.
 	plates_wasted += 1
 	var price: int = RecipeData.get_recipe(recipe_id).get("price", 0)
-	# Siempre cuesta algo: hasta el plato más barato se cobra un doblón.
-	var castigo: int = maxi(int(round(price * WASTE_PENALTY)), 1)
+	# Siempre cuesta algo: hasta el plato más barato se cobra un doblón. La
+	# fracción sale de la maestría "Segunda vuelta" (y el estorbo del arcade
+	# "el cubo cobra el doble" la duplica).
+	var castigo: int = maxi(int(round(price * waste_frac)), 1)
 	# Como el resto de castigos, el marcador nunca baja de 0.
 	money_earned = maxi(money_earned - castigo, 0)
 	_waste_text(castigo, plate)
@@ -3095,9 +3654,12 @@ func _finalize_results() -> void:
 	# las estrellas cuentan la misma historia. Lo que NO cuenta aquí son las
 	# primas de cierre, que son un premio por acabar pronto y no producción.
 	var stars := 0
-	for threshold in star_money:
-		if _star_money() >= int(threshold):
-			stars += 1
+	# En el arcade no hay estrellas: su marcador es la OLEADA (y el star_money
+	# es el hito renovable de la barra, que aquí no significa nada).
+	if not arcade:
+		for threshold in star_money:
+			if _star_money() >= int(threshold):
+				stars += 1
 	# NIVEL CON JEFE: el aprobado es el jefe, no el oro. Sin rendirlo, las
 	# estrellas se quedan en 1 como mucho (el nivel NO se supera por dinero);
 	# con él rendido caen al menos las 2 del aprobado, y la 3ª sigue pidiendo
@@ -3133,13 +3695,27 @@ func _finalize_results() -> void:
 		GameState.mark_port_narrated(GameState.current_port)
 
 	var new_recipes: Array = []
+	last_xp = 0
 	if GameState.is_adventure():
+		# LA EXPERIENCIA SE PAGA CONTRA EL RÉCORD, así que se calcula con las
+		# estrellas de ANTES de apuntarlas (complete_port las pisa después):
+		# mejorar de 2★ a 3★ cobra solo la diferencia.
+		var prev_stars := int(GameState.level_stars.get(GameState.current_port, 0))
+		last_xp = GameState.scenario_xp(GameState.current_port, stars, prev_stars)
 		GameState.money += total_money
 		GameState.record_level_score(GameState.current_port, total_money)
 		new_recipes = GameState.complete_port(GameState.current_port, stars)
 		# Los potenciadores permanentes se ganan por combos, no por estrellas.
 		for p in _check_perk_unlocks():
 			new_recipes.append({ "perk": p })
+	elif GameState.is_arcade():
+		# ARCADE: el oro generado va ENTERO al monedero (es una jornada de
+		# verdad, pagada con arroz y despensa) y la experiencia sale de las
+		# oleadas SUPERADAS (la que estaba a medias no cuenta).
+		var oleadas := maxi(wave - 1, 0)
+		last_xp = GameState.arcade_xp(oleadas)
+		GameState.money += total_money
+		GameState.record_arcade_wave(oleadas)
 	# Logros: los récords de dinero van por modo, el acumulado suma los dos.
 	GameState.max_stat("best_money_%s" % ("level" if GameState.is_adventure()
 		else "arcade"), total_money)
@@ -3147,6 +3723,9 @@ func _finalize_results() -> void:
 	GameState.max_stat("best_dishes_run", dishes_served)
 	if plates_wasted == 0 and dishes_served > 0:
 		GameState.bump_stat("clean_runs")
+	# La experiencia del cocinero, con su toast de subida si toca. Va antes del
+	# save para que el nivel nuevo viaje en el mismo guardado.
+	GameState.add_chef_xp(last_xp)
 	GameState.save_game()
 	GameState.last_score = float(total_money)
 	GameState.last_stars = stars
@@ -3276,7 +3855,24 @@ func _show_results(stars: int, total_money: int, new_recipes: Array) -> void:
 	# tratamiento que toque por el género elegido.
 	for c in stars_row.get_children():
 		c.queue_free()
-	_build_star_slots()
+	if arcade:
+		# El cartel del arcade habla de OLEADAS, no de estrellas: la alcanzada
+		# en grande y el récord debajo (con su "¡Récord!" si acaba de caer).
+		star_slots.clear()
+		var oleadas := maxi(wave - 1, 0)
+		var l := Label.new()
+		l.text = "Oleada %d" % oleadas if oleadas < GameState.arcade_best \
+			else "Oleada %d  ·  ¡Récord!" % oleadas
+		if oleadas < GameState.arcade_best:
+			l.text += "   (récord: %d)" % GameState.arcade_best
+		l.add_theme_font_size_override("font_size", 34)
+		l.add_theme_color_override("font_color", Color(0.42, 0.26, 0.10))
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.process_mode = Node.PROCESS_MODE_ALWAYS
+		stars_row.add_child(l)
+	else:
+		_build_star_slots()
+	_build_xp_row()
 	# La cifra del cartel es el TOTAL de la jornada (platos + propinas +
 	# primas), en grande y con su moneda al lado. Ya no se enseña el
 	# porcentaje ni el nombre del puerto: el desglose está a un botón.
@@ -3295,7 +3891,202 @@ func _show_results(stars: int, total_money: int, new_recipes: Array) -> void:
 	results_panel.visible = true
 	get_tree().paused = true
 	await _count_up_money(stars)
+	# LA EXPERIENCIA SE LLENA AQUÍ, no en el menú: el jugador está mirando este
+	# cartel. Al terminar se consume `xp_anim_from`, así que la barra del menú
+	# aparecerá ya llena (antes se llenaba allí, con el jugador a otra cosa).
+	await _play_xp_gain()
 	_reveal_recipes(new_recipes)
+
+
+# ------------------------------------------- experiencia del cartel de fin
+
+## LA BARRA DE EXPERIENCIA DEL CARTEL: se monta bajo la cifra del oro, con el
+## "+N de experiencia" DEBAJO. Se llena aquí y no en el menú porque aquí es
+## donde el jugador está mirando; al acabar consume `GameState.xp_anim_from`,
+## así que la barra del menú aparece ya llena.
+##
+## Va toda en PROCESS_MODE_ALWAYS: `_show_results` PAUSA el árbol y un tween
+## sobre un nodo pausado no avanza ni un fotograma.
+var xp_row: Control = null
+var xp_bar: ProgressBar = null
+var xp_bar_label: Label = null
+var xp_gain_label: Label = null
+## XP que la barra está enseñando (la mueve el tween).
+var _xp_shown := 0.0
+
+
+func _build_xp_row() -> void:
+	var vb: VBoxContainer = $HUD/ResultsPanel/VBox
+	var viejo := vb.get_node_or_null("XpRow")
+	if viejo != null:
+		vb.remove_child(viejo)
+		viejo.queue_free()
+	if last_xp <= 0:
+		xp_row = null
+		return
+	xp_row = VBoxContainer.new()
+	xp_row.name = "XpRow"
+	xp_row.add_theme_constant_override("separation", 2)
+	xp_row.process_mode = Node.PROCESS_MODE_ALWAYS
+	xp_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var caja := Control.new()
+	caja.custom_minimum_size = Vector2(0, 30)
+	caja.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	xp_row.add_child(caja)
+	xp_bar = ProgressBar.new()
+	xp_bar.show_percentage = false
+	xp_bar.set_anchors_preset(Control.PRESET_FULL_RECT)
+	xp_bar.offset_left = 46.0
+	xp_bar.offset_right = -46.0
+	xp_bar.add_theme_stylebox_override("background",
+		PrepBoard.make_bar_box(PrepBoard.BAR_BG_TEX))
+	xp_bar.add_theme_stylebox_override("fill",
+		PrepBoard.make_bar_box(PrepBoard.BAR_FILL_TEX, Color(0.42, 0.62, 0.95)))
+	xp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	caja.add_child(xp_bar)
+	# El nivel, escrito DENTRO de la barra (como el marcador del oro).
+	xp_bar_label = Label.new()
+	xp_bar_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	xp_bar_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	xp_bar_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	xp_bar_label.add_theme_font_size_override("font_size", 19)
+	xp_bar_label.add_theme_color_override("font_color", Color(1, 0.96, 0.86))
+	xp_bar_label.add_theme_color_override("font_outline_color",
+		Color(0.12, 0.06, 0.02))
+	xp_bar_label.add_theme_constant_override("outline_size", 7)
+	xp_bar_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	caja.add_child(xp_bar_label)
+
+	xp_gain_label = Label.new()
+	xp_gain_label.text = "+%d de experiencia" % last_xp
+	xp_gain_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	xp_gain_label.add_theme_font_size_override("font_size", 21)
+	xp_gain_label.add_theme_color_override("font_color", Color(0.30, 0.48, 0.72))
+	xp_gain_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	xp_row.add_child(xp_gain_label)
+
+	# Justo debajo de la fila del oro (el HBox con la moneda y la cifra). OJO:
+	# `earn_label` vive DENTRO de ese HBox (ver `_restyle_results_panel`), así
+	# que hay que colgarse del PADRE — colgado del propio HBox, el "+N" salía
+	# al lado de la cifra en vez de debajo.
+	vb.add_child(xp_row)
+	vb.move_child(xp_row, earn_label.get_parent().get_index() + 1)
+	# El cartel crece lo que ocupa la fila: con el alto compacto de siempre,
+	# la barra empujaba los botones fuera del pergamino.
+	var alto := RESULT_SIZE.y + 62.0
+	var lienzo := GameState.canvas_size()
+	results_panel.offset_top = (lienzo.y - alto) * 0.5
+	results_panel.offset_bottom = results_panel.offset_top + alto
+	# Arranca donde estaba el jugador ANTES de la jornada.
+	_xp_shown = float(GameState.xp_anim_from) if GameState.xp_anim_from >= 0 \
+			else float(GameState.chef_xp)
+	_paint_xp_bar()
+
+
+func _paint_xp_bar() -> void:
+	if xp_bar == null or not is_instance_valid(xp_bar):
+		return
+	var xp := int(_xp_shown)
+	var nivel := SkillData.level_for_xp(xp)
+	if nivel >= SkillData.MAX_LEVEL:
+		xp_bar.max_value = 1
+		xp_bar.value = 1
+		xp_bar_label.text = "Cocinero %d · MÁXIMO" % nivel
+		return
+	xp_bar.max_value = SkillData.xp_for_next(nivel)
+	xp_bar.value = xp - SkillData.xp_at_level(nivel)
+	xp_bar_label.text = "Cocinero %d" % nivel
+
+
+func _set_xp_shown(v: float) -> void:
+	_xp_shown = v
+	_paint_xp_bar()
+
+
+## Llena la barra por TRAMOS DE NIVEL: cada frontera cruzada suelta su
+## fogonazo con "¡Nivel N!". Devuelve cuando ha terminado.
+func _play_xp_gain() -> void:
+	if xp_row == null or not is_instance_valid(xp_row) or last_xp <= 0:
+		return
+	var desde: int = GameState.xp_anim_from if GameState.xp_anim_from >= 0 \
+			else GameState.chef_xp - last_xp
+	var hasta := GameState.chef_xp
+	# Consumido: la barra del MENÚ ya no tiene que animar nada.
+	GameState.xp_anim_from = -1
+	if hasta <= desde:
+		return
+	await get_tree().create_timer(COUNT_PAUSE).timeout
+	var actual := desde
+	while actual < hasta:
+		var nivel := SkillData.level_for_xp(actual)
+		var frontera: int = SkillData.xp_at_level(nivel + 1) \
+			if nivel < SkillData.MAX_LEVEL else hasta
+		var tramo: int = mini(frontera, hasta)
+		var dur := clampf(0.9 * float(tramo - actual) / float(hasta - desde),
+			0.2, 0.9)
+		var t := xp_bar.create_tween()
+		t.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		t.tween_method(_set_xp_shown, float(actual), float(tramo), dur)
+		await t.finished
+		if SkillData.level_for_xp(tramo) > nivel:
+			_xp_level_burst(SkillData.level_for_xp(tramo))
+			await get_tree().create_timer(0.5).timeout
+		actual = tramo
+	# Y AL FINAL, la ventana con lo que han soltado las subidas (una sola,
+	# aunque hayan caído cinco niveles). Va por la capa global, que sabe
+	# respetar la pausa que ya tiene puesta el cartel de resultados.
+	var subida := GameState.take_level_up()
+	if not subida.is_empty():
+		GameState.announce_level_up(subida)
+
+
+## Fogonazo de subida de nivel sobre la barra del cartel: destello, bote y
+## "¡Nivel N!" saliendo hacia arriba.
+func _xp_level_burst(nivel: int) -> void:
+	if xp_bar == null or not is_instance_valid(xp_bar):
+		return
+	var flash := ColorRect.new()
+	flash.color = Color(1, 0.95, 0.7, 0.0)
+	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flash.process_mode = Node.PROCESS_MODE_ALWAYS
+	xp_bar.add_child(flash)
+	var tf := flash.create_tween()
+	tf.tween_property(flash, "color:a", 0.8, 0.08)
+	tf.tween_property(flash, "color:a", 0.0, 0.42)
+	tf.tween_callback(flash.queue_free)
+
+	xp_bar.pivot_offset = xp_bar.size * 0.5
+	var tb := xp_bar.create_tween()
+	tb.tween_property(xp_bar, "scale", Vector2(1.1, 1.1), 0.12) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tb.tween_property(xp_bar, "scale", Vector2.ONE, 0.28) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+	var pop := Label.new()
+	pop.text = "¡Nivel %d!" % nivel
+	pop.add_theme_font_size_override("font_size", 30)
+	pop.add_theme_color_override("font_color", Color(1.0, 0.86, 0.25))
+	pop.add_theme_color_override("font_outline_color", Color(0.2, 0.1, 0.02))
+	pop.add_theme_constant_override("outline_size", 9)
+	pop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pop.process_mode = Node.PROCESS_MODE_ALWAYS
+	pop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pop.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pop.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	pop.pivot_offset = xp_bar.size * 0.5
+	pop.scale = Vector2(0.3, 0.3)
+	xp_bar.add_child(pop)
+	var tp := pop.create_tween()
+	tp.tween_property(pop, "scale", Vector2.ONE, 0.26) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tp.tween_interval(0.3)
+	tp.set_parallel(true)
+	tp.tween_property(pop, "position:y", -52.0, 0.5) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tp.tween_property(pop, "modulate:a", 0.0, 0.5)
+	tp.chain().tween_callback(pop.queue_free)
 
 
 # --------------------------------------------------- recuento de la jornada
@@ -3823,13 +4614,16 @@ func _setup_exit_button() -> void:
 	if GameState.is_tutorial() or no_exit:
 		return
 	var b := Button.new()
-	b.text = "Salir"
+	# En el arcade el botón no ABANDONA: TERMINA la partida y cobra lo ganado.
+	# Un modo sin fin necesita una forma de parar y llevarse el botín.
+	b.text = "Terminar" if GameState.is_arcade() else "Salir"
 	# El tablón de madera de TODO el juego, no un recuadro propio: se había
 	# quedado con un StyleBoxFlat suelto y era el único botón del juego que no
 	# seguía el estilo. Algo más grande que antes (96×44) porque el 9-slice
 	# encoge su marco en los botones pequeños y la madera no se leía.
-	b.custom_minimum_size = Vector2(112, PrepBoard.SMALL_H)
-	b.size = Vector2(112, PrepBoard.SMALL_H)
+	var ancho := 138.0 if GameState.is_arcade() else 112.0
+	b.custom_minimum_size = Vector2(ancho, PrepBoard.SMALL_H)
+	b.size = Vector2(ancho, PrepBoard.SMALL_H)
 	b.position = Vector2(16, 112 + GameState.safe_top())
 	# Botón PEQUEÑO con su textura propia: con `skin_button` el margen 9-slice
 	# se encogía a 20 téxeles y partía por la mitad el tope redondo del tablón.
@@ -3964,10 +4758,14 @@ func _on_exit_pressed() -> void:
 
 	var msg := Label.new()
 	# El aviso dice EXPRESAMENTE qué pasa con el saco de arroz, que es lo caro:
-	# en preparación se devuelve entero, y en marcha ya está gastado.
-	msg.text = "Aún estás preparando: recuperarás los ingredientes y el saco de arroz." \
-		if prep_phase \
-		else "¡La partida está en marcha!\nPerderás los ingredientes gastados y el saco de arroz."
+	# en preparación se devuelve entero, y en marcha ya está gastado. En el
+	# arcade EN MARCHA no se pierde nada: terminar es cobrar.
+	if arcade and not prep_phase:
+		msg.text = "Terminarás la partida aquí:\ncobrarás el oro y la experiencia de las oleadas superadas."
+	else:
+		msg.text = "Aún estás preparando: recuperarás los ingredientes y el saco de arroz." \
+			if prep_phase \
+			else "¡La partida está en marcha!\nPerderás los ingredientes gastados y el saco de arroz."
 	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	msg.add_theme_font_size_override("font_size", 22)
@@ -3979,12 +4777,20 @@ func _on_exit_pressed() -> void:
 	btns.add_theme_constant_override("separation", 20)
 	vb.add_child(btns)
 	var quit := Button.new()
-	quit.text = "Salir"
+	quit.text = "Terminar" if (arcade and not prep_phase) else "Salir"
 	quit.custom_minimum_size = Vector2(186, 66)
 	# Rojo con aspa: es la opción que echa atrás la partida.
 	prep_board.skin_action_button(quit, false)
 	quit.add_theme_font_size_override("font_size", 24)
-	quit.pressed.connect(_confirm_exit)
+	if arcade and not prep_phase:
+		# Terminar el arcade = cerrar el turno por el camino normal: los que
+		# comen terminan su plato, se cobra todo y sale el cartel de oleadas.
+		quit.pressed.connect(func() -> void:
+			get_tree().paused = false
+			overlay.queue_free()
+			_end_level())
+	else:
+		quit.pressed.connect(_confirm_exit)
 	btns.add_child(quit)
 	var stay := Button.new()
 	stay.text = "Seguir"
@@ -4004,7 +4810,10 @@ func _confirm_exit() -> void:
 	# permanentes Y EL SACO DE ARROZ). Aun no se ha jugado nada, asi que no se
 	# pierde nada; la fase dura 10 s, asi que el margen es justo ese. En cuanto
 	# entra el primer cliente, el saco ya esta gastado.
-	if prep_phase and GameState.is_adventure():
+	# El arcade también devuelve lo suyo si se abandona EN PREPARACIÓN: paga
+	# arroz y despensa como cualquier jornada, así que el arrepentimiento vale
+	# lo mismo.
+	if prep_phase and (GameState.is_adventure() or GameState.is_arcade()):
 		for ing in GameState.ingredients_for_selection(GameState.selected_recipes):
 			GameState.add_ingredient_uses(ing, 1)
 		for perk in GameState.selected_perks:
@@ -4156,6 +4965,11 @@ func _update_hud() -> void:
 		# El relleno sigue al ancho real del contador de clientes: con "0/10" y
 		# con "10/10" el oro tiene que quedarse en el mismo sitio.
 		time_gap.custom_minimum_size.x = clients_label.get_parent().size.x
+	# ARCADE: la barra del oro no tiene meta fija — cada vez que se alcanza el
+	# hito, se renueva ARCADE_META_STEP más allá (y su estrella brilla).
+	if arcade and not star_money.is_empty() \
+			and _score_money() >= int(star_money.back()):
+		star_money = [int(star_money.back()) + ARCADE_META_STEP]
 	var meta := int(star_money.back())
 	var umbral := _tip_threshold(powerups_claimed)
 	if money_bar != null:

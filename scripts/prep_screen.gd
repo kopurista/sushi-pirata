@@ -71,14 +71,16 @@ func _ready() -> void:
 	$UI/Root/Margin.offset_top += GameState.safe_top()
 	$UI/Root/Shade.offset_top = -GameState.safe_top()
 	_add_shared_parchment()
-	# En aventura solo se listan las recetas desbloqueadas; en prueba, todas.
+	# Solo las recetas DESBLOQUEADAS, también en el arcade: desde que el modo
+	# gasta arroz y despensa es una jornada de verdad, y jugar con recetas que
+	# no son tuyas rompía además el fondo de fichajes de sus mejoras.
 	var available: Array = []
 	for id in RecipeData.RECIPES:
 		# El barco combinado no se elige aquí: se monta en partida con los
 		# platos que haya en las cajas.
 		if RecipeData.RECIPES[id].get("hidden", false):
 			continue
-		if GameState.mode == "test" or GameState.is_recipe_unlocked(id):
+		if GameState.is_recipe_unlocked(id):
 			available.append(id)
 	# En aventura cada puerto tiene su carta: las islas de menú cerrado solo
 	# dejan sus recetas, y el resto no adelanta las de puertos posteriores.
@@ -306,7 +308,10 @@ func _process(delta: float) -> void:
 ## que las recetas y gastan 1 uso al zarpar. Solo en aventura (el modo Arcade
 ## no toca el progreso).
 func _add_perk_bar(board_script: GDScript) -> void:
-	if not GameState.is_adventure():
+	# También en el ARCADE: desde que cobra arroz y despensa es una jornada de
+	# verdad y se juega con todo puesto — bonificadores incluidos, con sus
+	# usos gastados.
+	if not (GameState.is_adventure() or GameState.is_arcade()):
 		return
 	var ids: Array = []
 	for id in PerkData.ids():
@@ -561,9 +566,11 @@ func _build_card(id: String, board_script: GDScript) -> Button:
 	check.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(check)
 
-	# En aventura, sin usos de algún ingrediente la receta no puede llevarse:
-	# tarjeta apagada y aviso para pasar por la tienda.
-	if GameState.is_adventure() and not GameState.has_ingredients_for(id):
+	# Sin usos de algún ingrediente la receta no puede llevarse: tarjeta
+	# apagada y aviso para pasar por la tienda. También en el arcade, que
+	# cobra despensa por oleada: al arcade se va con el granero cargado.
+	if (GameState.is_adventure() or GameState.is_arcade()) \
+			and not GameState.has_ingredients_for(id):
 		b.disabled = true
 		b.modulate = Color(1, 1, 1, 0.45)
 		var warn := Label.new()

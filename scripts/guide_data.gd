@@ -96,4 +96,14 @@ const SECTIONS: Array = [
 		"icon": "res://assets/ui/ic_inventario.png",
 		"body": "Las **mejoras** son potenciadores permanentes, distintos de los del bote: se ganan haciendo un combo en partida y se eligen antes de zarpar.\n\n**Cocina veloz**: los enfriamientos duran la mitad toda la partida. Se gana cuando un mismo cliente te come 5 platos.\n**Ayudante**: aparece un botón que termina una receta él solo. Se gana sirviendo 18 platos en una partida.\n\nGastan un uso por partida, y se compran más usos con doblones desde el Inventario.",
 	},
+	{
+		"title": "Nivel de cocinero",
+		"icon": "res://assets/ui/ic_maestrias.png",
+		"body": "Cada escenario superado paga **experiencia**: más cuanto más alto el escenario y más estrellas saques, y el triple la primera vez que mejoras tu récord.\n\nSubir de nivel te da **1 punto de maestría** y, además, un premio que cambia con cada nivel: **doblones**, **despensa**, **extras** o un **saco de arroz**. Y en los niveles de cinco en cinco, **lingotes de oro** — más cuanto más redondo sea el número.\n\nLos puntos se gastan en los tres árboles de **Maestrías**: el cuchillo (las manos), el cliente (la barra) y el chef (los platos). Se entra por la **barra de nivel** del menú.\n\nLos puntos se meten **de uno en uno**: una habilidad no se aprende hasta reunir los **5 puntos** de su primer rango (**10** en la habilidad final de cada árbol), y cada rango siguiente pide otros tantos. Las **estrellas** de cada icono son su rango; el **x/5** de debajo, los puntos que llevas metidos hacia el siguiente.\n\nPuedes **recolocar los puntos cuando quieras** con el botón rojo: se te devuelven de uno en uno. Solo se te avisa cuando el punto que sacas es el que sostiene la habilidad.\n\nCada escenario del mapa enseña su **cocinero recomendado**: si vas por debajo, repite escenarios anteriores a por más estrellas y experiencia.",
+	},
+	{
+		"title": "El Arcade sin fin",
+		"icon": "res://assets/ui/ic_arcade.png",
+		"body": "Se abre al vencer al **Kappa**. Es un abordaje **sin fin** por oleadas de 45 segundos: empieza suave y aprieta cada vez más — la clientela sube de tono cada 5 oleadas y cada 10 cae un **estorbo** permanente.\n\nLa partida acaba cuando **3 clientes** se van sin probar bocado.\n\nCuesta un saco de arroz, y **cada oleada gasta 1 uso** de cada ingrediente de tu carta: al arcade se va con la despensa cargada. Si un ingrediente se agota, sus recetas se caen de la carta.\n\nCada 3 oleadas eliges una **mejora de partida** (fichar una receta, otra caja, el ayudante...). Al terminar cobras todo el oro generado y la experiencia de las oleadas superadas: cuanto más aguantes, mucho más paga.",
+	},
 ]

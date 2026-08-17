@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dqm4vkx2skill"]
+
+[ext_resource type="Script" path="res://scripts/skills_screen.gd" id="1"]
+
+[node name="SkillsScreen" type="Node3D"]
+script = ExtResource("1")

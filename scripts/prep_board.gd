@@ -189,6 +189,52 @@ var stack_drag_start := Vector2.ZERO
 var stack_drag_moved := false
 
 # --- Efectos de potenciadores ---
+# --- Maestrías del cocinero: efectos de la TABLA (ver skill_data.gd) ---
+# Se leen UNA vez al montar la tabla (`_apply_skills`): los rangos no cambian
+# en mitad de una partida. Todos con su valor neutro por defecto, así que sin
+# habilidades compradas la tabla se comporta exactamente como siempre.
+## "Fuego constante": factor multiplicador de TODOS los enfriamientos.
+var skill_cd_mult := 1.0
+## "Pulso firme": factor de la duración de los pasos de MANTENER, y cuánto se
+## comprime el tiempo medido de una fritura hacia su punto perfecto (0 = nada).
+var skill_hold_mult := 1.0
+var skill_fry_widen := 0.0
+## "Corte de maestro": factor de la duración mínima del corte lento, si el
+## castigo del fallo va a mitad y si el primer fallo de la jornada sale gratis.
+var skill_slice_mult := 1.0
+var skill_half_slice_penalty := false
+var skill_free_slice_fail := false
+var _slice_gratis_usado := false
+## "Manos ligeras": factor del recorrido de los deslizamientos y de las vueltas
+## de remover; con el rango V, los pasos de 3 golpes piden 2 (nunca menos).
+var skill_swipe_mult := 1.0
+var skill_tap_discount := false
+## "Golpe de vista": cada `vista_period` platos, el siguiente sale hecho solo.
+## CONTADOR determinista y a la vista (`vista_label`), no un dado: así se puede
+## planear. 0 = sin la habilidad.
+var vista_period := 0
+var vista_left := 0
+var vista_label: Label = null
+## Latido del contador cuando el plato gratis está listo (se mata al contar).
+var _vista_tween: Tween = null
+## "Cocina abundante": cada `abundante_period` platos, la elaboración sale
+## DOBLE (mismo camino que el potenciador double_next).
+var abundante_period := 0
+var abundante_left := 0
+## "Golpe de suerte": cada `suerte_period` platos, el siguiente lleva un punto
+## extra de multiplicador para quien lo coja. El plato marcado se ve dorado en
+## la tabla; la marca viaja al servirse (`serving_lucky` → plate3d). Si se
+## guarda en una caja, la marca se pierde (las pilas no la conservan).
+var suerte_period := 0
+var suerte_left := 0
+var serving_lucky := false
+
+## Mejoras de PARTIDA del arcade: maestría extra por receta (id → +piezas) y
+## el descuento de enfriamiento de los platos de 1★. Fuera del arcade quedan
+## en neutro.
+var mastery_bonus: Dictionary = {}
+var cooldown_l1_mult := 1.0
+
 var instant_recipes: int = 0
 ## "Doble plato": la siguiente receta produce 2 platos.
 var double_next: bool = false
@@ -873,8 +919,54 @@ static func make_star_row(count: int, total: int, star_size: float, shadow := fa
 
 
 #
+## Vuelca los rangos de las MAESTRÍAS en las perillas de la tabla. En el
+## tutorial no se aplican (la clase de David es una partida de mentira y las
+## cifras del guion están medidas contra la tabla pelada).
+func _apply_skills() -> void:
+	if GameState.is_tutorial():
+		return
+	skill_cd_mult = 1.0 - GameState.skill_value("fuego_constante") / 100.0
+	skill_hold_mult = 1.0 - GameState.skill_value("pulso_firme") / 100.0
+	skill_fry_widen = GameState.skill_aux("pulso_firme", "fry_widen", 0.0) / 100.0
+	skill_slice_mult = 1.0 - GameState.skill_value("corte_maestro") / 100.0
+	var corte := GameState.skill_rank("corte_maestro")
+	skill_half_slice_penalty = corte >= 3
+	skill_free_slice_fail = corte >= 5
+	skill_swipe_mult = 1.0 - GameState.skill_value("manos_ligeras") / 100.0
+	skill_tap_discount = GameState.skill_rank("manos_ligeras") >= 5
+	vista_period = int(GameState.skill_value("golpe_vista"))
+	vista_left = vista_period
+	abundante_period = int(GameState.skill_value("cocina_abundante"))
+	abundante_left = abundante_period
+	suerte_period = int(GameState.skill_value("golpe_suerte"))
+	suerte_left = suerte_period
+	# "Buena mano": las pilas de las cajas crecen con el rango (base 3).
+	stack_max = maxi(stack_max, int(GameState.skill_value("buena_mano")))
+
+
+## Repeticiones REALES de un paso de golpes: con "Manos ligeras" al máximo, los
+## pasos de 3 o más piden uno menos (nunca por debajo de 2, o no hay minijuego).
+func _step_taps(step: Dictionary) -> int:
+	var n := int(step.get("count", 1))
+	if skill_tap_discount and n >= 3:
+		return n - 1
+	return n
+
+
+## Vueltas reales de un paso de remover, abaratadas por "Manos ligeras".
+func _step_stirs(step: Dictionary) -> int:
+	var n := int(step.get("count", 1))
+	return maxi(1, ceili(float(n) * skill_swipe_mult))
+
+
+## Duración real de un paso de mantener, abaratada por "Pulso firme".
+func _step_hold(step: Dictionary) -> float:
+	return float(step.get("duration", 1.0)) * skill_hold_mult
+
+
 func _ready() -> void:
 	tutorial_mode = GameState.is_tutorial()
+	_apply_skills()
 	if GameState.selected_recipes.is_empty():
 		# Fallback para poder probar level.tscn directamente sin pasar por la selección.
 		var fallback: Array[String] = ["maki_aguacate", "nigiri_salmon", "maki_atun", "futomaki_salmon"]
@@ -907,6 +999,8 @@ func _ready() -> void:
 		_build_helper_button()
 	_build_extra_buttons()
 	_update_extra_buttons()
+	# El contador del "Golpe de vista" nace con la tabla, no con el primer plato.
+	_update_vista_label()
 	# Con la mano DERECHA dominante el panel entero se voltea en espejo: la
 	# tabla pegada a la derecha (cerca del pulgar) y cajas/botones a la
 	# izquierda (donde el pulgar no los tapa). Va DESPUÉS de construirlo todo,
@@ -1083,7 +1177,8 @@ func _process(delta: float) -> void:
 					return
 				hold_moving = false
 			hold_time += delta
-			var duration: float = step.get("duration", 1.0)
+			# "Pulso firme" abarata el aguante.
+			var duration: float = _step_hold(step)
 			if hold_time >= duration:
 				holding = false
 				_advance_step()
@@ -1253,6 +1348,14 @@ func _start_prep(id: String) -> void:
 		return
 	if free_uses.get(id, 0) > 0:
 		free_uses[id] -= 1
+		_finish_prep(false)
+		return
+	# "Golpe de vista": si el contador llegó a cero, este plato sale hecho sin
+	# un solo gesto. Va DESPUÉS del potenciador y de la maestría de la receta:
+	# gastarlo en un plato que ya iba a salir gratis sería tirarlo.
+	if vista_period > 0 and vista_left <= 0:
+		vista_left = vista_period
+		_flash_message("¡Golpe de vista!", Color(0.6, 0.9, 1.0))
 		_finish_prep(false)
 		return
 	state = State.CRAFTING
@@ -1689,8 +1792,20 @@ func _handle_fry(event: InputEvent, step: Dictionary) -> void:
 		var best := 0
 		for w in windows:
 			best = maxi(best, int(w["price"]))
+		# "Pulso firme": la ventana buena se ENSANCHA comprimiendo el tiempo
+		# medido hacia el punto perfecto (el centro de la franja que más paga).
+		# El contador de pantalla enseña el tiempo real; solo el JUICIO perdona.
+		var juzgado := fry_time
+		if skill_fry_widen > 0.0:
+			var mejor := 0
+			for j in windows.size():
+				if int(windows[j]["price"]) > int(windows[mejor]["price"]):
+					mejor = j
+			var desde: float = float(windows[mejor - 1]["to"]) if mejor > 0 else 0.0
+			var centro := (desde + float(windows[mejor]["to"])) * 0.5
+			juzgado = centro + (fry_time - centro) / (1.0 + skill_fry_widen)
 		for w in windows:
-			if fry_time <= float(w["to"]):
+			if juzgado <= float(w["to"]):
 				_finish_fry(w, best)
 				return
 
@@ -2610,6 +2725,9 @@ func _serve_dish(d: Control) -> void:
 		d.position = _dish_rest_position(dishes.find(d))
 		return
 	dishes.erase(d)
+	# La marca del "Golpe de suerte" viaja con ESTE plato: el nivel la lee de
+	# forma síncrona durante el emit y la pone en el plato 3D.
+	serving_lucky = d.has_meta("lucky")
 	_fly_dish_to_belt(d)
 	# Los extras se gastan de la despensa AQUÍ, uno por plato servido; si al
 	# final no quedaba, ese extra simplemente no viaja con el plato.
@@ -2618,6 +2736,7 @@ func _serve_dish(d: Control) -> void:
 		if GameState.consume_extra(id):
 			extras.append(id)
 	dish_served.emit(ready_recipe, ready_price, extras, ready_level, ready_eat_mult)
+	serving_lucky = false
 	# Cada plato elige sus propios extras: el siguiente empieza limpio.
 	extras_chosen.clear()
 	_update_extra_buttons()
@@ -2895,7 +3014,8 @@ func _handle_craft_input(event: InputEvent) -> void:
 				var cutting: bool = step.get("cutting", false)
 				craft_event.emit("cut" if cutting else "tap", _current_stage_id())
 				_bump_stage(6.0 if cutting else 0.0)
-				if taps_done >= int(step.get("count", 1)):
+				# "Manos ligeras" al máximo: los pasos de 3 golpes piden 2.
+				if taps_done >= _step_taps(step):
 					_advance_step()
 				else:
 					_update_ui()
@@ -2962,8 +3082,10 @@ func _handle_swipe(event: InputEvent, step: Dictionary) -> void:
 		var dx: float = event.position.x - swipe_start.x
 		var dy: float = event.position.y - swipe_start.y
 		var direction: String = _swipe_direction(step)
-		# "distance": recorrido exigido; por defecto el umbral normal.
-		var need: float = float(step.get("distance", SWIPE_THRESHOLD))
+		# "distance": recorrido exigido; por defecto el umbral normal. La
+		# maestría "Manos ligeras" lo acorta.
+		var need: float = float(step.get("distance", SWIPE_THRESHOLD)) \
+				* skill_swipe_mult
 		# Avance del gesto EN CURSO, para que la barra se llene sobre la marcha
 		# (con count 1 solo saltaba de 0 a 1 al terminar y parecía rota).
 		var advance := 0.0
@@ -3055,7 +3177,8 @@ func _handle_stir(event: InputEvent, step: Dictionary) -> void:
 			stir_turns += 1
 			craft_event.emit("stir", _current_stage_id())
 			_bump_stage(8.0)
-			if stir_turns >= int(step.get("count", 1)):
+			# "Manos ligeras" quita vueltas de remover.
+			if stir_turns >= _step_stirs(step):
 				_advance_step()
 				return
 		_update_tap_bar()
@@ -3110,10 +3233,18 @@ func _handle_slice(event: InputEvent, step: Dictionary) -> void:
 		slice_active = false
 		slice_progress = 0.0
 		var elapsed := (Time.get_ticks_msec() - slice_start_ms) / 1000.0
-		if elapsed < float(step.get("duration", 0.7)):
+		# "Corte de maestro" admite más velocidad antes de dar el corte por malo.
+		if elapsed < float(step.get("duration", 0.7)) * skill_slice_mult:
 			# "fail_penalty": cortar deprisa el pescado caro cuesta dinero (el
-			# corte se repite igual, pero cada fallo se paga).
+			# corte se repite igual, pero cada fallo se paga). Con la maestría
+			# alta el castigo va a la mitad, y el primer fallo de la jornada
+			# sale gratis (solo se gasta el perdón si había algo que perdonar).
 			var penalty := int(step.get("fail_penalty", 0))
+			if skill_half_slice_penalty:
+				penalty = ceili(penalty / 2.0)
+			if penalty > 0 and skill_free_slice_fail and not _slice_gratis_usado:
+				_slice_gratis_usado = true
+				penalty = 0
 			if penalty > 0 and not free_mistakes:
 				_flash_message("¡Más lento!  -$%d" % penalty)
 				money_penalty.emit(penalty)
@@ -3346,14 +3477,44 @@ func _finish_prep(grant_mastery: bool) -> void:
 	current_recipe = ""
 	if grant_mastery:
 		var uses: int = RecipeData.get_recipe(ready_recipe).get("free_uses", 0)
+		# Mejora de partida del arcade: el maki sale x4 en vez de x3. Solo a
+		# recetas que YA tienen maestría (el sorteo no ofrece otras).
 		if uses > 0:
+			uses += int(mastery_bonus.get(ready_recipe, 0))
 			free_uses[ready_recipe] = uses
 	_set_stage("")
 	_update_prop()
-	var count := 2 if double_next else 1
+	# MAESTRÍAS: los contadores de la tabla avanzan con CADA plato que sale de
+	# ella (también los de maestría o instantáneos: elaboraciones son). El de
+	# "Golpe de vista" solo con los hechos A MANO — los que ya salen solos no
+	# acercan otro plato gratis.
+	var doble_maestria := false
+	if abundante_period > 0:
+		abundante_left -= 1
+		if abundante_left <= 0:
+			abundante_left = abundante_period
+			doble_maestria = true
+			_flash_message("¡Plato doble!", Color(0.55, 1.0, 0.6))
+	var con_suerte := false
+	if suerte_period > 0:
+		suerte_left -= 1
+		if suerte_left <= 0:
+			suerte_left = suerte_period
+			con_suerte = true
+			_flash_message("¡Plato con suerte!", Color(1.0, 0.84, 0.3))
+	if vista_period > 0 and grant_mastery:
+		vista_left = maxi(vista_left - 1, 0)
+	_update_vista_label()
+	var count := 2 if (double_next or doble_maestria) else 1
 	double_next = false
 	for i in count:
 		var d := _make_dish_node(ready_recipe)
+		# El plato CON SUERTE se ve dorado en la tabla: se puede guardar el
+		# gesto para el cliente que interese. Con doble, solo el primero lleva
+		# la marca (el regalo es UN punto, no dos).
+		if con_suerte and i == 0:
+			d.set_meta("lucky", true)
+			d.modulate = Color(1.3, 1.12, 0.72)
 		add_child(d)
 		d.position = _dish_rest_position(i, count)
 		d.pivot_offset = DISH_SIZE / 2.0
@@ -3363,6 +3524,43 @@ func _finish_prep(grant_mastery: bool) -> void:
 		dishes.append(d)
 	craft_event.emit("done", "")
 	_update_ui()
+
+
+## Contador del "Golpe de vista", clavado a la esquina superior derecha de la
+## mesa: cuántos platos a mano faltan para que el siguiente salga solo. Es la
+## promesa del catálogo — contador a la vista, no dado.
+func _update_vista_label() -> void:
+	if vista_period <= 0:
+		return
+	if vista_label == null:
+		vista_label = Label.new()
+		vista_label.add_theme_font_size_override("font_size", 19)
+		vista_label.add_theme_color_override("font_outline_color", Color.BLACK)
+		vista_label.add_theme_constant_override("outline_size", 6)
+		vista_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vista_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		vista_label.offset_left = -150.0
+		vista_label.offset_top = 6.0
+		vista_label.offset_right = -12.0
+		vista_label.offset_bottom = 34.0
+		vista_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		board_panel.add_child(vista_label)
+	if _vista_tween != null and _vista_tween.is_valid():
+		_vista_tween.kill()
+		vista_label.scale = Vector2.ONE
+	if vista_left <= 0:
+		vista_label.text = "¡Vista lista!"
+		vista_label.add_theme_color_override("font_color", Color(0.62, 0.92, 1.0))
+		# LATE mientras el plato gratis espera: es la invitación a cobrarlo.
+		vista_label.pivot_offset = vista_label.size * 0.5
+		_vista_tween = create_tween().set_loops()
+		_vista_tween.tween_property(vista_label, "scale", Vector2(1.12, 1.12),
+			0.55).set_trans(Tween.TRANS_SINE)
+		_vista_tween.tween_property(vista_label, "scale", Vector2.ONE, 0.55) \
+				.set_trans(Tween.TRANS_SINE)
+	else:
+		vista_label.text = "Vista: %d" % vista_left
+		vista_label.add_theme_color_override("font_color", Color(1, 0.95, 0.8, 0.75))
 
 
 ## Sitio de reposo del plato terminado. Con varias piezas (recetas con "yield")
@@ -3378,8 +3576,14 @@ func _dish_rest_position(index: int = 0, total: int = 0) -> Vector2:
 
 
 func _apply_cooldown(recipe_id: String) -> void:
-	var cd: float = RecipeData.get_recipe(recipe_id).cooldown * cooldown_mult \
-			* cooldown_perm_mult
+	# Tres rebajas apiladas: el potenciador temporal, el bonificador permanente
+	# y la maestría "Fuego constante". La mejora de partida del arcade rebaja
+	# además los platos de 1★.
+	var data := RecipeData.get_recipe(recipe_id)
+	var cd: float = data.cooldown * cooldown_mult \
+			* cooldown_perm_mult * skill_cd_mult
+	if int(data.get("level", 1)) == 1:
+		cd *= cooldown_l1_mult
 	cooldowns[recipe_id] = cd
 
 
@@ -3441,9 +3645,10 @@ func _instruction_text() -> String:
 			# que falta es llevarlo a la tabla.
 			return "¡Arrastra!" if choice_selected != "" else "¡Elige uno!"
 		"tap_board":
-			left = maxi(total - taps_done, 1)
+			var t_total := _step_taps(step)
+			left = maxi(t_total - taps_done, 1)
 			var verb := "¡Corta!" if bool(step.get("cutting", false)) else "¡Pulsa!"
-			return verb if total <= 1 else "%s
+			return verb if t_total <= 1 else "%s
 x%d" % [verb, left]
 		"hold_board":
 			return "¡Tuesta!" if step.get("move", false) else "¡Mantén!"
@@ -3457,8 +3662,9 @@ x%d" % [verb, left]
 			return "¡Desliza!" if total <= 1 else "¡Desliza!
 x%d" % left
 		"stir_board":
-			left = maxi(total - stir_turns, 1)
-			return "¡Remueve!" if total <= 1 else "¡Remueve!
+			var s_total := _step_stirs(step)
+			left = maxi(s_total - stir_turns, 1)
+			return "¡Remueve!" if s_total <= 1 else "¡Remueve!
 x%d" % left
 		"slice_board":
 			left = maxi(total - slices_done, 1)
@@ -3832,7 +4038,7 @@ func _update_tap_bar() -> void:
 	match step.get("type", ""):
 		"tap_board":
 			tap_bar.visible = true
-			tap_bar.max_value = int(step.get("count", 1))
+			tap_bar.max_value = _step_taps(step)
 			tap_bar.value = taps_done
 		"swipe_board":
 			tap_bar.visible = true
@@ -3841,14 +4047,14 @@ func _update_tap_bar() -> void:
 			tap_bar.value = swipes_done + swipe_progress
 		"hold_board":
 			tap_bar.visible = true
-			tap_bar.max_value = step.get("duration", 1.0)
+			tap_bar.max_value = _step_hold(step)
 			tap_bar.value = hold_time
 		"fry_board":
 			# Sin barra: el contador con milésimas es la única guía (a pulso).
 			tap_bar.visible = false
 		"stir_board":
 			tap_bar.visible = true
-			tap_bar.max_value = int(step.get("count", 1))
+			tap_bar.max_value = _step_stirs(step)
 			# Progreso continuo: vueltas completas más la fracción en curso.
 			tap_bar.value = stir_turns + absf(stir_angle) / TAU
 		"slice_board":

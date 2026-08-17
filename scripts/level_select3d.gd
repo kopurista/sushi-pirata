@@ -810,6 +810,14 @@ func _update_info(id: String) -> void:
 	# no dijera ya el cartel del propio nodo en el mapa.
 	info_title.text = str(port.get("name", id))
 	info_kind.text = CampaignData.kind_name(id)
+	# NIVEL DE COCINERO RECOMENDADO (`chef_rec` del puerto): es lo que permite
+	# distinguir "voy corto de nivel" de "lo estoy jugando mal". Si el jugador
+	# va por debajo, la ficha le enseña también el suyo.
+	var rec_chef := int(port.get("chef_rec", 0))
+	if rec_chef > 0:
+		info_kind.text += "  ·  Cocinero %d" % rec_chef
+		if GameState.chef_level < rec_chef:
+			info_kind.text += " (llevas %d)" % GameState.chef_level
 	# La frase descriptiva sobra: la ficha ya lo cuenta todo con sus iconos.
 	# Solo queda el aviso de nivel bloqueado.
 	info_desc.text = "" if unlocked \
