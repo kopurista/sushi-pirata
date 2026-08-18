@@ -124,6 +124,8 @@ func _ready() -> void:
 			grid.add_child(_build_card(id, board_script))
 		sections.add_child(grid)
 	_add_top_bar(board_script)
+	_build_info_row()
+	_add_auto_button(board_script)
 	_add_perk_bar(board_script)
 	_skin_start_button(board_script)
 	start_button.pressed.connect(_on_start_pressed)
@@ -606,6 +608,232 @@ func _on_recipe_toggled(pressed: bool, id: String, button: Button) -> void:
 	# La receta elegida se enmarca con el resalte dorado.
 	button.get_node("Highlight").visible = button.button_pressed
 	_update_ui()
+
+
+## El botón de SELECCIÓN AUTOMÁTICA, en la misma fila que el contador: es
+## donde el jugador está mirando cuando duda de su carta. Va pequeño y a la
+## derecha — es un atajo, no la acción principal (esa es ¡Zarpar!).
+func _add_auto_button(board_script) -> void:
+	var vb: VBoxContainer = $UI/Root/Margin/VBox
+	var fila := HBoxContainer.new()
+	fila.alignment = BoxContainer.ALIGNMENT_CENTER
+	fila.add_theme_constant_override("separation", 16)
+	vb.add_child(fila)
+	vb.move_child(fila, count_label.get_index())
+	# El contador se muda DENTRO de la fila, para que compartan renglón.
+	count_label.reparent(fila)
+	count_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var b := Button.new()
+	b.text = "Selección automática"
+	board_script.skin_small_button(b)
+	b.add_theme_font_size_override("font_size", 19)
+	b.custom_minimum_size = Vector2(250, 46)
+	b.pressed.connect(_auto_seleccion)
+	fila.add_child(b)
+
+
+## QUÉ ESCENARIO ES Y QUIÉN VIENE, bajo el rótulo. El jugador estaba eligiendo
+## la carta sin saber ni el número del escenario ni a quién iba a servir, que
+## es justo lo que decide qué recetas hacen falta: los grumetes comen de 1★,
+## los piratas de 2★ y los capitanes de 3★.
+func _build_info_row() -> void:
+	if not GameState.is_adventure():
+		return
+	var port := CampaignData.get_port(GameState.current_port)
+	if port.is_empty():
+		return
+	var caja := VBoxContainer.new()
+	caja.alignment = BoxContainer.ALIGNMENT_CENTER
+	caja.add_theme_constant_override("separation", 2)
+	var vb: VBoxContainer = $UI/Root/Margin/VBox
+	vb.add_child(caja)
+	vb.move_child(caja, count_label.get_index())
+
+	var n := CampaignData.port_index(GameState.current_port) + 1
+	var titulo := Label.new()
+	titulo.text = "Escenario %d  ·  %s" % [n, str(port.get("name", ""))]
+	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	titulo.add_theme_font_size_override("font_size", 22)
+	titulo.add_theme_color_override("font_color", Color(1, 0.93, 0.78))
+	titulo.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	titulo.add_theme_constant_override("outline_size", 7)
+	caja.add_child(titulo)
+
+	# LA CLIENTELA, con las mismas caras que el HUD y el mapa. En un ABORDAJE
+	# no hay cupo, así que se enseñan los tipos sin cifra: lo que importa es
+	# QUIÉN viene, no cuántos.
+	var mix: Dictionary = port.get("client_mix", {})
+	var sin_fin := CampaignData.unlimited_clients(GameState.current_port)
+	var fila := HBoxContainer.new()
+	fila.alignment = BoxContainer.ALIGNMENT_CENTER
+	fila.add_theme_constant_override("separation", 14)
+	caja.add_child(fila)
+	for t in ["E", "A", "G"]:
+		var cuantos := int(mix.get(t, 0))
+		if cuantos <= 0:
+			continue
+		var par := HBoxContainer.new()
+		par.add_theme_constant_override("separation", 2)
+		fila.add_child(par)
+		var ic := TextureRect.new()
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		var ruta := "res://assets/ui/head_%s.png" % t
+		if ResourceLoader.exists(ruta):
+			ic.texture = load(ruta)
+		ic.custom_minimum_size = Vector2(38, 38)
+		par.add_child(ic)
+		var l := Label.new()
+		l.text = "sin fin" if sin_fin else "x%d" % cuantos
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		l.add_theme_font_size_override("font_size", 21)
+		l.add_theme_color_override("font_color", Color(1, 0.88, 0.6))
+		l.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+		l.add_theme_constant_override("outline_size", 6)
+		par.add_child(l)
+
+
+## "Selección automática": rellena la carta con lo mejor que se puede llevar a
+## ESTE escenario. No es un atajo tonto — puntúa cada receta por lo que de
+## verdad va a rendir aquí (ver `_puntuar_receta`) y va cogiendo la mejor,
+## penalizando repetir nivel de estrella para que la carta cubra a todos los
+## que vienen: con el sistema de hastío, una carta de cuatro platos del mismo
+## nivel se agota en el mismo cliente.
+func _auto_seleccion() -> void:
+	selected.clear()
+	# POR CUPOS, no por puntuación a secas. Con una lista única el picoteo se
+	# lo comía todo — es baratísimo de hacer y de enfriar, así que su
+	# rendimiento por segundo es enorme, pero NO ALIMENTA: una carta de tres
+	# picoteos y un maki deja a los piratas y a los capitanes mirando la cinta.
+	# Los cupos garantizan que lo primero sea comida de verdad.
+	var principales: Array[String] = []
+	var postres: Array[String] = []
+	var picoteos: Array[String] = []
+	for id in recipe_cards:
+		var r := RecipeData.get_recipe(str(id))
+		if r.get("snack", false):
+			picoteos.append(str(id))
+		elif r.get("leaves_seat", false):
+			postres.append(str(id))
+		else:
+			principales.append(str(id))
+	# Un POSTRE (libera la silla y cobra el multiplicador) y un PICOTEO (limpia
+	# paladar sin gastar turno) como mucho, y solo si la carta da para ellos:
+	# con 3 huecos o menos, todo a comida.
+	var hueco_postre: int = 1 if slots >= 4 and not postres.is_empty() else 0
+	var hueco_picoteo: int = 1 if slots >= 4 and not picoteos.is_empty() else 0
+	var para_principales := slots - hueco_postre - hueco_picoteo
+
+	var niveles: Dictionary = {}
+	while selected.size() < para_principales:
+		var mejor := _mejor_de(principales, niveles)
+		if mejor == "":
+			break
+		selected.append(mejor)
+		var lv := int(RecipeData.get_recipe(mejor).get("level", 1))
+		niveles[lv] = int(niveles.get(lv, 0)) + 1
+	if hueco_postre > 0:
+		var pos := _mejor_de(postres, {})
+		if pos != "":
+			selected.append(pos)
+	if hueco_picoteo > 0:
+		var pic := _mejor_de(picoteos, {})
+		if pic != "":
+			selected.append(pic)
+	# Si algún cupo se quedó vacío (no había postres, por ejemplo), se rellena
+	# con lo mejor que quede de cualquier clase antes que dejar hueco libre.
+	var todas := principales + postres + picoteos
+	while selected.size() < slots:
+		var extra := _mejor_de(todas, niveles)
+		if extra == "":
+			break
+		selected.append(extra)
+		var lv2 := int(RecipeData.get_recipe(extra).get("level", 1))
+		niveles[lv2] = int(niveles.get(lv2, 0)) + 1
+	# Se refleja en las tarjetas (el toggle emite y volvería a entrar por
+	# `_on_recipe_toggled`, así que se pone la marca a mano).
+	for id in recipe_cards:
+		var carta: Button = recipe_cards[id]
+		if not is_instance_valid(carta):
+			continue
+		var on: bool = str(id) in selected
+		carta.set_pressed_no_signal(on)
+		carta.get_node("Check").visible = on
+		carta.get_node("Highlight").visible = on
+	_update_ui()
+
+
+## La mejor receta de una lista que no esté ya elegida. `niveles` penaliza
+## repetir estrella: la segunda receta del mismo nivel vale la mitad y la
+## tercera un tercio, porque con el sistema de hastío una carta de cuatro
+## platos del mismo nivel se le agota al primer cliente que se siente.
+func _mejor_de(lista: Array, niveles: Dictionary) -> String:
+	var mejor := ""
+	var mejor_p := -1.0
+	for id in lista:
+		var sid := str(id)
+		if sid in selected:
+			continue
+		var p := _puntuar_receta(sid)
+		var lv := int(RecipeData.get_recipe(sid).get("level", 1))
+		p /= 1.0 + float(niveles.get(lv, 0))
+		if p > mejor_p:
+			mejor_p = p
+			mejor = sid
+	return mejor
+
+
+## Lo que se espera sacar de una receta EN ESTE escenario: doblones por segundo
+## de atención, ponderados por quién viene de verdad. El coste real de un plato
+## es el tiempo que ocupa el único hueco de elaboración, así que el enfriamiento
+## es el divisor (ver el bloque de balance de CLAUDE.md).
+func _puntuar_receta(id: String) -> float:
+	var r := RecipeData.get_recipe(id)
+	var port := CampaignData.get_port(GameState.current_port)
+	var mix: Dictionary = port.get("client_mix", {})
+	var total := 0.0
+	for t in mix:
+		total += float(mix[t])
+	if total <= 0.0:
+		total = 1.0
+	var nivel := int(r.get("level", 1))
+	var precio := float(r.get("price", 1))
+	# Las recetas con MAESTRÍA sueltan varias piezas por elaboración: su precio
+	# es POR PIEZA, así que rinden mucho más de lo que dice la ficha.
+	var piezas := 1.0 + float(r.get("free_uses", 0))
+	var enfriamiento := maxf(float(r.get("cooldown", 4.0)), 1.0)
+	# Cuánto la va a querer la clientela que viene.
+	var querida := 0.0
+	for t in mix:
+		var peso := float(mix[t]) / total
+		querida += peso * _take_chance(str(t), nivel, id)
+	var p := precio * piezas * querida / enfriamiento
+	# Los PICOTEOS no ocupan el turno del cliente y limpian paladar: valen más
+	# de lo que dice su precio de 1 doblón.
+	if r.get("snack", false):
+		p *= 2.4
+	return p
+
+
+## Probabilidad de que un cliente de ese tipo coja el plato, respetando el
+## `take_chance` propio de la receta (el edamame y el onigiri lo llevan).
+func _take_chance(tipo: String, nivel: int, id: String) -> float:
+	var r := RecipeData.get_recipe(id)
+	var propio: Variant = r.get("take_chance", null)
+	if propio != null:
+		if propio is Dictionary:
+			return float(propio.get(tipo, 0.5))
+		return float(propio)
+	var solo := str(r.get("only_type", ""))
+	if solo != "" and solo != tipo:
+		return 0.0
+	var tabla: Dictionary = {
+		"E": [0.95, 0.20, 0.10],
+		"A": [0.45, 0.95, 0.25],
+		"G": [0.10, 0.55, 0.95],
+	}
+	var fila: Array = tabla.get(tipo, [0.5, 0.5, 0.5])
+	return float(fila[clampi(nivel - 1, 0, 2)])
 
 
 func _update_ui() -> void:

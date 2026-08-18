@@ -40,7 +40,7 @@ layout_mode = 2
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 8
 theme_override_font_sizes/font_size = 27
-text = "Elige hasta 4 recetas para la travesía"
+text = "Elige las recetas necesarias para tu travesía"
 horizontal_alignment = 1
 
 [node name="CountLabel" type="Label" parent="UI/Root/Margin/VBox"]
