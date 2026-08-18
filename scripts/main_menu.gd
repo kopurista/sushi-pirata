@@ -1370,10 +1370,12 @@ func _setup_level_bar(st: float) -> void:
 func _refresh_level_bar() -> void:
 	if level_bar == null:
 		return
-	# Sin experiencia todavía no hay nada que enseñar: la barra aparece con la
-	# primera jornada puntuada.
-	level_bar.visible = GameState.tutorial_done \
-		and (GameState.chef_xp > 0 or GameState.xp_anim_from >= 0)
+	# LA BARRA ESTÁ DESDE EL PRIMER DÍA, aunque la experiencia sea 0. Estuvo
+	# colgada de `chef_xp > 0` y en una partida nueva no había barra ni en el
+	# menú ni en el mapa: el jugador no sabía que existía hasta después de su
+	# primera jornada, y encima aparecía de la nada. Lo único que la esconde es
+	# no haber pasado el tutorial.
+	level_bar.visible = GameState.tutorial_done
 	if not level_bar.visible:
 		return
 	var xp := int(_xp_shown)

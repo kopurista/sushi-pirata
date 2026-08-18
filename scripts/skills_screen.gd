@@ -581,6 +581,8 @@ func _add_card(id: String, pos: Vector2, color: Color) -> void:
 ## Lado de los discos de reparto. Van PEQUEÑOS: solo tienen que dejarse pulsar
 ## con el pulgar, y la cifra del medio es la que manda en la fila.
 const PM_SIZE := 46.0
+## Los mismos discos en la FICHA de la habilidad, donde hay sitio de sobra.
+const PM_POPUP := 76.0
 
 
 ## Boton redondo de reparto: el VERDE con el "+" (el mismo `boton_mas` de las
@@ -843,15 +845,15 @@ func _fill_popup() -> void:
 	fila.add_theme_constant_override("separation", 26)
 	caja.add_child(fila)
 
-	var menos := Button.new()
-	menos.text = "−"
-	menos.custom_minimum_size = Vector2(84, 68)
-	PrepBoard.skin_button(menos)
-	menos.add_theme_font_size_override("font_size", 40)
+	# LOS MISMOS DISCOS QUE LA REJILLA (`_make_pm_button`), no botones de madera
+	# con un signo escrito: eran dos mandos distintos para lo mismo y el
+	# jugador que venía de la tarjeta no los reconocía. Aquí van más grandes,
+	# que hay sitio de sobra.
 	var puede_quitar := GameState.can_refund_skill(id)
+	var menos := _make_pm_button(id, false)
+	menos.custom_minimum_size = Vector2(PM_POPUP, PM_POPUP)
 	menos.disabled = not puede_quitar
-	PrepBoard.set_dimmed(menos, menos.disabled)
-	menos.pressed.connect(_on_menos.bind(id))
+	menos.modulate = Color(1, 1, 1, 0.35) if menos.disabled else Color.WHITE
 	fila.add_child(menos)
 
 	# En el centro, los PUNTOS invertidos sobre el total (es lo que mueve el
@@ -875,14 +877,10 @@ func _fill_popup() -> void:
 	rango_l.add_theme_color_override("font_color", FADED)
 	centro.add_child(rango_l)
 
-	var mas := Button.new()
-	mas.text = "+"
-	mas.custom_minimum_size = Vector2(84, 68)
-	PrepBoard.skin_button(mas)
-	mas.add_theme_font_size_override("font_size", 40)
+	var mas := _make_pm_button(id, true)
+	mas.custom_minimum_size = Vector2(PM_POPUP, PM_POPUP)
 	mas.disabled = not GameState.can_buy_skill(id)
-	PrepBoard.set_dimmed(mas, mas.disabled)
-	mas.pressed.connect(_on_mas.bind(id))
+	mas.modulate = Color(1, 1, 1, 0.35) if mas.disabled else Color.WHITE
 	fila.add_child(mas)
 
 	var libres := Label.new()

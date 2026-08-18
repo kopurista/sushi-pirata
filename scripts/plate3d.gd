@@ -33,6 +33,12 @@ var eat_mult_override: float = 0.0
 ## el tsuke don que David regala en el nivel 5: mientras corre el guion es de
 ## Pablo el Rubio y nadie más lo toca.
 var only_who: String = ""
+## Plato RESERVADO a un TIPO de cliente (E/A/G) mientras corre el guion del
+## puerto (`exclusive_types`). Lo necesita el nivel 7: su nigiri de atun es el
+## regalo para EL pirata, y con 4 grumetes delante el dado de coger (0.20 cada
+## uno) se lo comia antes de llegar el 59% de las veces, asi que la leccion se
+## perdia. Es hermano de `only_who`, pero por tipo en vez de por personaje.
+var only_type: String = ""
 var speed: float = 1.25   ## por defecto; el nivel lo fija con level3d.PLATE_SPEED
 var taken: bool = false
 var traveled: float = 0.0

@@ -37,11 +37,25 @@ class_name SkillData
 const MAX_LEVEL := 450
 const MAX_RANK := 5
 
-## Curva de experiencia: subir de n a n+1 cuesta XP_BASE + XP_STEP·(n−1).
-## Es una RECTA a propósito: con 450 niveles, una exponencial deja el último
-## tercio inalcanzable y el jugador deja de mirarlo.
-const XP_BASE := 60
-const XP_STEP := 20
+## Curva de experiencia: subir de n a n+1 cuesta
+##     XP_BASE + XP_STEP·(n−1) + XP_ACCEL·(n−1)²
+##
+## EL TÉRMINO CUADRÁTICO ES LO QUE HACE QUE SUBIR CUESTE CADA VEZ MÁS. Fue una
+## RECTA (60 + 20·(n−1)) y estaba rota por diseño: un escenario paga 27 más que
+## el anterior y un nivel solo pedía 20 más, así que bordando la campaña se
+## subía de nivel en TODOS y cada uno de los escenarios, pasara lo que pasara.
+## Con el cuadrático, el coste de un nivel crece más deprisa que lo que aporta
+## un escenario y el ritmo se frena solo: ya no es automático, y quien quiera
+## más nivel repetirá escenarios a por mejor récord (que es justo lo que la
+## tarifa contra el récord premia).
+##
+## Medido sobre los 250 escenarios previstos, bordándolo todo: nivel 2 en el
+## escenario 3, 8 en el 10, 16 en el 20 (fin del primer mar), 30 en el 40, 62
+## en el 100 y 122 en el 250. Aprobando justo (2★), 13 al acabar el primer mar.
+## Antes eran 20 y 304 — o sea, uno por escenario clavado.
+const XP_BASE := 100
+const XP_STEP := 30
+const XP_ACCEL := 1.2
 
 ## Tarifa de los escenarios: base = XP_SCENARIO × número del escenario,
 ## multiplicada por STAR_MULT[estrellas] y ×FIRST_MULT contra el récord.
@@ -449,7 +463,8 @@ static func reward_icon(clave: String) -> String:
 
 ## Experiencia que cuesta subir del nivel n al n+1.
 static func xp_for_next(level: int) -> int:
-	return XP_BASE + XP_STEP * maxi(level - 1, 0)
+	var k := float(maxi(level - 1, 0))
+	return int(round(XP_BASE + XP_STEP * k + XP_ACCEL * k * k))
 
 
 ## Nivel que corresponde a esta experiencia acumulada (1..MAX_LEVEL).
@@ -465,8 +480,12 @@ static func level_for_xp(xp: int) -> int:
 	return nivel
 
 
-## XP acumulada al ENTRAR en ese nivel (para la barra de progreso).
+## XP acumulada al ENTRAR en ese nivel (para la barra de progreso). Con el
+## término cuadrático ya no hay fórmula cerrada cómoda, así que se SUMA: son
+## como mucho 450 vueltas y solo se llama al pintar una barra.
 static func xp_at_level(level: int) -> int:
 	var n := clampi(level, 1, MAX_LEVEL)
-	# Suma de una progresión aritmética: (n−1) términos desde XP_BASE.
-	return (n - 1) * XP_BASE + XP_STEP * (n - 1) * (n - 2) / 2
+	var total := 0
+	for k in range(1, n):
+		total += xp_for_next(k)
+	return total

@@ -60,7 +60,11 @@ class_name CampaignData
 ##    contra un techo de MAESTRÍAS de ×2,0, no de ×2,45 (ver la cabecera de
 ##    `skill_data.gd`): con 250 escenarios el jugador real acaba sobre los 300
 ##    puntos, no con los 450 del catálogo entero.
-##  - chef_rec: nivel de cocinero recomendado = ceil(nº del escenario × 1.09).
+##  - chef_rec: nivel de cocinero recomendado. NO es una fórmula: se MIDE con
+##    la curva de experiencia real (`SkillData`), y es el nivel con el que se
+##    llega bordando todos los escenarios anteriores. Salía de ceil(nº × 1.09)
+##    cuando la curva era una recta y se subía un nivel por escenario; con la
+##    curva cuadrática el ritmo se frena y esa fórmula pedía imposibles.
 ##    CADA TIPO DE NIVEL SE CALIBRA CONTRA LO QUE DE VERDAD LO LIMITA, y son
 ##    cosas distintas:
 ##     · Los ABORDAJES los limita el RELOJ (siempre hay a quien servir), así que
@@ -138,7 +142,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 2,
+		"chef_rec": 1,
 		"name": "Cala Tortuga",
 		"desc": "Tu primer turno de verdad: cuatro grumetes y dos recetas sencillas.",
 		"client_mix": { "E": 4 },
@@ -188,7 +192,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 3,
+		"chef_rec": 1,
 		"name": "Playa del Coco",
 		"desc": "Se junta la clientela: hoy aprendes a guardar platos en las cajas.",
 		"client_mix": { "E": 4 },
@@ -221,7 +225,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 4,
+		"chef_rec": 1,
 		"name": "Isla del Bambú",
 		"desc": "Cinco grumetes hambrientos y un plato que se come sin soltar el otro.",
 		"client_mix": { "E": 5 },
@@ -250,7 +254,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 5,
+		"chef_rec": 2,
 		"name": "Arrecife del Ron",
 		"desc": "Ocho bocas de dos en dos. Y corre la voz de que hay tienda en el puerto.",
 		"client_mix": { "E": 8 },
@@ -281,7 +285,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 6,
+		"chef_rec": 3,
 		"name": "Cala del Calamar",
 		"desc": "El postre es la cuenta: aprende a despedir clientes y a llenar el bote.",
 		"client_mix": { "E": 5 },
@@ -311,7 +315,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 7,
+		"chef_rec": 4,
 		"name": "Bahía del Kraken",
 		"desc": "Saverio saca los extras: jengibre, wasabi y soja sobre el plato hecho.",
 		"client_mix": { "E": 8 },
@@ -335,7 +339,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 8,
+		"chef_rec": 4,
 		"name": "Estrecho del Rayo",
 		"desc": "¡Abordaje! Reloj, clientela sin fin y los primeros piratas.",
 		# Abordaje: esta mezcla es solo la PRIMERA tanda.
@@ -361,6 +365,13 @@ const PORTS: Array = [
 		# que llega con el pirata: por eso solo se pueden elegir tres.
 		"recipe_slots": 3,
 		"gift_recipes": ["nigiri_atun"],
+		# EL NIGIRI DE ATÚN ES SOLO PARA EL PIRATA mientras corre el guion. El
+		# regalo de David es para estrenarlo CON ÉL, y sin reserva no llegaba:
+		# un plato de 2★ pasa por delante de los grumetes, que lo cogen al 20%
+		# cada uno, así que con cuatro sentados se lo comían antes el 59% de
+		# las veces. Se veía como "las probabilidades están mal" y en realidad
+		# era el dado haciendo su trabajo cuatro veces seguidas.
+		"exclusive_types": { "nigiri_atun": "A" },
 		"reward_recipes": [],
 		"reward_recipes_3": ["maki_atun"],
 		"near_seats": true,
@@ -372,7 +383,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 9,
+		"chef_rec": 5,
 		"name": "Isla de Gades",
 		"desc": "Un pescador silencioso espera en la orilla con su caña.",
 		# CAI SE SIENTA A COMER: es el PRIMER pirata que entra (`special_client`
@@ -401,7 +412,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 10,
+		"chef_rec": 6,
 		"name": "Puerto Tormenta",
 		"desc": "Diez bocas en dos oleadas, y la mitad son piratas.",
 		"client_mix": { "E": 6, "A": 4 },
@@ -427,7 +438,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 11,
+		"chef_rec": 7,
 		"name": "Flota del capitán Pablo el Rubio",
 		"desc": "Abordaje a la flota de un viejo conocido de David.",
 		"client_mix": { "E": 2, "A": 2, "G": 1 },
@@ -459,7 +470,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 12,
+		"chef_rec": 8,
 		"name": "Cala del Hambre",
 		"desc": "Tres bocas, una de ellas con un hambre que no es normal.",
 		"client_mix": { "E": 1, "A": 1, "G": 1 },
@@ -485,7 +496,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 14,
+		"chef_rec": 8,
 		"name": "Ensenada del Naufragio",
 		"desc": "Corre la voz de que alguien paga en tesoros, no en oro.",
 		"client_mix": { "E": 4, "A": 3, "G": 1 },
@@ -510,7 +521,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 15,
+		"chef_rec": 9,
 		"name": "Rada de los Dos Fuegos",
 		"desc": "Demasiadas comandas para un solo par de manos.",
 		"client_mix": { "E": 5, "A": 3, "G": 2 },
@@ -531,7 +542,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 16,
+		"chef_rec": 10,
 		"name": "Muelle de las Bandejas",
 		"desc": "Aquí no se sirve plato a plato: se sirve por bandejas.",
 		"client_mix": { "E": 5, "A": 4, "G": 2 },
@@ -553,7 +564,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 17,
+		"chef_rec": 11,
 		"name": "Guarida del Kappa",
 		"desc": "Algo enorme y hambriento ronda estas aguas...",
 		"client_mix": { "E": 3, "A": 2, "G": 1 },

@@ -837,6 +837,9 @@ func _scan_belt(snack_only: bool = false) -> void:
 		# Plato RESERVADO a un personaje concreto (ver plate3d.only_who).
 		if plate.only_who != "" and plate.only_who != who_override:
 			continue
+		# ...y RESERVADO a un tipo (ver plate3d.only_type).
+		if plate.only_type != "" and plate.only_type != client_type:
+			continue
 		# El JEFE no toca los postres: un postre lo despediría de la mesa y su
 		# duelo consiste justo en retenerlo comiendo. Se descarta ANTES del
 		# dado, como los only_type.
@@ -1080,11 +1083,22 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 		current_price += variety
 		if "jengibre" in current_extras:
 			# El jengibre limpia el paladar ENTERO, este plato incluido: a
-			# partir de aquí todo vuelve a contar como nuevo. Se paga con un
-			# punto de multiplicador (a diferencia del té verde, que reinicia
-			# el arco pero deja la racha a cero).
+			# partir de aquí todo vuelve a contar como nuevo.
+			#
+			# EL PUNTO DE MULTIPLICADOR SOLO SE COBRA SI EL JENGIBRE HACÍA
+			# FALTA, o sea si el plato venía REPETIDO y es el jengibre quien lo
+			# ha colado como nuevo. Se cobraba siempre, y eso convertía en
+			# CASTIGO echarle jengibre a un plato que el cliente aún no había
+			# probado: pagabas 10 doblones y un punto de chapa a cambio de
+			# nada, y desde fuera se leía como "el jengibre no funciona".
+			var hacia_falta := not _es_nuevo(current_id, current_satiety)
 			_limpiar_paladar()
-			_set_variety(maxi(variety - 1, 0), false)
+			if hacia_falta:
+				_set_variety(maxi(variety - 1, 0), false)
+			else:
+				# No hacía falta: el plato cuenta como el plato nuevo que era y
+				# la racha sigue subiendo, con el paladar limpio de regalo.
+				_set_variety(variety + 1, true)
 		else:
 			tried[current_id] = int(tried.get(current_id, 0)) + 1
 			# El barco combinado vale DOBLE ("variety_worth"): es la bandeja

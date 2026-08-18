@@ -130,37 +130,17 @@ func _input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	_tick(delta)
-	_vigilar_inactividad(delta)
 
 
-## Gigi despierta al jugador si lleva un buen rato sin tocar nada. No salta si
-## hay alguien hablando ni a media faena (un gesto sostenido se arruinaría).
-func _vigilar_inactividad(delta: float) -> void:
-	if _recordatorio == "" or _regañando or dialog.is_talking():
-		_quieto = 0.0
-		return
-	if lv.prep_board.is_gesture_locked():
-		_quieto = 0.0
-		return
-	_quieto += delta
-	if _quieto < INACTIVIDAD:
-		return
-	_quieto = 0.0
-	_espabila()
-
-
-func _espabila() -> void:
-	_regañando = true
-	var aviso := _recordatorio
-	await _say([
-		{ "text": "¡ESPABILA, grumete! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
-		{ "text": aviso, "who": "gigi", "mood": "loro" },
-	])
-	# `_say` deja la caja ABIERTA (keep_open) porque los guiones encadenan
-	# tandas; aquí no viene ninguna detrás, así que hay que cerrarla a mano o se
-	# queda puesta tapando el juego.
-	dialog.close()
-	_regañando = false
+## EL VIGÍA DE INACTIVIDAD SE RETIRÓ. Gigi saltaba a los 10 s sin tocar nada
+## con un "¡ESPABILA!" y el recordatorio del paso pendiente, y ya no hace
+## falta: los guiones están medidos y el cartel del gesto dice en todo momento
+## qué toca. Además se colaba donde no debía — en el nivel 11 apareció con el
+## cartel de FIN DE NIVEL puesto, recordando un paso del futomaki que ya no se
+## podía dar.
+##
+## `_recordatorio` sigue existiendo porque `_play(aviso)` lo escribe y es el
+## texto del cartel del gesto; lo que se ha ido es el bocinazo.
 
 
 # ------------------------------------------------------------------ helpers

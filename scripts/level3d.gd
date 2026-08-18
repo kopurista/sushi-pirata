@@ -349,6 +349,8 @@ var special_spawned := false
 ## Platos reservados a un personaje concreto en esta partida (receta → who).
 ## Ver `exclusive_dishes` del puerto: solo mientras el guion está en marcha.
 var exclusive_dishes: Dictionary = {}
+## Igual, pero reservando por TIPO de cliente (`exclusive_types` del puerto).
+var exclusive_types: Dictionary = {}
 var chef_anim: CharacterAnim = null
 var chef_tween: Tween = null
 var chef_prop: Sprite3D
@@ -596,6 +598,7 @@ func _ready() -> void:
 			# ya no hay guion y el plato vale para todo el mundo.
 			if not ya_narrado:
 				exclusive_dishes = port.get("exclusive_dishes", {})
+				exclusive_types = port.get("exclusive_types", {})
 		# Jugar un nivel consume 1 uso de cada ingrediente de las recetas
 		# elegidas; si no alcanzan, vuelta a la seleccion.
 		if not GameState.consume_ingredients_for_level(GameState.selected_recipes):
@@ -3381,16 +3384,36 @@ func _make_powerup_card(id: String) -> Button:
 	icono.size = Vector2(POWERUP_ICON, POWERUP_ICON)
 	icono.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(icono)
+	# NOMBRE ARRIBA Y UNA LÍNEA DE QUÉ HACE DEBAJO. La tarjeta llegó a ser solo
+	# dibujo + título para que no hubiera nada que leer con el juego parado,
+	# pero se pasó de frenada: con tres nombres sueltos se elegía A CIEGAS. La
+	# descripción va en cuerpo pequeño y a media tinta, así que se lee de un
+	# vistazo o se ignora, pero está.
+	var texto := VBoxContainer.new()
+	texto.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	texto.offset_left = margen * 2.0 + POWERUP_ICON
+	texto.offset_right = -margen
+	texto.offset_top = margen * 0.5
+	texto.offset_bottom = -margen * 0.5
+	texto.alignment = BoxContainer.ALIGNMENT_CENTER
+	texto.add_theme_constant_override("separation", 2)
+	texto.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(texto)
 	var titulo := Label.new()
 	titulo.text = str(data.get("name", id))
-	titulo.add_theme_font_size_override("font_size", 30)
+	titulo.add_theme_font_size_override("font_size", 27)
 	titulo.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	titulo.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	titulo.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	titulo.offset_left = margen * 2.0 + POWERUP_ICON
-	titulo.offset_right = -margen
 	titulo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.add_child(titulo)
+	texto.add_child(titulo)
+	var desc := str(data.get("desc", ""))
+	if desc != "":
+		var l := Label.new()
+		l.text = desc
+		l.add_theme_font_size_override("font_size", 17)
+		l.add_theme_color_override("font_color", Color(1, 0.94, 0.82, 0.78))
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		texto.add_child(l)
 	return b
 
 
@@ -3520,6 +3543,7 @@ func _on_dish_served(recipe_id: String, price_override: int = 0, extras: Array =
 	p.level_override = level_override
 	p.eat_mult_override = eat_mult_override
 	p.only_who = str(exclusive_dishes.get(recipe_id, ""))
+	p.only_type = str(exclusive_types.get(recipe_id, ""))
 	p.speed = PLATE_SPEED
 	# Maestrías del plato en cinta: vueltas extra, olvido por vuelta y la marca
 	# del "Golpe de suerte" (la tabla la expone solo durante su emit).

@@ -29,8 +29,18 @@ const TOAST_TIME := 2.8
 const TOAST_H := 96.0
 const TOAST_W := 520.0
 
+## DOS CANALES INDEPENDIENTES, y por eso hay dos colas.
+##  · MODALES (subida de nivel, coleccionable): se pisan entre sí, así que van
+##    de uno en uno — son ventanas que hay que cerrar.
+##  · TOASTS de logro: una banda que baja, se va sola y no recibe ni un toque.
+## Estuvieron en la MISMA cola y la ventana de subida de nivel se quedaba
+## detrás de TODAS las notificaciones: con media docena de logros eran ~17 s
+## mirando banderitas antes de ver lo que habías ganado. Como el toast vive
+## arriba y el modal en el centro, no se estorban: pueden ir a la vez.
 var _queue: Array = []
 var _busy := false
+var _toasts: Array = []
+var _toast_busy := false
 var _paused_by_us := false
 
 
@@ -42,9 +52,9 @@ func _init() -> void:
 ## Notificación de LOGRO: icono + "¡Logro!" + nombre y medalla. No interactiva.
 func toast_achievement(icon: Texture2D, tint: Color, title: String,
 		subtitle: String) -> void:
-	_queue.append({ "kind": "toast", "icon": icon, "tint": tint,
+	_toasts.append({ "kind": "toast", "icon": icon, "tint": tint,
 		"title": title, "subtitle": subtitle })
-	_pump()
+	_pump_toasts()
 
 
 ## Ventana de COLECCIONABLE conseguido. `extra` añade un renglón (el regalo de
@@ -71,8 +81,6 @@ func _pump() -> void:
 	_busy = true
 	var item: Dictionary = _queue.pop_front()
 	match str(item["kind"]):
-		"toast":
-			_show_toast(item)
 		"level":
 			_show_level_up(item["data"])
 		_:
@@ -84,10 +92,24 @@ func _done() -> void:
 	_pump()
 
 
-## ¿Queda algún aviso en pantalla o en la cola? Lo pregunta quien tiene que
+## Los toasts corren por su cuenta, en paralelo con los modales.
+func _pump_toasts() -> void:
+	if _toast_busy or _toasts.is_empty():
+		return
+	_toast_busy = true
+	_show_toast(_toasts.pop_front())
+
+
+func _toast_done() -> void:
+	_toast_busy = false
+	_pump_toasts()
+
+
+## ¿Queda alguna VENTANA en pantalla o en la cola? Lo pregunta quien tiene que
 ## hablar DESPUÉS de un cartel: el guion del nivel 7 espera a que el jugador
 ## cierre la ventana de la bandera antes de soltar a David, porque si no las
-## dos cosas se pisaban en la misma pantalla.
+## dos cosas se pisaban en la misma pantalla. Los TOASTS no cuentan: son una
+## banda que se va sola y no tapa a nadie.
 func is_busy() -> bool:
 	return _busy or not _queue.is_empty()
 
@@ -147,7 +169,7 @@ func _show_toast(item: Dictionary) -> void:
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tw.tween_callback(func() -> void:
 		box.queue_free()
-		_done())
+		_toast_done())
 
 
 # ------------------------------------------------- ventana de coleccionable
