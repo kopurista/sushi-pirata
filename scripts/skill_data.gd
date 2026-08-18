@@ -322,27 +322,79 @@ static func rank_text(id: String, rank: int) -> String:
 ##    arroz / extras), de modo que dos niveles seguidos nunca dan lo mismo.
 ##  · Las cantidades escalan con el nivel: a estas alturas de la progresión un
 ##    puñado fijo de doblones dejaría de significar nada.
-static func level_reward(n: int) -> Dictionary:
+## CADENCIA DE CADA PREMIO: en qué nivel arranca su serie y con qué ciclo de
+## huecos avanza. "Cada 5, 6 y 7 niveles desde el 7" es el ciclo [5, 6, 7]
+## empezando en el 7 → 7, 12, 18, 25, 30, 36, 43... El ciclo de tres huecos
+## está pensado para que las series NO se sincronicen entre sí: con un hueco
+## fijo, dos premios con el mismo período caerían siempre juntos y habría
+## niveles cargados y niveles pelados.
+##
+## El nivel de arranque es la PRIMERA compuerta; la segunda es que el juego ya
+## haya EXPLICADO ese premio (ver `GameState.reward_gates`), porque un regalo
+## que el jugador no entiende no se vive como un regalo — que es justo por lo
+## que estos cuatro estuvieron un tiempo desactivados.
+const REWARD_CADENCIA := {
+	"bait": { "desde": 7, "huecos": [5, 6, 7] },
+	"rice": { "desde": 4, "huecos": [10, 11, 12] },
+	"ingots": { "desde": 7, "huecos": [11, 12, 13] },
+	"extras": { "desde": 6, "huecos": [6, 7, 8] },
+	"ingredients": { "desde": 6, "huecos": [7, 8, 9] },
+}
+
+
+## ¿Le toca a este premio en el nivel `n`? Se resuelve por MÓDULO del período
+## (la suma del ciclo), no recorriendo la serie: es O(1) y no depende de lo
+## alto que sea el nivel.
+static func toca_premio(clave: String, n: int) -> bool:
+	var c: Dictionary = REWARD_CADENCIA.get(clave, {})
+	if c.is_empty() or n < int(c["desde"]):
+		return false
+	var huecos: Array = c["huecos"]
+	var periodo := 0
+	for h in huecos:
+		periodo += int(h)
+	var pos := (n - int(c["desde"])) % periodo
+	var acc := 0
+	for h in huecos:
+		if pos == acc:
+			return true
+		acc += int(h)
+	return false
+
+
+## Lo que suelta subir AL nivel `n`. `puertas` dice qué premios están ya
+## explicados (clave → bool); lo que falte en el diccionario se da por ABIERTO,
+## que es lo que quieren las herramientas y las tablas de diseño.
+static func level_reward(n: int, puertas := {}) -> Dictionary:
 	var out := { "points": 1 }
-	# SOLO ORO Y CEBO. Llegó a repartir despensa, extras, sacos de arroz y
-	# lingotes rotando por nivel, y se cayó todo: caía ANTES de que el juego
-	# hubiera explicado qué era ninguna de esas cosas, y un premio que el
-	# jugador no entiende no se vive como un premio. Vuelven cuando sus
-	# pantallas los presenten.
-	var oro := 30 + n * 6
-	# Los hitos (de cinco en cinco, y más en los redondos) pagan a lo grande:
-	# es lo que los distingue ahora que no hay lingotes que los marquen.
+	# EL ORO VA EN TODOS LOS NIVELES y es el premio de fondo; los hitos solo lo
+	# realzan. Los multiplicadores son suaves a propósito (×1,2 · ×1,5 · ×2):
+	# con la escalera anterior (×2 · ×3 · ×4) el nivel corriente se quedaba en
+	# nada al lado del hito, y cada nivel ya paga de por sí.
+	var oro := 30 + n * 5
 	if n % 25 == 0:
-		oro *= 4
+		oro = int(round(oro * 2.0))
 	elif n % 10 == 0:
-		oro *= 3
+		oro = int(round(oro * 1.5))
 	elif n % 5 == 0:
-		oro *= 2
+		oro = int(round(oro * 1.2))
 	out["gold"] = oro
-	# El CEBO paga una tirada de pesca entera. Cae en los niveles PARES para
-	# que se lea como un suceso propio y no como una línea más de la lista.
-	if n % 2 == 0:
+
+	var abierta := func(clave: String) -> bool:
+		return bool(puertas.get(clave, true))
+	# El CEBO paga una tirada de pesca entera.
+	if toca_premio("bait", n) and abierta.call("bait"):
 		out["bait"] = 1
+	if toca_premio("rice", n) and abierta.call("rice"):
+		out["rice"] = 1
+	if toca_premio("ingots", n) and abierta.call("ingots"):
+		out["ingots"] = 1
+	# Las cantidades de despensa y extras SUBEN MUY DESPACIO (un escalón cada
+	# 100 niveles): lo que hace valioso el premio es que caiga, no que crezca.
+	if toca_premio("extras", n) and abierta.call("extras"):
+		out["extras"] = 2 + n / 100
+	if toca_premio("ingredients", n) and abierta.call("ingredients"):
+		out["ingredients"] = 3 + n / 100
 	return out
 
 

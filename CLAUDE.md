@@ -727,17 +727,31 @@ primera vez que se entra en ellos (`logros_intro_done` /
     porque un 3 en el formato viejo era el rango 3 (15 puntos) y aquí son 3
     puntos; `load_game` convierte los guardados viejos multiplicando por el
     coste del rango.
-  · **SUBIR DE NIVEL DA PUNTO, ORO Y CEBO — Y NADA MÁS** (`SkillData.
-    level_reward`). Llegó a repartir despensa, extras, sacos de arroz y
-    lingotes rotando con `n % 4`, y se cayó todo: caía ANTES de que el juego
-    hubiera explicado qué era ninguna de esas cosas, y un premio que el
-    jugador no entiende no se vive como un premio. Vuelven cuando sus
-    pantallas los presenten (las claves siguen en `REWARD_LABELS` y en el
-    orden de `NoticeLayer._show_level_up`, listas para volver).
-    Lo que queda: el punto SIEMPRE, ORO siempre —×2 en los múltiplos de 5,
-    ×3 en los de 10 y ×4 en los de 25, que es lo que marca el hito ahora que
-    no hay lingotes— y **1 CEBO en los niveles PARES**, que paga una tirada de
-    pesca entera. Los entrega `GameState._grant_level_rewards` en el acto.
+  · **SUBIR DE NIVEL** (`SkillData.level_reward`) da SIEMPRE el punto y ORO
+    (`30 + 5·n`, realzado ×1,2 en los múltiplos de 5, ×1,5 en los de 10 y ×2
+    en los de 25 — suave a propósito: con la escalera vieja ×2/×3/×4 el nivel
+    corriente se quedaba en nada al lado del hito, y cada nivel ya paga solo).
+  · **Y CADA PREMIO DE BODEGA TIENE SU PROPIA CADENCIA**
+    (`SkillData.REWARD_CADENCIA` + `toca_premio`, resuelto por MÓDULO del
+    período, no recorriendo la serie): cebo cada **5·6·7** niveles desde el 7,
+    arroz cada **10·11·12** desde el 4, lingote cada **11·12·13** desde el 7,
+    extras cada **6·7·8** desde el 6 y despensa cada **7·8·9** desde el 6.
+    El CICLO DE TRES HUECOS es lo que evita que las series se sincronicen: con
+    un hueco fijo, dos premios de igual período caerían siempre juntos y
+    habría niveles cargados y niveles pelados. Las cantidades de despensa y
+    extras suben un escalón cada 100 niveles y nada más — lo que hace valioso
+    el premio es que CAIGA, no que crezca.
+  · **COMPUERTAS: un premio no cae hasta que el juego lo ha EXPLICADO**
+    (`GameState.reward_gates`, que `add_chef_xp` le pasa a `level_reward`):
+    cebo con la PESCA abierta, arroz con `rice_intro_done`, lingotes con
+    `ingots_intro_done` (Pablo), despensa con la TIENDA y extras con
+    `extras_done`. Los cuatro últimos estuvieron un tiempo DESACTIVADOS del
+    todo justamente por esto —caían antes de que el jugador supiera qué tenía
+    en la mano— y volvieron con las compuertas puestas. Si a un nivel le tocaba
+    un premio aún cerrado, ESE premio se pierde y no se guarda para después:
+    la serie es una cadencia, no una deuda. El oro y el punto no llevan
+    compuerta: se entienden solos.
+    Los entrega `GameState._grant_level_rewards` en el acto.
   · **EL CEBO ES `GameState.bait`**, una sola cuenta con DOS fuentes: los tres
     que regala Cai al acabar su clase y los de las subidas de nivel. Antes
     eran las "tiradas gratis" de Cai (`free_casts`, que migra al cargar); un

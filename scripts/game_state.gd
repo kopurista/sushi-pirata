@@ -1069,6 +1069,24 @@ func announce_level_up(resumen: Dictionary) -> void:
 	_ensure_notices().announce_level_up(resumen)
 
 
+## COMPUERTAS DE LOS PREMIOS DE NIVEL: un premio no cae hasta que el juego ha
+## EXPLICADO qué es. Es la razón por la que la despensa, los extras, el arroz y
+## los lingotes estuvieron desactivados un tiempo — caían antes de que el
+## jugador supiera qué tenía en la mano. El oro y el punto de maestría no
+## necesitan compuerta: se entienden solos.
+##
+## Si a un nivel le tocaba un premio todavía cerrado, ESE premio se pierde y
+## no se guarda para después: la serie es una cadencia, no una deuda.
+func reward_gates() -> Dictionary:
+	return {
+		"bait": fishing_unlocked(),
+		"rice": rice_intro_done,
+		"ingots": ingots_intro_done,
+		"ingredients": shop_unlocked(),
+		"extras": extras_unlocked(),
+	}
+
+
 func add_chef_xp(amount: int) -> int:
 	if amount <= 0 or is_tutorial():
 		return 0
@@ -1088,10 +1106,11 @@ func add_chef_xp(amount: int) -> int:
 	# cinco de golpe con un arcade largo tiene que sentirse como cinco cofres,
 	# no como cinco carteles seguidos.
 	var premios: Dictionary = {}
+	var puertas := reward_gates()
 	for n in range(desde + 1, nuevo + 1):
-		for clave in SkillData.level_reward(n):
-			premios[clave] = int(premios.get(clave, 0)) + int(
-				SkillData.level_reward(n)[clave])
+		var premio := SkillData.level_reward(n, puertas)
+		for clave in premio:
+			premios[clave] = int(premios.get(clave, 0)) + int(premio[clave])
 	_grant_level_rewards(premios)
 	var anterior: Dictionary = pending_level_up
 	if anterior.is_empty():
