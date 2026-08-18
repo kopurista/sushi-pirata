@@ -888,6 +888,14 @@ func _scan_belt(snack_only: bool = false) -> void:
 			chance = 1.0
 		if snack_only and snack_sure:
 			chance = 1.0
+		# DESPRECIO FORZADO (la clase del dado del nivel 1): el guion pide que
+		# ESTE plato se deje pasar, y avisa al nivel para que le ponga el foco.
+		if level_ref != null and "forzar_desprecio" in level_ref \
+				and level_ref.forzar_desprecio and not snack_only:
+			level_ref.forzar_desprecio = false
+			level_ref.plato_ignorado.emit(plate.global_position)
+			declined.append(pid)
+			continue
 		if randf() < chance:
 			var rid: String = plate.recipe_id
 			var plate_pos: Vector3 = plate.global_position

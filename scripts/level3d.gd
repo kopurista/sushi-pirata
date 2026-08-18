@@ -190,6 +190,20 @@ var no_perks := false
 ## `_compute_seat_order`). Es de la escuela: con cuatro clientes sueltos, uno
 ## sentado justo detrás del punto de salida espera una vuelta entera.
 var near_seats := false
+## SILLAS FORZADAS para los primeros clientes (`first_seats` del puerto).
+## El nivel 1 sienta al primero en la SEGUNDA silla y al segundo en la
+## primera: asi el jugador ve que la cinta reparte por orden de paso y no
+## por orden de llegada, que es la primera intuicion que hay que romper.
+var first_seats: Array = []
+## EL GUION PUEDE FORZAR UN DESPRECIO. El nivel 1 lo usa para enseñar el
+## dado de coger plato: el jugador tiene que VER a un cliente dejar pasar
+## algo antes de que David le cuente que eso puede ocurrir. Puesto a true,
+## el siguiente plato que un cliente fuera a coger se rechaza (una sola
+## vez) y el nivel avisa por `plato_ignorado` con la posicion del plato,
+## para que el guion pueda ponerle el foco encima antes de que siga su
+## camino.
+var forzar_desprecio := false
+signal plato_ignorado(pos: Vector3)
 ## Índices de asiento ordenados por cercanía de cinta (se calcula al vuelo).
 var seat_order: Array[int] = []
 ## Clientes por llegada (1 = de uno en uno). Ver el reparto del horario.
@@ -332,6 +346,8 @@ var helper_gesture_t := 0.0
 var dishes_served := 0
 ## Platos que se han ido por la cinta sin que nadie los cogiera (logros).
 var plates_wasted := 0
+## Dónde cayó el último plato al cubo (el guion del nivel 1 lo enfoca).
+var trash_pos := Vector3.ZERO
 ## Segundos de esta partida (van al contador de horas jugadas de GameState).
 var play_time := 0.0
 ## Cara que usa la fila de cabezas del HUD para cada tipo: la del PRIMER cliente
@@ -537,6 +553,7 @@ func _ready() -> void:
 		no_perks = bool(port.get("no_perks", false))
 		# Escuela: la clientela ocupa las sillas por orden de cinta, no al azar.
 		near_seats = bool(port.get("near_seats", false))
+		first_seats = (port.get("first_seats", []) as Array).duplicate()
 		# Cuántos entran DE GOLPE en cada llegada (1 = de uno en uno).
 		arrival_batch = maxi(int(port.get("arrival_batch", 1)), 1)
 		# Cuándo entra el PRIMERO (el nivel 1 lo pone a 0: en cuanto acaba la
@@ -2576,7 +2593,17 @@ func _try_spawn_client() -> bool:
 	# vuelta entera, que es un castigo que el jugador no entiende y que en los
 	# niveles de aprender no aporta nada.
 	var idx: int = free_seats.pick_random()
-	if near_seats:
+	# Las sillas FORZADAS mandan sobre todo lo demás, mientras queden. Si la
+	# que toca ya está ocupada se descarta y se sigue con la siguiente: la
+	# lista es una preferencia, no una reserva.
+	var forzada := false
+	while not first_seats.is_empty():
+		var quiere: int = int(first_seats.pop_front())
+		if quiere in free_seats:
+			idx = quiere
+			forzada = true
+			break
+	if not forzada and near_seats:
 		if seat_order.is_empty():
 			_compute_seat_order()
 		for s in seat_order:
@@ -3583,6 +3610,10 @@ func _forget_declined(plate_id: int) -> void:
 func _on_plate_discarded(recipe_id: String, plate: Node3D = null) -> void:
 	# Logro "aquí no se tira nada": la partida deja de ser limpia.
 	plates_wasted += 1
+	# DÓNDE ha caído, para que el guion del nivel 1 pueda enfocar el cubo
+	# con el plato todavía volcándose dentro.
+	if plate != null and is_instance_valid(plate):
+		trash_pos = plate.global_position
 	var price: int = RecipeData.get_recipe(recipe_id).get("price", 0)
 	# Siempre cuesta algo: hasta el plato más barato se cobra un doblón. La
 	# fracción sale de la maestría "Segunda vuelta" (y el estorbo del arcade

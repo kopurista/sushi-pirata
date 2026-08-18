@@ -261,6 +261,15 @@ func _vigilar_basura() -> void:
 			continue
 		GameState.trash_intro_done = true
 		GameState.save_game()
+		# UN RESPIRO ANTES DE HABLAR, y el FOCO en el cubo: el aviso saltaba en
+		# el mismo fotograma en que el plato se volcaba, así que el jugador leía
+		# "¡a la basura!" sin haber visto nada caer. 0,1 s bastan para que la
+		# caída se registre, y el foco dice DÓNDE ha sido.
+		await _pausa(0.1)
+		if lv.trash_pos != Vector3.ZERO:
+			_focus_screen_rect(Rect2(
+				lv.cam.unproject_position(lv.trash_pos) - Vector2(95, 110),
+				Vector2(190, 220)))
 		await _say([
 			{ "text": "¡A LA BASURA! ¡RAAAK! ¡Derechito al cubo!", "who": "gigi", "mood": "loro_sorpresa" },
 			{ "text": "El plato que da la **vuelta entera** sin que nadie lo coja acaba en el cubo de la esquina... y te descuenta oro.", "mood": "serio" },
@@ -277,9 +286,15 @@ func _vigilar_basura() -> void:
 # lección del nivel 2 y aquí ni aparecen.
 
 func _nivel_1() -> void:
+	# LA PRIMERA LÍNEA VA SIN FOCO: habla de Cala Tortuga, no del nigiri, y con
+	# el foco puesto desde el principio el jugador miraba un pergamino de la
+	# tabla mientras le presentaban la isla. El foco entra con la línea que lo
+	# menciona, que es la segunda.
+	await _say([
+		{ "text": "¡**Cala Tortuga**, tu primer turno de verdad! Cuatro grumetes, y tú al mando de la cinta.", "mood": "feliz" },
+	])
 	await _focus_node(lv.prep_board.buttons["nigiri_salmon"], 12.0)
 	await _say_raised([
-		{ "text": "¡**Cala Tortuga**, tu primer turno de verdad! Cuatro grumetes, y tú al mando de la cinta.", "mood": "feliz" },
 		{ "text": "Te he dejado en la tabla una receta nueva, el **nigiri de salmón**: menos trabajo que el maki y mejor pagado.", "mood": "hablando" },
 		{ "text": "Pero el **maki** te saca más platos de una sola preparación. Ya lo irás pillando.", "mood": "hablando" },
 	])
@@ -337,7 +352,34 @@ func _nivel_1() -> void:
 	await _focus_node(lv.money_label, 24.0)
 	await _say([
 		{ "text": "¡Y ahí está el **oro**! Cada plato comido suma su precio; la cifra de al lado es el **objetivo** del turno.", "mood": "feliz" },
-		{ "text": "Llega al objetivo y el turno se cierra solo. Es todo tuyo: ¡a cocinar!", "mood": "riendo" },
+		{ "text": "Llega al objetivo y el turno se cierra solo.", "mood": "riendo" },
+	])
+	_play()
+
+	# --- EL DADO: el SEGUNDO plato que iba a comerse alguien se ignora ---
+	# El jugador tiene que VER a un cliente dejar pasar un plato antes de que
+	# nadie le cuente que eso puede ocurrir; si no, la primera vez que le pase
+	# de verdad —y le pasará— lo vivirá como un fallo del juego. Así que el
+	# nivel provoca el desprecio a propósito y David lo explica con el plato
+	# despreciado todavía en la cinta.
+	lv.forzar_desprecio = true
+	var sitio := Vector3.ZERO
+	var visto := [false]
+	var conexion := func(pos: Vector3) -> void:
+		sitio = pos
+		visto[0] = true
+	lv.plato_ignorado.connect(conexion)
+	await _esperar(func() -> bool: return lv.ended or visto[0])
+	if lv.plato_ignorado.is_connected(conexion):
+		lv.plato_ignorado.disconnect(conexion)
+	if lv.ended:
+		return
+	_focus_screen_rect(Rect2(lv.cam.unproject_position(sitio) - Vector2(80, 80),
+		Vector2(160, 160)))
+	await _say([
+		{ "text": "¡Ojo a eso! Ha dejado pasar el plato. No siempre les apetece lo que ven: a veces uno mira y sigue a lo suyo.", "mood": "sorprendido" },
+		{ "text": "No es culpa tuya. Cada cliente tiene su momento, y un plato que hoy no quiere puede querérselo el de al lado.", "mood": "hablando" },
+		{ "text": "Por eso no conviene servir a uno solo: llena la cinta pensando en TODA la barra.", "mood": "serio" },
 	])
 	_play()
 
@@ -359,12 +401,20 @@ var _cajas_regano := false
 
 func _nivel_2() -> void:
 	var pb: Control = lv.prep_board
-	# Las cajas se esconden AQUÍ y no en el puerto: así, al repetir el nivel
-	# —donde este guion ya no corre— salen desde el primer fotograma.
-	pb.hide_storage = true
-	pb.refresh_extra_ui()
+	# LAS CAJAS SE ENTREGAN Y SE EXPLICAN AL EMPEZAR, no cuando aprieta. Antes
+	# aparecían de golpe con la marabunta encima, así que la herramienta nueva
+	# y el apuro llegaban en el mismo segundo y no había manera de mirarlas con
+	# calma. Ahora se presentan con la barra tranquila —solo hay una boca— y lo
+	# que trae la marabunta es la OBLIGACIÓN de usarlas, que es otra lección.
 	await _say([
 		{ "text": "**Playa del Coco**. Hoy te voy a enseñar el truco que separa a un cocinero de un friegaplatos.", "mood": "feliz" },
+	])
+	await _focus_node(pb.storage_box, 16.0)
+	await _say([
+		{ "text": "Estas dos **cajas** son tuyas desde hoy. Guardan platos ya hechos y los mantienen calientes hasta que tú digas.", "mood": "hablando" },
+		{ "text": "Sirve para adelantar trabajo: cocinas cuando tienes hueco y sueltas cuando hace falta.", "mood": "serio" },
+		{ "text": "¡CAJAS! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+		{ "text": "Y otra cosa: desde hoy la **despensa se gasta**. Cada receta que embarques consume un uso de sus ingredientes.", "mood": "serio" },
 		{ "text": "Empieza tranquilo, que de momento solo hay una boca. Ya te avisaré yo cuando toque.", "mood": "hablando" },
 	])
 	_play()
@@ -411,13 +461,12 @@ func _nivel_2() -> void:
 func _leccion_cajas() -> void:
 	var pb: Control = lv.prep_board
 	_congelar(true)
-	# Las cajas aparecen AHORA: hasta aquí el nivel iba sin ellas.
-	pb.hide_storage = false
-	pb.refresh_extra_ui()
+	# (Las cajas ya están puestas y explicadas desde el principio del nivel: lo
+	# que se enseña AQUÍ es para qué sirven de verdad cuando la barra aprieta.)
 	await _focus_node(pb.storage_box, 16.0)
 	await _say([
-		{ "text": "¡Se nos llena la barra! Y un plato en la cinta se lo queda **el primero que pase**, no el que tú quieras.", "mood": "sorprendido" },
-		{ "text": "Para eso están estas dos **cajas**: guardas platos hechos y los sueltas TODOS DE GOLPE cuando te interesa.", "mood": "hablando" },
+		{ "text": "¡Ahora sí! Se nos llena la barra, y un plato en la cinta se lo queda **el primero que pase**, no el que tú quieras.", "mood": "sorprendido" },
+		{ "text": "Aquí es donde las cajas valen su peso en oro: cocinas de antemano y los sueltas TODOS DE GOLPE, uno para cada boca.", "mood": "hablando" },
 		{ "text": "Prepara **%d platos** y mételos en las cajas. Yo te espero: hoy nadie se me impacienta." % CAJAS_PEDIDAS, "mood": "serio" },
 	])
 	# Si intenta mandarlo a la cinta, Gigi le corta (una sola vez).

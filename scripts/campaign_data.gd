@@ -185,6 +185,10 @@ const PORTS: Array = [
 		"first_arrival": 0.0,
 		# Cuatro clientes en las sillas que la cinta alcanza antes.
 		"near_seats": true,
+		# EL PRIMERO SE SIENTA EN LA SEGUNDA SILLA y el segundo en la primera:
+		# así se ve desde el minuto uno que la cinta reparte por orden de PASO
+		# y no por orden de llegada.
+		"first_seats": [1, 0],
 		"director": "nivel_1",
 	},
 	{
