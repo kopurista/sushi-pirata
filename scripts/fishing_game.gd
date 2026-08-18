@@ -44,6 +44,10 @@ signal money_changed
 ## botones "+" de las cajas de recursos: abrir un panel de compra con el pez
 ## enganchado no para el reloj de la pesca, así que costaba el intento entero.
 signal busy_changed(on: bool)
+## Experiencia de cocinero de una captura: el menú la enseña subiendo en la
+## BARRA DE NIVEL, con su "+N exp" flotando. Se emite al ENTREGAR el premio
+## (`GameState.fishing_apply` ya la ha sumado y devuelve cuánta fue).
+signal xp_gained(amount: int)
 
 enum State { READY, SHADOW, APPROACH, FEINT, BITE, FIGHT, REVEAL, ESCAPED }
 
@@ -920,6 +924,7 @@ func _land_catch() -> void:
 	if str(roll.get("type", "")) == "fish":
 		var premio := GameState.fishing_apply(roll)
 		money_changed.emit()
+		xp_gained.emit(int(premio.get("xp", 0)))
 		_show_fish_reveal(premio)
 	else:
 		# El cofre NO se abre solo: sale CERRADO y lo abre el jugador. El

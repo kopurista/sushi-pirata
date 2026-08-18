@@ -1266,6 +1266,9 @@ func _setup_resource_bar(st: float) -> void:
 const LVL_BAR_W := 420.0
 const LVL_BAR_H := 34.0
 const LVL_BAR_Y := 96.0
+## Cuánto baja la barra en la PESCA, para dejar libre la fila del "Atrás" y del
+## álbum (uno en cada esquina de arriba).
+const LVL_BAR_PESCA := 76.0
 
 var level_bar: Button = null
 var level_bar_fill: ProgressBar = null
@@ -1625,7 +1628,11 @@ func _level_bar_spot(en_mapa: bool) -> Vector2:
 	var ancho := GameState.canvas_size().x
 	var st := GameState.safe_top()
 	if en_mapa:
-		return Vector2(ancho - LVL_BAR_W - 16.0,
+		# CENTRADA EN EL HUECO que deja el botón "Atrás", no pegada al canto
+		# derecho: así la barra sigue leyéndose como parte de la fila y no como
+		# algo arrinconado.
+		var libre := 16.0 + 150.0 + 16.0
+		return Vector2((libre + ancho - LVL_BAR_W) * 0.5,
 			16.0 + st + PrepBoard.RESOURCE_H + 40.0)
 	return Vector2((ancho - LVL_BAR_W) * 0.5, LVL_BAR_Y + st)
 
@@ -2403,7 +2410,17 @@ func _go_fishing() -> void:
 		_show_locked_notice("La Pesca se abre al superar\nla Isla de Gades (nivel 8).")
 		return
 	leaving = true
-	_ui_out(false)
+	# La BARRA DE NIVEL se queda: en la pesca cada captura paga experiencia y
+	# hay que VERLA subir. Se queda solo de escaparate — `MOUSE_FILTER_IGNORE`,
+	# porque el panel táctil de la pesca cubre la pantalla entera y una barra
+	# pulsable encima sería una trampa para irse a Maestrías con el pez cogido.
+	_ui_out(false, false)
+	if level_bar != null:
+		level_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# UNA FILA MÁS ABAJO que en el menú: arriba están el "Atrás" de la
+		# pesca y el botón del álbum, uno en cada esquina, y la barra les caía
+		# justo encima. Al cerrar, `_ui_in` la devuelve a su altura de siempre.
+		level_bar.position.y = home_lvl_y + LVL_BAR_PESCA
 	var tw := create_tween()
 	tw.tween_interval(OUT_TIME + 0.05)
 	tw.tween_callback(func() -> void:
@@ -2414,6 +2431,10 @@ func _go_fishing() -> void:
 		fishing_ui.closed.connect(_on_fishing_closed)
 		fishing_ui.money_changed.connect(_refresh_resources)
 		fishing_ui.busy_changed.connect(_set_plus_enabled)
+		fishing_ui.xp_gained.connect(_xp_en_la_barra)
+		# La barra, POR ENCIMA de la pesca (mismo motivo que las cajas).
+		if level_bar != null:
+			ui_layer.move_child(level_bar, -1)
 		# LAS CAJAS DE RECURSOS, POR ENCIMA DE LA PESCA. Su panel táctil ocupa
 		# la pantalla entera con MOUSE_FILTER_STOP, y como se cuelga DESPUÉS que
 		# las cajas se llevaba también los toques de sus botones "+": pulsarlos
@@ -2424,11 +2445,46 @@ func _go_fishing() -> void:
 				ui_layer.move_child(caja, -1))
 
 
+## "+N exp" flotando sobre la BARRA DE NIVEL y la barra llenándose, con cada
+## captura. Es lo que hace que la experiencia de la pesca se vea: sin esto se
+## sumaba en silencio y el jugador solo notaba el salto al volver al menú.
+func _xp_en_la_barra(cantidad: int) -> void:
+	if level_bar == null or cantidad <= 0:
+		return
+	# La barra puede estar aún oculta (primera experiencia de la partida).
+	_refresh_level_bar()
+	if not level_bar.visible:
+		return
+	var l := Label.new()
+	l.text = "+%d exp" % cantidad
+	l.add_theme_font_size_override("font_size", 30)
+	l.add_theme_color_override("font_color", Color(0.62, 0.86, 1))
+	l.add_theme_color_override("font_outline_color", Color(0.05, 0.12, 0.24))
+	l.add_theme_constant_override("outline_size", 9)
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		l.add_theme_font_override("font", negrita)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.size = Vector2(LVL_BAR_W, 40.0)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.position = Vector2(0.0, LVL_BAR_H * 0.5)
+	level_bar.add_child(l)
+	var t := l.create_tween().set_parallel(true)
+	t.tween_property(l, "position:y", -34.0, 0.9) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.tween_property(l, "modulate:a", 0.0, 0.45).set_delay(0.5)
+	t.chain().tween_callback(l.queue_free)
+	# Y la barra sube de verdad (con su fogonazo si cruza un nivel).
+	_play_xp_anim_if_pending()
+
+
 func _on_fishing_closed() -> void:
 	if fishing_ui == null:
 		return
 	fishing_ui.queue_free()
 	fishing_ui = null
+	if level_bar != null:
+		level_bar.mouse_filter = Control.MOUSE_FILTER_STOP
 	_set_plus_enabled(false)
 	_refresh_resources()
 	# (`_ui_in` vuelve a encender el tablón y el submenú, y de paso anima la

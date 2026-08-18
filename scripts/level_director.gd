@@ -530,11 +530,37 @@ func _nivel_4() -> void:
 	_vigilar_basura()
 	await _tras_la_preparacion()
 
-	# --- El primer x2 → EL MULTIPLICADOR ---
-	await _esperar(func() -> bool: return lv.ended or _mejor_variedad() >= 2)
+	# --- EJERCICIO OBLIGADO: dos platos DISTINTOS al mismo cliente ---
+	#
+	# La lección de la chapa esperaba a que el multiplicador llegara a x2 por su
+	# cuenta, y un jugador que sirva siempre la misma receta NO LLEGA NUNCA: se
+	# jugaba el nivel entero —el que ESTRENA el multiplicador— sin oír una
+	# palabra de él. Así que David lo pide a la cara y espera a que se haga.
+	#
+	# Al alumno se le RETIENE LA PACIENCIA mientras dura el ejercicio: no puede
+	# irse a mitad de la clase y dejar al guion esperando a un cliente que ya
+	# no está (el mismo apaño que el refuerzo del nivel 2).
+	await _esperar(func() -> bool: return lv.ended or _cliente_tipo() != null)
 	if lv.ended:
 		return
-	var lucido := _cliente_tipo()
+	var alumno := _cliente_tipo()
+	if alumno != null and is_instance_valid(alumno):
+		alumno.patience_hold = true
+		_focus_client(alumno)
+	await _say([
+		{ "text": "Ese de ahí. Vamos a hacer una prueba: sírvele **dos platos DISTINTOS**, uno detrás de otro.", "mood": "hablando" },
+		{ "text": "Distintos de verdad, ¿eh? Nada de darle dos veces lo mismo. Y no le quites ojo a su cabeza.", "mood": "serio" },
+	])
+	_play("¡**Dos platos distintos** a ese cliente!")
+	# El alumno puede ser otro si el jugador se adelanta con el de al lado: se
+	# da por buena la lección de cualquiera que llegue a x2 (la condición MIRA;
+	# el dato se recoge fuera, que las lambdas de `_esperar` capturan por valor).
+	await _esperar(func() -> bool: return lv.ended or _mejor_variedad() >= 2)
+	if alumno != null and is_instance_valid(alumno):
+		alumno.patience_hold = false
+	if lv.ended:
+		return
+	var lucido := alumno
 	for c in lv.seat_clients:
 		if c is Node3D and is_instance_valid(c) and int(c.variety) >= 2:
 			lucido = c

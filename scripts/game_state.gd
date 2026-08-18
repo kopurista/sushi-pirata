@@ -1550,8 +1550,11 @@ func fishing_apply(roll: Dictionary) -> Dictionary:
 			"size": size }
 		# EXPERIENCIA DE COCINERO por la captura, mandando el TAMAÑO. Es la
 		# tercera fuente de XP del juego, junto a los escenarios y el arcade, y
-		# la única que no depende de cocinar.
+		# la única que no depende de cocinar. Un pez REPETIDO paga la MITAD: lo
+		# que se premia es descubrir catálogo, no dragar la misma especie.
 		var gana := SkillData.fishing_xp(FishData.tier_of(fid), size)
+		if veces > 1:
+			gana = maxi(1, gana / 2)
 		if gana > 0:
 			add_chef_xp(gana)
 			out["xp"] = gana

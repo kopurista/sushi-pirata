@@ -402,8 +402,16 @@ primera vez que se entra en ellos (`logros_intro_done` /
   jugador lo hiciera todo bien y viera su edamame pasar de largo justo en la
   clase de para qué sirve. 3★: sunomono.
   **N4 — MULTIPLICADOR, HASTÍO Y PALADAR**: primer puerto (carta libre, TRES
-  huecos) con ocho grumetes de dos en dos. Al primer x2 se explica la chapa; al
-  primer repetido, el hastío, y con él el regalo del **té verde**. AL CERRAR,
+  huecos) con ocho grumetes de dos en dos.
+  **LA LECCIÓN DE LA CHAPA ES UN EJERCICIO OBLIGADO, no una espera**: David
+  señala al primer cliente y pide **dos platos DISTINTOS** para él, y el guion
+  espera a que se haga. Estuvo colgado de `_mejor_variedad() >= 2` a secas, y
+  un jugador que sirva siempre la misma receta NO LLEGA NUNCA: se jugaba
+  entero el nivel que ESTRENA el multiplicador sin oír una palabra de él. Al
+  alumno se le **retiene la paciencia** mientras dura el ejercicio (no puede
+  irse a mitad de clase y dejar al guion esperando a un cliente que ya no
+  está), y vale cualquier cliente que llegue a x2, no solo el señalado.
+  Al primer repetido, el hastío, y con él el regalo del **té verde**. AL CERRAR,
   Saverio abre la tienda (`shop_intro_done = true` lo pone este guion) y deja
   `pending_shop_visit`, que hace que "Continuar" lleve DIRECTO al puesto.
   3★: onigiri.
@@ -771,9 +779,10 @@ primera vez que se entra en ellos (`logros_intro_done` /
     · **La PESCA paga por CAPTURA y manda el TAMAÑO** (`SkillData.fishing_xp`,
       sumada en `GameState.fishing_apply`): `FISH_XP_TIER` es el suelo por
       rareza y la talla lo estira hasta ×1,5 — de 5 (común canijo) a 39
-      (legendario de récord). Es goteo, no atajo: cerrar el escenario 5 paga
-      135. Al salir de la pesca, `_on_fishing_closed` deja que `_ui_in` anime
-      la barra y anuncie la subida.
+      (legendario de récord). Un pez **REPETIDO paga la MITAD**: lo que se
+      premia es descubrir catálogo, no dragar la misma especie. Es goteo, no
+      atajo: cerrar el escenario 5 paga 135. Se ve subir en el acto sobre la
+      BARRA DE NIVEL, que se queda puesta durante la pesca.
     · **La curva NO se re-siembra al tocarla**: la XP ya ganada se queda como
       está (quitarle niveles al jugador, con sus puntos ya repartidos, sería
       peor que la inflación).
@@ -813,14 +822,23 @@ primera vez que se entra en ellos (`logros_intro_done` /
     Tocarla abre Maestrías — POR ESO EL SUBMENÚ NO LLEVA ICONO (volvió a
     cinco; `ic_maestrias` sigue existiendo para el logro de niveles). Aparece
     con la primera experiencia.
-    **VIVE EN EL MENÚ Y EN EL MAPA**, y su sitio lo decide `_level_bar_spot`:
-    centrada bajo los contadores en el menú y CORRIDA A LA DERECHA en el mapa,
-    a la altura del botón "Atrás" — la franja que dejó libre el lazo de
-    "Aventura" al quitarse. Viaja DENTRO de `_place_resources`, con los
-    contadores, y por eso `_ui_out`/`_ui_in` llevan un `con_nivel` que se pasa
-    en false al ir y volver del mapa: si no, el tween de la entrada y el del
-    viaje pelean por su `position`. Solo la PORTADA y la FICHA la apagan a
-    mano (`_set_menu_ui_visible` ya no la toca).
+    **VIVE EN EL MENÚ, EN EL MAPA Y EN LA PESCA**, y su sitio lo decide
+    `_level_bar_spot`: centrada bajo los contadores en el menú, y en el mapa a
+    la altura del botón "Atrás" pero CENTRADA EN EL HUECO que ese botón deja
+    —la franja que liberó el lazo de "Aventura" al quitarse—, no pegada al
+    canto. Viaja DENTRO de `_place_resources`, con los contadores, y por eso
+    `_ui_out`/`_ui_in` llevan un `con_nivel` que se pasa en false al ir y
+    volver del mapa: si no, el tween de la entrada y el del viaje pelean por
+    su `position`. Solo la PORTADA y la FICHA la apagan a mano
+    (`_set_menu_ui_visible` ya no la toca).
+    **EN LA PESCA baja `LVL_BAR_PESCA` (76 px)**: arriba están el "Atrás" de
+    la pesca y el botón del álbum, uno en cada esquina, y la barra les caía
+    encima. Va de ESCAPARATE (`MOUSE_FILTER_IGNORE` mientras dura, restaurado
+    al cerrar): el panel táctil de la pesca cubre la pantalla entera y una
+    barra pulsable encima sería la trampa de irse a Maestrías con el pez
+    enganchado. Cada captura emite `fishing_game.xp_gained` y el menú saca el
+    **"+N exp"** flotando sobre ella (`_xp_en_la_barra`) y la llena; sin eso la
+    experiencia de la pesca se sumaba en silencio.
     OJO con el globo: su anfitrión va con **posición y tamaño explícitos**, no
     con `set_anchors_preset` — el preset no toca los offsets y con un
     anfitrión de tamaño cero el globo no llegaba a dibujarse (la trampa de
