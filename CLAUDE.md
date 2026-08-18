@@ -777,6 +777,11 @@ primera vez que se entra en ellos (`logros_intro_done` /
     repetir paga la tarifa simple y MEJORAR el récord cobra solo la
     diferencia ×3. Así un escenario deja lo mismo se borde al primer intento o
     al quinto, y no compensa "guardarse" el aprobado.
+    **LOS ESCENARIOS DE JEFE PAGAN EL DOBLE** (`SkillData.XP_BOSS_MULT`, que
+    multiplica la BASE, así que el doble llega igual al estreno, a la
+    repetición y a la mejora de récord). Sobre los 250 previstos son ~88.000
+    XP extra (+10%). Hoy solo `nivel_15` lleva `boss`, así que de momento
+    cambia un único número: 405 → 810 a tres estrellas.
   · **HAY TRES FUENTES DE XP y están calibradas contra `chef_rec`**
     (= ceil(n × 1.09), el nivel recomendado del escenario): bordando TODOS los
     escenarios hasta el n, el cocinero se queda UN nivel por debajo de esa
@@ -803,9 +808,20 @@ primera vez que se entra en ellos (`logros_intro_done` /
   · Comprar una habilidad = 5 puntos y cada rango extra 5; la QUINTA de cada
     árbol 10 y 10. La 3ª pide las dos primeras, la 4ª la 3ª, la 5ª la 4ª.
     `buy_skill` guarda; la pantalla CONFIRMA antes (patrón de Bonificadores).
-  · **El techo de producción es ×2,5** (decidido, no re-litigar): los tres
-    árboles al máximo multiplican el oro ~×2,45. Al tocar un valor, rehacer la
-    cuenta — los `star_money` de los escenarios futuros se escalan contra él.
+  · **EL TECHO CONTRA EL QUE SE CALIBRA ES ×2,0** (revisado el 18-8-2026; era
+    ×2,5). Los tres árboles al máximo multiplican el oro ~×2,45, pero ESE
+    JUGADOR NO EXISTE: sobre los **250 escenarios** previstos, bordarlos todos
+    con el ×2 de los jefes deja al cocinero en el **nivel 304** — 304 puntos,
+    el 68% del catálogo—, y el 450 solo sale moliendo arcade y pesca mucho
+    tiempo. Los `star_money` de los escenarios futuros se escalan contra ×2,0,
+    que es el reparto realista; contra el 2,45 los últimos mares quedarían
+    afinados para alguien que no llega. El 450 es techo de COMPLETISTA, lo que
+    encaja con tener un arcade sin fin. Al tocar un valor, rehacer las cuentas.
+  · **LA CAMPAÑA SON 250 ESCENARIOS** en 7 mares (~36 por mar, jefe cada 10 =
+    25 jefes). Bordándolos todos: 934.875 XP → nivel 304; aprobando justo
+    (2★): 623.250 → nivel 248. `chef_rec = ceil(n × 1.09)` aguanta a esa
+    escala (el último recomienda 273 y se llega con 304). Hoy solo existen los
+    15 del primer mar.
   · **EFECTOS cableados donde ocurre el suceso**, cada uno con su valor neutro
     sin comprar: `prep_board._apply_skills()` (cooldown, hold/fry/slice/swipe/
     taps, golpe de vista con su CONTADOR VISIBLE `vista_label`, cocina

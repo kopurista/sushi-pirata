@@ -1,6 +1,14 @@
 class_name CampaignData
 ## Datos estáticos de la campaña (modo Aventura): lista ORDENADA de niveles.
 ##
+## LA CAMPAÑA COMPLETA SON 250 ESCENARIOS en 7 mares (~36 por mar), con un
+## JEFE cada 10 — 25 en total — y su escenario pagando el DOBLE de experiencia
+## (`SkillData.XP_BOSS_MULT`). Aquí están escritos los 15 del PRIMER MAR, que
+## se cierra con el Kappa. Los números de la progresión, medidos sobre esa
+## escala: bordándolo todo se acaba en el nivel 304 de cocinero y aprobando
+## justo en el 248, así que `chef_rec = ceil(nº × 1.09)` aguanta hasta el final
+## (el escenario 250 recomienda 273).
+##
 ## LA CAMPAÑA ES TAMBIÉN EL TUTORIAL. Los 10 primeros niveles presentan las
 ## mecánicas de una en una, jugando (el "tutorial" clásico se redujo a una
 ## escena de rescate: ver tutorial_director.gd). El reparto:
@@ -47,7 +55,12 @@ class_name CampaignData
 ##  - arrival_scale: comprime el horario de llegadas (<1 = vienen más rápido).
 ##  - goal_stars: estrellas mínimas para superar el nivel y avanzar.
 ##  - star_money: [dinero para 1★, 2★, 3★] — SOLO precio de platos (sin propinas),
-##    calibrado al techo de producción de cada nivel.
+##    calibrado al techo de producción de cada nivel. Los 15 de hoy están
+##    hechos para cocinero de nivel 1; los de los mares siguientes se escalan
+##    contra un techo de MAESTRÍAS de ×2,0, no de ×2,45 (ver la cabecera de
+##    `skill_data.gd`): con 250 escenarios el jugador real acaba sobre los 300
+##    puntos, no con los 450 del catálogo entero.
+##  - chef_rec: nivel de cocinero recomendado = ceil(nº del escenario × 1.09).
 ##    CADA TIPO DE NIVEL SE CALIBRA CONTRA LO QUE DE VERDAD LO LIMITA, y son
 ##    cosas distintas:
 ##     · Los ABORDAJES los limita el RELOJ (siempre hay a quien servir), así que

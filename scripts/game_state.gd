@@ -1171,6 +1171,12 @@ func scenario_xp(port_id: String, stars: int, prev_stars: int) -> int:
 	if n <= 0 or stars <= 0:
 		return 0
 	var base := float(SkillData.XP_SCENARIO * n)
+	# LOS ESCENARIOS DE JEFE PAGAN EL DOBLE. Se multiplica la BASE, así que el
+	# doble llega igual al estreno, a la repetición y a la mejora de récord, sin
+	# tocar la regla de que mejorar cobra solo el salto. El jefe es el día de
+	# paga, y es justo el escenario en el que el cocinero va más corto de nivel.
+	if str(CampaignData.get_port(port_id).get("boss", "")) != "":
+		base *= SkillData.XP_BOSS_MULT
 	var m := float(SkillData.STAR_MULT[clampi(stars, 0, 3)])
 	var prev_m := float(SkillData.STAR_MULT[clampi(prev_stars, 0, 3)])
 	if prev_stars <= 0:

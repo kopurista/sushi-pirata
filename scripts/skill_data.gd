@@ -15,10 +15,18 @@ class_name SkillData
 ##     QUINTA de cada árbol cuesta 10 en los dos casos. La 3ª pide tener las
 ##     dos primeras, la 4ª pide la 3ª y la 5ª pide la 4ª.
 ##
-## EL TECHO DE PRODUCCIÓN ES ×2,5 (decidido, no re-litigar): los tres árboles
-## al máximo multiplican el oro por ~2,45 (cuchillo ×1,36 · cliente ×1,20 ·
-## chef ×1,50). Al añadir o retocar una habilidad hay que rehacer esa cuenta:
-## los `star_money` de los escenarios futuros se escalan contra este techo.
+## EL TECHO CONTRA EL QUE SE CALIBRA ES ×2,0, NO ×2,5 (revisado el 18-8-2026).
+## Los tres árboles al máximo multiplican el oro por ~2,45 (cuchillo ×1,36 ·
+## cliente ×1,20 · chef ×1,50), pero ESE JUGADOR NO EXISTE: con los 250
+## escenarios previstos, bordarlos todos y sumarles el ×2 de los jefes deja al
+## cocinero sobre el nivel 304 — 304 puntos, el 68% del catálogo—, y el 450
+## solo se alcanza moliendo arcade y pesca durante muchísimo tiempo.
+##
+## Así que los `star_money` de los escenarios futuros se escalan contra **×2,0**
+## (lo que da un reparto realista de ~300 puntos). Calibrar contra el 2,45
+## afinaría los últimos mares para alguien que no va a llegar. El 450 se queda
+## como techo de COMPLETISTA, que es coherente con tener un arcade sin fin.
+## Al añadir o retocar una habilidad hay que rehacer las dos cuentas.
 ##
 ## Los EFECTOS no se aplican aquí: cada uno se cablea donde ocurre su suceso
 ## (prep_board para los gestos, client3d para la barra, plate3d para la
@@ -51,6 +59,12 @@ const XP_STEP := 20
 const XP_SCENARIO := 6
 const STAR_MULT := [0.0, 0.5, 1.0, 1.5]
 const FIRST_MULT := 3.0
+
+## Los escenarios de JEFE (uno cada 10) pagan el DOBLE. Multiplica la BASE en
+## `GameState.scenario_xp`, así que el doble llega igual al estreno, a la
+## repetición y a la mejora de récord. Sobre los 250 escenarios previstos son
+## ~88.000 XP extra (+10%), y narrativamente pone el día de paga donde toca.
+const XP_BOSS_MULT := 2.0
 
 ## El ARCADE paga por oleada superada: ARCADE_WAVE_XP × número de la oleada.
 ## Baja con la tarifa de los escenarios (estaba en 15, con ellos a 15): dejarlo
