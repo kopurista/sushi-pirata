@@ -139,6 +139,8 @@ var cai_intro_done := false
 var col_intro_done := false
 ## David ya ha presentado las MAESTRÍAS (al llegar al nivel 5 de cocinero).
 var skills_intro_done := false
+## Y ya ha explicado el NIVEL DE COCINERO (la primera vez que sube, al 2).
+var nivel_intro_done := false
 ## Explicaciones de PANTALLA: se dan la primera vez que se entra en cada una.
 var logros_intro_done := false
 var inventario_intro_done := false
@@ -1923,6 +1925,7 @@ func save_game() -> void:
 		"cai_saciado": cai_saciado,
 		"col_intro_done": col_intro_done,
 		"skills_intro_done": skills_intro_done,
+		"nivel_intro_done": nivel_intro_done,
 		"logros_intro_done": logros_intro_done,
 		"inventario_intro_done": inventario_intro_done,
 		"bait": bait,
@@ -2117,6 +2120,7 @@ func load_game() -> void:
 	cai_saciado = bool(parsed.get("cai_saciado", tutorial_done))
 	col_intro_done = bool(parsed.get("col_intro_done", tutorial_done))
 	skills_intro_done = bool(parsed.get("skills_intro_done", false))
+	nivel_intro_done = bool(parsed.get("nivel_intro_done", false))
 	logros_intro_done = bool(parsed.get("logros_intro_done", tutorial_done))
 	inventario_intro_done = bool(parsed.get("inventario_intro_done", tutorial_done))
 	# Las "tiradas gratis" de los guardados viejos son los CEBOS de hoy: el
@@ -2219,6 +2223,7 @@ func _new_game() -> void:
 	cai_saciado = false
 	col_intro_done = false
 	skills_intro_done = false
+	nivel_intro_done = false
 	logros_intro_done = false
 	inventario_intro_done = false
 	bait = 0

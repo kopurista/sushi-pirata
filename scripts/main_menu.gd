@@ -243,6 +243,16 @@ func _menu_popups() -> void:
 			and int(GameState.level_stars.get("nivel_1", 0)) >= 2:
 		await get_tree().create_timer(0.7).timeout
 		await _felicitar_nivel_1()
+		# Y AQUÍ el arroz, con el contador ya en 19: es el momento en que el
+		# gasto se puede señalar en vez de anunciarse.
+		await _explicar_arroz()
+	# EL NIVEL DE COCINERO SE EXPLICA AL LLEGAR AL 2, no en un escenario
+	# concreto: es la primera vez que la barra ha subido de verdad y hay algo
+	# que señalar. Va antes que las maestrías, que llegan en el 5.
+	if GameState.tutorial_done and not GameState.nivel_intro_done \
+			and GameState.chef_level >= 2:
+		await get_tree().create_timer(0.7).timeout
+		await _explicar_nivel_cocinero()
 	# LAS MAESTRÍAS SE PRESENTAN AL LLEGAR AL NIVEL 5 DE COCINERO, no antes: es
 	# cuando el jugador tiene ya un puñado de puntos sin gastar y la pantalla
 	# tiene algo que enseñar. Al cerrar, David lo lleva DIRECTO al árbol (mismo
@@ -297,12 +307,34 @@ func _felicitar_nivel_1() -> void:
 		# resultados y la ficha del puerto la enseñan solas, y decirla aquí era
 		# gastar dos líneas en algo evidente. En su hueco entra lo que de
 		# verdad no se ve por ningún lado: el NIVEL DE COCINERO.
-		{ "text": "Y hay algo más que se te queda de cada jornada: **experiencia**. Cocinar te hace mejor cocinero, y eso se guarda.", "mood": "hablando" },
-		{ "text": "Mira la **barra** de debajo de las cajas: ese es tu **nivel**. Sube con cada puerto que cierres, y cuanto mejor lo cierres, más sube.", "mood": "feliz" },
+		# (La charla del NIVEL DE COCINERO ya no va aquí: la dispara la subida
+		# al nivel 2, ver `_explicar_nivel_cocinero`. Contada en el escenario 2
+		# llegaba antes de que la barra se hubiera movido nunca.)
 	]
 	lineas.append({ "text": "¡AL SIGUIENTE PUERTO! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" })
 	lineas.append({ "text": "Ya lo has oído. Te espero en **Playa del Coco**: allí te enseño el truco que separa a un cocinero de un friegaplatos.", "mood": "hablando" })
 	caja.say(lineas)
+	await caja.finished
+	await caja.close_and_free()
+
+
+## EL NIVEL DE COCINERO, explicado la primera vez que sube (al 2). Colgado del
+## escenario 2 llegaba con la barra todavía quieta; ahora David habla justo
+## cuando el jugador acaba de verla subir, y señala ARRIBA — que es donde está,
+## bajo los contadores y no "debajo de las cajas" como decía antes.
+func _explicar_nivel_cocinero() -> void:
+	GameState.nivel_intro_done = true
+	GameState.save_game()
+	var caja := DialogueBox.new()
+	caja.z_index = 200
+	ui_layer.add_child(caja)
+	caja.say([
+		{ "text": "¡Alto ahí, %s! ¿Has visto eso?" % GameState.player_title(), "mood": "sorprendido" },
+		{ "text": "Mira la **barra que tienes arriba**: acabas de subir a **nivel 2** de cocinero.", "mood": "feliz" },
+		{ "text": "Cada jornada te deja **experiencia**, y cuando la barra se llena, subes. Cocinar te hace mejor cocinero: así de simple.", "mood": "hablando" },
+		{ "text": "¡MÁS NIVEL, MÁS ORO! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+		{ "text": "Cuanto más alto cierres un puerto, más experiencia deja. Y subir de nivel trae premios... pero eso ya lo irás viendo.", "mood": "riendo" },
+	])
 	await caja.finished
 	await caja.close_and_free()
 
@@ -403,11 +435,17 @@ func _pagar_pablo() -> void:
 	var caja := DialogueBox.new()
 	caja.z_index = 200
 	ui_layer.add_child(caja)
+	# PAGA PABLO, EN PERSONA. Lo contaba David —"casi se me olvida, Pablo pagó
+	# lo que comió"— y eso convertía en recado de tercero la única escena en la
+	# que el capitán cumple su palabra. Ahora se acerca él, suelta los lingotes
+	# y David solo explica para qué sirven, que es lo suyo.
 	caja.say([
-		{ "text": "Casi se me olvida: Pablo pagó lo que comió. **%d lingotes de oro**, ya en tu bodega." % lingotes, "mood": "feliz" },
+		{ "text": "¡Eh, cocinero! No te escapes, que Pablo el Rubio paga lo que come.", "who": "pablo", "mood": "guason" },
+		{ "text": "**%d lingotes de oro**. Del bueno, no de ese que se dobla con los dientes." % lingotes, "who": "pablo", "mood": "riendo" },
 		{ "text": "¡LINGOTES! ¡RAAAK! ¡BRILLAN MÁS QUE LAS MONEDAS!", "who": "gigi", "mood": "loro_sorpresa" },
 		{ "text": "Y valen más, plumas. Los **lingotes** son la moneda de verdad: con ellos se compran **sacos de arroz** y bolsas de doblones cuando andas justo.", "mood": "hablando" },
 		{ "text": "Mira arriba del todo, %s: ahí los tienes contados, con su botón **+** al lado. Gástalos con cabeza: no caen todos los días." % GameState.player_title(), "mood": "serio" },
+		{ "text": "Y guárdame un sitio en la barra para la próxima. Con el cuchillo lejos, si puede ser.", "who": "pablo", "mood": "punal" },
 	])
 	await caja.finished
 	await caja.close_and_free()
@@ -1673,9 +1711,13 @@ const PACKS_ARROZ := [
 ## del arroz a los tipos de nivel sin cerrar el pergamino y volver a entrar, que
 ## era un corte en mitad de una idea. `_explicar_arroz` devuelve su caja (o
 ## null) y la guía del primer puerto la reaprovecha.
+## EL ARROZ YA NO SE EXPLICA AQUÍ. Se contaba antes de zarpar por primera vez,
+## con los 20 sacos intactos, así que David tenía que hablar en futuro de algo
+## que no se veía pasar. Ahora la charla va al VOLVER del nivel 1
+## (`_menu_popups`), con el contador en 19: se señala el hueco y se entiende de
+## una. Antes de zarpar solo se explica QUÉ es cada tipo de escenario.
 func _presentar_mapa() -> void:
-	var caja := await _explicar_arroz()
-	_guiar_primer_nivel(caja)
+	_guiar_primer_nivel()
 
 
 func _explicar_arroz() -> DialogueBox:
@@ -1694,19 +1736,22 @@ func _explicar_arroz() -> DialogueBox:
 	# los guiones de nivel (`story_director`).
 	caja.veil_on = false
 	ui_layer.add_child(caja)
+	# SE CUENTA CON EL SACO YA GASTADO. Antes iba delante del primer nivel, con
+	# los 20 intactos: David hablaba en futuro de algo invisible. Ahora sale al
+	# volver de la primera jornada y el contador marca 19, así que lo que se
+	# señala es el HUECO — la lección se ve, no se promete.
 	caja.say([
-		{ "text": "Un momento antes de zarpar, %s. ¿Ves ese saco de ahí arriba?" % GameState.player_title(), "mood": "hablando" },
-		{ "text": "Es **arroz**. Sin arroz no hay sushi, y sin sushi no hay oro: cada vez que comienzas una nueva jornada se gasta **un saco**.", "mood": "serio" },
-		{ "text": "Se repone solo pasado el tiempo, y podrás ir consiguiendo más a lo largo de tu aventura.", "mood": "hablando" },
+		{ "text": "Antes de nada, %s: mira ese saco de ahí arriba." % GameState.player_title(), "mood": "hablando" },
+		{ "text": "¿Lo ves? Ya no marca veinte. Es **arroz**, y cada jornada que sales a cocinar se lleva **un saco**.", "mood": "serio" },
+		{ "text": "Sin arroz no hay sushi, y sin sushi no hay oro. Ese contador es lo que te dice cuántas jornadas te quedan.", "mood": "hablando" },
 		{ "text": "¡SIN ARROZ NO SE NAVEGA! ¡RAAAK!", "who": "gigi", "mood": "loro" },
-	], true)
-	# `keep_open`: la caja SIGUE PUESTA y se la queda `_guiar_primer_nivel`, que
-	# continúa hablando de los tipos de nivel. Lo que sí se retira aquí es el
-	# foco del saco: a partir de la línea siguiente se habla del mapa entero.
+		{ "text": "Tranquilo, que se repone solo con el tiempo. Y por el camino conseguirás más de los que gastas.", "mood": "feliz" },
+	])
 	await caja.finished
 	rice_box.z_index = z_antes
 	_quitar_velo(velo)
-	return caja
+	await caja.close_and_free()
+	return null
 
 
 ## GUÍA POST-TUTORIAL: la primera vez que se pisa el menú, David señala el
