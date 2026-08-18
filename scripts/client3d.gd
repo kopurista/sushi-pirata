@@ -1093,6 +1093,15 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 			# nada, y desde fuera se leía como "el jengibre no funciona".
 			var hacia_falta := not _es_nuevo(current_id, current_satiety)
 			_limpiar_paladar()
+			# EL PLATO QUE SE ESTÁ COMIENDO SÍ QUEDA APUNTADO. El jengibre
+			# limpia todo lo DEMÁS: acaba de tragárselo, difícilmente se le ha
+			# olvidado. Estuvo dejando el paladar completamente vacío, y eso
+			# abría un agujero — con la lista en blanco, el SIGUIENTE plato con
+			# jengibre volvía a contar como nuevo, así que encadenar jengibre
+			# sobre UNA sola receta subía la chapa hasta el tope (medido: x1,
+			# x2, x3, x4, x5 con el mismo maki). Marcándolo, el jengibre sirve
+			# para volver a servir el RESTO de la carta, que es su oficio.
+			tried[current_id] = 1
 			if hacia_falta:
 				_set_variety(maxi(variety - 1, 0), false)
 			else:

@@ -2333,7 +2333,15 @@ func _update_extra_buttons() -> void:
 		for id in extra_buttons:
 			extra_buttons[id].visible = false
 		return
-	var usable: bool = state == State.READY 			and not RecipeData.get_recipe(ready_recipe).get("no_extras", false)
+	# LOS PICOTEOS TAMPOCO ADMITEN EXTRAS. No lo tenían escrito en la ficha,
+	# así que sus botones se encendían... y el extra se TIRABA: el picoteo
+	# entra por otra rama de `client3d._apply_meal_patience`, que ni mira
+	# `current_extras`. O sea que marcar jengibre en un edamame gastaba un uso
+	# de 10 doblones a cambio de nada, sin decir nada.
+	var receta := RecipeData.get_recipe(ready_recipe)
+	var admite: bool = not receta.get("no_extras", false) \
+			and not receta.get("snack", false)
+	var usable: bool = state == State.READY and admite
 	for id in extra_buttons:
 		var b: Button = extra_buttons[id]
 		var stock: int = GameState.get_ingredient_uses(id)
