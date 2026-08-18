@@ -122,8 +122,9 @@ const INITIAL_INGREDIENTS: Dictionary = {}
 const PORTS: Array = [
 	{
 		"id": "nivel_1",
-		# Nivel de COCINERO recomendado (sale de la curva de experiencia y lo
-		# ensena la ficha del mapa: "voy corto de nivel" o "lo juego mal").
+		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
+		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
+		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
 		"chef_rec": 2,
 		"name": "Cala Tortuga",
 		"desc": "Tu primer turno de verdad: cuatro grumetes y dos recetas sencillas.",
@@ -171,9 +172,10 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_2",
-		# Nivel de COCINERO recomendado (sale de la curva de experiencia y lo
-		# ensena la ficha del mapa: "voy corto de nivel" o "lo juego mal").
-		"chef_rec": 4,
+		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
+		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
+		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
+		"chef_rec": 3,
 		"name": "Playa del Coco",
 		"desc": "Se junta la clientela: hoy aprendes a guardar platos en las cajas.",
 		"client_mix": { "E": 4 },
@@ -203,9 +205,10 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_3",
-		# Nivel de COCINERO recomendado (sale de la curva de experiencia y lo
-		# ensena la ficha del mapa: "voy corto de nivel" o "lo juego mal").
-		"chef_rec": 6,
+		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
+		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
+		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
+		"chef_rec": 4,
 		"name": "Isla del Bambú",
 		"desc": "Cinco grumetes hambrientos y un plato que se come sin soltar el otro.",
 		"client_mix": { "E": 5 },
@@ -231,9 +234,10 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_4",
-		# Nivel de COCINERO recomendado (sale de la curva de experiencia y lo
-		# ensena la ficha del mapa: "voy corto de nivel" o "lo juego mal").
-		"chef_rec": 8,
+		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
+		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
+		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
+		"chef_rec": 5,
 		"name": "Arrecife del Ron",
 		"desc": "Ocho bocas de dos en dos. Y corre la voz de que hay tienda en el puerto.",
 		"client_mix": { "E": 8 },
@@ -261,9 +265,10 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_5",
-		# Nivel de COCINERO recomendado (sale de la curva de experiencia y lo
-		# ensena la ficha del mapa: "voy corto de nivel" o "lo juego mal").
-		"chef_rec": 10,
+		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
+		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
+		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
+		"chef_rec": 6,
 		"name": "Cala del Calamar",
 		"desc": "El postre es la cuenta: aprende a despedir clientes y a llenar el bote.",
 		"client_mix": { "E": 5 },
@@ -290,9 +295,10 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_6",
-		# Nivel de COCINERO recomendado (sale de la curva de experiencia y lo
-		# ensena la ficha del mapa: "voy corto de nivel" o "lo juego mal").
-		"chef_rec": 12,
+		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
+		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
+		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
+		"chef_rec": 7,
 		"name": "Bahía del Kraken",
 		"desc": "Saverio saca los extras: jengibre, wasabi y soja sobre el plato hecho.",
 		"client_mix": { "E": 8 },
@@ -313,9 +319,10 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_7",
-		# Nivel de COCINERO recomendado (sale de la curva de experiencia y lo
-		# ensena la ficha del mapa: "voy corto de nivel" o "lo juego mal").
-		"chef_rec": 15,
+		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
+		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
+		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
+		"chef_rec": 8,
 		"name": "Estrecho del Rayo",
 		"desc": "¡Abordaje! Reloj, clientela sin fin y los primeros piratas.",
 		# Abordaje: esta mezcla es solo la PRIMERA tanda.
@@ -349,9 +356,10 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_8",
-		# Nivel de COCINERO recomendado (sale de la curva de experiencia y lo
-		# ensena la ficha del mapa: "voy corto de nivel" o "lo juego mal").
-		"chef_rec": 17,
+		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
+		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
+		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
+		"chef_rec": 9,
 		"name": "Isla de Gades",
 		"desc": "Un pescador silencioso espera en la orilla con su caña.",
 		# CAI SE SIENTA A COMER: es el PRIMER pirata que entra (`special_client`
@@ -377,9 +385,10 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_9",
-		# Nivel de COCINERO recomendado (sale de la curva de experiencia y lo
-		# ensena la ficha del mapa: "voy corto de nivel" o "lo juego mal").
-		"chef_rec": 19,
+		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
+		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
+		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
+		"chef_rec": 10,
 		"name": "Puerto Tormenta",
 		"desc": "Diez bocas en dos oleadas, y la mitad son piratas.",
 		"client_mix": { "E": 6, "A": 4 },
@@ -402,9 +411,10 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_10",
-		# Nivel de COCINERO recomendado (sale de la curva de experiencia y lo
-		# ensena la ficha del mapa: "voy corto de nivel" o "lo juego mal").
-		"chef_rec": 21,
+		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
+		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
+		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
+		"chef_rec": 11,
 		"name": "Flota del capitán Pablo el Rubio",
 		"desc": "Abordaje a la flota de un viejo conocido de David.",
 		"client_mix": { "E": 2, "A": 2, "G": 1 },
@@ -433,9 +443,10 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_11",
-		# Nivel de COCINERO recomendado (sale de la curva de experiencia y lo
-		# ensena la ficha del mapa: "voy corto de nivel" o "lo juego mal").
-		"chef_rec": 23,
+		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
+		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
+		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
+		"chef_rec": 12,
 		"name": "Cala del Hambre",
 		"desc": "Tres bocas, una de ellas con un hambre que no es normal.",
 		"client_mix": { "E": 1, "A": 1, "G": 1 },
@@ -458,9 +469,10 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_12",
-		# Nivel de COCINERO recomendado (sale de la curva de experiencia y lo
-		# ensena la ficha del mapa: "voy corto de nivel" o "lo juego mal").
-		"chef_rec": 25,
+		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
+		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
+		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
+		"chef_rec": 14,
 		"name": "Ensenada del Naufragio",
 		"desc": "Corre la voz de que alguien paga en tesoros, no en oro.",
 		"client_mix": { "E": 4, "A": 3, "G": 1 },
@@ -482,9 +494,10 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_13",
-		# Nivel de COCINERO recomendado (sale de la curva de experiencia y lo
-		# ensena la ficha del mapa: "voy corto de nivel" o "lo juego mal").
-		"chef_rec": 27,
+		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
+		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
+		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
+		"chef_rec": 15,
 		"name": "Rada de los Dos Fuegos",
 		"desc": "Demasiadas comandas para un solo par de manos.",
 		"client_mix": { "E": 5, "A": 3, "G": 2 },
@@ -502,9 +515,10 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_14",
-		# Nivel de COCINERO recomendado (sale de la curva de experiencia y lo
-		# ensena la ficha del mapa: "voy corto de nivel" o "lo juego mal").
-		"chef_rec": 29,
+		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
+		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
+		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
+		"chef_rec": 16,
 		"name": "Muelle de las Bandejas",
 		"desc": "Aquí no se sirve plato a plato: se sirve por bandejas.",
 		"client_mix": { "E": 5, "A": 4, "G": 2 },
@@ -523,9 +537,10 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_15",
-		# Nivel de COCINERO recomendado (sale de la curva de experiencia y lo
-		# ensena la ficha del mapa: "voy corto de nivel" o "lo juego mal").
-		"chef_rec": 31,
+		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
+		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
+		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
+		"chef_rec": 17,
 		"name": "Guarida del Kappa",
 		"desc": "Algo enorme y hambriento ronda estas aguas...",
 		"client_mix": { "E": 3, "A": 2, "G": 1 },

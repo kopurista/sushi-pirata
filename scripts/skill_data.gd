@@ -37,15 +37,34 @@ const XP_STEP := 20
 
 ## Tarifa de los escenarios: base = XP_SCENARIO × número del escenario,
 ## multiplicada por STAR_MULT[estrellas] y ×FIRST_MULT contra el récord.
-## Calibrada contra el jugador que da DOS pasadas por escenario (a 30 llegaba
-## al 450 en el escenario 150, con dos mares por delante y nada que ganar).
-const XP_SCENARIO := 15
+##
+## CALIBRADA CONTRA `chef_rec` (el nivel recomendado del escenario, que es
+## ceil(n × 1.09)): bordando TODOS los escenarios hasta el n, el jugador se
+## queda justo por debajo de esa recomendación, y lo que le falta lo ponen la
+## PESCA y el ARCADE. Con eso, el nivel recomendado no es un número inventado:
+## es lo que se tiene jugando bien y usando las dos fuentes.
+##
+## Estuvo en 15 y era MUCHÍSIMO: tres escenarios bordados dejaban al cocinero
+## en el nivel 5 (medido: 68 + 135 + 203 = 406 XP contra los 360 del nivel 5).
+## Con 6 esos mismos tres escenarios dan 162 XP, o sea nivel 3, y el escenario
+## 15 deja el cocinero en 16 contra los 17 que recomienda.
+const XP_SCENARIO := 6
 const STAR_MULT := [0.0, 0.5, 1.0, 1.5]
 const FIRST_MULT := 3.0
 
 ## El ARCADE paga por oleada superada: ARCADE_WAVE_XP × número de la oleada.
-## Generoso porque cuesta despensa POR OLEADA: el freno es la apuesta.
-const ARCADE_WAVE_XP := 15
+## Baja con la tarifa de los escenarios (estaba en 15, con ellos a 15): dejarlo
+## arriba habría hecho del arcade la ÚNICA forma sensata de subir de nivel.
+## Aun así paga bien porque cuesta despensa POR OLEADA — el freno es la apuesta.
+const ARCADE_WAVE_XP := 6
+
+## La PESCA paga por CAPTURA, y lo que manda es el TAMAÑO del ejemplar: la
+## tabla es el suelo por rareza y la talla lo estira hasta ×1,5. Un común
+## canijo deja 4 y un legendario de récord, 39. Con el intento a 100 doblones
+## es una fuente de goteo, no un atajo: cerrar un escenario del 5 paga 135.
+const FISH_XP_TIER := [8, 12, 18, 26]
+const FISH_XP_SIZE := 0.6      # lo que vale el ejemplar más canijo de su clase
+const FISH_XP_GROW := 0.9      # y lo que suma la talla hasta el récord
 
 ## Coste en puntos: las cuatro primeras habilidades de un árbol valen
 ## COST_NORMAL por rango (compra incluida); la quinta, COST_FINAL.
@@ -305,33 +324,36 @@ static func rank_text(id: String, rank: int) -> String:
 ##    puñado fijo de doblones dejaría de significar nada.
 static func level_reward(n: int) -> Dictionary:
 	var out := { "points": 1 }
+	# SOLO ORO Y CEBO. Llegó a repartir despensa, extras, sacos de arroz y
+	# lingotes rotando por nivel, y se cayó todo: caía ANTES de que el juego
+	# hubiera explicado qué era ninguna de esas cosas, y un premio que el
+	# jugador no entiende no se vive como un premio. Vuelven cuando sus
+	# pantallas los presenten.
 	var oro := 30 + n * 6
+	# Los hitos (de cinco en cinco, y más en los redondos) pagan a lo grande:
+	# es lo que los distingue ahora que no hay lingotes que los marquen.
 	if n % 25 == 0:
-		out["ingots"] = 3
+		oro *= 4
 	elif n % 10 == 0:
-		out["ingots"] = 2
+		oro *= 3
 	elif n % 5 == 0:
-		out["ingots"] = 1
-	match n % 4:
-		0:
-			out["extras"] = 2 + n / 50
-		1:
-			out["gold"] = oro
-		2:
-			out["ingredients"] = 3 + n / 40
-		_:
-			out["rice"] = 1
-	# En los hitos el oro cae ADEMÁS de lo que tocara, a lo grande.
-	if out.has("ingots"):
-		out["gold"] = int(out.get("gold", 0)) + oro * 2
+		oro *= 2
+	out["gold"] = oro
+	# El CEBO paga una tirada de pesca entera. Cae en los niveles PARES para
+	# que se lea como un suceso propio y no como una línea más de la lista.
+	if n % 2 == 0:
+		out["bait"] = 1
 	return out
 
 
 ## Rótulo y icono de cada clase de premio, para la ventana que los anuncia.
+## HOY `level_reward` solo reparte points / gold / bait; el resto se queda
+## descrito para cuando el juego explique esas cosas y puedan volver.
 const REWARD_LABELS := {
 	"points": ["punto de maestría", "puntos de maestría",
 		"res://assets/ui/ic_maestrias.png"],
 	"gold": ["doblón", "doblones", "res://assets/ui/moneda.png"],
+	"bait": ["cebo", "cebos", "res://assets/ui/ic_cebo.png"],
 	"ingots": ["lingote", "lingotes", "res://assets/ui/ic_lingote.png"],
 	"rice": ["saco de arroz", "sacos de arroz", "res://assets/ui/ic_arroz.png"],
 	"ingredients": ["uso de despensa", "usos de despensa",
@@ -345,6 +367,13 @@ const REWARD_LABELS := {
 static func reward_text(clave: String, cantidad: int) -> String:
 	var d: Array = REWARD_LABELS.get(clave, ["", "", ""])
 	return "%d %s" % [cantidad, str(d[0]) if cantidad == 1 else str(d[1])]
+
+
+## Experiencia de una captura: el suelo lo pone la RAREZA y la TALLA lo estira.
+static func fishing_xp(tier: int, size: float) -> int:
+	var base := float(FISH_XP_TIER[clampi(tier, 0, FISH_XP_TIER.size() - 1)])
+	return maxi(1, int(round(base * (FISH_XP_SIZE
+		+ FISH_XP_GROW * clampf(size, 0.0, 1.0)))))
 
 
 static func reward_icon(clave: String) -> String:

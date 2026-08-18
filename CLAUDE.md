@@ -375,8 +375,17 @@ primera vez que se entra en ellos (`logros_intro_done` /
   seguía en null y el guion se daba por fallido en la línea siguiente. La
   condición MIRA; el dato se pide fuera.
   **AL SUPERARLO, en el mapa** (`main_menu._felicitar_nivel_1`): David explica
-  qué son las estrellas y qué se gana con ellas, e invita al 2; y justo
-  después, la primera vez, `_explicar_bonus_diario` antes del cartel del bonus.
+  qué son las estrellas, presenta el NIVEL DE COCINERO señalando su barra e
+  invita al 2; y justo después, la primera vez, `_explicar_bonus_diario` antes
+  del cartel del bonus. **La recompensa de las 3 estrellas ya NO se explica**
+  —el cartel de resultados y la ficha del puerto la enseñan solas, y gastaba
+  dos líneas en lo evidente—; en su hueco entró lo que no se ve por ningún
+  lado, que es la experiencia.
+  **Y LAS MAESTRÍAS SE PRESENTAN AL LLEGAR AL NIVEL 5 DE COCINERO**
+  (`main_menu._presentar_maestrias`, bandera `skills_intro_done`, constante
+  `SKILLS_INTRO_LEVEL`): antes no, porque con un punto suelto la pantalla no
+  tiene nada que enseñar. Al cerrar el diálogo lleva DIRECTO al árbol, el
+  mismo patrón que Saverio con su puesto.
   **N2 — LAS CAJAS, y nada más**: el primer grumete entra SOLO; cuando se ha
   comido su SEGUNDO plato (o su paciencia baja a 2/3) entran los otros TRES DE
   GOLPE y arranca la lección: aparecen las cajas (`hide_storage` lo pone y lo
@@ -710,16 +719,23 @@ primera vez que se entra en ellos (`logros_intro_done` /
     porque un 3 en el formato viejo era el rango 3 (15 puntos) y aquí son 3
     puntos; `load_game` convierte los guardados viejos multiplicando por el
     coste del rango.
-  · **SUBIR DE NIVEL NO SOLO DA PUNTOS** (`SkillData.level_reward`): además
-    del punto —que va SIEMPRE— cada nivel suelta algo distinto, para que la
-    subida se sienta como abrir un cofre y no como un contador que avanza.
-    Los LINGOTES solo caen en los múltiplos de 5, y suben en los de 10 y de
-    25: son la moneda de pago y tienen que leerse como un HITO, no como
-    calderilla de cada nivel. El resto ROTA con `n % 4` (oro / despensa /
-    arroz / extras), así que dos niveles seguidos nunca dan lo mismo, y las
-    cantidades escalan con el nivel. Los entrega `GameState._grant_level_rewards`
-    en el acto (la despensa, repartida entre ingredientes que el jugador YA
-    puede cocinar: un regalo que no sirve no es un regalo).
+  · **SUBIR DE NIVEL DA PUNTO, ORO Y CEBO — Y NADA MÁS** (`SkillData.
+    level_reward`). Llegó a repartir despensa, extras, sacos de arroz y
+    lingotes rotando con `n % 4`, y se cayó todo: caía ANTES de que el juego
+    hubiera explicado qué era ninguna de esas cosas, y un premio que el
+    jugador no entiende no se vive como un premio. Vuelven cuando sus
+    pantallas los presenten (las claves siguen en `REWARD_LABELS` y en el
+    orden de `NoticeLayer._show_level_up`, listas para volver).
+    Lo que queda: el punto SIEMPRE, ORO siempre —×2 en los múltiplos de 5,
+    ×3 en los de 10 y ×4 en los de 25, que es lo que marca el hito ahora que
+    no hay lingotes— y **1 CEBO en los niveles PARES**, que paga una tirada de
+    pesca entera. Los entrega `GameState._grant_level_rewards` en el acto.
+  · **EL CEBO ES `GameState.bait`**, una sola cuenta con DOS fuentes: los tres
+    que regala Cai al acabar su clase y los de las subidas de nivel. Antes
+    eran las "tiradas gratis" de Cai (`free_casts`, que migra al cargar); un
+    segundo contador que hiciera lo mismo con otro nombre solo habría
+    confundido. El botón de pescar enseña el CEBO en vez de la moneda cuando
+    quedan (`_refresh_cast_label`).
   · **QUIÉN ANUNCIA LA SUBIDA**: `add_chef_xp` NO saca ventana — deja el
     resumen en `pending_level_up` y lo enseña quien tenga la pantalla delante
     (el cartel de fin de nivel tras llenar su barra, o el menú tras la suya),
@@ -735,10 +751,32 @@ primera vez que se entra en ellos (`logros_intro_done` /
     se dispara una sola vez y se puede volver a lanzar borrándola del save.
   · **La XP de un escenario se paga CONTRA EL RÉCORD** (`GameState.
     scenario_xp`, llamada en `_finalize_results` con las estrellas de ANTES de
-    `complete_port`): estreno = 3 × 15·n × mult(estrellas ×0.5/×1/×1.5);
+    `complete_port`): estreno = 3 × 6·n × mult(estrellas ×0.5/×1/×1.5);
     repetir paga la tarifa simple y MEJORAR el récord cobra solo la
     diferencia ×3. Así un escenario deja lo mismo se borde al primer intento o
     al quinto, y no compensa "guardarse" el aprobado.
+  · **HAY TRES FUENTES DE XP y están calibradas contra `chef_rec`**
+    (= ceil(n × 1.09), el nivel recomendado del escenario): bordando TODOS los
+    escenarios hasta el n, el cocinero se queda UN nivel por debajo de esa
+    recomendación, y lo que falta lo ponen la PESCA y el ARCADE. Así el nivel
+    recomendado no es un número inventado: es lo que se tiene jugando bien y
+    usando las tres.
+    · `XP_SCENARIO` estuvo en **15** y era muchísimo: tres escenarios bordados
+      dejaban al cocinero en el **nivel 5** (68+135+203 = 406 XP contra los
+      360 del nivel 5). A **6**, esos mismos tres dan 162 → nivel 3, y el
+      escenario 15 deja el nivel 16 contra los 17 que recomienda. SIMULADO
+      escenario a escenario, no a ojo.
+    · `ARCADE_WAVE_XP` bajó con él (15 → **6**): dejarlo arriba habría hecho
+      del arcade la única forma sensata de subir de nivel.
+    · **La PESCA paga por CAPTURA y manda el TAMAÑO** (`SkillData.fishing_xp`,
+      sumada en `GameState.fishing_apply`): `FISH_XP_TIER` es el suelo por
+      rareza y la talla lo estira hasta ×1,5 — de 5 (común canijo) a 39
+      (legendario de récord). Es goteo, no atajo: cerrar el escenario 5 paga
+      135. Al salir de la pesca, `_on_fishing_closed` deja que `_ui_in` anime
+      la barra y anuncie la subida.
+    · **La curva NO se re-siembra al tocarla**: la XP ya ganada se queda como
+      está (quitarle niveles al jugador, con sus puntos ya repartidos, sería
+      peor que la inflación).
   · Comprar una habilidad = 5 puntos y cada rango extra 5; la QUINTA de cada
     árbol 10 y 10. La 3ª pide las dos primeras, la 4ª la 3ª, la 5ª la 4ª.
     `buy_skill` guarda; la pantalla CONFIRMA antes (patrón de Bonificadores).
@@ -762,20 +800,27 @@ primera vez que se entra en ellos (`logros_intro_done` /
   · La subida de nivel sale como TOAST por NoticeLayer (uno aunque caigan
     varios niveles de golpe) y el cartel de resultados lleva la línea
     "+N de experiencia" (`last_xp`).
-  · **`chef_rec` en cada puerto** (CampaignData): el nivel de cocinero
-    recomendado, deducido de la curva (~2× el número del escenario). Lo enseña
-    la ficha del mapa, con "(llevas N)" si el jugador va corto: distingue "voy
-    corto de nivel" de "lo juego mal". Los 15 escenarios actuales están
-    calibrados para cocinero de nivel 1 y NO se les tocó el oro.
-  · **El ACCESO es la BARRA DE NIVEL del menú** (`main_menu._setup_level_bar`),
-    centrada entre las cajas de recursos y el barco: estrella cabalgando el
-    canto CON UN "+" DENTRO (crema en reposo, ROJO y latiendo en cuanto hay un
-    punto libre: es lo que dice que ahí se mejoran las maestrías), "Nivel N",
-    relleno de XP y el globo con los puntos libres. Tocarla abre Maestrías —
-    POR ESO EL SUBMENÚ NO LLEVA ICONO (volvió a cinco; `ic_maestrias` sigue
-    existiendo para el logro de niveles). Aparece con la primera experiencia,
-    es SOLO del menú (se va con `_ui_out`, vuelve con `_ui_in`, se apaga en
-    mapa/portada vía `_set_menu_ui_visible`).
+  · **`chef_rec` en cada puerto** (CampaignData) = **ceil(n × 1.09)**, o sea
+    2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17. Lo enseña la ficha del
+    mapa, con "(llevas N)" si el jugador va corto: distingue "voy corto de
+    nivel" de "lo juego mal". Los 15 escenarios actuales están calibrados para
+    cocinero de nivel 1 y NO se les tocó el oro — la recomendación es el
+    listón de las MAESTRÍAS, no un requisito.
+  · **El ACCESO es la BARRA DE NIVEL** (`main_menu._setup_level_bar`):
+    estrella cabalgando el canto CON UN "+" DENTRO (crema en reposo, ROJO y
+    latiendo en cuanto hay un punto libre: es lo que dice que ahí se mejoran
+    las maestrías), "Nivel N", relleno de XP y el globo con los puntos libres.
+    Tocarla abre Maestrías — POR ESO EL SUBMENÚ NO LLEVA ICONO (volvió a
+    cinco; `ic_maestrias` sigue existiendo para el logro de niveles). Aparece
+    con la primera experiencia.
+    **VIVE EN EL MENÚ Y EN EL MAPA**, y su sitio lo decide `_level_bar_spot`:
+    centrada bajo los contadores en el menú y CORRIDA A LA DERECHA en el mapa,
+    a la altura del botón "Atrás" — la franja que dejó libre el lazo de
+    "Aventura" al quitarse. Viaja DENTRO de `_place_resources`, con los
+    contadores, y por eso `_ui_out`/`_ui_in` llevan un `con_nivel` que se pasa
+    en false al ir y volver del mapa: si no, el tween de la entrada y el del
+    viaje pelean por su `position`. Solo la PORTADA y la FICHA la apagan a
+    mano (`_set_menu_ui_visible` ya no la toca).
     OJO con el globo: su anfitrión va con **posición y tamaño explícitos**, no
     con `set_anchors_preset` — el preset no toca los offsets y con un
     anfitrión de tamaño cero el globo no llegaba a dibujarse (la trampa de

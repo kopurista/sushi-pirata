@@ -253,7 +253,10 @@ func _show_level_up(data: Dictionary) -> void:
 	var hasta := int(data.get("hasta", 0))
 	var premios: Dictionary = data.get("premios", {})
 	# Orden fijo, de lo más gordo a lo más pequeño: la vista siempre lee igual.
-	var orden := ["points", "ingots", "gold", "rice", "ingredients", "extras"]
+	# Hoy `SkillData.level_reward` solo suelta points / gold / bait; los demás
+	# se quedan en la lista para cuando el juego los explique y vuelvan.
+	var orden := ["points", "ingots", "gold", "bait", "rice", "ingredients",
+		"extras"]
 	var filas: Array[String] = []
 	for k in orden:
 		if int(premios.get(k, 0)) > 0:

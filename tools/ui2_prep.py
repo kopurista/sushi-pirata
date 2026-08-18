@@ -836,6 +836,9 @@ def build_skills() -> None:
     # leia como un marcador de posicion.
     save(fit_max(crop_alpha(drop_specks(drop_white(load("skills/chapa_puntos"))),
                             2), 120), "chapa_puntos")
+    # El CEBO: el premio de pesca de las subidas de nivel (una tirada gratis).
+    save(fit_max(crop_alpha(drop_specks(drop_white(load("menu/ic_cebo"))), 2),
+                 96), "ic_cebo")
     derive_minus_button()
 
 

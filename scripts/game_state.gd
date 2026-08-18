@@ -137,6 +137,8 @@ var fishing_intro_done := false
 var cai_intro_done := false
 ## Cai ya ha explicado qué son los COLECCIONABLES (al pescar el primero).
 var col_intro_done := false
+## David ya ha presentado las MAESTRÍAS (al llegar al nivel 5 de cocinero).
+var skills_intro_done := false
 ## Explicaciones de PANTALLA: se dan la primera vez que se entra en cada una.
 var logros_intro_done := false
 var inventario_intro_done := false
@@ -1111,6 +1113,9 @@ func _grant_level_rewards(premios: Dictionary) -> void:
 	if oro > 0:
 		money += oro
 		bump_stat("money_total", oro)
+	var cebos := int(premios.get("bait", 0))
+	if cebos > 0:
+		bait += cebos
 	var lingotes := int(premios.get("ingots", 0))
 	if lingotes > 0:
 		ingots += lingotes
@@ -1447,15 +1452,18 @@ func add_triforce_piece(n := 1) -> void:
 # NO muta nada; `fishing_apply` entrega el premio SOLO si la captura se logra.
 
 ## Cobra el intento de pesca. false (sin tocar nada) si no llega el dinero.
-## TIRADAS GRATIS que quedan (las tres que regala Cai al terminar su clase).
-## Se gastan ANTES que el monedero: al salir del tutorial, las tres primeras
-## veces que se lanza la caña no cuestan nada.
-var free_casts := 0
+## CEBO: cada uno paga un lanzamiento entero. Se gasta ANTES que el monedero.
+## Tiene DOS fuentes: los tres que regala Cai al terminar su clase y los que
+## caen al SUBIR DE NIVEL de cocinero (ver `SkillData.level_reward`). Es una
+## sola cuenta a propósito — antes eran las "tiradas gratis" de Cai sin más, y
+## un segundo contador que hiciera exactamente lo mismo con otro nombre solo
+## habría confundido al jugador (los guardados viejos migran su `free_casts`).
+var bait := 0
 
 
 func fishing_pay() -> bool:
-	if free_casts > 0:
-		free_casts -= 1
+	if bait > 0:
+		bait -= 1
 		save_game()
 		return true
 	if money < FishData.FISHING_COST:
@@ -1540,6 +1548,13 @@ func fishing_apply(roll: Dictionary) -> Dictionary:
 			bump_stat("fish_junk")
 		var out := { "type": "fish", "fish_id": fid, "veces": veces,
 			"size": size }
+		# EXPERIENCIA DE COCINERO por la captura, mandando el TAMAÑO. Es la
+		# tercera fuente de XP del juego, junto a los escenarios y el arcade, y
+		# la única que no depende de cocinar.
+		var gana := SkillData.fishing_xp(FishData.tier_of(fid), size)
+		if gana > 0:
+			add_chef_xp(gana)
+			out["xp"] = gana
 		# Los peces-ingrediente dan sus usos EN CADA captura (la pesca es la
 		# fuente de despensa; el salmón real da el doble)...
 		var ing := str(FishData.get_fish(fid).get("ingredient", ""))
@@ -1879,9 +1894,10 @@ func save_game() -> void:
 		"cai_intro_done": cai_intro_done,
 		"cai_saciado": cai_saciado,
 		"col_intro_done": col_intro_done,
+		"skills_intro_done": skills_intro_done,
 		"logros_intro_done": logros_intro_done,
 		"inventario_intro_done": inventario_intro_done,
-		"free_casts": free_casts,
+		"bait": bait,
 		"rice_intro_done": rice_intro_done,
 		"pablo_shop_done": pablo_shop_done,
 		"menu_intro_done": menu_intro_done,
@@ -2072,9 +2088,12 @@ func load_game() -> void:
 	cai_intro_done = bool(parsed.get("cai_intro_done", tutorial_done))
 	cai_saciado = bool(parsed.get("cai_saciado", tutorial_done))
 	col_intro_done = bool(parsed.get("col_intro_done", tutorial_done))
+	skills_intro_done = bool(parsed.get("skills_intro_done", false))
 	logros_intro_done = bool(parsed.get("logros_intro_done", tutorial_done))
 	inventario_intro_done = bool(parsed.get("inventario_intro_done", tutorial_done))
-	free_casts = int(parsed.get("free_casts", 0))
+	# Las "tiradas gratis" de los guardados viejos son los CEBOS de hoy: el
+	# mecanismo era el mismo y solo cambió de nombre al ganarse por nivel.
+	bait = int(parsed.get("bait", parsed.get("free_casts", 0)))
 	rice_intro_done = bool(parsed.get("rice_intro_done", false))
 	pablo_shop_done = bool(parsed.get("pablo_shop_done", false))
 	# Guardados de antes de la guía del menú: si el tutorial ya está hecho, la
@@ -2171,9 +2190,10 @@ func _new_game() -> void:
 	cai_intro_done = false
 	cai_saciado = false
 	col_intro_done = false
+	skills_intro_done = false
 	logros_intro_done = false
 	inventario_intro_done = false
-	free_casts = 0
+	bait = 0
 	rice_intro_done = false
 	pablo_shop_done = false
 	menu_intro_done = false

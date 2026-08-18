@@ -17,10 +17,9 @@ const PrepBoard := preload("res://scripts/prep_board.gd")
 const DARK := Color(0.26, 0.16, 0.08)
 const FADED := Color(0.42, 0.3, 0.18)
 
-## Rótulo del mapa: tiene que caber en el hueco que dejan los dos contadores de
-## arriba (el dinero pegado a la izquierda y el arroz a la derecha). El ALTO es
-## fijo a propósito: estirándolo, la cinta se pegaba al canto superior y el
-## texto quedaba descolgado respecto al dibujo de la tela.
+## El mapa YA NO LLEVA RÓTULO (se quitó el lazo de "Aventura": ocupaba la
+## franja en la que hoy va la barra de nivel del cocinero y no decía nada que
+## el propio mapa no dijera). Las medidas se quedan por si vuelve un rótulo.
 const TITLE_W := 322.0
 const TITLE_H := 88.0
 
@@ -430,19 +429,10 @@ func _build_top_bar() -> Control:
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var st := GameState.safe_top()
 
-	# El rótulo va con ALTO FIJO y bajado unos píxeles. Antes se estiraba a todo
-	# el alto de la barra: el gráfico de la cinta se pegaba al canto de arriba y
-	# el texto, centrado en un rectángulo mucho más alto que el dibujo, quedaba
-	# descolgado respecto a la tela.
-	var title := PrepBoard.make_title("Aventura", 38)
-	title.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	title.size = Vector2(TITLE_W, TITLE_H)
-	# CENTRADO EN LA PANTALLA. Cabe porque la caja del arroz se estrechó para
-	# dejarle sitio (main_menu.RES_RICE_W). Y 34 px de aire por arriba: se baja
-	# el GRÁFICO entero, no el texto de dentro (ese va centrado en la tela).
-	var ancho := GameState.canvas_size().x
-	title.position = Vector2((ancho - TITLE_W) * 0.5, 112.0 + st)
-	bar.add_child(title)
+	# SIN cinta de título. El lazo rojo de "Aventura" ocupaba justo la franja
+	# en la que ahora vive la BARRA DE NIVEL del cocinero, y además no decía
+	# nada que el mapa entero no dijera ya. La banda queda para el botón de
+	# volver (izquierda) y la barra de nivel (derecha).
 
 	# Flecha DIBUJADA en la madera: el único botón del juego con icono propio.
 	var back := PrepBoard.make_back_button()

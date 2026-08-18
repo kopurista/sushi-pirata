@@ -243,6 +243,15 @@ func _menu_popups() -> void:
 			and int(GameState.level_stars.get("nivel_1", 0)) >= 2:
 		await get_tree().create_timer(0.7).timeout
 		await _felicitar_nivel_1()
+	# LAS MAESTRÍAS SE PRESENTAN AL LLEGAR AL NIVEL 5 DE COCINERO, no antes: es
+	# cuando el jugador tiene ya un puñado de puntos sin gastar y la pantalla
+	# tiene algo que enseñar. Al cerrar, David lo lleva DIRECTO al árbol (mismo
+	# patrón que Saverio con su puesto).
+	if GameState.tutorial_done and not GameState.skills_intro_done \
+			and GameState.chef_level >= SKILLS_INTRO_LEVEL:
+		await get_tree().create_timer(0.7).timeout
+		await _presentar_maestrias()
+		return
 	# PABLO PAGA LO QUE COMIÓ. La promesa se hace en su nivel y el pago se cobra
 	# AQUÍ, con las tres cajas de recursos a la vista: es la primera vez que el
 	# jugador oye hablar de los lingotes y David puede señalarle el contador de
@@ -281,20 +290,47 @@ func _felicitar_nivel_1() -> void:
 	var caja := DialogueBox.new()
 	caja.z_index = 200
 	ui_layer.add_child(caja)
-	var estrellas := int(GameState.level_stars.get("nivel_1", 0))
 	var lineas: Array = [
 		{ "text": "¡Turno cerrado, %s! Tu primera jornada al mando de mi cocina." % GameState.player_title(), "mood": "riendo" },
 		{ "text": "Cada puerto se puntúa con **estrellas**, y las estrellas salen del **oro** que dejes en caja. Con **dos** apruebas y se abre el puerto siguiente.", "mood": "hablando" },
+		# LA RECOMPENSA DE LAS 3 ESTRELLAS YA NO SE EXPLICA: el cartel de
+		# resultados y la ficha del puerto la enseñan solas, y decirla aquí era
+		# gastar dos líneas en algo evidente. En su hueco entra lo que de
+		# verdad no se ve por ningún lado: el NIVEL DE COCINERO.
+		{ "text": "Y hay algo más que se te queda de cada jornada: **experiencia**. Cocinar te hace mejor cocinero, y eso se guarda.", "mood": "hablando" },
+		{ "text": "Mira la **barra** de debajo de las cajas: ese es tu **nivel**. Sube con cada puerto que cierres, y cuanto mejor lo cierres, más sube.", "mood": "feliz" },
 	]
-	if estrellas >= 3:
-		lineas.append({ "text": "Y tú has sacado las **tres**, así que el premio gordo es tuyo: una **receta nueva** para tu carta. Eso no se saca aprobando por los pelos.", "mood": "feliz" })
-	else:
-		lineas.append({ "text": "Ojo a la **tercera** estrella: es la que guarda el premio gordo, casi siempre una **receta nueva**. Puedes volver a por ella cuando quieras.", "mood": "serio" })
 	lineas.append({ "text": "¡AL SIGUIENTE PUERTO! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" })
 	lineas.append({ "text": "Ya lo has oído. Te espero en **Playa del Coco**: allí te enseño el truco que separa a un cocinero de un friegaplatos.", "mood": "hablando" })
 	caja.say(lineas)
 	await caja.finished
 	await caja.close_and_free()
+
+
+## Nivel de cocinero al que David presenta las MAESTRÍAS. Cinco porque para
+## entonces hay 5 puntos sin gastar: uno solo no deja ver de qué va el árbol.
+const SKILLS_INTRO_LEVEL := 5
+
+
+## LAS MAESTRÍAS, presentadas al llegar al nivel 5. David señala la barra, dice
+## para qué sirven los puntos y abre la pantalla: la explicación de verdad la
+## da el propio árbol, que ya se explica solo.
+func _presentar_maestrias() -> void:
+	GameState.skills_intro_done = true
+	GameState.save_game()
+	var caja := DialogueBox.new()
+	caja.z_index = 200
+	ui_layer.add_child(caja)
+	caja.say([
+		{ "text": "¡Nivel **%d**, %s! Ya no cocinas como el que llegó a este barco." % [GameState.chef_level, GameState.player_title()], "mood": "riendo" },
+		{ "text": "Cada nivel te deja un **punto de maestría**, y llevas unos cuantos sin gastar. Eso es oficio guardado en el bolsillo.", "mood": "hablando" },
+		{ "text": "Se gastan en tres **árboles**: el **cuchillo** afila tus manos, el **cliente** te saca más de cada boca y el **chef** manda en los platos.", "mood": "hablando" },
+		{ "text": "¡GÁSTALOS YA! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "Vamos, que te enseño la mesa donde se reparten. Se llega tocando tu **barra de nivel**, y ahí puedes cambiarlos de sitio cuando quieras.", "mood": "feliz" },
+	])
+	await caja.finished
+	await caja.close_and_free()
+	_go_skills()
 
 
 ## CAI se enrola. Al superar la Isla de Gades quiere pagar con su caña, y David
@@ -430,6 +466,10 @@ func _show_start() -> void:
 	for caja in [ingot_box, money_box, rice_box, rice_timer_label]:
 		if caja != null:
 			caja.visible = false
+	# La PORTADA es la única pantalla donde la barra de nivel no pinta nada
+	# (ya no la apaga `_set_menu_ui_visible`, que ahora la deja viva en el mapa).
+	if level_bar != null:
+		level_bar.visible = false
 	logo_holder.visible = true
 	logo_holder.position.y = home_logo_y
 	start_hint.visible = true
@@ -559,6 +599,10 @@ func _show_ficha() -> void:
 	_update_camera()
 	_sky_in()
 	_place_resources(false, false)
+	# La ficha va SIN interfaz: solo David y el cartel (la barra de nivel la
+	# vuelve a encender `_place_resources`, así que se apaga después).
+	if level_bar != null:
+		level_bar.visible = false
 	_run_ficha.call_deferred()
 
 
@@ -834,13 +878,12 @@ func _set_menu_ui_visible(on: bool) -> void:
 	for node in [menu_panel, submenu_bar]:
 		if node != null:
 			node.visible = on
-	# La barra de nivel es del MENÚ (en el mapa y en la portada no pinta nada);
-	# su propia visibilidad interna decide además si hay experiencia que enseñar.
-	if level_bar != null:
-		if on:
-			_refresh_level_bar()
-		else:
-			level_bar.visible = false
+	# LA BARRA DE NIVEL YA NO SE APAGA DESDE AQUÍ: vive también en el MAPA
+	# (corrida a la derecha, ver `_level_bar_spot`), y este método se llama con
+	# `false` justo al entrar en él. La coloca y la enciende `_place_resources`,
+	# y solo la portada la apaga a mano.
+	if on and level_bar != null:
+		_refresh_level_bar()
 	# El cielo solo se APAGA desde aquí. Encenderlo es trabajo de `_sky_in`,
 	# que recoloca antes: encendido desde este lado, gaviotas y nubes se
 	# renderizaban un fotograma en su posición vieja (el parpadeo).
@@ -1241,8 +1284,8 @@ func _setup_level_bar(st: float) -> void:
 	level_bar = Button.new()
 	for est in ["normal", "hover", "pressed", "disabled", "focus"]:
 		level_bar.add_theme_stylebox_override(est, StyleBoxEmpty.new())
-	home_lvl_y = LVL_BAR_Y + st
-	level_bar.position = Vector2((720.0 - LVL_BAR_W) * 0.5, home_lvl_y)
+	level_bar.position = _level_bar_spot(false)
+	home_lvl_y = level_bar.position.y
 	level_bar.size = Vector2(LVL_BAR_W, LVL_BAR_H + 14.0)
 	level_bar.pivot_offset = level_bar.size * 0.5
 	ui_layer.add_child(level_bar)
@@ -1550,15 +1593,41 @@ func _place_resources(en_mapa: bool, animate: bool) -> void:
 		return
 	var spots := _resource_spots(en_mapa)
 	var cajas := [ingot_box, money_box, rice_box]
+	# La BARRA DE NIVEL viaja con ellas: en el menú va centrada bajo los
+	# contadores y en el mapa se corre a la DERECHA, a la altura del botón
+	# "Atrás", que es la franja que dejó libre el lazo de "Aventura".
+	var lvl := _level_bar_spot(en_mapa)
+	home_lvl_y = lvl.y
+	var mover_lvl: bool = level_bar != null and level_bar.visible
 	if not animate:
 		for i in cajas.size():
 			cajas[i].position = spots[i]
+		if level_bar != null:
+			level_bar.position = lvl
+			_refresh_level_bar()
 		return
 	if res_tween != null and res_tween.is_valid():
 		res_tween.kill()
 	res_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_QUAD) 			.set_ease(Tween.EASE_IN_OUT)
 	for i in cajas.size():
 		res_tween.tween_property(cajas[i], "position", spots[i], 0.75)
+	if level_bar != null:
+		_refresh_level_bar()
+		if mover_lvl:
+			res_tween.tween_property(level_bar, "position", lvl, 0.75)
+		else:
+			level_bar.position = lvl
+
+
+## Dónde va la barra de nivel según la pantalla. En el MAPA se aparta a la
+## derecha para no montarse con el botón "Atrás", que vive bajo los contadores.
+func _level_bar_spot(en_mapa: bool) -> Vector2:
+	var ancho := GameState.canvas_size().x
+	var st := GameState.safe_top()
+	if en_mapa:
+		return Vector2(ancho - LVL_BAR_W - 16.0,
+			16.0 + st + PrepBoard.RESOURCE_H + 40.0)
+	return Vector2((ancho - LVL_BAR_W) * 0.5, LVL_BAR_Y + st)
 
 
 ## PAQUETES de lingotes (dinero real) y de arroz (a cambio de lingotes).
@@ -2153,7 +2222,10 @@ func _make_mode_button(text: String, icon: String, _height: int,
 ## a Aventura no se van de la pantalla, viajan a los extremos del mapa
 ## (`_place_resources`). Si se los llevaba esta salida, los dos tweens peleaban
 ## por la misma propiedad y las cajas se quedaban a medio camino.
-func _ui_out(con_recursos := true) -> void:
+## `con_nivel` a false deja la BARRA DE NIVEL quieta: al ir al mapa no se va,
+## se queda y la corre `_place_resources` hacia la derecha. Si se fuera aquí
+## arriba, los dos tweens pelearían por su `position`.
+func _ui_out(con_recursos := true, con_nivel := true) -> void:
 	if ui_tween != null and ui_tween.is_valid():
 		ui_tween.kill()
 	# (El logotipo ya no viaja con el menú: se quedó en la portada.)
@@ -2163,7 +2235,7 @@ func _ui_out(con_recursos := true) -> void:
 	ui_tween.tween_property(submenu_bar, "position:y", home_sub_y + 260.0, OUT_TIME)
 	# La barra de nivel se va SIEMPRE hacia arriba (es del menú, no del mapa
 	# ni de la pesca), aunque las cajas de recursos se queden.
-	if level_bar != null and level_bar.visible:
+	if con_nivel and level_bar != null and level_bar.visible:
 		ui_tween.tween_property(level_bar, "position:y", home_lvl_y - 220.0,
 			OUT_TIME)
 	if con_recursos:
@@ -2240,8 +2312,9 @@ func _go_adventure() -> void:
 	if leaving:
 		return
 	leaving = true
-	# Los contadores NO salen: se quedan y viajan a los extremos del mapa.
-	_ui_out(false)
+	# Los contadores NO salen: se quedan y viajan a los extremos del mapa, y la
+	# BARRA DE NIVEL tampoco — se queda y se corre a la derecha con ellos.
+	_ui_out(false, false)
 	_sky_out(0.9)
 	var tw := create_tween()
 	# El barco no leva anclas hasta que el logotipo y los botones han SALIDO
@@ -2282,8 +2355,10 @@ func _back_to_menu() -> void:
 		_set_menu_ui_visible(true)
 		_sky_in()
 		# Los contadores DESANDAN el viaje: de los extremos del mapa al centro.
-		# Sin esto se quedaban donde los dejó Aventura.
-		_ui_in(false)
+		# Sin esto se quedaban donde los dejó Aventura. La BARRA DE NIVEL
+		# vuelve CON ellos, y por eso `_ui_in` no la toca: si no, el tween de
+		# la entrada y el del viaje pelearían por su `position`.
+		_ui_in(false, false)
 		_place_resources(false, true))
 
 
@@ -2356,7 +2431,8 @@ func _on_fishing_closed() -> void:
 	fishing_ui = null
 	_set_plus_enabled(false)
 	_refresh_resources()
-	# (`_ui_in` vuelve a encender el tablón y el submenú.)
+	# (`_ui_in` vuelve a encender el tablón y el submenú, y de paso anima la
+	# experiencia pendiente y anuncia la subida: la pesca PAGA XP por captura.)
 	_ui_in(false)
 
 
@@ -3001,7 +3077,7 @@ func _go_inventory() -> void:
 ## Devuelve el logotipo, los botones y el monedero a su sitio.
 ## `con_recursos` a false deja quietos los contadores: al volver del mapa los
 ## mueve `_place_resources`, y si los tocan los dos pelean por `position`.
-func _ui_in(con_recursos := true) -> void:
+func _ui_in(con_recursos := true, con_nivel := true) -> void:
 	if ui_tween != null and ui_tween.is_valid():
 		ui_tween.kill()
 	# `_ui_out` los deja ocultos al terminar de bajarlos (ahí se explica por qué).
@@ -3025,7 +3101,7 @@ func _ui_in(con_recursos := true) -> void:
 
 	# La barra de nivel vuelve con el resto y, ya en su sitio, anima la
 	# experiencia que traiga pendiente (con su fogonazo por cada subida).
-	if level_bar != null:
+	if con_nivel and level_bar != null:
 		_refresh_level_bar()
 		if level_bar.visible:
 			level_bar.position.y = home_lvl_y - 220.0

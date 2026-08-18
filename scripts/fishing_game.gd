@@ -1650,7 +1650,7 @@ func _quitar_foco(velo: ColorRect, nodo: Control, z: int) -> void:
 ## doblones. Al acabar deja `CAI_TIRADAS_GRATIS` lanzamientos gratis.
 func _clase_de_pesca() -> void:
 	GameState.fishing_intro_done = true
-	GameState.free_casts = CAI_TIRADAS_GRATIS
+	GameState.bait = maxi(GameState.bait, CAI_TIRADAS_GRATIS)
 	GameState.save_game()
 	clase = true
 	_refresh_cast_label()
@@ -1781,9 +1781,15 @@ func _refresh_cast_label() -> void:
 		cast_coin.visible = not clase
 	if clase:
 		cast_cost_label.text = "Lanzar caña"
-	elif GameState.free_casts > 0:
-		cast_cost_label.text = "GRATIS x%d" % GameState.free_casts
+	elif GameState.bait > 0:
+		# Con CEBO no se cobra: el botón enseña el cebo en vez de la moneda,
+		# para que se vea de dónde sale la tirada gratis.
+		if cast_coin != null and is_instance_valid(cast_coin):
+			cast_coin.texture = load("res://assets/ui/ic_cebo.png")
+		cast_cost_label.text = "x%d" % GameState.bait
 	else:
+		if cast_coin != null and is_instance_valid(cast_coin):
+			cast_coin.texture = load("res://assets/ui/moneda.png")
 		cast_cost_label.text = "%d" % FishData.FISHING_COST
 
 
