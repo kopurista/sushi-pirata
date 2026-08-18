@@ -797,21 +797,63 @@ primera vez que se entra en ellos (`logros_intro_done` /
     con los tres a la vez se quedaban en 88 px y las cifras no se leían.
     Cada tarjeta lleva el icono (marco por ESTADO: gris bloqueada con el
     dibujo oscurecido, neutro disponible, color del árbol aprendida, ORO al
-    máximo), el nombre, **las ESTRELLAS = RANGO**, el **"x/N" = PUNTOS
-    ENTREGADOS** hacia el rango siguiente (dos cifras distintas a propósito;
-    la N es 5 salvo en las finales, que valen 10 por rango) y los botones de
-    reparto DEBAJO: el disco ROJO `boton_menos` y el VERDE `boton_mas`, que
-    es el mismo de las cajas de recursos. Tocar el icono abre su ficha, donde
-    también se reparte. **SIN cinta de título**: la cabecera ya identifica la
-    pantalla y el lazo rojo solo robaba alto.
-  · **CABECERA**: sin el rótulo "Nivel de cocinero" — la CHAPA de estrella con
-    el número, la barra con la experiencia ESCRITA DENTRO ("210 / 400") y a la
-    derecha el disco azul de PUNTOS LIBRES, que se apaga cuando no queda nada
-    que gastar.
+    máximo), el nombre, **las ESTRELLAS = RANGO** y una fila de reparto
+    **[−] x/N [+]**: el **"x/N" son los PUNTOS ENTREGADOS** hacia el rango
+    siguiente (dos cifras distintas a propósito; la N es 5 salvo en las
+    finales, que valen 10 por rango) y los dos discos lo FLANQUEAN, pequeños
+    (`PM_SIZE` 46). En su propia fila debajo y a 56 px eran dos botones
+    sueltos sin dueño. Tocar el icono abre su ficha, donde también se
+    reparte. **SIN cinta de título**: la cabecera ya identifica la pantalla y
+    el lazo rojo solo robaba alto.
+  · **`boton_menos.png` NO SE GENERA: SE DERIVA de `boton_mas.png`**
+    (`derive_minus_button` en ui2_prep) — mismo disco, mismo aro dorado y
+    mismo bisel, con el campo verde teñido de rojo y la cruz crema recortada
+    a su brazo horizontal. Pedido a Ludo aparte salía un disco rojo PLANO y
+    se veía que los dos no eran pareja. Dos cosas que costaron una pasada:
+    la cruz hay que DILATARLA antes de borrarla (si no su antialias sobrevive
+    y deja el fantasma del brazo vertical), y el hueco se rellena
+    INTERPOLANDO DE LADO A LADO en su fila, no con la media de cada ANILLO —
+    a ese radio el anillo pasa por el brillo de arriba a la izquierda y lo
+    repartía en manchas por todo el círculo.
+  · **RAMAS**: las cinco habilidades van UNIDAS por líneas (`_dibujar_ramas`,
+    `_paint_ramas`) — barra entre las dos primeras, tronco que baja por el
+    PASILLO entre columnas hasta la barra de la 3ª y la 4ª, y sigue hasta la
+    5ª. Va por el pasillo a propósito: es la única franja vertical libre
+    (bajando por el eje de una tarjeta, la rama cruzaría su nombre, sus
+    estrellas y sus botones). Se dibujan ANTES que las tarjetas (el orden de
+    hijos es el de dibujado) y se ENCIENDEN cuando la habilidad a la que
+    llevan es alcanzable, así que se repintan desde `_refresh_all_icons` con
+    cada [+] / [−] — solas no se enteran.
+  · **"Reiniciar maestría"** al pie de cada árbol
+    (`GameState.reset_skill_tree`): devuelve TODOS sus puntos de golpe, con
+    confirmación que dice cuántos son. NO pasa por `refund_skill` a propósito
+    — ese tiene el candado de los prerrequisitos y aquí se van todas a la vez,
+    así que ninguna se queda huérfana.
+  · **CABECERA**: sin el rótulo "Nivel de cocinero" — la estrella con el
+    número en Exo2-Bold, la barra con la experiencia ESCRITA DENTRO
+    ("210 / 400") y a la derecha la CHAPA de puntos libres, que se apaga
+    cuando no queda nada que gastar y RESPIRA cuando sí.
+    · La chapa es `chapa_puntos.png` (medalla de oro con el disco azul VACÍO,
+      el número se imprime encima): era un círculo azul liso dibujado por
+      código y al lado del resto del set se leía como un marcador de
+      posición. Su dibujo NO está centrado —el laurel del pie baja el
+      conjunto—, así que la cifra se coloca contra `CHAPA_P_CY` (0.458),
+      MEDIDO sobre el PNG.
+    · **La barra se alinea con el centro VISUAL de la estrella, no con el de
+      su caja** (`ESTRELLA_CY` 0.536, medido sobre el alfa de
+      `estrella_llena.png`): una estrella tiene las puntas fuera y su masa cae
+      por debajo del medio, así que centrada a lo geométrico la barra queda
+      visiblemente alta.
+    · **El ancho de `content` se calcula, no se clava** (`_ancho()` =
+      lienzo − 112): estuvo a 636 a mano y la chapa se salía por detrás del
+      marco del pergamino (el lienzo real mide 730, no 720).
   · **CADA SUBIDA DE RANGO SE CELEBRA** (`_celebrar_rango`): la del rango 1
     dice "¡Habilidad aprendida!" y las demás CANTAN EL CAMBIO, con el efecto
     viejo y el nuevo uno debajo del otro ("un 8% más cortos" → "un 12% más
-    cortos"), que es lo que el jugador quiere saber al gastar un punto.
+    cortos"), que es lo que el jugador quiere saber al gastar un punto. **Y
+    la del rango 1 lleva QUÉ HACE** (el efecto del rango 1 + la descripción):
+    enseñaba solo el nombre, que es justo lo que no explica nada de lo que
+    el jugador acaba de comprar sin verlo.
   · **CADA HABILIDAD TIENE SU PROPIO ICONO** (`assets/ui/skill_<id>.png`,
     `SkillData.icon` con la moneda de respaldo): Ludo → `_gen/ui2/skills/` →
     `build_skills()` de ui2_prep (drop_white + drop_specks, NUNCA
@@ -1310,7 +1352,10 @@ primera vez que se entra en ellos (`logros_intro_done` /
     pendiente la tarjeta queda inerte (`disabled`), para que pulsar no dé un
     falso "algo ha pasado". El cobro EN BLOQUE lanza la misma lluvia, más
     grande y **sin la cifra**: el cartel del cofre ya canta el total y
-    superpuesta le caía encima del rótulo.
+    superpuesta le caía encima del rótulo. **Y SALE CUANDO EL COFRE SE ABRE**,
+    no al pulsar: va dentro del `tween_callback` que cambia la textura a
+    "abierto" y arranca en la BOCA del cofre. Lanzada al pulsar, las monedas
+    volaban por delante de un cofre todavía cerrado.
   · **EL GLOBO ROJO va en TRES sitios** y lo dibuja `PrepBoard.attach_badge`
     (vive con el resto del set): sobre `ic_logros` en el menú
     (`unclaimed_medals`), sobre cada PESTAÑA (`unclaimed_in_group`) y sobre

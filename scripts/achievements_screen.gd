@@ -443,11 +443,9 @@ func _open_claim() -> void:
 	# tarjetas que se estén viendo.
 	_refresh_tab_badges()
 	_show_group.bind(current_group).call_deferred()
-	# Lluvia GRANDE, del centro de la pantalla: es el cobro gordo, y tiene que
-	# notarse más que el de una tarjeta suelta.
-	var lienzo := GameState.canvas_size()
-	_coin_burst(Vector2(lienzo.x * 0.5, lienzo.y * 0.42), int(r["total"]),
-		COINS_ALL, false)
+	# La lluvia GRANDE sale del COFRE al ABRIRSE (ver el tween del final), no
+	# aquí: lanzada al pulsar, las monedas volaban por delante de un cofre
+	# todavía cerrado y el cartel llegaba tarde a su propia noticia.
 
 	var overlay := Control.new()
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -558,7 +556,12 @@ func _open_claim() -> void:
 	tw.tween_property(chest, "rotation", deg_to_rad(-4.0), 0.09)
 	tw.tween_property(chest, "rotation", 0.0, 0.09)
 	tw.tween_callback(func() -> void:
-		chest.texture = load("res://assets/ui/daily_cofre_abierto.png"))
+		chest.texture = load("res://assets/ui/daily_cofre_abierto.png")
+		# Y AQUÍ la lluvia: sale de la boca del cofre en el mismo fotograma en
+		# que se abre. Sin cifra, que el cartel ya canta el total.
+		var boca := chest.get_global_rect()
+		_coin_burst(Vector2(boca.get_center().x, boca.position.y + 40.0),
+			int(r["total"]), COINS_ALL, false))
 	tw.tween_property(chest, "scale", Vector2(1.14, 1.14), 0.16) \
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_property(chest, "scale", Vector2.ONE, 0.14)

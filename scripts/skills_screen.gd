@@ -36,7 +36,7 @@ const ORO := Color(0.85, 0.65, 0.15)
 var ui: CanvasLayer = null
 var content: Control = null
 var puntos_label: Label = null
-var puntos_chapa: Panel = null
+var puntos_chapa: Control = null
 var nivel_label: Label = null
 var xp_bar: ProgressBar = null
 var xp_label: Label = null
@@ -51,6 +51,12 @@ var popup: Control = null
 var popup_id := ""
 var backdrop: Node3D = null
 var _t := 0.0
+## El latido de la chapa de puntos, para poder matarlo al repintar.
+var _chapa_tween: Tween = null
+## Los tramos de RAMA de la sección abierta: { nodo, hacia }.
+var ramas: Array = []
+## El botón de reiniciar el árbol, para poder apagarlo sin reconstruir.
+var reset_btn: Button = null
 
 
 func _ready() -> void:
@@ -118,44 +124,79 @@ func _setup_ui() -> void:
 	_build_tabs()
 	cols_root = Control.new()
 	cols_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	cols_root.offset_top = 208.0
+	cols_root.offset_top = 226.0
 	content.add_child(cols_root)
 	_build_section()
 	_refresh_header()
 
 
-## Cabecera SIN el rótulo "Nivel de cocinero": la CHAPA de estrella con el
-## número lo dice todo, la barra lleva la experiencia ESCRITA DENTRO
-## ("210/350") y a la derecha va la chapa de PUNTOS LIBRES, que es la cifra
-## con la que el jugador está jugando.
-const CHAPA := 76.0
+## Cabecera SIN el rótulo "Nivel de cocinero": la ESTRELLA con el número lo
+## dice todo, la barra lleva la experiencia ESCRITA DENTRO ("210/350") y a la
+## derecha va la CHAPA de puntos libres, que es la cifra con la que el jugador
+## está jugando.
+const CHAPA := 88.0
+## La chapa de puntos (`chapa_puntos.png`): medalla de oro con el disco azul
+## vacío dentro. Su dibujo NO está centrado en el lienzo — el laurel del pie
+## baja el conjunto —, así que la cifra se coloca contra estas fracciones,
+## MEDIDAS sobre el PNG, y no contra el centro geométrico.
+const CHAPA_P_W := 88.0
+const CHAPA_P_RATIO := 120.0 / 112.0
+const CHAPA_P_CY := 0.458
+
+## LO QUE MIDE `content` DE ANCHO. No se puede leer de `content.size` al
+## construir (los contenedores aún no se han asentado) y tampoco vale un 720
+## clavado: en el móvil el lienzo mide otra cosa. Estuvo a 636 a mano y la
+## chapa de puntos se salía por detrás del marco del pergamino.
+func _ancho() -> float:
+	return GameState.canvas_size().x - 112.0
+
+
+## El centro VISUAL de la estrella, que NO es el de su caja: una estrella tiene
+## las puntas fuera y su masa cae por debajo del medio (medido sobre el alfa de
+## `estrella_llena.png`: 0.536 de su alto). Alineando contra el centro
+## geométrico, la barra quedaba visiblemente alta.
+const ESTRELLA_CY := 0.536
 
 
 func _build_header() -> void:
-	# La chapa del nivel: la estrella del juego con la cifra dentro.
+	var w := _ancho()
+	var eje := CHAPA * ESTRELLA_CY      # la línea sobre la que se alinea todo
+
+	# La chapa del nivel: la estrella del juego con la cifra dentro, en NEGRITA
+	# de verdad (Exo2-Bold) y con contorno: es el número que da nombre a la
+	# pantalla y en regular se leía como un dato más.
 	var estrella := TextureRect.new()
 	estrella.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	estrella.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	estrella.texture = load("res://assets/ui/estrella_llena.png")
-	estrella.position = Vector2(0.0, 2.0)
+	estrella.position = Vector2(0.0, 0.0)
 	estrella.size = Vector2(CHAPA, CHAPA)
+	estrella.pivot_offset = Vector2(CHAPA, CHAPA) * 0.5
 	estrella.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(estrella)
 	nivel_label = Label.new()
 	nivel_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	nivel_label.offset_top = 3.0
 	nivel_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	nivel_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	nivel_label.add_theme_font_size_override("font_size", 30)
-	nivel_label.add_theme_color_override("font_color", Color(0.36, 0.20, 0.04))
+	nivel_label.offset_top = (ESTRELLA_CY - 0.5) * CHAPA * 2.0
+	nivel_label.add_theme_font_size_override("font_size", 36)
+	nivel_label.add_theme_color_override("font_color", Color(1, 0.97, 0.86))
+	nivel_label.add_theme_color_override("font_outline_color",
+		Color(0.42, 0.22, 0.03))
+	nivel_label.add_theme_constant_override("outline_size", 10)
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		nivel_label.add_theme_font_override("font", negrita)
 	nivel_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	estrella.add_child(nivel_label)
 
-	# La barra, a la derecha de la chapa y con la experiencia dentro.
+	# La barra, entre la estrella y la chapa, CENTRADA en el mismo eje.
+	var barra_h := 36.0
+	var chapa_h := CHAPA_P_W * CHAPA_P_RATIO
 	xp_bar = ProgressBar.new()
 	xp_bar.show_percentage = false
-	xp_bar.position = Vector2(CHAPA + 6.0, 22.0)
-	xp_bar.size = Vector2(330.0, 34.0)
+	xp_bar.position = Vector2(CHAPA + 8.0, eje - barra_h * 0.5)
+	xp_bar.size = Vector2(w - CHAPA - CHAPA_P_W - 26.0, barra_h)
 	xp_bar.add_theme_stylebox_override("background",
 		PrepBoard.make_bar_box(PrepBoard.BAR_BG_TEX))
 	xp_bar.add_theme_stylebox_override("fill",
@@ -166,43 +207,49 @@ func _build_header() -> void:
 	xp_label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	xp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	xp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	xp_label.add_theme_font_size_override("font_size", 20)
+	xp_label.add_theme_font_size_override("font_size", 21)
 	xp_label.add_theme_color_override("font_color", Color(1, 0.96, 0.86))
 	xp_label.add_theme_color_override("font_outline_color", Color(0.12, 0.06, 0.02))
 	xp_label.add_theme_constant_override("outline_size", 7)
+	if negrita != null:
+		xp_label.add_theme_font_override("font", negrita)
 	xp_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	xp_bar.add_child(xp_label)
 
-	# LA CHAPA DE PUNTOS: un disco azul con la cifra grande. Es lo que se
-	# gasta, así que manda en la cabecera.
-	puntos_chapa = Panel.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = AZUL
-	sb.border_color = Color(0.14, 0.26, 0.42)
-	sb.set_border_width_all(4)
-	sb.set_corner_radius_all(int(CHAPA * 0.5))
-	puntos_chapa.add_theme_stylebox_override("panel", sb)
-	puntos_chapa.position = Vector2(636.0 - CHAPA, 2.0)
-	puntos_chapa.size = Vector2(CHAPA, CHAPA)
-	puntos_chapa.pivot_offset = Vector2(CHAPA, CHAPA) * 0.5
+	# LA CHAPA DE PUNTOS: medalla de oro con disco azul, no el círculo liso que
+	# había (se leía como un marcador de posición al lado del resto del set).
+	puntos_chapa = Control.new()
+	puntos_chapa.position = Vector2(w - CHAPA_P_W, eje - chapa_h * CHAPA_P_CY)
+	puntos_chapa.size = Vector2(CHAPA_P_W, chapa_h)
+	puntos_chapa.pivot_offset = puntos_chapa.size * 0.5
 	puntos_chapa.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(puntos_chapa)
+	var dibujo := TextureRect.new()
+	dibujo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	dibujo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	dibujo.texture = load("res://assets/ui/chapa_puntos.png")
+	dibujo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dibujo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	puntos_chapa.add_child(dibujo)
 	puntos_label = Label.new()
 	puntos_label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	puntos_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	puntos_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	puntos_label.add_theme_font_size_override("font_size", 34)
+	puntos_label.offset_top = (CHAPA_P_CY - 0.5) * chapa_h * 2.0
+	puntos_label.add_theme_font_size_override("font_size", 36)
 	puntos_label.add_theme_color_override("font_color", Color(1, 0.98, 0.9))
 	puntos_label.add_theme_color_override("font_outline_color",
-		Color(0.10, 0.18, 0.30))
-	puntos_label.add_theme_constant_override("outline_size", 6)
+		Color(0.06, 0.14, 0.26))
+	puntos_label.add_theme_constant_override("outline_size", 8)
+	if negrita != null:
+		puntos_label.add_theme_font_override("font", negrita)
 	puntos_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	puntos_chapa.add_child(puntos_label)
 	var pie := Label.new()
 	pie.text = "puntos"
-	pie.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	pie.offset_top = CHAPA + 2.0
-	pie.offset_bottom = CHAPA + 26.0
+	pie.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	pie.offset_top = 0.0
+	pie.offset_bottom = 24.0
 	pie.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pie.add_theme_font_size_override("font_size", 16)
 	pie.add_theme_color_override("font_color", FADED)
@@ -225,13 +272,25 @@ func _refresh_header() -> void:
 		xp_label.text = "%d / %d" % [GameState.chef_xp - suelo, falta]
 	var libres := GameState.chef_points_free()
 	puntos_label.text = str(libres)
-	# La chapa se apaga cuando no queda nada que gastar.
+	# La chapa se apaga cuando no queda nada que gastar, y RESPIRA cuando sí:
+	# es la cifra que dice "aquí tienes algo que repartir".
 	puntos_chapa.modulate = Color.WHITE if libres > 0 \
 			else Color(0.72, 0.72, 0.72, 0.85)
+	if _chapa_tween != null and _chapa_tween.is_valid():
+		_chapa_tween.kill()
+		_chapa_tween = null
+	puntos_chapa.scale = Vector2.ONE
+	if libres > 0 and GameState.animations_on():
+		_chapa_tween = puntos_chapa.create_tween().set_loops()
+		_chapa_tween.tween_property(puntos_chapa, "scale", Vector2(1.07, 1.07),
+			0.7).set_trans(Tween.TRANS_SINE)
+		_chapa_tween.tween_property(puntos_chapa, "scale", Vector2.ONE, 0.7) \
+				.set_trans(Tween.TRANS_SINE)
 
 
 ## Un bote de la cifra de puntos al gastarse o recuperarse.
 func _pop_puntos() -> void:
+	puntos_label.pivot_offset = puntos_label.size * 0.5
 	var tw := puntos_label.create_tween()
 	tw.tween_property(puntos_label, "scale", Vector2(1.25, 1.25), 0.1) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
@@ -245,16 +304,19 @@ func _pop_puntos() -> void:
 ## cada vez, y eso es lo que deja sitio para que los ICONOS SEAN GRANDES y
 ## quepan con sus estrellas y sus botones debajo: con las tres columnas a la
 ## vez, cada icono se quedaba en 88 px y las cifras no se leian.
-const CARD_W := 306.0
-const CARD_H := 268.0
-const BIG_ICON := 120.0
+const CARD_W := 290.0
+const CARD_H := 236.0
+const BIG_ICON := 128.0
+## Grosor de las RAMAS que unen las habilidades y su tinte apagado.
+const RAMA_GRUESO := 8.0
+const RAMA_APAGADA := Color(0.55, 0.45, 0.33, 0.55)
 
 
 func _build_tabs() -> void:
 	var row := HBoxContainer.new()
 	row.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	row.offset_top = 112.0
-	row.offset_bottom = 198.0
+	row.offset_top = 132.0
+	row.offset_bottom = 216.0
 	row.add_theme_constant_override("separation", 10)
 	content.add_child(row)
 	for tree in SkillData.TREES:
@@ -327,18 +389,103 @@ func _build_section() -> void:
 	pano.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cols_root.add_child(pano)
 
+	var w := _ancho()
 	var ids := SkillData.tree_skills(current_tree)
-	var hueco := (636.0 - CARD_W * 2.0) / 3.0
+	var hueco := (w - CARD_W * 2.0) / 3.0
+	var pos: Array[Vector2] = []
 	for i in ids.size():
 		# Las cuatro primeras en dos columnas; la FINAL, sola y centrada.
 		var fila: int = i / 2
 		var col: int = i % 2
 		var x := hueco + float(col) * (CARD_W + hueco)
 		if i == 4:
-			x = (636.0 - CARD_W) * 0.5
-		_add_card(str(ids[i]), Vector2(x, 12.0 + float(fila) * (CARD_H + 6.0)),
-			color)
+			x = (w - CARD_W) * 0.5
+		pos.append(Vector2(x, 12.0 + float(fila) * (CARD_H + 6.0)))
+	# LAS RAMAS VAN ANTES QUE LAS TARJETAS en el árbol de nodos: el orden de
+	# hijos es el orden de dibujado, así que puestas después taparían los
+	# iconos.
+	_dibujar_ramas(ids, pos)
+	for i in ids.size():
+		_add_card(str(ids[i]), pos[i], color)
+	_boton_reiniciar(pos[pos.size() - 1].y + CARD_H + 16.0)
 	_entrada_animada()
+
+
+## LAS RAMAS DEL ÁRBOL: una barra que une las dos primeras habilidades, un
+## tronco que baja por el pasillo central hasta la barra de la 3ª y la 4ª, y
+## ese mismo tronco siguiendo hasta la 5ª, que va centrada.
+##
+## Va por el PASILLO entre columnas a propósito: es la única franja vertical
+## libre de la sección (bajando por el eje de una tarjeta, la rama cruzaría su
+## nombre, sus estrellas y sus botones).
+func _dibujar_ramas(ids: Array, pos: Array[Vector2]) -> void:
+	if pos.size() < 5:
+		return
+	var cx := func(i: int) -> float: return pos[i].x + CARD_W * 0.5
+	var cy := func(i: int) -> float: return pos[i].y + BIG_ICON * 0.5
+	var medio: float = (cx.call(0) + cx.call(1)) * 0.5
+	# Una rama se ENCIENDE cuando la habilidad a la que lleva ya es alcanzable
+	# (sus prerrequisitos están aprendidos): así el camino se ve abrirse.
+	ramas.clear()
+	# 1 ↔ 2: siempre encendida, son las dos de entrada del árbol.
+	_rama(Vector2(cx.call(0), cy.call(0)), Vector2(cx.call(1), cy.call(1)), "")
+	# El tronco hasta la altura de la 3ª y la 4ª, y su barra.
+	_rama(Vector2(medio, cy.call(0)), Vector2(medio, cy.call(2)), str(ids[2]))
+	_rama(Vector2(cx.call(2), cy.call(2)), Vector2(cx.call(3), cy.call(3)),
+		str(ids[2]))
+	# Y el tronco hasta la FINAL.
+	_rama(Vector2(medio, cy.call(3)), Vector2(medio, cy.call(4)), str(ids[4]))
+	_paint_ramas()
+
+
+## Un tramo recto de rama (horizontal o vertical) con sus puntas redondeadas.
+## `hacia` es la habilidad a la que lleva ("" = siempre encendida).
+func _rama(a: Vector2, b: Vector2, hacia: String) -> void:
+	var p := Panel.new()
+	var r := Rect2(a, Vector2.ZERO).expand(b).grow(RAMA_GRUESO * 0.5)
+	p.position = r.position
+	p.size = r.size
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cols_root.add_child(p)
+	ramas.append({ "nodo": p, "hacia": hacia })
+
+
+## Una rama se ENCIENDE cuando la habilidad a la que lleva ya es alcanzable
+## (sus prerrequisitos están aprendidos): así el camino se ve abrirse solo.
+func _paint_ramas() -> void:
+	var color: Color = TREE_COLORS.get(current_tree, DARK)
+	for r in ramas:
+		var p: Panel = r["nodo"]
+		if not is_instance_valid(p):
+			continue
+		var viva := true
+		var hacia := str(r["hacia"])
+		if hacia != "":
+			for pre in SkillData.prereqs(hacia):
+				if GameState.skill_rank(str(pre)) <= 0:
+					viva = false
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = color if viva else RAMA_APAGADA
+		sb.set_corner_radius_all(int(RAMA_GRUESO * 0.5))
+		p.add_theme_stylebox_override("panel", sb)
+
+
+## "Reiniciar maestría": devuelve TODOS los puntos de este árbol de golpe, para
+## replantearlo sin ir habilidad por habilidad. Pregunta antes.
+func _boton_reiniciar(y: float) -> void:
+	var w := _ancho()
+	var b := Button.new()
+	b.text = "Reiniciar maestría"
+	PrepBoard.skin_small_button(b)
+	b.add_theme_font_size_override("font_size", 22)
+	b.position = Vector2((w - 300.0) * 0.5, y)
+	b.size = Vector2(300.0, 56.0)
+	var puestos := GameState.tree_points(current_tree)
+	b.disabled = puestos <= 0
+	PrepBoard.set_dimmed(b, b.disabled)
+	b.pressed.connect(_confirmar_reinicio.bind(current_tree))
+	cols_root.add_child(b)
+	reset_btn = b
 
 
 ## Una tarjeta: icono GRANDE (abre la ficha), estrellas del RANGO, los puntos
@@ -408,29 +555,38 @@ func _add_card(id: String, pos: Vector2, color: Color) -> void:
 	est_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(est_host)
 
-	var pts := Label.new()
-	pts.name = "Puntos"
-	pts.position = Vector2(0.0, BIG_ICON + 58.0)
-	pts.size = Vector2(CARD_W, 26.0)
-	pts.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pts.add_theme_font_size_override("font_size", 21)
-	pts.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.add_child(pts)
-
+	# EL REPARTO EN UNA SOLA FILA: [−] x/5 [+]. Los discos flanquean la cifra
+	# que mueven, que es lo que hace evidente para qué sirven; en su propia
+	# fila debajo eran dos botones sueltos sin dueño, y grandes de más.
 	var fila := HBoxContainer.new()
 	fila.name = "Botones"
-	fila.position = Vector2(0.0, BIG_ICON + 88.0)
-	fila.size = Vector2(CARD_W, 56.0)
+	fila.position = Vector2(0.0, BIG_ICON + 56.0)
+	fila.size = Vector2(CARD_W, PM_SIZE)
 	fila.alignment = BoxContainer.ALIGNMENT_CENTER
-	fila.add_theme_constant_override("separation", 34)
+	fila.add_theme_constant_override("separation", 12)
 	card.add_child(fila)
 	fila.add_child(_make_pm_button(id, false))
+	var pts := Label.new()
+	pts.name = "Puntos"
+	pts.custom_minimum_size = Vector2(96.0, PM_SIZE)
+	pts.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pts.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	pts.add_theme_font_size_override("font_size", 22)
+	pts.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fila.add_child(pts)
 	fila.add_child(_make_pm_button(id, true))
 	_paint_icon(id)
 
 
+## Lado de los discos de reparto. Van PEQUEÑOS: solo tienen que dejarse pulsar
+## con el pulgar, y la cifra del medio es la que manda en la fila.
+const PM_SIZE := 46.0
+
+
 ## Boton redondo de reparto: el VERDE con el "+" (el mismo `boton_mas` de las
-## cajas de recursos) y el ROJO con el "-", su hermano.
+## cajas de recursos) y el ROJO con el "-", que es ese MISMO dibujo teñido y
+## con el brazo vertical quitado (ver tools/, `make_menos`): antes era un disco
+## plano generado aparte y se veía que no eran pareja.
 func _make_pm_button(id: String, mas: bool) -> TextureButton:
 	var b := TextureButton.new()
 	b.name = "Mas" if mas else "Menos"
@@ -438,7 +594,8 @@ func _make_pm_button(id: String, mas: bool) -> TextureButton:
 		% ("mas" if mas else "menos"))
 	b.ignore_texture_size = true
 	b.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	b.custom_minimum_size = Vector2(56, 56)
+	b.custom_minimum_size = Vector2(PM_SIZE, PM_SIZE)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	PrepBoard.add_press_feedback(b)
 	b.pressed.connect(_on_mas.bind(id) if mas else _on_menos.bind(id))
 	return b
@@ -481,15 +638,15 @@ func _paint_icon(id: String) -> void:
 	est_host.add_child(fila)
 
 	var coste := SkillData.rank_cost(id)
-	var pts_l: Label = card.get_node("Puntos")
+	var fila_b: HBoxContainer = card.get_node("Botones")
+	var pts_l: Label = fila_b.get_node("Puntos")
 	if rank >= SkillData.MAX_RANK:
-		pts_l.text = "Al maximo"
+		pts_l.text = "MÁX."
 		pts_l.add_theme_color_override("font_color", ORO)
 	else:
 		pts_l.text = "%d/%d" % [GameState.skill_points(id) % coste, coste]
 		pts_l.add_theme_color_override("font_color", FADED)
 
-	var fila_b: HBoxContainer = card.get_node("Botones")
 	var mas: TextureButton = fila_b.get_node("Mas")
 	var menos: TextureButton = fila_b.get_node("Menos")
 	mas.disabled = not GameState.can_buy_skill(id)
@@ -501,6 +658,12 @@ func _paint_icon(id: String) -> void:
 func _refresh_all_icons() -> void:
 	for id in icon_buttons:
 		_paint_icon(str(id))
+	# Las ramas y el botón de reinicio dependen del árbol ENTERO, no de una
+	# tarjeta: se repintan aquí o se quedan mintiendo tras cada [+] / [−].
+	_paint_ramas()
+	if reset_btn != null and is_instance_valid(reset_btn):
+		reset_btn.disabled = GameState.tree_points(current_tree) <= 0
+		PrepBoard.set_dimmed(reset_btn, reset_btn.disabled)
 
 
 ## Las tarjetas ENTRAN en cascada, con un bote cada una.
@@ -854,6 +1017,77 @@ func _confirmar_perdida(id: String) -> void:
 	btns.add_child(no)
 
 
+## "Reiniciar maestría": PREGUNTA, y diciendo cuántos puntos se recuperan — es
+## un botón que deshace media hora de reparto de un toque.
+func _confirmar_reinicio(tree: String) -> void:
+	var puestos := GameState.tree_points(tree)
+	if puestos <= 0:
+		return
+	var nombre := ""
+	for t in SkillData.TREES:
+		if str(t["id"]) == tree:
+			nombre = str(t.get("name", tree))
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.55)
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ui.add_child(overlay)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(center)
+	var box := Control.new()
+	box.custom_minimum_size = Vector2(540, 340)
+	center.add_child(box)
+	box.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
+		PrepBoard.PANEL_MARGIN))
+	var vb := VBoxContainer.new()
+	vb.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vb.offset_left = 50.0
+	vb.offset_top = 42.0
+	vb.offset_right = -50.0
+	vb.offset_bottom = -42.0
+	vb.add_theme_constant_override("separation", 16)
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(vb)
+	var titulo := PrepBoard.make_big_title("¿Reiniciar?", 46)
+	titulo.custom_minimum_size = Vector2(0, 62)
+	vb.add_child(titulo)
+	var msg := Label.new()
+	msg.text = ("Se van a quitar TODAS las habilidades de %s.\n"
+		+ "Recuperas %d punto%s para repartirlos como quieras.") \
+		% [nombre.to_lower(), puestos, "" if puestos == 1 else "s"]
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg.add_theme_font_size_override("font_size", 21)
+	msg.add_theme_color_override("font_color", FADED)
+	vb.add_child(msg)
+	var btns := HBoxContainer.new()
+	btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	btns.add_theme_constant_override("separation", 20)
+	vb.add_child(btns)
+	var si := Button.new()
+	si.text = "Reiniciar"
+	si.custom_minimum_size = Vector2(190, 62)
+	PrepBoard.skin_action_button(si, false)
+	si.add_theme_font_size_override("font_size", 22)
+	si.pressed.connect(func() -> void:
+		overlay.queue_free()
+		if GameState.reset_skill_tree(tree) > 0:
+			_close_popup()
+			_pop_puntos()
+			_refresh_header()
+			# Se reconstruye la sección entera: con el árbol a cero cambian
+			# también los marcos y las RAMAS, que no se repintan solas.
+			_build_section())
+	btns.add_child(si)
+	var no := Button.new()
+	no.text = "Dejarlo"
+	no.custom_minimum_size = Vector2(190, 62)
+	PrepBoard.skin_action_button(no, true)
+	no.add_theme_font_size_override("font_size", 22)
+	no.pressed.connect(overlay.queue_free)
+	btns.add_child(no)
+
+
 ## La ventana de SUBIDA DE RANGO: el dibujo entra con un golpe de rebote y una
 ## corona de estrellas, como el cartel del coleccionable. La del rango 1 dice
 ## "aprendida"; las demás CANTAN EL CAMBIO, con el efecto de antes tachado y el
@@ -861,7 +1095,10 @@ func _confirmar_perdida(id: String) -> void:
 func _celebrar_rango(id: String, antes: int, ahora: int) -> void:
 	var s := SkillData.get_skill(id)
 	var color: Color = TREE_COLORS.get(str(s.get("tree", "")), DARK)
-	var alto := 440.0 if antes <= 0 else 520.0
+	# Las dos variantes acaban en el mismo sitio (efecto + botón), así que el
+	# cartel mide lo mismo: el botón tiene que caer DENTRO del papel, no sobre
+	# el canto de madera.
+	var alto := 552.0
 	var overlay := ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.55)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -933,8 +1170,36 @@ func _celebrar_rango(id: String, antes: int, ahora: int) -> void:
 	nombre.add_theme_color_override("font_color", DARK)
 	box.add_child(nombre)
 	# EL CAMBIO, cuando lo hay: lo que hacía y lo que hace ahora, uno debajo
-	# del otro. En el rango 1 no hay "antes" que enseñar, solo el estreno.
+	# del otro. En el rango 1 no hay "antes" que enseñar, así que lo que va es
+	# QUÉ HACE la habilidad recién aprendida — el nombre solo no lo dice, y es
+	# justo lo que el jugador acaba de comprar sin verlo.
 	var y_boton := 352.0
+	if antes <= 0:
+		var estreno := Label.new()
+		estreno.text = SkillData.rank_text(id, ahora)
+		estreno.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		estreno.offset_left = 40.0
+		estreno.offset_right = -40.0
+		estreno.offset_top = 340.0
+		estreno.offset_bottom = 400.0
+		estreno.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		estreno.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		estreno.add_theme_font_size_override("font_size", 22)
+		estreno.add_theme_color_override("font_color", Color(0.20, 0.48, 0.18))
+		box.add_child(estreno)
+		var pie := Label.new()
+		pie.text = str(s.get("desc", ""))
+		pie.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		pie.offset_left = 44.0
+		pie.offset_right = -44.0
+		pie.offset_top = 402.0
+		pie.offset_bottom = 448.0
+		pie.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		pie.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		pie.add_theme_font_size_override("font_size", 18)
+		pie.add_theme_color_override("font_color", FADED)
+		box.add_child(pie)
+		y_boton = 452.0
 	if antes > 0:
 		var viejo := Label.new()
 		viejo.text = SkillData.rank_text(id, antes)

@@ -1020,6 +1020,32 @@ func refund_skill(id: String) -> bool:
 	return true
 
 
+## REINICIA UN ÁRBOL ENTERO: saca todos los puntos de sus cinco habilidades y
+## los devuelve al bolsillo. Devuelve cuántos ha recuperado.
+##
+## NO pasa por `refund_skill`: ese tiene el candado de los prerrequisitos (no
+## deja quitar el punto que sostiene a una aprendida), y aquí se van TODAS a la
+## vez, así que ninguna se queda huérfana. Es la salida rápida para el jugador
+## que quiere replantear su árbol sin ir punto a punto.
+func reset_skill_tree(tree: String) -> int:
+	var sueltos := 0
+	for id in SkillData.tree_skills(tree):
+		var sid := str(id)
+		sueltos += skill_points(sid)
+		skills.erase(sid)
+	if sueltos > 0:
+		save_game()
+	return sueltos
+
+
+## Puntos invertidos en TODO un árbol (lo que devolvería reiniciarlo).
+func tree_points(tree: String) -> int:
+	var total := 0
+	for id in SkillData.tree_skills(tree):
+		total += skill_points(str(id))
+	return total
+
+
 ## Suma experiencia y devuelve los niveles ganados. El aviso de subida sale por
 ## la capa global (un solo toast aunque caigan varios niveles de golpe: un pago
 ## gordo del arcade puede subir cinco y cinco carteles serían spam).

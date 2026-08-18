@@ -830,8 +830,107 @@ def build_skills() -> None:
     for name in ("tab_cuchillo", "tab_cliente", "tab_chef"):
         save(fit_max(crop_alpha(drop_specks(drop_white(load("skills/" + name))), 2),
                      96), name)
-    save(fit_max(crop_alpha(drop_specks(drop_white(load("skills/boton_menos"))), 2),
-                 52), "boton_menos")
+    # La CHAPA de los puntos de habilidad: medalla de oro con el disco azul
+    # VACIO (el numero se imprime encima desde el juego). Sustituyo a un
+    # circulo azul liso dibujado por codigo, que al lado del resto del set se
+    # leia como un marcador de posicion.
+    save(fit_max(crop_alpha(drop_specks(drop_white(load("skills/chapa_puntos"))),
+                            2), 120), "chapa_puntos")
+    derive_minus_button()
+
+
+def derive_minus_button() -> None:
+    """`boton_menos.png` NO se genera: se DERIVA de `boton_mas.png`, para que
+    los dos discos de reparto de las Maestrias sean el mismo boton. Se le
+    cambia el campo verde por ROJO y de la cruz crema se queda solo el brazo
+    horizontal. Generado aparte con Ludo salia un disco rojo plano, sin aro
+    dorado ni bisel, y se veia que no eran pareja.
+
+    Dos cosas que costaron una pasada cada una:
+      1) la cruz hay que DILATARLA antes de borrarla, o su antialias sobrevive
+         y deja un fantasma claro con la silueta del brazo vertical;
+      2) el hueco se rellena INTERPOLANDO DE LADO A LADO en su propia fila. Se
+         probo con la media de cada ANILLO (el disco es simetrico) y dejaba
+         manchas: a ese radio el anillo pasa por el brillo de arriba a la
+         izquierda y lo repartia por todo el circulo."""
+    import math
+    ROJO = (188, 60, 50)   # rojo calido del set, a la luminancia del verde base
+    VERDE_G = 144.0        # canal verde del campo del boton (53,144,74)
+    im = Image.open(OUT / "boton_mas.png").convert("RGBA")
+    W, H = im.size
+    src = im.load()
+    cx0, cy0 = (W - 1) / 2.0, (H - 1) / 2.0
+
+    # La cruz crema: clara, poco saturada y CERCA DEL CENTRO (el brillo de
+    # arriba a la izquierda tambien es casi blanco y no es la cruz).
+    cruz = [[False] * W for _ in range(H)]
+    for y in range(H):
+        for x in range(W):
+            r, g, b, a = src[x, y]
+            if a < 128 or math.hypot(x - cx0, y - cy0) > min(W, H) * 0.34:
+                continue
+            if min(r, g, b) > 170 and (max(r, g, b) - min(r, g, b)) < 70:
+                cruz[y][x] = True
+    xs = [x for y in range(H) for x in range(W) if cruz[y][x]]
+    assert xs, "no se ha encontrado la cruz de boton_mas"
+    ancho = max(xs) - min(xs) + 1
+    filas = [sum(1 for x in range(W) if cruz[y][x]) for y in range(H)]
+    banda = [y for y in range(H) if filas[y] >= ancho * 0.9]
+    b0, b1 = min(banda), max(banda)
+
+    DIL = 2
+    ancha = [[False] * W for _ in range(H)]
+    for y in range(H):
+        for x in range(W):
+            if not cruz[y][x]:
+                continue
+            for dy in range(-DIL, DIL + 1):
+                for dx in range(-DIL, DIL + 1):
+                    if 0 <= y + dy < H and 0 <= x + dx < W:
+                        ancha[y + dy][x + dx] = True
+
+    def relleno(y, x):
+        izq, der = x - 1, x + 1
+        while izq >= 0 and ancha[y][izq]:
+            izq -= 1
+        while der < W and ancha[y][der]:
+            der += 1
+        a_i = src[izq, y] if izq >= 0 and src[izq, y][3] >= 128 else None
+        a_d = src[der, y] if der < W and src[der, y][3] >= 128 else None
+        if a_i is None and a_d is None:
+            return (53, 144, 74)
+        if a_i is None:
+            return a_d[:3]
+        if a_d is None:
+            return a_i[:3]
+        t = float(x - izq) / float(der - izq)
+        return tuple(int(a_i[i] * (1.0 - t) + a_d[i] * t) for i in range(3))
+
+    out = Image.new("RGBA", (W, H))
+    dst = out.load()
+    for y in range(H):
+        for x in range(W):
+            if src[x, y][3] >= 128 and ancha[y][x]:
+                dst[x, y] = relleno(y, x) + (255,)
+            else:
+                dst[x, y] = src[x, y]
+    # Verde -> ROJO. El canal verde lleva TODO el sombreado del campo, asi que
+    # se usa de factor: el bisel, la sombra del borde y el brillo se conservan.
+    for y in range(H):
+        for x in range(W):
+            r, g, b, a = dst[x, y]
+            if a < 8 or not (g > r + 12 and g > b + 12):
+                continue
+            s = g / VERDE_G
+            dst[x, y] = (min(255, int(ROJO[0] * s)), min(255, int(ROJO[1] * s)),
+                         min(255, int(ROJO[2] * s)), a)
+    # Y se vuelve a pegar el brazo horizontal, calcado del original.
+    for y in range(b0, b1 + 1):
+        for x in range(W):
+            if cruz[y][x]:
+                dst[x, y] = src[x, y]
+    out.save(OUT / "boton_menos.png")
+    print("boton_menos            %dx%d (derivado de boton_mas)" % (W, H))
 
 
 # ---------------------------------------------- panel del menu y su timon
