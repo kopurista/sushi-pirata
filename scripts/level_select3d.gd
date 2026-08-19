@@ -218,7 +218,7 @@ func _setup_sea() -> void:
 	# se vea. OJO con la escala: la cámara del juego enseña solo 9.5 u de ancho,
 	# así que la espuma a tamaño "de verdad" salía en manchas de medio palmo y
 	# el mar parecía una vaca.
-	mat.set_shader_parameter("tile", Vector2(SEA_SIZE * 1.6, SEA_SIZE * 1.6))
+	mat.set_shader_parameter("tile", Vector2(SEA_SIZE * 1.0, SEA_SIZE * 1.0))
 	# El plano del mar no proyecta sombra sobre nada: fuera del pase de sombras.
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.material_override = mat

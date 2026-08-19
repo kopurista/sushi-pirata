@@ -53,7 +53,7 @@ static func build(root: Node3D, kind: String, cam_size := 19.0,
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/water_ww.gdshader")
 	mat.set_shader_parameter("espuma", load("res://assets/map/espuma_ww.webp"))
-	mat.set_shader_parameter("tile", Vector2(192.0, 192.0))
+	mat.set_shader_parameter("tile", Vector2(120.0, 120.0))
 	# El plano del mar no proyecta sombra sobre nada: fuera del pase de sombras.
 	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	sea.material_override = mat

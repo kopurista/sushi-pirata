@@ -21,13 +21,16 @@ from PIL import Image
 
 SIZE = 1024
 BORDE = 0.002  # el smoothstep del original
-# LOS CIRCULOS SE HINCHAN UN PELO respecto al original. El dibujo es "todo
-# blanco MENOS los circulos", y con los radios tal cual el blanco sale al 15,6%
-# de la superficie: con el mar cubriendo la pantalla entera, tanta espuma se
-# lee como una RED. MEDIDO: 1.00 -> 15,6% | 1.05 -> 11,4% | 1.12 -> 6,5% (los
-# circulos estan al borde de la percolacion, asi que un pelo de radio se lleva
-# por delante la mitad del blanco: no subirlo a ojo).
-RADIO_MULT = 1.05
+# LOS CIRCULOS SE HINCHAN respecto al original. El dibujo es "todo blanco MENOS
+# los circulos", y con los radios tal cual el blanco sale al 15,6% de la
+# superficie: con el mar cubriendo la pantalla entera, tanta espuma se lee como
+# una RED de lineas blancas. MEDIDO: 1.00 -> 15,6% | 1.05 -> 11,4% |
+# 1.12 -> 6,5%. Los circulos estan al borde de la PERCOLACION, asi que un pelo
+# de radio se lleva por delante la mitad del blanco (no subirlo a ojo) — y ahi
+# esta la gracia: pasado el punto de rotura, la red se parte en manchas SUELTAS
+# con mar liso entre ellas, que es lo que hace que parezca que hay poca espuma.
+# A 1.11 todavia hace red; a 1.14 ya son manchas separadas.
+RADIO_MULT = 1.14
 
 # Los 75 circulos del shader, tal cual: (x, y, s) con radio = sqrt(s).
 CIRCULOS = [

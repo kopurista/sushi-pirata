@@ -2450,15 +2450,19 @@ fondo de prep_screen/tienda/inventario (`scene_backdrop`). El
   el mar entero contra un material plano.
 - **EL RADIO DE LOS CÍRCULOS ES UNA PERILLA DELICADA** (`RADIO_MULT`): el
   dibujo es "todo blanco MENOS los círculos", y están al borde de la
-  percolación, así que un pelo de radio se lleva por delante la mitad del
-  blanco. MEDIDO: 1.00 → 15,6% de espuma · 1.05 → 11,4% · 1.12 → 6,5%. Va a
-  **1.05**: con el 15,6% del original el mar se lee como una RED de líneas
-  blancas.
+  PERCOLACIÓN, así que un pelo de radio se lleva por delante la mitad del
+  blanco. MEDIDO: 1.00 → 15,6% de espuma · 1.05 → 11,4% · 1.12 → 6,5%. Y ahí
+  está la gracia: **pasado el punto de rotura la red se parte en manchas
+  SUELTAS con mar liso entre ellas**, que es lo que hace que parezca que hay
+  poca espuma. A 1.11 todavía hace red; va a **1.14**, ya en manchas sueltas.
+  Con el 15,6% del original el mar se lee como una rejilla de líneas blancas.
 - **LA ESCALA (`tile`) SE MIDE CONTRA ESTA CÁMARA, no contra el mundo**: el
   juego enseña solo **9,5 u de ancho**, así que la espuma al tamaño "de verdad"
   del original salía en manchas de medio palmo y el mar parecía una vaca. Una
-  baldosa cada ~2,5 u en las tres pantallas (mapa 190·1.6, nivel 144, fondos
-  192; el shader multiplica por 0.25 por dentro, como el original).
+  baldosa cada ~4 u en las tres pantallas (mapa 190·1.0, nivel 90, fondos 120;
+  el shader multiplica por 0.25 por dentro, como el original). El TAMAÑO de la
+  baldosa es lo que SEPARA unas manchas de espuma de otras y el radio lo que
+  las ADELGAZA: para "menos espuma" hacen falta las dos cosas.
 - **EL OLEAJE ES DESPLAZAMIENTO DE VÉRTICE**: los planos del mar necesitan
   `subdivide_width/depth` (48 el mapa, 36 el nivel, 40 los fondos) o no se
   mueve nada — un PlaneMesh a pelo son dos triángulos.

@@ -1030,7 +1030,7 @@ func _add_sea() -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/water_ww.gdshader")
 	mat.set_shader_parameter("espuma", load("res://assets/map/espuma_ww.webp"))
-	mat.set_shader_parameter("tile", Vector2(144.0, 144.0))
+	mat.set_shader_parameter("tile", Vector2(90.0, 90.0))
 	sea.material_override = mat
 	add_child(sea)
 
