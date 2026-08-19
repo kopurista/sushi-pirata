@@ -1792,6 +1792,12 @@ primera vez que se entra en ellos (`logros_intro_done` /
   Las tres stats nuevas se apuntan en `_finalize_results`; el galón cuelga de
   `arcade_best`, que NO es una stat, así que `record_arcade_wave` pide la
   pasada de logros a mano.
+  **Y LOS PALILLOS SON UN ESCALÓN, no tres premios sueltos**
+  (`PALILLOS_IDS` / `PALILLOS_PLATOS`): el mismo objeto en madera, plata y
+  oro a los 300, 2.000 y 8.000 platos servidos (`dishes_made`, que no cuenta
+  los del ayudante). Se comprueban los TRES escalones en cada pasada, no
+  solo el siguiente: quien llegue de golpe se los lleva todos, de uno en uno
+  y con su ventana.
   **LOS COLECCIONABLES CON ESCENA** (`CollectibleData.SCENE_ITEMS`) apuntan su
   id en `GameState.pending_col_scenes` (una COLA persistente) y la representa
   `main_menu._escena_coleccionable` al cerrar la pesca, con un guion por id en

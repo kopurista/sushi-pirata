@@ -1781,6 +1781,14 @@ func _run_achievement_check() -> void:
 		unlock_collectible("campana_servicio")
 	if get_stat("bosses_beaten") > 0:
 		unlock_collectible("diente_kappa")
+	# LOS PALILLOS suben de material con los platos servidos. Se comprueban los
+	# tres escalones, no solo el siguiente: quien llegue de golpe (un guardado
+	# viejo con miles de platos) se los lleva todos, de uno en uno y con su
+	# ventana, que es como se ganan.
+	var platos := get_stat("dishes_made")
+	for i in CollectibleData.PALILLOS_IDS.size():
+		if platos >= int(CollectibleData.PALILLOS_PLATOS[i]):
+			unlock_collectible(str(CollectibleData.PALILLOS_IDS[i]))
 	# Medallas nuevas desde la última pasada: un toast por medalla. NO se
 	# guarda aquí a propósito (`seen_medals` viaja con el siguiente save
 	# natural): guardar a disco en mitad de una partida daría un tirón.

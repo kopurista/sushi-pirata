@@ -48,6 +48,12 @@ const CUCHILLO_CORTES := 200
 const GALON_OLEADA := 20
 const DELANTAL_TIRADOS := 100
 const CAMPANA_PROPINA := 30
+## LOS PALILLOS son un ESCALÓN, no tres premios sueltos: el mismo objeto en
+## madera, plata y oro según los platos servidos de toda la vida (la stat
+## `dishes_made`, que NO cuenta los del ayudante). Los tres van en el mismo
+## orden que `PALILLOS_PLATOS`.
+const PALILLOS_IDS := ["palillos_madera", "palillos_plata", "palillos_oro"]
+const PALILLOS_PLATOS := [300, 2000, 8000]
 
 ## COLECCIONABLES CON ESCENA: al conseguirlos dejan su id en
 ## `GameState.pending_col_scenes` y alguien la representa después (hoy
@@ -142,9 +148,14 @@ const ITEMS: Array = [
 		"desc": "Se le cayó al jefe cuando por fin se dio por servido." },
 	{ "id": "koinobori", "name": "Koinobori", "desc": "" },
 	{ "id": "omamori", "name": "Omamori", "desc": "" },
-	{ "id": "palillos_madera", "name": "Palillos de madera", "desc": "" },
-	{ "id": "palillos_plata", "name": "Palillos de plata", "desc": "" },
-	{ "id": "palillos_oro", "name": "Palillos de oro", "desc": "" },
+	{ "id": "palillos_madera", "name": "Palillos de madera",
+		"desc": "Por servir tus primeros %d platos." % PALILLOS_PLATOS[0] },
+	{ "id": "palillos_plata", "name": "Palillos de plata",
+		"desc": "Por servir %d platos. La mano ya no tiembla."
+			% PALILLOS_PLATOS[1] },
+	{ "id": "palillos_oro", "name": "Palillos de oro",
+		"desc": "Por servir %d platos. Esto ya es un oficio."
+			% PALILLOS_PLATOS[2] },
 	# --- Piratas del Caribe --------------------------------------------------
 	{ "id": "perla_negra", "name": "Perla negra",
 		"desc": "Salió de un cofre pescado en alta mar." },
