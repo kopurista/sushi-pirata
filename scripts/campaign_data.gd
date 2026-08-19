@@ -519,8 +519,6 @@ const PORTS: Array = [
 		"star_money": [40, 68, 105],
 		# EL NIVEL DE LOS BONIFICADORES: David los explica antes de empezar y
 		# regala el del PALADAR, que es el único que se puede ganar todavía.
-		"unlocks_perk": "paladar",
-		"prep_dialog": "nivel_9",
 		"director": "nivel_9",
 		"reward_recipes": [],
 		"reward_recipes_3": ["udon"],
@@ -623,6 +621,7 @@ const PORTS: Array = [
 		"goal_stars": 2,
 		"star_money": [48, 82, 125],
 		# EL AYUDANTE: aquí se presenta y desde aquí se puede ganar.
+		"unlocks_perks": true,
 		"unlocks_perk": "ayudante",
 		"prep_dialog": "nivel_13",
 		"director": "nivel_13",

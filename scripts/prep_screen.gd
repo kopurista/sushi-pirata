@@ -156,22 +156,6 @@ func _aviso_antes_de_zarpar() -> void:
 		return
 	var lineas: Array = []
 	match guion:
-		"nivel_9":
-			# EL NIVEL DE LOS BONIFICADORES. David los explica y REGALA el del
-			# paladar aquí mismo, en el selector, para que el jugador lo vea
-			# aparecer en su fila y se lo ponga antes de zarpar (el botón de
-			# ¡Zarpar! no le deja salir sin él: ver `_on_start_pressed`).
-			GameState.unlock_perk("paladar")
-			lineas = [
-				{ "text": "Antes de zarpar, una palabra sobre los **bonificadores**.", "mood": "hablando" },
-				{ "text": "No son los potenciadores del bote: esos duran un turno y salen solos. Los **bonificadores** se eligen AQUÍ, antes de empezar, y valen para toda la jornada.", "mood": "serio" },
-				{ "text": "Cada uno se gana haciendo algo concreto en partida, y cada vez que lo repitas te llevas otro uso. Y se **mejoran con doblones** desde el menú.", "mood": "hablando" },
-				{ "text": "Toma el primero: **Paladar de capitán**. Con él, la chapa de tus clientes llega a **x6** en vez de quedarse en x5.", "mood": "feliz" },
-				{ "text": "¡PÓNTELO, GRUMETE! ¡ESTÁ AHÍ ABAJO! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
-			]
-			# La fila de bonificadores se construyó antes de este regalo: se
-			# rehace para que el pergamino nuevo salga sin tener que volver.
-			_rebuild_perk_bar.call_deferred()
 		"nivel_13":
 			lineas = [
 				{ "text": "Diez comandas, %s. Hoy vas a echar de menos un segundo par de manos." % GameState.player_title(), "mood": "serio" },
@@ -853,17 +837,6 @@ func _update_ui() -> void:
 		if not is_instance_valid(carta):
 			continue
 		PrepBoard.set_dimmed(carta, llena and not (id in selected))
-
-
-## Vuelve a montar la fila de bonificadores. Hace falta cuando el aviso previo
-## REGALA uno (el paladar del nivel 9): la fila se construyó en el `_ready`, o
-## sea antes del regalo, y sin esto el pergamino nuevo no aparecía hasta salir
-## de la pantalla y volver a entrar.
-func _rebuild_perk_bar() -> void:
-	if perk_bar != null and is_instance_valid(perk_bar):
-		perk_bar.queue_free()
-		perk_bar = null
-	_add_perk_bar(load("res://scripts/prep_board.gd"))
 
 
 ## ¿Lleva la selección algún plato de N estrellas o más?

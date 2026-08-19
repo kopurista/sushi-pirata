@@ -91,7 +91,7 @@ cocinar antes de aprender a leer paladares.
 | 6 | Bahía del Kraken | puerto | los EXTRAS |
 | 7 | Estrecho del Rayo | abordaje | primer ABORDAJE, EL pirata y su BANDERA |
 | 8 | Isla de Gades | isla | CAI y la PESCA |
-| 9 | Puerto Tormenta | puerto | los BONIFICADORES (regala el paladar) |
+| 9 | Puerto Tormenta | puerto | SIN lección: el examen antes de Pablo |
 | 10 | Flota de Pablo | abordaje | CAPITANES, corte lento y LINGOTES |
 | 11 | Cala del Hambre | isla | bocado acelerado y el futomaki |
 | 12 | Ensenada del Naufragio | puerto | clientes que pagan con COLECCIONABLES |
@@ -106,6 +106,18 @@ fuera el tercero del 7 ni que cada tanda del 9 llevara dos), **`first_arrival`**
 **`collectible_client`** ({who, type, item, plates}: paga con una pieza de
 vitrina en vez de con oro) y **`unlocks_perk`** (compuerta: un bonificador no
 se puede ganar antes del puerto que lo presenta).
+
+**LOS BONIFICADORES LLEGAN CON ALICE, TODOS DE GOLPE** (decidido por el
+usuario, no re-litigar): el sistema no existe hasta superar SU escenario, el
+**17** (`unlocks_perks: true` en `nivel_13`), que es donde ella se enrola de
+ayudante de cocina. `GameState.perks_unlocked()` lo resuelve y
+`perk_gate_open()` lo exige ANTES de mirar la compuerta propia de cada uno.
+Estuvo repartido y mal: Puerto Tormenta (escenario 13) regalaba el paladar con
+una parrafada de David en el selector, y **`cocina_veloz` no tenía compuerta
+ninguna**, así que se ganaba desde el escenario 1 — un bonificador apareciendo
+en el cartel de resultados antes de que nadie hubiera dicho qué era eso. Hoy
+solo `ayudante` (el 17) y `barco` (el 18) atan puerto propio; los otros dos
+abren con el sistema.
 
 **LOS BONIFICADORES SE MEJORAN, NO SE COMPRAN POR USOS** (`PerkData`): cinco
 niveles por bonificador (500 / 2.000 / 5.000 / 10.000 doblones) y la pantalla

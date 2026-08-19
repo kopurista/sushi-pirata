@@ -788,11 +788,16 @@ func _check_perk_unlocks() -> Array:
 				and c.eaten_ids.size() >= PerkData.UNLOCK_HELPER_PLATES:
 			bien_servidos += 1
 			most = maxi(most, int(c.eaten_ids.size()))
+	# TODOS pasan por `perk_gate_open`, que exige primero que los bonificadores
+	# existan como sistema (llegan con Alice). `cocina_veloz` se quedó sin esa
+	# comprobación y se ganaba desde el escenario 1, o sea antes de que nadie
+	# hubiera explicado qué era un bonificador.
 	if most >= PerkData.UNLOCK_PLATES_ONE_CLIENT \
+			and GameState.perk_gate_open("cocina_veloz") \
 			and GameState.unlock_perk("cocina_veloz"):
 		newly.append("cocina_veloz")
-	# El AYUDANTE sigue bloqueado hasta el puerto que lo presenta (el 13): sin
-	# esa escena, aparecería un muñeco en la cocina sin que nadie lo explique.
+	# El AYUDANTE es Alice, así que su puerto es justo el que abre el sistema:
+	# sin esa escena, aparecería un muñeco en la cocina sin que nadie lo explique.
 	if bien_servidos >= PerkData.UNLOCK_HELPER_CLIENTS \
 			and GameState.perk_gate_open("ayudante") \
 			and GameState.unlock_perk("ayudante"):

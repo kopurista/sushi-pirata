@@ -827,11 +827,28 @@ func add_perk_uses(id: String, amount: int) -> void:
 	perk_uses[id] = get_perk_uses(id) + amount
 
 
-## ¿Está ABIERTA la compuerta de campaña de este bonificador? Cada uno lo
-## presenta un puerto (`unlocks_perk` en CampaignData) y hasta ese momento no se
-## puede ganar aunque se cumpla su combo: aparecería una mecánica sin explicar.
-## Un bonificador que no lo pida ningún puerto está abierto desde siempre.
+## ¿Existen ya los BONIFICADORES como sistema? Se abren con la llegada de ALICE
+## y su ayudante de cocina (`unlocks_perks` en CampaignData), y NO antes: hasta
+## ese momento no se pueden ganar, ni siquiera los que no atan su propio puerto.
+## Estuvo repartido —el paladar lo regalaba Puerto Tormenta y `cocina_veloz` no
+## tenía compuerta ninguna, así que se ganaba desde el escenario 1—, y así los
+## bonificadores aparecían a cachos y sin una escena detrás.
+func perks_unlocked() -> bool:
+	for p in CampaignData.PORTS:
+		if not bool(p.get("unlocks_perks", false)):
+			continue
+		return int(level_stars.get(p["id"], 0)) >= int(p.get("goal_stars", 1))
+	return true
+
+
+## ¿Está ABIERTA la compuerta de campaña de este bonificador? Primero tiene que
+## existir el sistema (ver arriba); además, cada bonificador puede tener SU
+## puerto (`unlocks_perk`), y hasta ese momento no se gana aunque se cumpla su
+## combo: aparecería una mecánica sin explicar. Uno que no pida puerto propio
+## está abierto en cuanto lo está el sistema.
 func perk_gate_open(id: String) -> bool:
+	if not perks_unlocked():
+		return false
 	for p in CampaignData.PORTS:
 		if str(p.get("unlocks_perk", "")) != id:
 			continue
