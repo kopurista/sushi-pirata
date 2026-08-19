@@ -54,6 +54,9 @@ const CAMPANA_PROPINA := 30
 ## orden que `PALILLOS_PLATOS`.
 const PALILLOS_IDS := ["palillos_madera", "palillos_plata", "palillos_oro"]
 const PALILLOS_PLATOS := [300, 2000, 8000]
+## La PIEDRA DE AFILAR es el escalón siguiente del cuchillo del maestro: se
+## gasta de tanto afilarlo, así que cuelga de los mismos cortes lentos.
+const PIEDRA_CORTES := 1000
 
 ## COLECCIONABLES CON ESCENA: al conseguirlos dejan su id en
 ## `GameState.pending_col_scenes` y alguien la representa después (hoy
@@ -115,6 +118,14 @@ const ITEMS: Array = [
 	{ "id": "pluma_escribir", "name": "Pluma de escribir", "desc": "" },
 	{ "id": "barril", "name": "Barril", "desc": "" },
 	{ "id": "saco_cafe", "name": "Saco de café", "desc": "" },
+	{ "id": "botella_mensaje", "name": "Botella con mensaje",
+		"desc": "Salió de un cofre pescado en alta mar. El mensaje sigue enrollado." },
+	{ "id": "farol_aceite", "name": "Farol de aceite",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "astrolabio_roto", "name": "Astrolabio roto",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "bitacora_roto", "name": "Cuaderno de bitácora roto",
+		"desc": "Salió de un cofre pescado en alta mar. No queda nada legible." },
 	{ "id": "tentaculo", "name": "Tentáculo de kraken",
 		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "hueso", "name": "Hueso",
@@ -136,6 +147,11 @@ const ITEMS: Array = [
 	{ "id": "cuchillo_maestro", "name": "Cuchillo del maestro",
 		"desc": "Por bordar %d cortes lentos sin pasarte de rápido."
 			% CUCHILLO_CORTES },
+	{ "id": "piedra_afilar", "name": "Piedra de afilar gastada",
+		"desc": "Hundida por el medio de afilar ese cuchillo %d veces."
+			% PIEDRA_CORTES },
+	{ "id": "plato_quemado", "name": "Plato quemado",
+		"desc": "El primero que se te fue al cubo. Se guarda para no repetirlo." },
 	{ "id": "galon_oro", "name": "Galón de oro",
 		"desc": "Por aguantar hasta la oleada %d del Arcade." % GALON_OLEADA },
 	{ "id": "delantal_chamuscado", "name": "Delantal chamuscado",
@@ -209,6 +225,18 @@ const ITEMS: Array = [
 		"desc": "Salió de un cofre pescado en alta mar." },
 	# --- Popeye --------------------------------------------------------------
 	{ "id": "lata_espinacas", "name": "Lata de espinacas",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- La Odisea -----------------------------------------------------------
+	{ "id": "tapones_cera", "name": "Tapones de cera",
+		"desc": "Salió de un cofre pescado en alta mar. Contra el canto de las sirenas." },
+	# --- Robinson Crusoe -----------------------------------------------------
+	{ "id": "huella_arena", "name": "Molde de una huella",
+		"desc": "Salió de un cofre pescado en alta mar. Alguien más pisó esa playa." },
+	# --- Tiburón -------------------------------------------------------------
+	{ "id": "bidon_amarillo", "name": "Bidón amarillo",
+		"desc": "Salió de un cofre pescado en alta mar. Con dos mordiscos de algo grande." },
+	# --- Sea of Thieves ------------------------------------------------------
+	{ "id": "banana", "name": "Banana",
 		"desc": "Salió de un cofre pescado en alta mar." },
 	# --- Las aventuras de Tintín ---------------------------------------------
 	{ "id": "maqueta_unicornio", "name": "Maqueta del Unicornio",

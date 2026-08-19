@@ -592,6 +592,9 @@ COLLECTIBLES = [
     "maqueta_unicornio", "ojo_cobre", "delantal_chamuscado",
     "campana_servicio", "diente_kappa", "koinobori", "omamori",
     "palillos_madera", "palillos_plata", "palillos_oro", "tarro_ponyo",
+    "tapones_cera", "huella_arena", "bidon_amarillo", "banana",
+    "astrolabio_roto", "bitacora_roto", "botella_mensaje", "farol_aceite",
+    "piedra_afilar", "plato_quemado",
 ]
 
 

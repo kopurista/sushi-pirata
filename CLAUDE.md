@@ -1751,7 +1751,7 @@ primera vez que se entra en ellos (`logros_intro_done` /
     conseguido (nada de un aluvión de toasts al arrancar), pero `claimed`
     queda vacío → todo lo ganado hasta hoy se puede reclamar del tirón.
     Asumido: es el mismo criterio retroactivo de los logros.
-- `scripts/collectible_data.gd` — catálogo de COLECCIONABLES (78, solo datos:
+- `scripts/collectible_data.gd` — catálogo de COLECCIONABLES (88, solo datos:
   id, nombre, `desc` = cómo se consigue o el guiño que lo explica, que SOLO se
   enseña ya conseguido).
   **El ORDEN de `ITEMS` es el de la vitrina y agrupa por REFERENCIA**: tesoros
@@ -1765,7 +1765,9 @@ primera vez que se entra en ellos (`logros_intro_done` /
   tirachinas/Usopp, sartén/Sanji, cuerno de reno/Chopper, sombrero
   vaquero/Robin, botella de cola/Franky, violín de esqueleto/Brook, y el
   caracol teléfono cerrando) → La Isla del Tesoro (marca negra) → Peter Pan
-  (reloj del cocodrilo) → Popeye (lata de espinacas) → Tintín (maqueta del
+  (reloj del cocodrilo) → Popeye (lata de espinacas) → La Odisea (tapones de
+  cera) → Robinson Crusoe (molde de una huella) → Tiburón (bidón amarillo) →
+  Sea of Thieves (banana) → Tintín (maqueta del
   Unicornio) → Los Goonies (ojo de cobre) → La Sirenita (tenedor) → El Planeta
   del Tesoro (esfera) → Studio Ghibli (colgante de Laputa y tarro de Ponyo) →
   Zelda (vela y batuta de Wind Waker, semilla dorada/kolog, reloj de
@@ -1780,7 +1782,7 @@ primera vez que se entra en ellos (`logros_intro_done` /
   en aventura, arcade o por vías especiales; la excepción son los que uno
   draga literalmente del fondo (botella, ancla, calavera, hueso, pata de palo,
   tentáculo, garfio, brújula, catalejo, bala de cañón), que también se pescan.
-  **Y hay cinco TROFEOS que se ganan COCINANDO**, con sus umbrales en
+  **Y hay siete TROFEOS que se ganan COCINANDO**, con sus umbrales en
   `CollectibleData` para que la ficha no pueda contradecirlos: **cuchillo del
   maestro** (`CUCHILLO_CORTES`, 200 cortes lentos bordados, stat `slices_ok`),
   **galón de oro** (`GALON_OLEADA`, oleada 20 del Arcade), **delantal
@@ -1792,6 +1794,10 @@ primera vez que se entra en ellos (`logros_intro_done` /
   Las tres stats nuevas se apuntan en `_finalize_results`; el galón cuelga de
   `arcade_best`, que NO es una stat, así que `record_arcade_wave` pide la
   pasada de logros a mano.
+  A esos cinco se suman la **piedra de afilar gastada** (`PIEDRA_CORTES`,
+  1.000 cortes lentos: es el escalón SIGUIENTE del cuchillo del maestro, se
+  gasta de tanto afilarlo) y el **plato quemado**, que es el recuerdo del
+  PRIMERO que se fue al cubo (`plates_wasted` > 0).
   **Y LOS PALILLOS SON UN ESCALÓN, no tres premios sueltos**
   (`PALILLOS_IDS` / `PALILLOS_PLATOS`): el mismo objeto en madera, plata y
   oro a los 300, 2.000 y 8.000 platos servidos (`dishes_made`, que no cuenta
@@ -1823,7 +1829,7 @@ primera vez que se entra en ellos (`logros_intro_done` /
     `who_override == "grumete_sombrero"` — stat `fed_sombrero`; el personaje
     con sombrero AÚN NO EXISTE, queda para niveles futuros). Los tres de stats
     se comprueban al principio de `_run_achievement_check`.
-  · **Pescables** (`FishData.FISHING_COLLECTIBLES`, 48): salen del COFRE del
+  · **Pescables** (`FishData.FISHING_COLLECTIBLES`, 56): salen del COFRE del
     minijuego de PESCA, y son DOS familias — **todas las REFERENCIAS** a otras
     obras (Zelda, One Piece, Monkey Island, Day of the Tentacle, Piratas del
     Caribe, La Isla del Tesoro, Peter Pan, Popeye, El Planeta del Tesoro,

@@ -363,6 +363,10 @@ const FISHING_COLLECTIBLES: Array = [
 	"sombrero_vaquero", "botella_cola", "violin_esqueleto", "caracol_telefono",
 	# La Isla del Tesoro, Peter Pan y Popeye.
 	"marca_negra", "reloj_cocodrilo", "lata_espinacas",
+	# Del naufragio (piratas genericos que uno draga del fondo).
+	"botella_mensaje", "farol_aceite", "astrolabio_roto", "bitacora_roto",
+	# La Odisea, Robinson Crusoe, Tiburon y Sea of Thieves.
+	"tapones_cera", "huella_arena", "bidon_amarillo", "banana",
 	# Tintin, Los Goonies y La Sirenita.
 	"maqueta_unicornio", "ojo_cobre", "tenedor",
 	# El Planeta del Tesoro y Studio Ghibli (Laputa y Ponyo).
