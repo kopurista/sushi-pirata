@@ -1882,18 +1882,17 @@ primera vez que se entra en ellos (`logros_intro_done` /
     tachado de la papelera y el hueco del engranaje. Comprobado midiendo
     el ALFA del centro, no mirando la miniatura: ahí un hueco transparente
     y uno relleno de blanco se ven igual.
-  · **LOS TESOROS ESTÁN SUCIOS** (regla del usuario): llevan años perdidos en
-    el fondo del mar o en la bodega de un naufragio, así que no pueden verse
-    recién comprados. Se pide ya en el prompt de Ludo ("worn", "stained",
-    "tarnished") Y se remata por código con `ensuciar()` de `ui2_prep.py`,
-    que pasa manchas de baja frecuencia, un punto de desaturación y un tinte
-    pardo sobre el dibujo ya recortado (sin tocar el alfa). La semilla sale
-    del NOMBRE, no del reloj: el mismo icono sale siempre con las mismas
-    manchas y relanzar el script no cambia el arte. **La fuerza está medida**
-    (0.46): a 0.22 no se distinguía del original y a 0.52 el latón del
-    catalejo se iba a gris verdoso. Quedan fuera (`NO_ENSUCIAR`) el oro y lo
-    mágico, los trofeos recién ganados, la COMIDA y los que ya nacen sucios o
-    rotos por su propio dibujo — ensuciar dos veces es emborronar.
+  · **EL DESGASTE SE PIDE EN EL PROMPT, NO SE APLICA POR CÓDIGO.** Los
+    tesoros llevan años perdidos, así que a Ludo se le piden ya "worn",
+    "stained" o "tarnished" y el dibujo nace con su desgaste. Hubo además
+    un filtro de pátina (`ensuciar()` en ui2_prep: manchas de baja
+    frecuencia, desaturación y tinte pardo) que se aplicó a todo el
+    catálogo y **el usuario lo retiró** el 19-8-2026: apagaba demasiado el
+    color —el latón del catalejo y el oro de la espada perdían su
+    identidad— para lo que aportaba. La función y su lista de excepciones
+    siguen en el archivo, SIN llamar desde `build_collectibles`, por si
+    algún día se quiere recuperar: volver a encenderla es una línea. **No
+    reintroducirla sin pedirlo.**
   · **Iconos** `assets/ui/col_*.png`: Ludo (item-icon, Western Cartoon) →
     `_gen/ui2/col/` → `build_collectibles()` de `tools/ui2_prep.py` (con
     `drop_specks`, NUNCA `keep_largest`: la trifuerza son 8 fragmentos

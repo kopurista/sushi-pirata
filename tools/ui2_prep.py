@@ -608,7 +608,14 @@ COLLECTIBLES = [
 ]
 
 
-# PATINA DE TIEMPO: los coleccionables llevan ANOS perdidos —en el fondo del
+# PATINA DE TIEMPO: ***APAGADA*** (el usuario la pidio y luego la retiro,
+# 19-8-2026). La funcion y su lista de excepciones se quedan AQUI, sin
+# llamar desde `build_collectibles`, por si algun dia se quiere recuperar:
+# volver a encenderla es una linea. El desgaste que se sigue viendo en
+# muchos iconos es el que trae el PROPIO DIBUJO de Ludo (se pide en el
+# prompt), no este filtro.
+#
+# Lo que hacia: los coleccionables llevan ANOS perdidos —en el fondo del
 # mar, en un cofre, en la bodega de un naufragio— asi que no pueden verse
 # recien comprados. `ensuciar` les pasa manchas de baja frecuencia, un punto de
 # desaturacion y un tinte pardo. Se aplica al dibujo YA recortado y NO toca el
@@ -700,8 +707,7 @@ def build_collectibles() -> None:
         if name in CON_HUECO:
             img = fill_white_holes(img)
         img = fit_max(crop_alpha(drop_specks(img), 2), COLLECTIBLE_ICON_SIDE)
-        if name not in NO_ENSUCIAR:
-            img = ensuciar(img, name)
+        # (Aqui iba `ensuciar`: RETIRADO por el usuario, ver su nota arriba.)
         save(img, f"col_{name}")
 
 
