@@ -1080,6 +1080,10 @@ func _scenery_cueva() -> void:
 		var rocas := _spawn_model(load("res://assets/models/rocas.glb"),
 			r[0], float(r[1]), self)
 		rocas.rotation_degrees.y = r[0].x * 53.0 + r[0].z * 17.0
+		# La textura de rocas.glb es gris CLARA (es la roca de las islas al
+		# sol) y aqui dentro salia como nieve: se oscurece multiplicando el
+		# albedo, que es lo unico que hace de esta piedra piedra de cueva.
+		_entenebrecer(rocas, Color(0.40, 0.42, 0.52))
 		_add_blob_shadow(r[0] + Vector3(0.15, 0.02, 0.1),
 			float(r[1]) * 1.1, float(r[1]) * 0.7)
 	# Estalagmitas: conos de piedra que suben del suelo. Nada cuelga porque con
@@ -1090,8 +1094,9 @@ func _scenery_cueva() -> void:
 		_estalagmita(e[0], float(e[1]))
 	# Cristales que brillan: la firma de la cueva. Emisivos en verde agua (el
 	# color del Kappa), inclinados como si crecieran de la roca.
-	for c in [[Vector3(-5.0, 0.0, 1.8), 0.9, -18.0], [Vector3(2.6, 0.0, -5.3), 1.3, 14.0],
-			[Vector3(-2.9, 0.0, -5.4), 0.8, -9.0], [Vector3(5.4, 0.0, 1.2), 1.0, 22.0]]:
+	for c in [[Vector3(-5.0, 0.0, 1.8), 1.3, -18.0], [Vector3(2.6, 0.0, -5.3), 1.8, 14.0],
+			[Vector3(-2.9, 0.0, -5.4), 1.2, -9.0], [Vector3(5.4, 0.0, 1.2), 1.5, 22.0],
+			[Vector3(-4.6, 0.0, 3.6), 1.0, 12.0], [Vector3(4.9, 0.0, -2.9), 1.1, -15.0]]:
 		_cristal(c[0], float(c[1]), float(c[2]))
 	# Charcas de agua quieta, verdosas y a ras de suelo, por donde asoma lo que
 	# vive aqui abajo.
@@ -1113,7 +1118,7 @@ func _estalagmita(pos: Vector3, alto: float) -> void:
 	cono.radial_segments = 7
 	mi.mesh = cono
 	mi.position = pos + Vector3(0.0, alto * 0.5 - 0.05, 0.0)
-	mi.material_override = _mat(Color(0.30, 0.30, 0.36))
+	mi.material_override = _mat(Color(0.17, 0.17, 0.23))
 	add_child(mi)
 	_add_blob_shadow(pos + Vector3(0.05, 0.02, 0.05), alto * 0.7, alto * 0.45)
 
@@ -1124,8 +1129,8 @@ func _estalagmita(pos: Vector3, alto: float) -> void:
 func _cristal(pos: Vector3, alto: float, tilt: float) -> void:
 	var mi := MeshInstance3D.new()
 	var prisma := CylinderMesh.new()
-	prisma.top_radius = 0.02
-	prisma.bottom_radius = alto * 0.17
+	prisma.top_radius = 0.03
+	prisma.bottom_radius = alto * 0.24
 	prisma.height = alto
 	prisma.radial_segments = 6
 	mi.mesh = prisma
@@ -1134,9 +1139,25 @@ func _cristal(pos: Vector3, alto: float, tilt: float) -> void:
 	var mat := _mat(Color(0.35, 0.85, 0.72))
 	mat.emission_enabled = true
 	mat.emission = Color(0.18, 0.62, 0.5)
-	mat.emission_energy_multiplier = 1.4
+	mat.emission_energy_multiplier = 2.2
 	mi.material_override = mat
 	add_child(mi)
+
+
+## Multiplica el albedo de TODAS las superficies de un modelo (el color de un
+## StandardMaterial3D multiplica su textura). Duplica los materiales para no
+## tenebrecer al resto de instancias del mismo GLB en otras escenas.
+func _entenebrecer(pivot: Node3D, tinte: Color) -> void:
+	for m in pivot.find_children("*", "MeshInstance3D", true, false):
+		var mesh: Mesh = m.mesh
+		if mesh == null:
+			continue
+		for i in mesh.get_surface_count():
+			var mat: Material = m.get_active_material(i)
+			if mat is StandardMaterial3D:
+				var copia: StandardMaterial3D = mat.duplicate()
+				copia.albedo_color = tinte
+				m.set_surface_override_material(i, copia)
 
 
 func _scenery_island() -> void:
