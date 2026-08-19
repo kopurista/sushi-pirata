@@ -902,6 +902,14 @@ func _setup_environment() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.80, 0.85, 0.94)
 	env.ambient_light_energy = 1.15
+	# DENTRO DE LA CUEVA no entra el sol: fondo casi negro, ambiente escaso y
+	# frío en verde agua — el tono de los CRISTALES, que son "la luz" del sitio
+	# (la venden ellos con su emisión y sus charcos de resplandor; luces
+	# dinámicas de verdad costarían un pase que el móvil no paga).
+	if scenery_kind == "cueva":
+		env.background_color = Color(0.035, 0.045, 0.065)
+		env.ambient_light_color = Color(0.55, 0.75, 0.72)
+		env.ambient_light_energy = 0.72
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -910,6 +918,10 @@ func _setup_environment() -> void:
 	sun.rotation_degrees = Vector3(-52.0, -125.0, 0.0)
 	sun.light_energy = 1.45
 	sun.light_color = Color(1.0, 0.97, 0.9)
+	if scenery_kind == "cueva":
+		# Una "luna de cueva" tenue y azulada: lo justo para leer los relieves.
+		sun.light_energy = 0.55
+		sun.light_color = Color(0.62, 0.72, 0.85)
 	# SIN sombras proyectadas: cada elemento lleva su mancha fija (ver
 	# SceneBackdrop.blob_shadow). Con personajes que se mecen y palmeras de
 	# decenas de piezas, la sombra dinámica bailaba y costaba un pase entero.
@@ -985,7 +997,10 @@ func _box(size: Vector3, pos: Vector3, color: Color) -> MeshInstance3D:
 ## una isla, un puerto o el barco pirata (viejo y castigado) del abordaje.
 
 func _setup_scenery() -> void:
-	_add_sea()
+	# La CUEVA es interior: nada de mar alrededor — suelo de roca hasta donde
+	# alcanza la vista y paredes cerrando el fondo.
+	if scenery_kind != "cueva":
+		_add_sea()
 	match scenery_kind:
 		"cueva":
 			_scenery_cueva()
@@ -1064,69 +1079,133 @@ func _spawn_barrels(spots: Array, tipped_idx: int = -1) -> void:
 ## los modelos y helpers de siempre: rocas.glb para las paredes y geometría por
 ## código para el resto (GeometryBatch la funde al final, como en los demás).
 func _scenery_cueva() -> void:
-	# Suelo de piedra en dos discos, como la isla pero a oscuras: el de abajo
-	# casi negro hace de sombra del contorno.
-	_cyl(7.4, 7.8, 0.30, Vector3(0.0, -0.42, 0.0), Color(0.10, 0.10, 0.13))
-	var piedra := _cyl(6.9, 7.3, 0.28, Vector3(0.0, -0.14, 0.0),
-		Color(0.24, 0.24, 0.29))
-	piedra.material_override.roughness = 1.0
-	piedra.material_override.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-	# Paredes de roca por el fondo (fuera del pasillo de los clientes, radio
-	# 3.7 y bordas en ±4.2), apiladas para que se lean como caverna y no como
-	# pedruscos sueltos.
-	for r in [[Vector3(-5.3, 0.0, -4.6), 2.1], [Vector3(-2.2, 0.0, -5.8), 1.7],
-			[Vector3(1.6, 0.0, -5.9), 2.0], [Vector3(5.0, 0.0, -4.2), 1.8],
-			[Vector3(-6.1, 0.0, -0.6), 1.4], [Vector3(6.0, 0.0, -0.2), 1.3]]:
+	var piedra_tex: Texture2D = load("res://assets/props/piedra_cueva.webp")
+	var cristal_tex: Texture2D = load("res://assets/props/cristal_cueva.webp")
+	# SUELO DE ROCA hasta donde alcanza la vista (aqui no hay mar): un plano
+	# grande con la textura de piedra tileada, y encima los dos discos del
+	# monticulo de juego, triplanar para que el canto tambien sea piedra.
+	var suelo := MeshInstance3D.new()
+	var plano := PlaneMesh.new()
+	plano.size = Vector2(90.0, 90.0)
+	suelo.mesh = plano
+	suelo.position = Vector3(0.0, -0.55, 0.0)
+	suelo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	suelo.material_override = _mat_piedra(piedra_tex, Color(0.62, 0.64, 0.75), 6.0)
+	add_child(suelo)
+	_cyl_tex(7.4, 7.8, 0.30, Vector3(0.0, -0.42, 0.0), piedra_tex,
+		Color(0.42, 0.44, 0.54), 2.4)
+	_cyl_tex(6.9, 7.3, 0.28, Vector3(0.0, -0.14, 0.0), piedra_tex,
+		Color(0.78, 0.80, 0.92), 2.0)
+	# PAREDES: la cueva se cierra por el fondo y los lados con muros de piedra
+	# texturizada (triplanar) y, delante de ellos, rocas.glb entenebrecidas que
+	# rompen la silueta. El frente queda abierto: por ahi mira la camara.
+	for w in [[Vector3(0.0, 2.6, -8.6), Vector3(20.0, 7.0, 2.2), 0.0],
+			[Vector3(-8.8, 2.6, -3.0), Vector3(2.2, 7.0, 12.0), 0.0],
+			[Vector3(8.8, 2.6, -3.0), Vector3(2.2, 7.0, 12.0), 0.0],
+			[Vector3(-7.4, 2.6, -6.8), Vector3(4.0, 7.0, 4.0), 38.0],
+			[Vector3(7.4, 2.6, -6.8), Vector3(4.0, 7.0, 4.0), -38.0]]:
+		var muro := MeshInstance3D.new()
+		var caja := BoxMesh.new()
+		caja.size = w[1]
+		muro.mesh = caja
+		muro.position = w[0]
+		muro.rotation_degrees.y = w[2]
+		muro.material_override = _mat_piedra(piedra_tex, Color(0.5, 0.52, 0.63), 1.6)
+		add_child(muro)
+	for r in [[Vector3(-5.6, 0.0, -5.2), 2.3], [Vector3(-2.2, 0.0, -6.2), 1.8],
+			[Vector3(1.6, 0.0, -6.3), 2.1], [Vector3(5.2, 0.0, -4.8), 2.0],
+			[Vector3(-6.6, 0.0, -1.0), 1.6], [Vector3(6.5, 0.0, -0.6), 1.5]]:
 		var rocas := _spawn_model(load("res://assets/models/rocas.glb"),
 			r[0], float(r[1]), self)
 		rocas.rotation_degrees.y = r[0].x * 53.0 + r[0].z * 17.0
-		# La textura de rocas.glb es gris CLARA (es la roca de las islas al
-		# sol) y aqui dentro salia como nieve: se oscurece multiplicando el
-		# albedo, que es lo unico que hace de esta piedra piedra de cueva.
+		# La textura de rocas.glb es gris CLARA (la roca de las islas al sol):
+		# se oscurece multiplicando el albedo, o parecia nieve.
 		_entenebrecer(rocas, Color(0.40, 0.42, 0.52))
 		_add_blob_shadow(r[0] + Vector3(0.15, 0.02, 0.1),
 			float(r[1]) * 1.1, float(r[1]) * 0.7)
-	# Estalagmitas: conos de piedra que suben del suelo. Nada cuelga porque con
-	# la camara isometrica un techo taparia la partida.
+	# ESTALACTITAS colgando del techo que no se ve: nacen altas sobre la pared
+	# del fondo y asoman con la punta hacia abajo por el borde superior.
+	for e in [[Vector3(-4.6, 5.6, -6.6), 2.6], [Vector3(-1.2, 6.1, -7.0), 3.2],
+			[Vector3(2.4, 5.8, -6.8), 2.4], [Vector3(5.4, 5.4, -6.2), 2.0],
+			[Vector3(-6.8, 5.2, -4.6), 1.8], [Vector3(7.0, 5.1, -4.2), 1.7]]:
+		_estalagmita(e[0], float(e[1]), piedra_tex, true)
+	# Estalagmitas subiendo del suelo, fuera del pasillo de los clientes.
 	for e in [[Vector3(-4.3, 0.0, 2.9), 1.1], [Vector3(4.6, 0.0, 2.2), 1.4],
-			[Vector3(-3.4, 0.0, -4.3), 1.7], [Vector3(3.2, 0.0, -4.6), 1.2],
-			[Vector3(5.6, 0.0, -2.4), 0.9]]:
-		_estalagmita(e[0], float(e[1]))
-	# Cristales que brillan: la firma de la cueva. Emisivos en verde agua (el
-	# color del Kappa), inclinados como si crecieran de la roca.
-	for c in [[Vector3(-5.0, 0.0, 1.8), 1.3, -18.0], [Vector3(2.6, 0.0, -5.3), 1.8, 14.0],
-			[Vector3(-2.9, 0.0, -5.4), 1.2, -9.0], [Vector3(5.4, 0.0, 1.2), 1.5, 22.0],
-			[Vector3(-4.6, 0.0, 3.6), 1.0, 12.0], [Vector3(4.9, 0.0, -2.9), 1.1, -15.0]]:
-		_cristal(c[0], float(c[1]), float(c[2]))
-	# Charcas de agua quieta, verdosas y a ras de suelo, por donde asoma lo que
-	# vive aqui abajo.
+			[Vector3(-3.6, 0.0, -4.5), 1.7], [Vector3(3.2, 0.0, -4.8), 1.3],
+			[Vector3(5.8, 0.0, -2.6), 0.9]]:
+		_estalagmita(e[0], float(e[1]), piedra_tex, false)
+	# CRISTALES: la luz de la cueva. Facetas texturizadas que ademas EMITEN, y
+	# a sus pies un charco de resplandor sobre la roca.
+	for c in [[Vector3(-5.0, 0.0, 1.8), 1.4, -18.0], [Vector3(2.6, 0.0, -5.2), 1.9, 14.0],
+			[Vector3(-2.9, 0.0, -5.3), 1.3, -9.0], [Vector3(5.4, 0.0, 1.2), 1.6, 22.0],
+			[Vector3(-4.6, 0.0, 3.6), 1.0, 12.0], [Vector3(4.9, 0.0, -2.9), 1.2, -15.0],
+			[Vector3(-6.4, 0.0, -3.4), 1.5, -24.0], [Vector3(6.9, 0.0, -2.0), 1.1, 18.0]]:
+		_cristal(c[0], float(c[1]), float(c[2]), cristal_tex)
+	# Charcas de agua quieta, verdosas, reflejando el brillo.
 	for ch in [[Vector3(-3.6, 0.0, 4.2), 1.05], [Vector3(4.2, 0.0, 3.6), 0.8]]:
 		var charca := _cyl(float(ch[1]), float(ch[1]) * 1.06, 0.05,
-			ch[0] + Vector3(0.0, -0.02, 0.0), Color(0.10, 0.24, 0.22))
-		charca.material_override.roughness = 0.12
-	# Huesos y barricas de naufragios que la marea arrastro hasta aqui.
-	_spawn_barrels([Vector3(-5.8, 0.0, 2.9), Vector3(5.9, 0.0, -1.6)], 1)
+			ch[0] + Vector3(0.0, -0.02, 0.0), Color(0.10, 0.26, 0.24))
+		charca.material_override.roughness = 0.1
+	_spawn_barrels([Vector3(-5.9, 0.0, 3.1), Vector3(6.1, 0.0, -1.7)], 1)
 
 
-## Un cono de piedra hecho por codigo (CylinderMesh con la tapa a cero).
-func _estalagmita(pos: Vector3, alto: float) -> void:
+## Material de piedra texturizada TRIPLANAR: el mapeado cae por las tres caras
+## sin depender de las UV, que es lo que deja tilear la misma textura en cajas,
+## conos y cilindros hechos por codigo.
+func _mat_piedra(tex: Texture2D, tinte: Color, escala: float) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = tex
+	mat.albedo_color = tinte
+	mat.uv1_triplanar = true
+	mat.uv1_scale = Vector3(escala, escala, escala)
+	mat.roughness = 1.0
+	mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	return mat
+
+
+## Cilindro texturizado (los discos del monticulo).
+func _cyl_tex(r_top: float, r_bottom: float, alto: float, pos: Vector3,
+		tex: Texture2D, tinte: Color, escala: float) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = r_top
+	mesh.bottom_radius = r_bottom
+	mesh.height = alto
+	mesh.radial_segments = 24
+	mi.mesh = mesh
+	mi.position = pos
+	mi.material_override = _mat_piedra(tex, tinte, escala)
+	add_child(mi)
+	return mi
+
+
+## Un cono de piedra texturizada. `colgante` lo invierte: la base arriba y la
+## punta hacia abajo (las estalactitas del techo que no se ve).
+func _estalagmita(pos: Vector3, alto: float, tex: Texture2D, colgante := false) -> void:
 	var mi := MeshInstance3D.new()
 	var cono := CylinderMesh.new()
-	cono.top_radius = 0.03
-	cono.bottom_radius = alto * 0.32
+	if colgante:
+		cono.top_radius = alto * 0.30
+		cono.bottom_radius = 0.03
+	else:
+		cono.top_radius = 0.03
+		cono.bottom_radius = alto * 0.32
 	cono.height = alto
 	cono.radial_segments = 7
 	mi.mesh = cono
-	mi.position = pos + Vector3(0.0, alto * 0.5 - 0.05, 0.0)
-	mi.material_override = _mat(Color(0.17, 0.17, 0.23))
+	if colgante:
+		mi.position = pos + Vector3(0.0, -alto * 0.5, 0.0)
+	else:
+		mi.position = pos + Vector3(0.0, alto * 0.5 - 0.05, 0.0)
+	mi.material_override = _mat_piedra(tex, Color(0.44, 0.46, 0.56), 1.2)
 	add_child(mi)
-	_add_blob_shadow(pos + Vector3(0.05, 0.02, 0.05), alto * 0.7, alto * 0.45)
+	if not colgante:
+		_add_blob_shadow(pos + Vector3(0.05, 0.02, 0.05), alto * 0.7, alto * 0.45)
 
 
-## Un cristal EMISIVO: prisma inclinado que brilla en verde agua. El material
-## lleva shader-menos emision, asi que GeometryBatch lo agrupa por color como a
-## cualquier otro; el brillo funciona bajo GL Compatibility.
-func _cristal(pos: Vector3, alto: float, tilt: float) -> void:
+## Un cristal que BRILLA: facetas texturizadas cuya textura tambien EMITE, y a
+## sus pies un charco de resplandor (la luz barata: sin luces dinamicas).
+func _cristal(pos: Vector3, alto: float, tilt: float, tex: Texture2D) -> void:
 	var mi := MeshInstance3D.new()
 	var prisma := CylinderMesh.new()
 	prisma.top_radius = 0.03
@@ -1136,12 +1215,37 @@ func _cristal(pos: Vector3, alto: float, tilt: float) -> void:
 	mi.mesh = prisma
 	mi.position = pos + Vector3(0.0, alto * 0.42, 0.0)
 	mi.rotation_degrees = Vector3(tilt, pos.x * 31.0, tilt * 0.5)
-	var mat := _mat(Color(0.35, 0.85, 0.72))
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = tex
+	# OJO: albedo claro + emision con la misma textura reventaba a BLANCO
+	# puro (medido en captura). El albedo baja a verde agua medio y la emision
+	# se modera: el cristal tiene que brillar en SU color, no deslumbrar.
+	mat.albedo_color = Color(0.34, 0.68, 0.60)
+	mat.uv1_triplanar = true
+	mat.uv1_scale = Vector3(1.1, 1.1, 1.1)
 	mat.emission_enabled = true
-	mat.emission = Color(0.18, 0.62, 0.5)
-	mat.emission_energy_multiplier = 2.2
+	mat.emission_texture = tex
+	mat.emission = Color(0.30, 0.62, 0.54)
+	mat.emission_energy_multiplier = 0.85
 	mi.material_override = mat
 	add_child(mi)
+	# El charco de resplandor a sus pies.
+	var halo := MeshInstance3D.new()
+	var disco := CylinderMesh.new()
+	disco.top_radius = alto * 0.85
+	disco.bottom_radius = alto * 0.85
+	disco.height = 0.02
+	disco.radial_segments = 18
+	halo.mesh = disco
+	halo.position = pos + Vector3(0.0, 0.015, 0.0)
+	var luz := StandardMaterial3D.new()
+	luz.albedo_color = Color(0.10, 0.30, 0.27)
+	luz.emission_enabled = true
+	luz.emission = Color(0.16, 0.45, 0.38)
+	luz.emission_energy_multiplier = 0.9
+	luz.roughness = 1.0
+	halo.material_override = luz
+	add_child(halo)
 
 
 ## Multiplica el albedo de TODAS las superficies de un modelo (el color de un

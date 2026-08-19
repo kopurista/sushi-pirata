@@ -860,7 +860,10 @@ const MAP_POS: Dictionary = {
 	"nivel_13": Vector2(LANE_LEFT, 685.3),
 	"nivel_14": Vector2(LANE_RIGHT, 526.8),
 	"vispera_kappa": Vector2(LANE_CENTER, 368.4),
-	"nivel_15": Vector2(LANE_LEFT, 210.0),
+	# LA CUEVA VA APARTE (pedido por el usuario): sola en lo alto del mapa,
+	# centrada y con dos veces y media el paso normal de distancia — el ultimo
+	# tramo de la travesia se navega en silencio hacia ella.
+	"nivel_15": Vector2(LANE_CENTER, 20.0),
 }
 
 

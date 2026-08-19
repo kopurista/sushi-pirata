@@ -124,10 +124,30 @@ que cada tipo tenga SU dificultad como la isla tiene su carta cerrada):
   El TUTORIAL conserva los castigos de oro (el marcador del caos los necesita).
 - **CUEVA**: el tipo de los jefes. Juega como un abordaje (reloj de 2:30 y
   clientela sin fin, `is_timed` la incluye) pero SIN el hándicap del reloj: el
-  reto es el jefe. Escenario propio (`_scenery_cueva`: caverna de piedra con
-  paredes de `rocas.glb`, estalagmitas, charcas y CRISTALES emisivos verde
-  agua), modelo de mapa propio (`map_cueva.glb`, cadena Ludo completa con
-  presupuesto 8000) y entrada en `SceneBackdrop.KIND_MODELS` para el selector.
+  reto es el jefe. Escenario propio (`_scenery_cueva`) que es INTERIOR de
+  verdad: sin mar (`_setup_scenery` lo salta), suelo de roca hasta el borde,
+  paredes texturizadas cerrando fondo y lados, estalagmitas Y estalactitas
+  (conos invertidos colgando altos sobre la pared del fondo), rocas.glb
+  entenebrecidas (`_entenebrecer` multiplica su albedo: la textura es la roca
+  de las islas AL SOL y salía como nieve) y CRISTALES verde agua que hacen de
+  luz — ambiente y sol propios, tenues y fríos (`_setup_environment`, rama
+  cueva), con un charco de resplandor emisivo a los pies de cada cristal en
+  vez de luces dinámicas.
+  · **Texturas propias en `assets/props`**: `piedra_cueva.webp` y
+    `cristal_cueva.webp`, seamless por DESPLAZAMIENTO+PARCHE (rodar media
+    textura y tapar la cruz con el centro fundido en círculo). El espejado 2×2
+    se probó primero y NO vale: crea una celosía periódica que se leía como
+    rejilla. Van triplanar (`_mat_piedra`) para tilear en cajas y conos por
+    código, con Basis y límite 512 como el resto de props.
+  · **El cristal NO puede llevar albedo claro + emisión de la misma textura**:
+    reventaba a blanco puro (medido en captura). Albedo verde agua medio y
+    emisión moderada: brilla en SU color.
+  · Modelo de mapa propio (`map_cueva.glb`, cadena Ludo completa, presupuesto
+    8000) con **BASE de piedra por código** (dos discos oscuros bajo el nodo:
+    el peñasco venía sin suelo y flotaba a corte vivo sobre el agua), y
+    entrada en `SceneBackdrop.KIND_MODELS` para el selector. **En el mapa va
+    APARTE**: sola en lo alto, centrada y a dos pasos y medio del 19 — el
+    último tramo se navega en silencio hacia ella.
 
 David presenta los tres tipos CON sus hándicaps en la intro del mapa
 (`_guiar_primer_nivel`), y además la PRIMERA VEZ que se juega un puerto o un

@@ -241,6 +241,29 @@ func _setup_nodes() -> void:
 			float(KIND_FOOT.get(kind, 2.5)))
 		# Los barcos se hunden un poco en el agua; las islas asientan su base.
 		pivot.position.y = -0.10 if kind != "abordaje" else -0.06
+		# LA CUEVA lleva su propia BASE de piedra: el modelo es un penasco sin
+		# suelo y flotaba sobre el agua a corte vivo. Dos discos oscuros — zocalo
+		# ancho a ras de agua y peana algo mas alta — la asientan como a las
+		# islas su arenal.
+		if kind == "cueva":
+			var foot_c: float = float(KIND_FOOT.get(kind, 2.5))
+			for base in [[foot_c * 0.72, 0.16, -0.16, Color(0.13, 0.14, 0.19)],
+					[foot_c * 0.60, 0.30, -0.06, Color(0.20, 0.21, 0.27)]]:
+				var peana := MeshInstance3D.new()
+				var disco := CylinderMesh.new()
+				disco.top_radius = base[0]
+				disco.bottom_radius = float(base[0]) * 1.12
+				disco.height = base[1]
+				disco.radial_segments = 20
+				peana.mesh = disco
+				peana.position = pos + Vector3(0.0, float(base[2]), 0.0)
+				var mat_b := StandardMaterial3D.new()
+				mat_b.albedo_color = base[3]
+				mat_b.roughness = 1.0
+				peana.mesh = disco
+				peana.material_override = mat_b
+				peana.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				add_child(peana)
 		# Los nodos NO proyectan sombra: son 9 modelos de ~40k triangulos y el
 		# pase de sombras los dibujaba otra vez enteros, para una mancha que
 		# desde esta camara casi no se ve.
