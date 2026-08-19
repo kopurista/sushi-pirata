@@ -236,8 +236,16 @@ que cada tipo tenga SU dificultad como la isla tiene su carta cerrada):
     la oscurece hacia dentro y la hace leerse como un agujero. **Su sitio va en
     coordenadas de PANTALLA (u, w, y), no en x/y/z de mundo**: puesta con un
     offset de mundo "hacia delante" que en realidad era puro lateral, la
-    tarjeta se quedaba DENTRO del peñasco y no se veía. Se localiza pintándola
-    de magenta y midiendo la captura. **Y las plataformas van BAJAS** (sus
+    tarjeta se quedaba DENTRO del peñasco y no se veía.
+    **Y VA DETRÁS DE LA CARA DE ROCA, no delante**: flotando por delante se le
+    ve el óvalo entero recortado sobre la piedra —el "recuadro de sombra"— por
+    muy fundido que lleve el canto. Metida en el hueco, es la PROPIA ROCA la
+    que le recorta los bordes y solo asoma lo que se ve por el arco, que es
+    justo lo que hay que oscurecer; así puede además ser grande sin miedo.
+    Se coloca MIDIENDO: se pinta de magenta, se localiza en la captura, y se
+    despeja contra la proyección del mapa (85.3 px por unidad en `u`, 49.3
+    hacia abajo por unidad en `w` y 69.7 hacia arriba por unidad en `y`, que la
+    sonda imprime con `cam.unproject_position`). **Y las plataformas van BAJAS** (sus
     cimas rondan y=0): subidas, le tapaban la boca al peñasco.
   · **EN EL MAPA VA MUY APARTE**: sola, centrada y POR ENCIMA del lienzo
     (`MAP_POS` con y **negativa**, −700), a 1.068 px del escenario 19 — casi
@@ -2482,6 +2490,10 @@ fondo de prep_screen/tienda/inventario (`scene_backdrop`). El
     modelos tienen su base a −0.10, así que con marea negativa se quedarían
     flotando con un palmo de aire debajo — justo lo contrario de lo que se
     busca.
+  · **Y SUBE POCO** (0.10 u ≈ 7 px). Estuvo en 0.28 y a esa altura la cueva,
+    las islas y los puertos salían medio inundados: los modelos del mapa
+    asientan su base casi a ras de agua, así que el margen para jugar es de
+    centímetros.
   · Los niveles y los fondos no la usan: el uniforme vale 0 si nadie lo toca.
 - **SE PROBÓ TAMBIÉN EL "TOON WATER SHADER"** (`shaders/water_toon.gdshader`,
   port del de godotshaders/Erik Roystan Ross, con sus dos ruidos en

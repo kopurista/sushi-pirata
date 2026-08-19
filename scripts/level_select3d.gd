@@ -63,9 +63,9 @@ const KIND_MODELS := {
 const KIND_FOOT := { "isla": 2.6, "puerto": 2.9, "abordaje": 2.5, "cueva": 2.7 }
 ## Sitio y tamaño de la sombra de la boca de la cueva, en fracciones de su
 ## huella (medido sobre captura, ver `_base_cueva`).
-const BOCA_U := -0.18
-const BOCA_W := 0.65
-const BOCA_Y := 0.42
+const BOCA_U := -0.274
+const BOCA_W := 0.111
+const BOCA_Y := 0.132
 ## LA MAREA. El mar entero sube y baja muy despacio, y lo que la hace creíble
 ## no es el agua moviéndose: es que las ISLAS NO se muevan con ella (se mojan
 ## más o menos, y la línea de flotación les recorre la roca) mientras que lo
@@ -76,10 +76,10 @@ const BOCA_Y := 0.42
 ## bajara, los modelos —que tienen su base a -0.10— se quedarían flotando por
 ## encima del agua con un palmo de aire debajo, que es justo lo contrario de lo
 ## que se busca.
-const MAREA_AMP := 0.28
+const MAREA_AMP := 0.10
 const MAREA_PERIODO := 24.0
-const BOCA_ANCHO := 0.50
-const BOCA_ALTO := 0.38
+const BOCA_ANCHO := 0.60
+const BOCA_ALTO := 0.44
 const SHIP_FOOT := 2.3
 ## Orientación base del barco (navega hacia la parte alta del mapa).
 const SHIP_YAW := 205.0
@@ -368,9 +368,9 @@ func _base_cueva(pos: Vector3, foot: float, tex_modelo: Texture2D) -> Node3D:
 	boca.rotation_degrees = Vector3(0.0, 45.0, 0.0)
 	var mat_b := ShaderMaterial.new()
 	mat_b.shader = load("res://shaders/portal_cueva.gdshader")
-	mat_b.set_shader_parameter("color", Color(0.02, 0.03, 0.05))
-	mat_b.set_shader_parameter("fuerza", 1.0)
-	mat_b.set_shader_parameter("borde", 0.38)
+	mat_b.set_shader_parameter("color", Color(0.01, 0.02, 0.03))
+	mat_b.set_shader_parameter("fuerza", 0.95)
+	mat_b.set_shader_parameter("borde", 0.85)
 	mat_b.set_shader_parameter("latido", 0.0)
 	boca.material_override = mat_b
 	boca.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
