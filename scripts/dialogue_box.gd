@@ -70,6 +70,17 @@ const SPEAKERS := {
 		"dir": "res://assets/characters/cai", "file": "cai",
 		"name": "Cai", "side": "right", "plate": "left", "mood": "serio",
 	},
+	# ALICE, la aprendiza de cocinera: gótica y mona a la vez (kimono negro con
+	# ribete violeta, obi granate, delantal blanco y un lirio en el pelo). Busca
+	# a su maestra, Miku. Sale como CLIENTA en su escenario y al superarlo se
+	# enrola, y desde entonces es LA AYUDANTE de la tabla.
+	#
+	# Es tímida, así que tiene `callado` como Cai: para las líneas en las que se
+	# queda sin contestar. Como todos menos David, sale a la DERECHA.
+	"alice": {
+		"dir": "res://assets/characters/alice", "file": "alice",
+		"name": "Alice", "side": "right", "plate": "left", "mood": "serio",
+	},
 	# LOS CLIENTES DE SIEMPRE, sin nombre propio: cuando a un guion le hace
 	# falta que hable el que está sentado en la barra (el pirata del nivel 7 y
 	# su bandera). Como Saverio, Pablo y Cai salen a la DERECHA: la izquierda es

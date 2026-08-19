@@ -1801,6 +1801,49 @@ primera vez que se entra en ellos (`logros_intro_done` /
   el 47% del alto frente al 30% de David) y hubo que rehacer la base pidiendo
   explícitamente "cámara MUCHO más atrás, de la cintura para arriba, con aire
   sobre la cabeza" y volver a derivar las expresiones desde ahí.
+- **ALICE** (`assets/characters/alice`, hablante `alice`, 7 moods: los cinco de
+  siempre más `triste` y `callado`): la aprendiza de cocinera, gótica y mona a
+  la vez —kimono negro con ribete violeta, obi granate, delantal blanco, lirio
+  en el pelo y gargantilla de encaje—, que busca a su maestra Miku. Sale de
+  CLIENTA en su escenario y al superarlo se enrola como AYUDANTE. Tímida: por
+  eso tiene `callado`, como Cai.
+  **LAS DOS HERRAMIENTAS DE LUDO SE COMPLEMENTAN Y HAY QUE ENCADENARLAS**, que
+  es lo que costó sacarla:
+  · **`generateWithStyle` gira la POSE pero SIEMPRE afina el entintado** (deja
+    el contorno fino y el sombreado suave, aunque el prompt insista en lo
+    contrario).
+  · **`editImage` NUNCA gira la pose** —conserva la composición— **pero SÍ
+    entinta**. Así que primero el giro y luego la tinta encima; por separado
+    ninguno de los dos llega.
+  · **`augment_prompt: false` deja mandar a la imagen de estilo y reproduce al
+    PERSONAJE de la referencia**, no solo su técnica: salió David otra vez, con
+    su pelo gris y su casaca. Con la augmentación puesta sí entra el personaje
+    descrito.
+  · La pasada de SOMBRAS **vuelve grises los negros** (pelo y kimono a carbón,
+    y una vez el obi a morado): hay que devolver el negro en una pasada aparte
+    pidiendo SOLO eso.
+  · **La cara se describe PIEZA A PIEZA**, no por referencia: pidiendo el
+    estilo del reparto salían ojos de anime una y otra vez. Lo que funciona es
+    enumerar ojos, nariz y boca. Y al revés: los ojos ALMENDRADOS de Alice
+    (línea de pestañas gruesa, iris casi negro llenando la abertura) también
+    hubo que escribirlos, porque la descripción "de cartoon" los dejaba
+    redondos de muñeca.
+  · **La cabeza se giró hacia el lado CONTRARIO al del cuerpo** y con las
+    pupilas corridas hacia fuera: una contorsión imposible. Se arregla pidiendo
+    la cabeza DE FRENTE al jugador —alineada con el giro del cuerpo, nunca
+    contra él— y los dos iris CENTRADOS.
+  · El iris quedó pardo aun pidiéndolo negro; se oscureció **sobre el PNG**
+    (`_gen/alice`), sin volver a generar. **Con UNA CAJA POR OJO, no una que
+    los abarque a los dos**: la caja ancha pilla los mechones del pelo de los
+    lados y deja un corte recto visible. Se comprueba con un diff contra el
+    original, que canta si el cambio se salió de los ojos.
+  **El montaje es `tools/alice_portraits.py`** (inundación + recorte + 544×704).
+  Dos cosas suyas: se inunda solo desde ARRIBA, IZQUIERDA y DERECHA, porque el
+  encuadre la corta por la cintura y desde el borde de ABAJO la inundación se
+  mete dentro del delantal blanco y se lo come; y **el recorte y la escala se
+  calculan UNA vez sobre `serio`** y se aplican igual a todas, que por eso las
+  expresiones no mueven la cabeza. Su cara mide 135 px, entre el grumete (116)
+  y la grumete (157) y clavada con Cai (136).
 - **Las explicaciones sueltas del menú y del mapa montan UNA CAJA POR BLOQUE**,
   y por eso tienen dos ayudas propias: `DialogueBox.close_and_free()` (cierra
   CON su fundido y espera a que termine antes de soltar el nodo — hacían
