@@ -425,6 +425,22 @@ func _build_progress(box: VBoxContainer) -> void:
 	pad2.custom_minimum_size = Vector2(0, 20)
 	box.add_child(pad2)
 
+	_header(box, "Modo debug")
+	_note(box, "Herramienta de pruebas: toca el progreso guardado a mano. "
+		+ "Pide contraseña.")
+	var dbg := Button.new()
+	dbg.text = "Modo debug"
+	dbg.custom_minimum_size = Vector2(0, 78)
+	PrepBoard.skin_button(dbg)
+	PrepBoard.add_press_feedback(dbg)
+	dbg.add_theme_font_size_override("font_size", 28)
+	dbg.pressed.connect(_ask_debug_password)
+	box.add_child(dbg)
+
+	var pad3 := Control.new()
+	pad3.custom_minimum_size = Vector2(0, 20)
+	box.add_child(pad3)
+
 	_header(box, "Borrar progreso")
 	_note(box, "Se pierden el dinero, las recetas, las estrellas, la despensa "
 		+ "y los logros. El perfil y los gráficos se conservan.")
@@ -606,6 +622,228 @@ func _do_wipe() -> void:
 	tw.tween_interval(0.9)
 	tw.tween_callback(func() -> void:
 		GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.0, 0.5))
+
+
+# --------------------------------------------------------------- MODO DEBUG
+
+## No es seguridad —está escrita en el propio código—, es un PESTILLO:
+## que nadie entre aquí sin querer y se encuentre el progreso cambiado.
+const DEBUG_PASS := "sushi123"
+
+## id -> { campo: LineEdit, antes: int }. Se rellena al abrir el panel.
+var debug_fields: Dictionary = {}
+
+
+## Paño oscuro + pergamino centrado, que es el patrón de los otros dos
+## carteles de esta pantalla. Devuelve [overlay, caja] para lo de cada uno.
+func _modal(alto: float, ancho := 620.0) -> Array:
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0)
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ui.add_child(overlay)
+	overlay.create_tween().tween_property(overlay, "color:a", 0.68, 0.2)
+
+	var panel := Control.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.offset_left = -ancho * 0.5
+	panel.offset_right = ancho * 0.5
+	panel.offset_top = -alto * 0.5
+	panel.offset_bottom = alto * 0.5
+	overlay.add_child(panel)
+	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
+
+	var vb := VBoxContainer.new()
+	vb.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vb.offset_left = 50.0
+	vb.offset_top = 42.0
+	vb.offset_right = -50.0
+	vb.offset_bottom = -42.0
+	vb.add_theme_constant_override("separation", 14)
+	panel.add_child(vb)
+	return [overlay, vb]
+
+
+func _ask_debug_password() -> void:
+	var m := _modal(370.0)
+	var overlay: ColorRect = m[0]
+	var vb: VBoxContainer = m[1]
+
+	var msg := Label.new()
+	msg.text = "Modo debug"
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.add_theme_font_size_override("font_size", 30)
+	msg.add_theme_color_override("font_color", DARK)
+	vb.add_child(msg)
+
+	var aviso := Label.new()
+	aviso.text = "Contraseña:"
+	aviso.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	aviso.add_theme_font_size_override("font_size", 22)
+	aviso.add_theme_color_override("font_color", FADED)
+	vb.add_child(aviso)
+
+	var edit := LineEdit.new()
+	edit.secret = true
+	edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	edit.custom_minimum_size = Vector2(0, 62)
+	edit.add_theme_font_size_override("font_size", 28)
+	# El teclado del móvil no sale solo al tocar un LineEdit: hace falta esto.
+	PrepBoard.enable_mobile_keyboard(edit)
+	vb.add_child(edit)
+
+	var error := Label.new()
+	error.text = ""
+	error.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	error.add_theme_font_size_override("font_size", 21)
+	error.add_theme_color_override("font_color", Color(0.72, 0.16, 0.12))
+	vb.add_child(error)
+
+	var btns := HBoxContainer.new()
+	btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	btns.add_theme_constant_override("separation", 18)
+	vb.add_child(btns)
+
+	var entrar := func() -> void:
+		if edit.text.strip_edges() == DEBUG_PASS:
+			overlay.queue_free()
+			_open_debug()
+		else:
+			error.text = "Contraseña incorrecta"
+			edit.text = ""
+
+	var ok := Button.new()
+	ok.text = "Entrar"
+	ok.custom_minimum_size = Vector2(200, 66)
+	PrepBoard.skin_button(ok)
+	PrepBoard.add_press_feedback(ok)
+	ok.add_theme_font_size_override("font_size", 25)
+	ok.pressed.connect(entrar)
+	btns.add_child(ok)
+
+	var no := Button.new()
+	no.text = "Cancelar"
+	no.custom_minimum_size = Vector2(200, 66)
+	PrepBoard.skin_button(no)
+	PrepBoard.add_press_feedback(no)
+	no.add_theme_font_size_override("font_size", 25)
+	no.pressed.connect(overlay.queue_free)
+	btns.add_child(no)
+
+	# Con INTRO también entra: en escritorio se teclea y se pulsa intro.
+	edit.text_submitted.connect(func(_t: String) -> void: entrar.call())
+
+
+func _open_debug() -> void:
+	var m := _modal(720.0, 660.0)
+	var overlay: ColorRect = m[0]
+	var vb: VBoxContainer = m[1]
+	debug_fields = {}
+
+	var titulo := Label.new()
+	titulo.text = "Modo debug"
+	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	titulo.add_theme_font_size_override("font_size", 30)
+	titulo.add_theme_color_override("font_color", DARK)
+	vb.add_child(titulo)
+
+	_debug_row(vb, "money", "Dinero", GameState.money, 0)
+	_debug_row(vb, "collectibles", "Coleccionables",
+		GameState.collectibles.size(), CollectibleData.ITEMS.size())
+	_debug_row(vb, "chef_level", "Nivel de cocinero",
+		GameState.chef_level, SkillData.MAX_LEVEL)
+	_debug_row(vb, "fish", "Peces del álbum",
+		FishData.caught_count(GameState.fish_album), FishData.FISH.size())
+	_debug_row(vb, "ports", "Escenarios superados",
+		GameState.debug_ports_beaten(), CampaignData.PORTS.size())
+
+	var nota := Label.new()
+	nota.text = ("El nivel de cocinero reparte sus puntos solo; bajarlo devuelve "
+		+ "los ya gastados. Los escenarios se completan con 3 estrellas, con sus "
+		+ "recetas y su despensa.")
+	nota.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	nota.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	nota.add_theme_font_size_override("font_size", 19)
+	nota.add_theme_color_override("font_color", FADED)
+	vb.add_child(nota)
+
+	var btns := HBoxContainer.new()
+	btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	btns.add_theme_constant_override("separation", 18)
+	vb.add_child(btns)
+
+	var aplicar := Button.new()
+	aplicar.text = "Aplicar"
+	aplicar.custom_minimum_size = Vector2(230, 68)
+	PrepBoard.skin_button(aplicar)
+	PrepBoard.add_press_feedback(aplicar)
+	aplicar.add_theme_font_size_override("font_size", 25)
+	aplicar.pressed.connect(func() -> void:
+		_apply_debug()
+		overlay.queue_free())
+	btns.add_child(aplicar)
+
+	var cerrar := Button.new()
+	cerrar.text = "Cerrar"
+	cerrar.custom_minimum_size = Vector2(230, 68)
+	PrepBoard.skin_button(cerrar)
+	PrepBoard.add_press_feedback(cerrar)
+	cerrar.add_theme_font_size_override("font_size", 25)
+	cerrar.pressed.connect(func() -> void:
+		debug_fields = {}
+		overlay.queue_free())
+	btns.add_child(cerrar)
+
+
+## Una fila del panel: rótulo, campo con el valor de AHORA y el tope a la
+## derecha. El tope se enseña porque estos números tienen catálogo (120
+## coleccionables, 100 peces, 20 escenarios) y a ciegas se pasa uno.
+func _debug_row(box: Control, id: String, label: String, valor: int,
+		tope: int) -> void:
+	var fila := HBoxContainer.new()
+	fila.custom_minimum_size = Vector2(0, 66)
+	fila.add_theme_constant_override("separation", 10)
+	fila.add_child(_row_label(label))
+
+	var edit := LineEdit.new()
+	edit.text = str(valor)
+	edit.alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	edit.custom_minimum_size = Vector2(140, 56)
+	edit.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	edit.add_theme_font_size_override("font_size", 26)
+	PrepBoard.enable_mobile_keyboard(edit)
+	fila.add_child(edit)
+
+	var tope_l := Label.new()
+	tope_l.text = ("/ %d" % tope) if tope > 0 else ""
+	tope_l.custom_minimum_size = Vector2(78, 0)
+	tope_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	tope_l.add_theme_font_size_override("font_size", 21)
+	tope_l.add_theme_color_override("font_color", FADED)
+	fila.add_child(tope_l)
+
+	box.add_child(fila)
+	debug_fields[id] = { "campo": edit, "antes": valor }
+
+
+## Solo viaja lo que se haya CAMBIADO de verdad: así tocar el dinero no
+## rehace de paso los veinte escenarios ni le devuelve los puntos al chef.
+func _apply_debug() -> void:
+	var vals: Dictionary = {}
+	for id in debug_fields:
+		var d: Dictionary = debug_fields[id]
+		var edit: LineEdit = d["campo"]
+		var txt := edit.text.strip_edges()
+		if not txt.is_valid_int():
+			continue
+		var n := int(txt)
+		if n != int(d["antes"]):
+			vals[id] = n
+	debug_fields = {}
+	if vals.is_empty():
+		return
+	GameState.debug_apply(vals)
+	# La pestaña se repinta para que los valores de AHORA sean los de verdad.
+	_show_tab(current_tab)
 
 
 # ------------------------------------------------------------- filas sueltas

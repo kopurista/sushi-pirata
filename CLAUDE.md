@@ -2001,13 +2001,37 @@ primera vez que se entra en ellos (`logros_intro_done` /
   en TRES pestañas (el Perfil se mudó a `profile_screen`, y con tres tablones
   los rótulos recuperaron el cuerpo 26): **Gráficos** (bloques Alta / Media /
   Baja / Personalizado, con "Aplicar cambios"), la **Guía** (ver
-  `guide_data.gd`) y **Progreso** (horas jugadas y borrado). Los cambios
+  `guide_data.gd`) y **Progreso** (horas jugadas, MODO DEBUG y borrado). Los cambios
   viven en `draft_*` y NO tocan `GameState` hasta pulsar aplicar: así se puede
   probar una combinación y arrepentirse. Tocar un ajuste suelto pasa el bloque
   a "Personalizado" (`current_preset()` lo deduce comparando, así que el cartel
   nunca miente). **Borrar progreso va en dos pasos**: confirmación y después
   MANTENER pulsado 5 s con una barra roja que se vacía si se suelta antes;
   al llenarse borra y vuelve al menú desde negro.
+- **MODO DEBUG** (Opciones → Progreso), con contraseña `sushi123`
+  (`options_screen.DEBUG_PASS`): pone a mano los contadores gordos del
+  progreso —dinero, coleccionables, nivel de cocinero, peces del álbum y
+  escenarios superados—. No es seguridad, está escrita en el propio código:
+  es un pestillo para que nadie entre sin querer y se encuentre el progreso
+  cambiado. La interfaz solo recoge cifras; quien MUTA es
+  `GameState.debug_apply`, que es el dueño del progreso.
+  · **Solo viaja lo que se haya CAMBIADO de verdad**: tocar el dinero no
+    puede rehacer de paso los veinte escenarios ni devolverle los puntos al
+    cocinero. Por eso cada campo guarda su valor de partida (`antes`).
+  · **Los escenarios se completan por el camino normal** (`complete_port`
+    con 3 estrellas), no escribiendo `level_stars` a pelo: así caen también
+    sus recetas y su despensa. Sin eso, «20 escenarios superados» dejaba el
+    juego con el maki suelto y sin poder jugarse.
+  · **El nivel del cocinero mueve la XP, no al revés**: se pone en la
+    ENTRADA del nivel (`SkillData.xp_at_level`) para que la barra salga
+    vacía. Los puntos SALEN del nivel, así que bajarlo puede dejar más
+    invertido de lo que se tiene: antes que descuadrar el reparto se
+    devuelven todos (`skills.clear()`).
+  · Los coleccionables y los peces se rellenan **por orden de catálogo**, y
+    con ellos se corrigen los datos que cuelgan: los fragmentos de la
+    trifuerza y los récords de talla de peces que ya no están en el álbum.
+  · **Va sin ventanas**: no pasa por `unlock_collectible` ni por los avisos,
+    que aquí serían cien carteles seguidos.
 - **La PORTADA ("Pulsa para zarpar") es un TERCER ESTADO de la escena del
   menú**, no una escena aparte (`main_menu._show_start`; el `start_screen.tscn`
   que existió un día se borró). El barco está atracado en un puerto

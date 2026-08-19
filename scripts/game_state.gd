@@ -1409,6 +1409,97 @@ func complete_port(port_id: String, stars: int) -> Array:
 	return newly
 
 
+# --- MODO DEBUG ------------------------------------------------------------
+
+## Pone a mano los contadores gordos del progreso (Opciones -> Progreso ->
+## Modo debug). Es herramienta de PRUEBAS, así que va sin ventanas ni escenas:
+## el camino normal de cada cosa ya las saca y aquí solo estorbarían.
+##
+## Solo toca lo que venga en el diccionario, para poder cambiar una cosa sin
+## arrasar con el resto.
+func debug_apply(vals: Dictionary) -> void:
+	if vals.has("money"):
+		money = maxi(int(vals["money"]), 0)
+	if vals.has("collectibles"):
+		_debug_set_collectibles(int(vals["collectibles"]))
+	if vals.has("fish"):
+		_debug_set_fish(int(vals["fish"]))
+	if vals.has("chef_level"):
+		_debug_set_chef_level(int(vals["chef_level"]))
+	if vals.has("ports"):
+		_debug_set_ports(int(vals["ports"]))
+	save_game()
+	queue_achievement_check()
+
+
+## Cuántos escenarios están superados de verdad (con su objetivo de estrellas).
+func debug_ports_beaten() -> int:
+	var n := 0
+	for p in CampaignData.PORTS:
+		if port_beaten(str(p["id"])):
+			n += 1
+	return n
+
+
+func _debug_set_collectibles(n: int) -> void:
+	var ids: Array[String] = []
+	for it in CollectibleData.ITEMS:
+		ids.append(str(it["id"]))
+	n = clampi(n, 0, ids.size())
+	collectibles.clear()
+	for i in n:
+		collectibles.append(ids[i])
+	# El triángulo dorado son 8 fragmentos: si su pieza entra en la cuenta, los
+	# fragmentos van llenos; si no, a cero. Si no, la vitrina enseñaría "3/8"
+	# debajo de una pieza ya conseguida.
+	triforce_pieces = CollectibleData.TRIFORCE_PIECES if "trifuerza" in collectibles else 0
+
+
+func _debug_set_fish(n: int) -> void:
+	n = clampi(n, 0, FishData.FISH.size())
+	fish_album.clear()
+	for i in n:
+		fish_album[str(FishData.FISH[i]["id"])] = 1
+	# Los RÉCORDS de talla de especies que ya no están en el álbum se van con
+	# ellas: un récord de un pez sin pescar no lo puede enseñar nadie.
+	for id in fish_best.keys():
+		if not fish_album.has(id):
+			fish_best.erase(id)
+
+
+func _debug_set_chef_level(n: int) -> void:
+	chef_level = clampi(n, 1, SkillData.MAX_LEVEL)
+	# La XP se pone en la ENTRADA del nivel, para que la barra salga vacía y no
+	# a media altura de un tramo que nadie ha jugado.
+	chef_xp = SkillData.xp_at_level(chef_level)
+	stats["chef_level"] = chef_level
+	xp_seeded = true
+	# Los puntos SALEN del nivel (`chef_points_total`), así que bajarlo puede
+	# dejar más invertido de lo que se tiene. Antes que dejar el reparto
+	# descuadrado se devuelve todo: es lo que hace `reset_skill_tree`, pero de
+	# los tres árboles.
+	if chef_points_spent() > chef_points_total():
+		skills.clear()
+	# Sin esto la barra del menú intentaría animar desde una XP que ya no existe.
+	xp_anim_from = -1
+	pending_level_up = {}
+
+
+func _debug_set_ports(n: int) -> void:
+	var ids: Array[String] = []
+	for p in CampaignData.PORTS:
+		ids.append(str(p["id"]))
+	n = clampi(n, 0, ids.size())
+	for i in range(n, ids.size()):
+		level_stars.erase(ids[i])
+	# Los que faltan se completan POR EL CAMINO NORMAL, para que caigan también
+	# sus recetas y su despensa: sin ellas, "20 escenarios superados" deja el
+	# juego con el maki suelto y sin poder jugarse, que no es lo que nadie
+	# entiende por "niveles completados".
+	for i in n:
+		complete_port(ids[i], 3)
+
+
 # --- Estadísticas y logros -------------------------------------------------
 
 func get_stat(id: String) -> int:
