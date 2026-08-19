@@ -210,13 +210,10 @@ var _slice_gratis_usado := false
 var skill_swipe_mult := 1.0
 var skill_tap_discount := false
 ## "Golpe de vista": cada `vista_period` platos, el siguiente sale hecho solo.
-## CONTADOR determinista y a la vista (`vista_label`), no un dado: así se puede
+## CONTADOR determinista y A LA VISTA, no un dado: así se puede
 ## planear. 0 = sin la habilidad.
 var vista_period := 0
 var vista_left := 0
-var vista_label: Label = null
-## Latido del contador cuando el plato gratis está listo (se mata al contar).
-var _vista_tween: Tween = null
 ## "Cocina abundante": cada `abundante_period` platos, la elaboración sale
 ## DOBLE (mismo camino que el potenciador double_next).
 var abundante_period := 0
@@ -1000,7 +997,6 @@ func _ready() -> void:
 	_build_extra_buttons()
 	_update_extra_buttons()
 	# El contador del "Golpe de vista" nace con la tabla, no con el primer plato.
-	_update_vista_label()
 	# Con la mano DERECHA dominante el panel entero se voltea en espejo: la
 	# tabla pegada a la derecha (cerca del pulgar) y cajas/botones a la
 	# izquierda (donde el pulgar no los tapa). Va DESPUÉS de construirlo todo,
@@ -3507,7 +3503,6 @@ func _finish_prep(grant_mastery: bool) -> void:
 			_flash_message("¡Plato con suerte!", Color(1.0, 0.84, 0.3))
 	if vista_period > 0 and grant_mastery:
 		vista_left = maxi(vista_left - 1, 0)
-	_update_vista_label()
 	var count := 2 if (double_next or doble_maestria) else 1
 	double_next = false
 	for i in count:
@@ -3527,43 +3522,6 @@ func _finish_prep(grant_mastery: bool) -> void:
 		dishes.append(d)
 	craft_event.emit("done", "")
 	_update_ui()
-
-
-## Contador del "Golpe de vista", clavado a la esquina superior derecha de la
-## mesa: cuántos platos a mano faltan para que el siguiente salga solo. Es la
-## promesa del catálogo — contador a la vista, no dado.
-func _update_vista_label() -> void:
-	if vista_period <= 0:
-		return
-	if vista_label == null:
-		vista_label = Label.new()
-		vista_label.add_theme_font_size_override("font_size", 19)
-		vista_label.add_theme_color_override("font_outline_color", Color.BLACK)
-		vista_label.add_theme_constant_override("outline_size", 6)
-		vista_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		vista_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		vista_label.offset_left = -150.0
-		vista_label.offset_top = 6.0
-		vista_label.offset_right = -12.0
-		vista_label.offset_bottom = 34.0
-		vista_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		board_panel.add_child(vista_label)
-	if _vista_tween != null and _vista_tween.is_valid():
-		_vista_tween.kill()
-		vista_label.scale = Vector2.ONE
-	if vista_left <= 0:
-		vista_label.text = "¡Vista lista!"
-		vista_label.add_theme_color_override("font_color", Color(0.62, 0.92, 1.0))
-		# LATE mientras el plato gratis espera: es la invitación a cobrarlo.
-		vista_label.pivot_offset = vista_label.size * 0.5
-		_vista_tween = create_tween().set_loops()
-		_vista_tween.tween_property(vista_label, "scale", Vector2(1.12, 1.12),
-			0.55).set_trans(Tween.TRANS_SINE)
-		_vista_tween.tween_property(vista_label, "scale", Vector2.ONE, 0.55) \
-				.set_trans(Tween.TRANS_SINE)
-	else:
-		vista_label.text = "Vista: %d" % vista_left
-		vista_label.add_theme_color_override("font_color", Color(1, 0.95, 0.8, 0.75))
 
 
 ## Sitio de reposo del plato terminado. Con varias piezas (recetas con "yield")

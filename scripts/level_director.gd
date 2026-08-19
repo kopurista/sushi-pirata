@@ -44,6 +44,15 @@ var _paciencia_quieta := false
 func _run() -> void:
 	guion = str(CampaignData.get_port(GameState.current_port).get("director", ""))
 	_mudo = GameState.port_narrated(GameState.current_port)
+	# LOS CONTADORES DE MAESTRÍA se explican en la primera jornada que se juegue
+	# con una de esas habilidades puesta, sea el escenario que sea: se compran
+	# cuando el jugador quiere, así que no se pueden colgar de ningún puerto.
+	# Va lo PRIMERO, antes del guion del escenario, porque señala una chapa del
+	# HUD que ya está en pantalla desde el primer fotograma.
+	await _explicar_contadores()
+	# Un escenario sin guion propio monta el director SOLO para lo de arriba.
+	if guion == "":
+		return
 	match guion:
 		"nivel_1":
 			await _nivel_1()
@@ -1231,6 +1240,33 @@ func _nivel_12() -> void:
 # ------------------------------------------------------------------- nivel 13
 # Rada de los Dos Fuegos: el AYUDANTE DE COCINA. Aquí se presenta y desde aquí
 # se puede ganar (`unlocks_perk` del puerto).
+
+## LOS CONTADORES DE MAESTRIA del HUD, explicados UNA vez en toda la partida.
+## Se llama al principio de todo guion y no hace nada si no toca: si el jugador
+## no lleva ninguna habilidad de "cada N platos", si ya se le explico, o si es
+## el tutorial (ahi todo va en neutro).
+func _explicar_contadores() -> void:
+	if GameState.skill_counters_intro_done or GameState.is_tutorial():
+		return
+	if lv == null or lv.skill_counter_row == null:
+		return
+	GameState.skill_counters_intro_done = true
+	GameState.save_game()
+	await _pausa(0.8)
+	if lv == null or not is_instance_valid(lv) or lv.ended:
+		return
+	# El foco va DESPUES de `_play`, que llama a `_clear_focus`.
+	await _say([
+		{ "text": "Un momento antes de empezar. Eso de ahi arriba es nuevo.", "mood": "hablando" },
+	])
+	_focus_node(lv.skill_counter_row, 16.0)
+	await _say([
+		{ "text": "Tus **maestrias** de cocinero no van a suerte: van a **cuenta**. Cada una te avisa de cuantos platos faltan para su premio.", "mood": "serio" },
+		{ "text": "Cuando una llega a cero, el **siguiente plato que hagas a mano** se lleva lo suyo. Tu decides cual.", "mood": "feliz" },
+		{ "text": "¡PUES MIRA EL NUMERITO, GRUMETE! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+	])
+	_play()
+
 
 ## Platos que hay que servirle a ALICE para que se enrole.
 const PLATOS_ALICE := 3

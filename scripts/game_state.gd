@@ -144,6 +144,10 @@ var alice_saciada := false
 ## Alice ya se ha enrolado, y con ella se abrieron los BONIFICADORES (la escena
 ## del mapa al superar su escenario).
 var alice_intro_done := false
+## David ya ha explicado los CONTADORES DE MAESTRÍA del HUD (la primera vez que
+## se juega con una habilidad de "cada N platos" puesta). No va atado a ningún
+## escenario: esas habilidades se compran cuando el jugador quiere.
+var skill_counters_intro_done := false
 ## Cai ya ha explicado qué son los COLECCIONABLES (al pescar el primero).
 var col_intro_done := false
 ## David ya ha presentado las MAESTRÍAS (al llegar al nivel 5 de cocinero).
@@ -1946,6 +1950,7 @@ func save_game() -> void:
 		"cai_saciado": cai_saciado,
 		"alice_saciada": alice_saciada,
 		"alice_intro_done": alice_intro_done,
+		"skill_counters_intro_done": skill_counters_intro_done,
 		"col_intro_done": col_intro_done,
 		"skills_intro_done": skills_intro_done,
 		"nivel_intro_done": nivel_intro_done,
@@ -2143,6 +2148,7 @@ func load_game() -> void:
 	cai_saciado = bool(parsed.get("cai_saciado", tutorial_done))
 	alice_saciada = bool(parsed.get("alice_saciada", false))
 	alice_intro_done = bool(parsed.get("alice_intro_done", false))
+	skill_counters_intro_done = bool(parsed.get("skill_counters_intro_done", false))
 	col_intro_done = bool(parsed.get("col_intro_done", tutorial_done))
 	skills_intro_done = bool(parsed.get("skills_intro_done", false))
 	nivel_intro_done = bool(parsed.get("nivel_intro_done", false))
@@ -2248,6 +2254,7 @@ func _new_game() -> void:
 	cai_saciado = false
 	alice_saciada = false
 	alice_intro_done = false
+	skill_counters_intro_done = false
 	col_intro_done = false
 	skills_intro_done = false
 	nivel_intro_done = false

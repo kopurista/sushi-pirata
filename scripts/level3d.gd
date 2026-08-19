@@ -386,6 +386,20 @@ var _t := 0.0
 @onready var money_label: Label = $HUD/TopRow/MoneyBox/MoneyRow/MoneyLabel
 @onready var clients_label: Label = $HUD/TopRow/ClientsBox/ClientsLabel
 @onready var jar_label: Label = $HUD/TopRow/MoneyBox/JarRow/JarLabel
+
+## CONTADORES DE MAESTRÍA del HUD, bajo el número de clientes. Las tres
+## habilidades deterministas del cocinero ("cada N platos, el siguiente sale
+## gratis / doble / con suerte") son CONTADOR y no dado justamente para poder
+## planearlas, y planear con un número escondido no se puede: aquí se ve
+## cuántos platos faltan, con el icono de la habilidad al lado.
+## El del "golpe de vista" vivía clavado en una esquina de la tabla; se movió
+## aquí para que los tres estén juntos y en el mismo sitio.
+const SKILL_COUNTERS := ["golpe_vista", "cocina_abundante", "golpe_suerte"]
+var skill_counter_row: HBoxContainer = null
+## id -> Label de la cifra, y lo último que se pintó (para no repintar por frame).
+var _skill_chip: Dictionary = {}
+var _skill_drawn: Dictionary = {}
+var _skill_tween: Dictionary = {}
 ## Relleno que ocupa el hueco del reloj en los niveles que no lo llevan, para
 ## que el oro siga cayendo en el centro de la pantalla (ver _apply_hud_layout).
 var time_gap: Control = null
@@ -604,8 +618,15 @@ func _ready() -> void:
 		# director es quien TRAE al jefe y vigila su duelo, y sin él el nivel
 		# sería infranqueable al reintentarlo. El propio guion consulta
 		# `port_narrated` para callarse los diálogos en las repeticiones.
-		if str(port.get("director", "")) != "" \
-				and (not ya_narrado or boss_id != ""):
+		# Y TAMBIÉN sin guion propio, si está pendiente explicar los CONTADORES
+		# DE MAESTRÍA: esas habilidades se compran cuando al jugador le da la
+		# gana, así que su explicación no se puede colgar de ningún escenario.
+		# En ese caso el director se monta solo para eso y se va.
+		var toca_contadores: bool = not GameState.skill_counters_intro_done \
+				and not GameState.is_tutorial() \
+				and not GameState.skills.is_empty()
+		if (str(port.get("director", "")) != "" \
+				and (not ya_narrado or boss_id != "")) or toca_contadores:
 			var guia := preload("res://scripts/level_director.gd").new()
 			guia.name = "LevelDirector"
 			add_child.call_deferred(guia)
@@ -2439,6 +2460,9 @@ func _process(delta: float) -> void:
 	# lleva el `_process` de GameState, que cuenta también los menús.
 	if not ended:
 		play_time += delta
+	# Contadores de maestria del HUD. Es una comparacion de tres enteros: solo
+	# toca las etiquetas cuando una cifra cambia de verdad.
+	_refresh_skill_counters()
 	# El ayudante respira en reposo (desfasado del chef para que no parezcan dos
 	# copias del mismo muñeco) y solo amasa cuando le toca cocinar un plato.
 	if helper_anim != null:
@@ -4915,6 +4939,106 @@ func _button_pad(b: Button, estado: String) -> StyleBox:
 ## Coloca la barra superior segun lo que haya que enseñar. Sin reloj (islas,
 ## puertos y tutorial) el hueco de la izquierda queda vacio, asi que se pone un
 ## relleno del ANCHO del contador de clientes: el oro se queda centrado en la
+## Monta la fila de contadores de maestría. Solo salen los que el jugador
+## LLEVA: sin habilidades no hay fila, y en el tutorial todo va en neutro.
+func _setup_skill_counters() -> void:
+	if skill_counter_row != null:
+		return
+	var periodos := _skill_periods()
+	if periodos.is_empty():
+		return
+	skill_counter_row = HBoxContainer.new()
+	skill_counter_row.name = "SkillCounters"
+	skill_counter_row.add_theme_constant_override("separation", 14)
+	skill_counter_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	$HUD.add_child(skill_counter_row)
+	for id in SKILL_COUNTERS:
+		if not periodos.has(id):
+			continue
+		var chip := HBoxContainer.new()
+		chip.add_theme_constant_override("separation", 4)
+		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var ic := TextureRect.new()
+		ic.custom_minimum_size = Vector2(34, 34)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.texture = SkillData.icon(id)
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		chip.add_child(ic)
+		var num := Label.new()
+		num.add_theme_font_size_override("font_size", 26)
+		num.add_theme_color_override("font_outline_color", Color.BLACK)
+		num.add_theme_constant_override("outline_size", 9)
+		num.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		num.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		chip.add_child(num)
+		skill_counter_row.add_child(chip)
+		_skill_chip[id] = num
+		_skill_drawn[id] = -999
+	_place_skill_counters()
+	_refresh_skill_counters()
+
+
+## Periodo de cada contador que el jugador lleve puesto (id -> platos).
+func _skill_periods() -> Dictionary:
+	var out := {}
+	if prep_board == null:
+		return out
+	if prep_board.vista_period > 0:
+		out["golpe_vista"] = prep_board.vista_period
+	if prep_board.abundante_period > 0:
+		out["cocina_abundante"] = prep_board.abundante_period
+	if prep_board.suerte_period > 0:
+		out["golpe_suerte"] = prep_board.suerte_period
+	return out
+
+
+## Se cuelga JUSTO DEBAJO del contador de clientes, alineada con él. Va por
+## posición y no dentro de la fila superior porque esa fila reparte su ancho
+## entre reloj, oro y clientes: metida ahí, descuadraba el centrado del oro.
+func _place_skill_counters() -> void:
+	if skill_counter_row == null or not is_instance_valid(skill_counter_row):
+		return
+	var caja: Control = $HUD/TopRow/ClientsBox
+	skill_counter_row.position = Vector2(
+		caja.global_position.x,
+		caja.global_position.y + caja.size.y + 4.0)
+
+
+## Cifras que faltan. `left` es lo que queda para el próximo premio; a 0 el
+## premio está EN LA MANO, así que el chip se enciende y late.
+func _refresh_skill_counters() -> void:
+	if skill_counter_row == null or prep_board == null:
+		return
+	var quedan := {
+		"golpe_vista": prep_board.vista_left,
+		"cocina_abundante": prep_board.abundante_left,
+		"golpe_suerte": prep_board.suerte_left,
+	}
+	for id in _skill_chip:
+		var v: int = int(quedan.get(id, 0))
+		if _skill_drawn.get(id, -999) == v:
+			continue
+		_skill_drawn[id] = v
+		var num: Label = _skill_chip[id]
+		var latido: Tween = _skill_tween.get(id, null)
+		if latido != null and latido.is_valid():
+			latido.kill()
+			num.scale = Vector2.ONE
+		if v <= 0:
+			num.text = "¡YA!"
+			num.add_theme_color_override("font_color", Color(0.62, 0.92, 1.0))
+			num.pivot_offset = num.size * 0.5
+			var t := create_tween().set_loops()
+			t.tween_property(num, "scale", Vector2(1.14, 1.14), 0.55) 					.set_trans(Tween.TRANS_SINE)
+			t.tween_property(num, "scale", Vector2.ONE, 0.55) 					.set_trans(Tween.TRANS_SINE)
+			_skill_tween[id] = t
+		else:
+			num.text = str(v)
+			num.add_theme_color_override("font_color", Color(1, 0.95, 0.8, 0.85))
+
+
 ## pantalla de verdad y la fila no se descuelga hacia un lado.
 func _apply_hud_layout() -> void:
 	var top: HBoxContainer = $HUD/TopRow
@@ -4925,6 +5049,9 @@ func _apply_hud_layout() -> void:
 	# del primer fotograma y "120/120" salía cortado.
 	if not get_viewport().size_changed.is_connected(_fit_top_row):
 		get_viewport().size_changed.connect(_fit_top_row)
+	if not get_viewport().size_changed.is_connected(_place_skill_counters):
+		get_viewport().size_changed.connect(_place_skill_counters)
+	_setup_skill_counters.call_deferred()
 	# Sin potenciadores (la escuela), el BOTE entero desaparece del marcador:
 	# una barra azul que nunca sube solo generaría preguntas.
 	if tip_bar != null and is_instance_valid(tip_bar) \
