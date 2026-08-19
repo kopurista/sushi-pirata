@@ -66,6 +66,21 @@ const DORAYAKI_PLATOS := 100
 const ANZUELO_PECES := 200
 const ESMERALDA_PEZ := "froggy"
 
+## UN TROFEO POR JEFE DE MAR. La campana son 7 mares y cada uno cierra con
+## el suyo; al rendirse deja su pieza. La stat la apunta
+## `level3d._finalize_results` como "boss_<id>" con el id del propio jefe
+## (el `boss` del puerto), asi que un jefe nuevo solo tiene que anadir su
+## linea aqui: el coleccionable cae solo. Hoy unicamente existe el Kappa.
+const BOSS_ITEMS := {
+	"kappa": "diente_kappa",
+	"sirena": "lagrima_sirena",
+	"esqueleto": "diente_oro",
+	"fantasma": "frasco_bruma",
+	"cthulhu": "tomo_prohibido",
+	"umibozu": "cucharon_sin_fondo",
+	"shachihoko": "figura_shachihoko",
+}
+
 ## COLECCIONABLES CON ESCENA: al conseguirlos dejan su id en
 ## `GameState.pending_col_scenes` y alguien la representa después (hoy
 ## `main_menu`, al cerrar la pesca). Son los que tienen algo que decir: el
@@ -182,6 +197,8 @@ const ITEMS: Array = [
 	{ "id": "dorayaki_mordisco", "name": "Dorayaki con un mordisco",
 		"desc": "Por preparar %d dorayakis. Este te lo has ganado."
 			% DORAYAKI_PLATOS },
+	{ "id": "recetario", "name": "Recetario completo",
+		"desc": "Por aprender TODAS las recetas del juego." },
 	# --- Vaiana --------------------------------------------------------------
 	{ "id": "anzuelo_maui", "name": "Anzuelo mágico gigante",
 		"desc": "Por sacar %d capturas del mar. Ya vives de la caña."
@@ -194,8 +211,6 @@ const ITEMS: Array = [
 	{ "id": "campana_servicio", "name": "Campana del último servicio",
 		"desc": "Por cerrar una jornada con %d doblones de propina."
 			% CAMPANA_PROPINA },
-	{ "id": "diente_kappa", "name": "Diente de Kappa",
-		"desc": "Se le cayó al jefe cuando por fin se dio por servido." },
 	{ "id": "koinobori", "name": "Koinobori", "desc": "" },
 	{ "id": "omamori", "name": "Omamori", "desc": "" },
 	{ "id": "palillos_madera", "name": "Palillos de madera",
@@ -206,6 +221,21 @@ const ITEMS: Array = [
 	{ "id": "palillos_oro", "name": "Palillos de oro",
 		"desc": "Por servir %d platos. Esto ya es un oficio."
 			% PALILLOS_PLATOS[2] },
+	# --- Trofeos de los JEFES DE MAR (uno por mar; ver BOSS_ITEMS) -----------
+	{ "id": "diente_kappa", "name": "Diente de Kappa",
+		"desc": "Se le cayó al Kappa cuando por fin se dio por servido." },
+	{ "id": "lagrima_sirena", "name": "Lágrima de sirena",
+		"desc": "Lo único que dejó la sirena al darse por servida." },
+	{ "id": "diente_oro", "name": "Diente de oro",
+		"desc": "Se le cayó al pirata esquelético de tanto masticar." },
+	{ "id": "frasco_bruma", "name": "Frasco de bruma",
+		"desc": "Un poco del pirata fantasma, atrapado en un frasco." },
+	{ "id": "tomo_prohibido", "name": "Tomo prohibido",
+		"desc": "Cthulhu lo dejó sobre la barra. Mejor no abrirlo." },
+	{ "id": "cucharon_sin_fondo", "name": "Cucharón sin fondo",
+		"desc": "Con esto se salva un barco: el umibōzu no puede llenarlo nunca." },
+	{ "id": "figura_shachihoko", "name": "Figura de shachihoko",
+		"desc": "El shachihoko la llevaba en el lomo." },
 	# --- Piratas del Caribe --------------------------------------------------
 	{ "id": "perla_negra", "name": "Perla negra",
 		"desc": "Salió de un cofre pescado en alta mar." },
@@ -272,6 +302,9 @@ const ITEMS: Array = [
 	# --- Sea of Thieves ------------------------------------------------------
 	{ "id": "banana", "name": "Banana",
 		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- Urashima Tarō -------------------------------------------------------
+	{ "id": "tamatebako", "name": "Tamatebako",
+		"desc": "Salió de un cofre pescado en alta mar. No se te ocurra abrirla." },
 	# --- Mitología griega ----------------------------------------------------
 	{ "id": "obolo_caronte", "name": "Óbolo de Caronte",
 		"desc": "Salió de un cofre pescado en alta mar. El pasaje del barquero." },

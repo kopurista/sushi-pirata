@@ -1794,6 +1794,22 @@ func _run_achievement_check() -> void:
 	# tambien si ya se habia pescado antes de que existiera la pieza.
 	if fish_album.has(CollectibleData.ESMERALDA_PEZ):
 		unlock_collectible("esmeralda_caos")
+	# EL RECETARIO COMPLETO: todas las recetas VISIBLES aprendidas (las
+	# ocultas —barco, combinados, tempuras fallidas— no se aprenden nunca).
+	var todas := true
+	for rid in RecipeData.RECIPES:
+		if RecipeData.RECIPES[rid].get("hidden", false):
+			continue
+		if not rid in unlocked_recipes:
+			todas = false
+			break
+	if todas:
+		unlock_collectible("recetario")
+	# UN TROFEO POR JEFE DE MAR: cada uno cuelga de su propia stat, que sube
+	# `level3d` al rendirlo. Los jefes que aun no existen no molestan.
+	for boss_id in CollectibleData.BOSS_ITEMS:
+		if get_stat("boss_%s" % boss_id) > 0:
+			unlock_collectible(str(CollectibleData.BOSS_ITEMS[boss_id]))
 	# LOS PALILLOS suben de material con los platos servidos. Se comprueban los
 	# tres escalones, no solo el siguiente: quien llegue de golpe (un guardado
 	# viejo con miles de platos) se los lleva todos, de uno en uno y con su

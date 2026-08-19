@@ -602,7 +602,9 @@ COLLECTIBLES = [
     "sandalias_geta", "dado_hueso", "baraja_marcada", "anzuelo_maui",
     "cuerno_narval", "fosil_amonites", "peine_nacar", "calavera_alada",
     "esmeralda_caos", "espejo_mano", "cascabel_gato", "bota_vino",
-    "estrella_mar_seca", "obolo_caronte",
+    "estrella_mar_seca", "obolo_caronte", "tamatebako", "recetario",
+    "lagrima_sirena", "diente_oro", "frasco_bruma", "tomo_prohibido",
+    "cucharon_sin_fondo", "figura_shachihoko",
 ]
 
 
@@ -617,6 +619,9 @@ COLLECTIBLES = [
 # —un trofeo recien entregado no esta sucio— y la COMIDA, que se sirve fresca.
 # Y los que YA nacen sucios o rotos por su propio dibujo, para no ensuciarlos
 # dos veces.
+## Iconos con un HUECO real en medio (ver `fill_white_holes`).
+CON_HUECO = {"cucharon_sin_fondo"}
+
 NO_ENSUCIAR = {
     # Oro y magia.
     "trifuerza", "semilla_dorada", "colgante_cielos", "esfera_tesoro",
@@ -635,7 +640,9 @@ NO_ENSUCIAR = {
     "farol_fantasma", "mascara_buceo", "idolo_dorado", "rallador_tiburon",
     "espejo_mano", "estrella_mar_seca", "obolo_caronte", "cuerno_narval",
     "peine_nacar", "bota_vino", "cascabel_gato", "calavera_alada",
-    "fosil_amonites", "anzuelo_maui", "esmeralda_caos",
+    "fosil_amonites", "anzuelo_maui", "esmeralda_caos", "lagrima_sirena",
+    "tomo_prohibido", "frasco_bruma", "cucharon_sin_fondo", "tamatebako",
+    "recetario", "diente_oro", "figura_shachihoko",
 }
 
 
@@ -686,6 +693,12 @@ def build_collectibles() -> None:
             print(f"col_{name:18s} FALTA {src}")
             continue
         img = drop_white(Image.open(src).convert("RGBA"))
+        # Los que tienen un AGUJERO en medio necesitan la segunda pasada: la
+        # inundacion entra por los bordes y el blanco encerrado por el propio
+        # dibujo sobrevive. El cucharon del umibozu es un aro y sin esto se
+        # queda con un disco blanco opaco donde deberia verse el fondo.
+        if name in CON_HUECO:
+            img = fill_white_holes(img)
         img = fit_max(crop_alpha(drop_specks(img), 2), COLLECTIBLE_ICON_SIDE)
         if name not in NO_ENSUCIAR:
             img = ensuciar(img, name)

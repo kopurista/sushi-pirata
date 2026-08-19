@@ -4305,6 +4305,9 @@ func _finalize_results() -> void:
 	# estrellas del puerto.
 	if boss_done:
 		GameState.bump_stat("bosses_beaten")
+		# Y la stat DEL JEFE concreto, que es de la que cuelga su trofeo
+		# (`CollectibleData.BOSS_ITEMS`).
+		GameState.bump_stat("boss_%s" % boss_id)
 	# La experiencia del cocinero, con su toast de subida si toca. Va antes del
 	# save para que el nivel nuevo viaje en el mismo guardado.
 	GameState.add_chef_xp(last_xp)

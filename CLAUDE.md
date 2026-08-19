@@ -1751,7 +1751,7 @@ primera vez que se entra en ellos (`logros_intro_done` /
     conseguido (nada de un aluvión de toasts al arrancar), pero `claimed`
     queda vacío → todo lo ganado hasta hoy se puede reclamar del tirón.
     Asumido: es el mismo criterio retroactivo de los logros.
-- `scripts/collectible_data.gd` — catálogo de COLECCIONABLES (112, solo datos:
+- `scripts/collectible_data.gd` — catálogo de COLECCIONABLES (120, solo datos:
   id, nombre, `desc` = cómo se consigue o el guiño que lo explica, que SOLO se
   enseña ya conseguido).
   **El ORDEN de `ITEMS` es el de la vitrina y agrupa por REFERENCIA**: tesoros
@@ -1788,7 +1788,7 @@ primera vez que se entra en ellos (`logros_intro_done` /
   en aventura, arcade o por vías especiales; la excepción son los que uno
   draga literalmente del fondo (botella, ancla, calavera, hueso, pata de palo,
   tentáculo, garfio, brújula, catalejo, bala de cañón), que también se pescan.
-  **Y hay nueve TROFEOS que se ganan JUGANDO**, con sus umbrales en
+  **Y hay diez TROFEOS que se ganan JUGANDO**, con sus umbrales en
   `CollectibleData` para que la ficha no pueda contradecirlos: **cuchillo del
   maestro** (`CUCHILLO_CORTES`, 200 cortes lentos bordados, stat `slices_ok`),
   **galón de oro** (`GALON_OLEADA`, oleada 20 del Arcade), **delantal
@@ -1800,7 +1800,9 @@ primera vez que se entra en ellos (`logros_intro_done` /
   Las tres stats nuevas se apuntan en `_finalize_results`; el galón cuelga de
   `arcade_best`, que NO es una stat, así que `record_arcade_wave` pide la
   pasada de logros a mano.
-  A esos se suman el **anzuelo mágico gigante** (`ANZUELO_PECES`, 200
+  A esos se suman el **recetario completo** (aprender TODAS las recetas
+  visibles; las ocultas —barco, combinados, tempuras fallidas— no cuentan
+  porque no se aprenden nunca), el **anzuelo mágico gigante** (`ANZUELO_PECES`, 200
   capturas, stat `fish_caught`), el **dorayaki con un mordisco** (`DORAYAKI_PLATOS`, 100
   dorayakis hechos, stat `dish_dorayaki`), la **piedra de afilar gastada** (`PIEDRA_CORTES`,
   1.000 cortes lentos: es el escalón SIGUIENTE del cuchillo del maestro, se
@@ -1837,7 +1839,7 @@ primera vez que se entra en ellos (`logros_intro_done` /
     `who_override == "grumete_sombrero"` — stat `fed_sombrero`; el personaje
     con sombrero AÚN NO EXISTE, queda para niveles futuros). Los tres de stats
     se comprueban al principio de `_run_achievement_check`.
-  · **Pescables** (`FishData.FISHING_COLLECTIBLES`, 75): salen del COFRE del
+  · **Pescables** (`FishData.FISHING_COLLECTIBLES`, 76): salen del COFRE del
     minijuego de PESCA, y son DOS familias — **todas las REFERENCIAS** a otras
     obras (Zelda, One Piece, Monkey Island, Day of the Tentacle, Piratas del
     Caribe, La Isla del Tesoro, Peter Pan, Popeye, El Planeta del Tesoro,
@@ -1859,10 +1861,27 @@ primera vez que se entra en ellos (`logros_intro_done` /
   · **Triángulo dorado**: 8 fragmentos (`GameState.add_triforce_piece`; su
     fuente es el cofre de la PESCA); al octavo se junta en UN coleccionable y
     regala 3 doblones. La vitrina enseña "n/8" sobre su silueta si hay alguno.
+  · **UN TROFEO POR JEFE DE MAR** (`CollectibleData.BOSS_ITEMS`): la campaña
+    son 7 mares y cada uno cierra con su jefe, que al rendirse deja su pieza
+    — diente de Kappa, lágrima de sirena, diente de oro (pirata esquelético),
+    frasco de bruma (pirata fantasma), tomo prohibido (Cthulhu), cucharón sin
+    fondo (umibōzu, el truco con el que los marineros se libraban de él) y
+    figura de shachihoko. La stat la apunta `level3d._finalize_results` como
+    **"boss_<id>"** con el `boss` del puerto, así que **un jefe nuevo solo
+    tiene que añadir su línea a `BOSS_ITEMS`**: el coleccionable cae solo.
+    Hoy únicamente existe el Kappa; los otros seis esperan a su mar.
   · **LA ESMERALDA DEL CAOS cuelga de UNA ESPECIE del álbum**
     (`ESMERALDA_PEZ` = "froggy", la rana caótica): es la única pieza que se
     gana pescando un pez CONCRETO, y mira el ÁLBUM y no una estadística, así
     que cae también si esa rana se pescó antes de que la pieza existiera.
+  · **UN ICONO CON AGUJERO NECESITA LA SEGUNDA PASADA** (`CON_HUECO` en
+    ui2_prep, hoy solo el cucharón sin fondo del umibōzu): `drop_white`
+    inunda desde los BORDES, así que el blanco encerrado por el propio
+    dibujo —el hueco de un aro— sobrevive y queda como un disco opaco. Se
+    remata con `fill_white_holes`, la misma pasada que necesitaron el
+    tachado de la papelera y el hueco del engranaje. Comprobado midiendo
+    el ALFA del centro, no mirando la miniatura: ahí un hueco transparente
+    y uno relleno de blanco se ven igual.
   · **LOS TESOROS ESTÁN SUCIOS** (regla del usuario): llevan años perdidos en
     el fondo del mar o en la bodega de un naufragio, así que no pueden verse
     recién comprados. Se pide ya en el prompt de Ludo ("worn", "stained",
