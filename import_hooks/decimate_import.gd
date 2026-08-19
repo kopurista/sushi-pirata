@@ -66,7 +66,6 @@ const BUDGETS := {
 	"map_enemigo": 8000,
 	"map_barco": 8000,
 	# Personajes: el chef y los clientes rondan los 6.000, estos venían a 19.500.
-	"ayudante_rig": 6000,
 	"tendero": 6000,
 	"chef_neutro_rig": 6000,
 	"chef_fem_rig": 6000,
@@ -74,10 +73,10 @@ const BUDGETS := {
 	"pirata_fem_rig": 6000,
 	"capitan_fem_rig": 6000,
 	"vip_fem_rig": 6000,
-	"ayudante_fem_rig": 6000,
 	"pablo_rig": 6000,
 	"kappa_rig": 6000,
 	"cai_rig": 6000,
+	"alice_rig": 6000,
 }
 
 ## Tope de pasadas. Cada `generate_lods` recorta ~50%, así que 6 pasadas dan de

@@ -2,31 +2,28 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dhf1s4s81lhhe"
-path="res://.godot/imported/ayudante_fem_rig_1.png-c800a3da4220a479f6feef97a49a9c93.ctex"
+uid="uid://4blhpoilgohy"
+path="res://.godot/imported/head_AL.png-23232e75e7886a03b8bac03b0330031b.ctex"
 metadata={
 "vram_texture": false
-}
-generator_parameters={
-"md5": "c3fb9ba72343c45a9356ada1edc746f6"
 }
 
 [deps]
 
-source_file="res://assets/models/ayudante_fem_rig_1.png"
-dest_files=["res://.godot/imported/ayudante_fem_rig_1.png-c800a3da4220a479f6feef97a49a9c93.ctex"]
+source_file="res://assets/ui/head_AL.png"
+dest_files=["res://.godot/imported/head_AL.png-23232e75e7886a03b8bac03b0330031b.ctex"]
 
 [params]
 
-compress/mode=4
+compress/mode=0
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
-compress/rdo_quality_loss=4.0
+compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=true
+mipmaps/generate=false
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""
@@ -39,5 +36,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=512
-detect_3d/compress_to=0
+process/size_limit=0
+detect_3d/compress_to=1

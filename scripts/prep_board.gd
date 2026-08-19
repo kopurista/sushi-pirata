@@ -2435,22 +2435,17 @@ func _build_helper_button() -> void:
 	sb.shadow_size = 5
 	disc.add_theme_stylebox_override("panel", sb)
 	helper_button.add_child(disc)
-	# La cara del ayudante es la del género CONTRARIO al del jugador. Los
-	# retratos son de CUERPO ENTERO (los del selector de Opciones), así que se
-	# recorta la cabeza: metido entero en un disco de 56 px no se le veía.
+	# LA CARA DEL AYUDANTE ES LA DE ALICE, siempre: desde que se enrola es ella
+	# quien echa una mano en la tabla. Se usa su ICONO DE CABEZA, que ya viene
+	# recortado por `tools/head_icons.gd`; antes era el retrato de cuerpo entero
+	# del chef del género contrario al jugador y había que recortarle la cabeza
+	# a mano con un AtlasTexture, porque entero en un disco de 56 px no se veía.
 	var ic := TextureRect.new()
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	var face := "res://assets/ui/chef_%s.png" % GameState.helper_gender()
+	var face := CharacterData.head("alice", CharacterData.FEMALE)
 	if ResourceLoader.exists(face):
-		var full: Texture2D = load(face)
-		var atlas := AtlasTexture.new()
-		atlas.atlas = full
-		var w := float(full.get_width())
-		var h := float(full.get_height())
-		atlas.region = Rect2(w * HELPER_FACE.position.x, h * HELPER_FACE.position.y,
-			w * HELPER_FACE.size.x, h * HELPER_FACE.size.y)
-		ic.texture = atlas
+		ic.texture = load(face)
 	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ic.offset_left = 4.0
 	ic.offset_top = 4.0

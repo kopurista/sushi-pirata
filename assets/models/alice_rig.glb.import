@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://di5empl2wn6qm"
-path="res://.godot/imported/ayudante_rig.glb-9fe7462fd292dc3d8b45ac4cc40ad2f9.scn"
+uid="uid://byr043b7epw78"
+path="res://.godot/imported/alice_rig.glb-21685ab897fa3a4a01e197db41ef5d0c.scn"
 
 [deps]
 
-source_file="res://assets/models/ayudante_rig.glb"
-dest_files=["res://.godot/imported/ayudante_rig.glb-9fe7462fd292dc3d8b45ac4cc40ad2f9.scn"]
+source_file="res://assets/models/alice_rig.glb"
+dest_files=["res://.godot/imported/alice_rig.glb-21685ab897fa3a4a01e197db41ef5d0c.scn"]
 
 [params]
 
@@ -23,7 +23,7 @@ nodes/root_scale=1.0
 nodes/import_as_skeleton_bones=false
 nodes/use_name_suffixes=true
 nodes/use_node_type_suffixes=true
-meshes/ensure_tangents=false
+meshes/ensure_tangents=true
 meshes/generate_lods=false
 meshes/create_shadow_meshes=false
 meshes/light_baking=1

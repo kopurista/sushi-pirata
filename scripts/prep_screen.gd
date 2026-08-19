@@ -157,10 +157,11 @@ func _aviso_antes_de_zarpar() -> void:
 	var lineas: Array = []
 	match guion:
 		"nivel_13":
+			# NADA de bonificadores aqui: todavia no existen. Se abren DESPUES de
+			# este escenario, cuando Alice se enrola (ver `main_menu._presentar_alice`).
 			lineas = [
 				{ "text": "Diez comandas, %s. Hoy vas a echar de menos un segundo par de manos." % GameState.player_title(), "mood": "serio" },
-				{ "text": "Y las hay: el bonificador del **ayudante de cocina** se gana dándole de comer **cuatro platos a cuatro clientes distintos** en una jornada.", "mood": "hablando" },
-				{ "text": "Hoy hay clientela de sobra para eso. Tú ponte a ello.", "mood": "feliz" },
+				{ "text": "Llévate una carta VARIADA: con esta clientela vas a repetir plato antes de darte cuenta.", "mood": "hablando" },
 			]
 		"nivel_14":
 			lineas = [

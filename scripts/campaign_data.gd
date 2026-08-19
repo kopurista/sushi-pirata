@@ -621,6 +621,9 @@ const PORTS: Array = [
 		"goal_stars": 2,
 		"star_money": [48, 82, 125],
 		# EL AYUDANTE: aquí se presenta y desde aquí se puede ganar.
+		# ALICE se sienta en la barra como una clienta mas: come de UNA estrella
+		# (es una aprendiza, no una lobo de mar) y trae su propio modelo.
+		"special_client": { "who": "alice", "type": "E" },
 		"unlocks_perks": true,
 		"unlocks_perk": "ayudante",
 		"prep_dialog": "nivel_13",

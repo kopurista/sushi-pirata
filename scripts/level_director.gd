@@ -1232,17 +1232,79 @@ func _nivel_12() -> void:
 # Rada de los Dos Fuegos: el AYUDANTE DE COCINA. Aquí se presenta y desde aquí
 # se puede ganar (`unlocks_perk` del puerto).
 
+## Platos que hay que servirle a ALICE para que se enrole.
+const PLATOS_ALICE := 3
+
+var _alice: Node3D = null
+var _alice_llena := false
+
+
+## RADA DE LOS DOS FUEGOS (escenario 17): llega ALICE. Se sienta de clienta, se
+## le da de comer, y el trato se cierra DESPUES en el mapa
+## (`main_menu._presentar_alice`), que es donde se enrola y donde se abren los
+## BONIFICADORES. Aqui NO se explica ningun bonificador: todavia no existen.
 func _nivel_13() -> void:
 	await _say([
 		{ "text": "**Rada de los Dos Fuegos**: diez comandas y un solo par de manos. Las tuyas.", "mood": "serio" },
-		{ "text": "Por eso hoy vengo a hablarte de un bonificador nuevo: el **ayudante de cocina**.", "mood": "hablando" },
-		{ "text": "¡OTRO EN LA COCINA! ¡RAAAK! ¡QUE FRIEGUE ÉL!", "who": "gigi", "mood": "loro" },
-		{ "text": "Con él puesto aparece un botón en la tabla: empiezas una receta, se la pasas... y la termina él solo mientras tú haces otra.", "mood": "feliz" },
-		{ "text": "Necesita su descanso entre plato y plato, y ese descanso se acorta **mejorándolo** con doblones.", "mood": "hablando" },
-		{ "text": "Para ganártelo, dale de comer **cuatro platos a cuatro clientes distintos** en una misma jornada. Hoy es buen día para eso.", "mood": "serio" },
+		{ "text": "Y una chica que lleva media hora en el muelle mirando la cinta sin sentarse.", "mood": "hablando" },
+		{ "text": "¡PUES QUE MIRE DESDE OTRO LADO! ¡RAAAK! ¡ESTORBA!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "O que se siente. Tú a lo tuyo, %s, que hoy hay faena." % GameState.player_title(), "mood": "loro_resignado" },
 	])
 	_play()
 	_vigilar_basura()
+	await _tras_la_preparacion()
+
+	# --- ALICE SE SIENTA. Como Cai, lo primero que hace es no decir nada: es
+	#     timida, y por eso David tiene que romper el hielo por ella.
+	await _esperar(func() -> bool:
+		return lv.ended or _cliente_who("alice") != null)
+	if lv.ended:
+		return
+	_alice = _cliente_who("alice")
+	if _alice == null:
+		return
+	await _pausa(1.2)
+	if not is_instance_valid(_alice) or lv.ended:
+		return
+	if not _alice.plate_served.is_connected(_on_alice_come):
+		_alice.plate_served.connect(_on_alice_come)
+	_focus_client(_alice)
+	await _say([
+		{ "text": "...", "who": "alice", "mood": "callado" },
+		{ "text": "Siéntate, muchacha, que no mordemos. ¿Buscas a alguien?", "mood": "hablando" },
+		{ "text": "A mi maestra. Se llama **Miku**. Cocinaba... como nadie.", "who": "alice", "mood": "triste" },
+		{ "text": "Llevo tres puertos preguntando. Nadie la ha visto.", "who": "alice", "mood": "serio" },
+		{ "text": "¡PUES AQUÍ TAMPOCO! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "Aquí lo que hay es comida. Come algo primero y luego hablamos, que con hambre no se busca a nadie.", "mood": "loro_resignado" },
+		{ "text": "...Gracias.", "who": "alice", "mood": "callado" },
+	])
+	_play("¡**%d platos** para la chica del muelle!" % PLATOS_ALICE)
+
+	# --- Barriga llena: lo dice ella, y el trato se cierra ya en el mapa ---
+	await _esperar(func() -> bool: return lv.ended or _alice_llena)
+	if lv.ended or not _alice_llena or not is_instance_valid(_alice):
+		return
+	_focus_client(_alice)
+	await _say([
+		{ "text": "Está muy bueno. De verdad.", "who": "alice", "mood": "feliz" },
+		{ "text": "Yo también cocino. Un poco. Mi maestra decía que me falta mano, no cabeza.", "who": "alice", "mood": "hablando" },
+		{ "text": "Mano se hace trabajando. Cuando cierres el turno, ven a verme.", "mood": "feliz" },
+	])
+	_play()
+
+
+## Cada plato que termina Alice. `GameState.alice_saciada` se guarda porque la
+## escena en la que se enrola ocurre DESPUES, en el mapa: sin esto, quien le
+## diera de comer y cerrase por objetivo llegaria alli y ella hablaria de una
+## comida que nadie recuerda. Mismo patron que Cai.
+func _on_alice_come(_precio: int, _propina: int) -> void:
+	if _alice_llena or _alice == null or not is_instance_valid(_alice):
+		return
+	if _alice.eaten_ids.size() < PLATOS_ALICE:
+		return
+	_alice_llena = true
+	GameState.alice_saciada = true
+	GameState.save_game()
 
 
 # ------------------------------------------------------------------- nivel 14

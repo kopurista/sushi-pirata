@@ -269,6 +269,14 @@ func _menu_popups() -> void:
 	if GameState.pending_ingots > 0:
 		await get_tree().create_timer(0.7).timeout
 		await _pagar_pablo()
+	# ALICE SE ENROLA, y con ella LLEGAN LOS BONIFICADORES. Es la escena que
+	# los abre: hasta aquí el jugador no ha visto ninguno, y el primero que
+	# tiene es ella misma (el bonificador del `ayudante`). Va antes que la de
+	# Cai porque su escenario es posterior.
+	if GameState.perks_unlocked() and not GameState.alice_intro_done:
+		await get_tree().create_timer(0.7).timeout
+		await _presentar_alice()
+		return
 	# CAI SE UNE A LA TRIPULACIÓN: al volver del puerto que abre la PESCA. Como
 	# Saverio, al cerrar el diálogo lleva al jugador de la mano a su pantalla —
 	# que aquí es la clase entera de pescar.
@@ -363,6 +371,43 @@ func _presentar_maestrias() -> void:
 	await caja.finished
 	await caja.close_and_free()
 	_go_skills()
+
+
+## ALICE SE ENROLA (al volver al mapa tras superar su escenario, el 17). Es la
+## escena que ESTRENA los bonificadores en toda la partida: le da al jugador el
+## del AYUDANTE —que es ella— y de paso explica qué son. Como con Cai, la
+## escena NO va dentro del nivel sino aquí, con el menú delante, que es donde
+## el jugador puede ir luego a Bonificadores a verlos.
+func _presentar_alice() -> void:
+	GameState.alice_intro_done = true
+	# El uso del ayudante se lo lleva puesto: es su regalo de bienvenida. Si ya
+	# lo tuviera por haber cumplido su combo, `unlock_perk` solo suma otro uso.
+	GameState.unlock_perk("ayudante")
+	GameState.save_game()
+	var caja := DialogueBox.new()
+	caja.z_index = 200
+	ui_layer.add_child(caja)
+	# Si el jugador cerró el turno por objetivo sin llegar a darle los platos,
+	# Alice se enrola igual —el escenario está superado— pero sin fingir una
+	# comida que no hubo. Mismo criterio que con Cai.
+	var comio := GameState.alice_saciada
+	caja.say([
+		{ "text": "He estado pensando lo que dijo." if comio
+			else "Perdone. Antes no me atreví a decirlo.",
+			"who": "alice", "mood": "callado" },
+		{ "text": "No sé dónde está Miku. Pero mientras la busco... podría aprender.", "who": "alice", "mood": "serio" },
+		{ "text": "¿Aprender? Chiquilla, esto es un barco pirata, no una escuela.", "mood": "sorprendido" },
+		{ "text": "Fregaré. Cortaré. Lo que haga falta.", "who": "alice", "mood": "hablando" },
+		{ "text": "¡QUE FRIEGUE! ¡RAAAK! ¡QUE FRIEGUE!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "Por una vez, el loro tiene razón. Bienvenida a bordo, Alice.", "mood": "feliz" },
+		{ "text": "Y esto, %s, te cambia la cocina: desde hoy tienes **bonificadores**." % GameState.player_title(), "mood": "hablando" },
+		{ "text": "No son los potenciadores del bote: esos duran un turno y salen solos. Los **bonificadores** se eligen ANTES de zarpar y valen para toda la jornada.", "mood": "serio" },
+		{ "text": "El primero es ella. Con el **ayudante de cocina** puesto, empiezas una receta, le pasas la tabla y la termina Alice mientras tú haces otra.", "mood": "feliz" },
+		{ "text": "Cada uno se gana haciendo algo concreto en partida, y cada vez que lo repitas te llevas otro uso. Y se **mejoran con doblones** desde el menú, en **Bonificadores**.", "mood": "hablando" },
+		{ "text": "No le romperé nada. Casi seguro.", "who": "alice", "mood": "feliz" },
+	])
+	await caja.finished
+	await caja.close_and_free()
 
 
 ## CAI se enrola. Al superar la Isla de Gades quiere pagar con su caña, y David

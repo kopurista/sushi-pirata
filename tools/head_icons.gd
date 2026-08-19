@@ -19,8 +19,8 @@ const OUT := {
 	#   "E": "grumete_rig", "A": "pirata_rig", "G": "capitan_rig",
 	#   "E_f": "grumete_fem_rig", "A_f": "pirata_fem_rig",
 	#   "G_f": "capitan_fem_rig", "P": "pablo_rig", "K": "kappa_rig",
-	#   "C": "cai_rig",
-	"C": "cai_rig",
+	#   "C": "cai_rig", "AL": "alice_rig",
+	"AL": "alice_rig",
 }
 const SIZE := 192
 ## Encuadre en fracciones de la ALTURA TOTAL del personaje, no del hueso de la
@@ -32,9 +32,17 @@ const FRAME_F := 0.34
 ## es mucho más alto que el del resto y con el encuadre general se le cortaba
 ## por arriba.
 ## Y el Kappa es un cabezón con plato y pelambrera: media altura es cabeza.
-const FRAME_OVERRIDE := { "P": 0.44, "K": 0.52 }
+const FRAME_OVERRIDE := { "P": 0.44, "K": 0.52, "AL": 0.22 }
 ## Centro del encuadre bajando desde la coronilla (incluye gorro/sombrero).
 const HEAD_DROP_F := 0.13
+## Ajuste del centro por icono, cuando la coronilla no está donde parece. La
+## melena de Alice le baja mucho la caja, así que su cara queda MÁS ARRIBA de
+## lo que dice la regla general.
+const DROP_OVERRIDE := { "AL": 0.10 }
+## Y ajuste de LUZ por icono: la piel de Alice es muy pálida y con la luz
+## general se le quemaba la cara a blanco liso, sin ojos ni boca (la misma
+## lección que `chef_portraits.gd`, donde las caras claras se pasaban de luz).
+const LIGHT_OVERRIDE := { "AL": 0.5 }
 
 var _pending: Array = []
 var _t := 0.0
@@ -73,13 +81,14 @@ func _render(id: String, model: String) -> void:
 	env.background_mode = Environment.BG_CLEAR_COLOR
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.85, 0.88, 0.95)
-	env.ambient_light_energy = 1.0
+	var luz := float(LIGHT_OVERRIDE.get(id, 1.0))
+	env.ambient_light_energy = 1.0 * luz
 	var we := WorldEnvironment.new()
 	we.environment = env
 	vp.add_child(we)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-28.0, -28.0, 0.0)
-	sun.light_energy = 1.2
+	sun.light_energy = 1.2 * luz
 	vp.add_child(sun)
 
 	# La cabeza se encuadra por la caja del modelo: centro un poco por debajo
@@ -92,7 +101,7 @@ func _render(id: String, model: String) -> void:
 		first = false
 	var body_h := aabb.size.y
 	var center := Vector3(aabb.position.x + aabb.size.x * 0.5,
-		aabb.position.y + body_h * (1.0 - HEAD_DROP_F),
+		aabb.position.y + body_h * (1.0 - float(DROP_OVERRIDE.get(id, HEAD_DROP_F))),
 		aabb.position.z + aabb.size.z * 0.5)
 
 	var cam := Camera3D.new()

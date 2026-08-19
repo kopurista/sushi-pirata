@@ -746,7 +746,7 @@ func _apply_perks() -> void:
 func _setup_helper() -> void:
 	var h_pos := Vector3(0.72, 0.0, -0.60)
 	helper_pivot = _spawn_model(
-		load(CharacterData.model("ayudante", GameState.helper_gender())),
+		load(CharacterData.model("alice", CharacterData.FEMALE)),
 		h_pos, 1.62, self)
 	helper_pivot.rotation_degrees.y = 0.0
 	_add_blob_shadow(h_pos + Vector3(0.1, 0.02, 0.1), 1.05, 0.72)

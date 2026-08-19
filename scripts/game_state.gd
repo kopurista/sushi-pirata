@@ -135,6 +135,15 @@ var cai_saciado := false
 var fishing_intro_done := false
 ## Cai ya se ha enrolado (la escena del mapa al superar la Isla de Gades).
 var cai_intro_done := false
+## A ALICE le han llenado la barriga en la Rada de los Dos Fuegos. Igual que
+## con Cai, se guarda porque la escena en la que se enrola NO ocurre en el
+## nivel sino después, ya en el mapa: sin este apunte, quien le diera de comer
+## y cerrase el turno por objetivo llegaría al mapa y ella hablaría de una
+## comida que nadie recuerda.
+var alice_saciada := false
+## Alice ya se ha enrolado, y con ella se abrieron los BONIFICADORES (la escena
+## del mapa al superar su escenario).
+var alice_intro_done := false
 ## Cai ya ha explicado qué son los COLECCIONABLES (al pescar el primero).
 var col_intro_done := false
 ## David ya ha presentado las MAESTRÍAS (al llegar al nivel 5 de cocinero).
@@ -1853,11 +1862,6 @@ func animations_on() -> bool:
 	return bool(get_setting("anim"))
 
 
-## Género del ayudante de cocina: el contrario al del jugador.
-func helper_gender() -> String:
-	return CharacterData.opposite(player_gender)
-
-
 ## Tope de fotogramas de la pantalla en curso: los menús se conforman con la
 ## mitad, jugando manda el ajuste del usuario.
 func fps_for(playing: bool) -> int:
@@ -1940,6 +1944,8 @@ func save_game() -> void:
 		"fishing_intro_done": fishing_intro_done,
 		"cai_intro_done": cai_intro_done,
 		"cai_saciado": cai_saciado,
+		"alice_saciada": alice_saciada,
+		"alice_intro_done": alice_intro_done,
 		"col_intro_done": col_intro_done,
 		"skills_intro_done": skills_intro_done,
 		"nivel_intro_done": nivel_intro_done,
@@ -2135,6 +2141,8 @@ func load_game() -> void:
 	fishing_intro_done = bool(parsed.get("fishing_intro_done", tutorial_done))
 	cai_intro_done = bool(parsed.get("cai_intro_done", tutorial_done))
 	cai_saciado = bool(parsed.get("cai_saciado", tutorial_done))
+	alice_saciada = bool(parsed.get("alice_saciada", false))
+	alice_intro_done = bool(parsed.get("alice_intro_done", false))
 	col_intro_done = bool(parsed.get("col_intro_done", tutorial_done))
 	skills_intro_done = bool(parsed.get("skills_intro_done", false))
 	nivel_intro_done = bool(parsed.get("nivel_intro_done", false))
@@ -2238,6 +2246,8 @@ func _new_game() -> void:
 	fishing_intro_done = false
 	cai_intro_done = false
 	cai_saciado = false
+	alice_saciada = false
+	alice_intro_done = false
 	col_intro_done = false
 	skills_intro_done = false
 	nivel_intro_done = false

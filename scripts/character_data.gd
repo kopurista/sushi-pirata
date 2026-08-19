@@ -73,9 +73,14 @@ const MODELS := {
 		MALE: "res://assets/models/chef_rig.glb",
 		FEMALE: "res://assets/models/chef_fem_rig.glb",
 	},
-	"ayudante": {
-		MALE: "res://assets/models/ayudante_rig.glb",
-		FEMALE: "res://assets/models/ayudante_fem_rig.glb",
+	# ALICE. Un solo modelo para sus DOS papeles: la clienta de su escenario y
+	# la AYUDANTE de cocina en cuanto se enrola. Es la misma persona y el rig es
+	# el mismo, así que dos modelos serían dos veces los mismos triángulos.
+	# Con ella desaparecieron `ayudante_rig` y `ayudante_fem_rig`, los dos
+	# ayudantes genéricos que se elegían por el género CONTRARIO al del jugador:
+	# el ayudante ya no es un figurante, es un personaje con nombre.
+	"alice": {
+		MALE: "res://assets/models/alice_rig.glb",
 	},
 }
 
@@ -88,6 +93,7 @@ const HEADS := {
 	"pablo": { MALE: "res://assets/ui/head_P.png" },
 	"kappa": { MALE: "res://assets/ui/head_K.png" },
 	"cai": { MALE: "res://assets/ui/head_C.png" },
+	"alice": { MALE: "res://assets/ui/head_AL.png" },
 }
 
 ## Tipo de cliente (el de client_mix / TAKE_CHANCES) -> personaje.
@@ -110,7 +116,8 @@ static func who_for_type(type: String) -> String:
 	return TYPE_TO_WHO.get(type, "grumete")
 
 
-## El género contrario: el ayudante siempre es del otro (decisión de diseño).
+## El género contrario. Lo usó el ayudante genérico, que ya no existe (hoy la
+## ayudante es Alice); se queda como utilidad de la tabla.
 static func opposite(gender: String) -> String:
 	return MALE if gender == FEMALE else FEMALE
 

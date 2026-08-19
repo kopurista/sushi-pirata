@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cimni270lptwt"
-path="res://.godot/imported/ayudante_fem_rig_0.png-b67b8a737d06f1b933e9b064bf4f42be.ctex"
+uid="uid://c5dooqibqrtyv"
+path="res://.godot/imported/alice_rig_0.png-a51ac6747f3e1effa6bf90a08a51c6f7.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "73a6da5e0088b73d18ebf6310fa3e7d1"
+"md5": "23d756e409c51a925cbb5b647a3e9f8e"
 }
 
 [deps]
 
-source_file="res://assets/models/ayudante_fem_rig_0.png"
-dest_files=["res://.godot/imported/ayudante_fem_rig_0.png-b67b8a737d06f1b933e9b064bf4f42be.ctex"]
+source_file="res://assets/models/alice_rig_0.png"
+dest_files=["res://.godot/imported/alice_rig_0.png-a51ac6747f3e1effa6bf90a08a51c6f7.ctex"]
 
 [params]
 
@@ -39,5 +39,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=512
+process/size_limit=256
 detect_3d/compress_to=0
