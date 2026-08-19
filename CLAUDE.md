@@ -1886,6 +1886,18 @@ primera vez que se entra en ellos (`logros_intro_done` /
     los abarque a los dos**: la caja ancha pilla los mechones del pelo de los
     lados y deja un corte recto visible. Se comprueba con un diff contra el
     original, que canta si el cambio se salió de los ojos.
+  · **LAS LÁGRIMAS DE `triste` SE QUITAN EN EL MONTAJE, no en el prompt**: el
+    generador se las puso las DOS veces pese a prohibirlas, y el retrato base
+    tiene que estar sereno (una lágrima es decisión de guion, no el estado por
+    defecto de la cara). `quitar_lagrimas` las detecta **contra la mediana de
+    piel de SU FILA**, no contra un umbral fijo: el reguero no es blanco —según
+    baja por la mejilla se queda en r−b 56..70 contra los 79..84 de la piel de
+    al lado—, y un corte fijo en 50 solo pillaba la punta. Dos trampas pagadas:
+    con UNA caja ancha el filtro se comió la **esclerótica de los ojos** y el
+    puente horizontal los borró dejando una banda gris de lado a lado de la
+    cara (van DOS ventanas estrechas, una por lágrima, por fuera de los ojos),
+    y por eso hay además un **tope de anchura**: una racha de más de 8 px no es
+    una lágrima y se deja en paz.
   **El montaje es `tools/alice_portraits.py`** (inundación + recorte + 544×704).
   Dos cosas suyas: se inunda solo desde ARRIBA, IZQUIERDA y DERECHA, porque el
   encuadre la corta por la cintura y desde el borde de ABAJO la inundación se

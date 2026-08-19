@@ -96,6 +96,93 @@ def quitar_fondo(im: Image.Image) -> Image.Image:
     return im
 
 
+## Franja de las MEJILLAS donde pueden caer las lagrimas, en pixeles del
+## lienzo ya compuesto (544x704). Se acota a proposito: fuera de aqui hay
+## blancos que NO son lagrimas (el ojo, el lirio, el delantal).
+## DOS VENTANAS ESTRECHAS, una por lagrima, en pixeles del lienzo compuesto.
+##
+## No se puede usar una sola caja ancha: los OJOS llegan hasta y=310 y su
+## esclerotica es tan palida como una lagrima, asi que una caja que los pise se
+## los come — paso, y el puente horizontal los borro de un plumazo dejando una
+## banda gris de lado a lado de la cara. Pero las lagrimas caen POR FUERA de
+## los ojos (x 205..216 y x 305..322, medido fila a fila), asi que acotando la
+## X se puede subir hasta el nacimiento del reguero sin tocarlos.
+LAGRIMAS_CAJAS = [(203, 302, 218, 336), (304, 302, 323, 336)]
+## Y una lagrima es FINA. Una racha mas ancha que esto no es una lagrima (es un
+## ojo, un brillo, un diente): se deja en paz. Es la red de seguridad que
+## faltaba cuando el puente se llevo los dos ojos por delante.
+LAGRIMA_MAX_ANCHO = 8
+## LA LAGRIMA SE DETECTA CONTRA SU PROPIA FILA, no contra un umbral fijo. La
+## piel de Alice es rosa (r-b de 60 a 85), pero el reguero NO es blanco: segun
+## baja por la mejilla se queda en r-b de 56 a 70, o sea a un pelo de la piel de
+## al lado. Un corte fijo (se probo en 50) solo pillaba la punta y dejaba el
+## reguero entero puesto. Lo que si lo separa es la DIFERENCIA con la mediana
+## de piel de SU fila: la lagrima siempre baja de ella al menos esto.
+LAGRIMA_CAIDA = 10
+## Y solo se mira lo CLARO: asi la linea de pestanas, que es negra, queda fuera.
+LAGRIMA_MIN = 150
+
+
+def quitar_lagrimas(im: Image.Image) -> Image.Image:
+    """Borra las lagrimas de la expresion `triste`.
+
+    El generador las pinto DOS VECES pese a prohibirlas en el prompt, y el
+    retrato base tiene que estar sereno: las lagrimas son una decision de
+    guion, no el estado por defecto de la cara.
+
+    Se detectan por COLOR y no por coordenadas: en la franja de las mejillas,
+    la piel es rosa (r-b 60..85) y la lagrima es palida (r-b 0..47). Cada
+    pixel de lagrima se repinta INTERPOLANDO de lado a lado en SU FILA, entre
+    la piel sana de la izquierda y la de la derecha; la mejilla tiene un
+    degradado vertical suave, asi que un puente horizontal de 3-4 px no se ve.
+    (Promediar el entorno, en cambio, arrastraria el rubor.)
+    """
+    im = im.convert("RGBA")
+    px = im.load()
+    tocados = 0
+    for x0, y0, x1, y1 in LAGRIMAS_CAJAS:
+        for y in range(y0, y1):
+            claros = []
+            for x in range(x0, x1):
+                r, g, b, a = px[x, y]
+                if a > 200 and r > LAGRIMA_MIN:
+                    claros.append((x, r - b))
+            if len(claros) < 6:
+                continue
+            orden = sorted(v for _, v in claros)
+            piel = orden[len(orden) // 2]
+            fila = [x for x, v in claros if v <= piel - LAGRIMA_CAIDA]
+            if not fila:
+                continue
+            # Rachas contiguas: cada una se puentea con la piel de sus lados.
+            racha = [fila[0]]
+            for x in fila[1:]:
+                if x - racha[-1] <= 2:
+                    racha.append(x)
+                    continue
+                tocados += _puente(px, racha, y, x0, x1)
+                racha = [x]
+            tocados += _puente(px, racha, y, x0, x1)
+    print("  lagrimas: %d pixeles repintados" % tocados)
+    return im
+
+
+def _puente(px, racha, y, x0, x1) -> int:
+    """Repinta una racha de lagrima interpolando entre la piel de sus lados."""
+    izq = racha[0] - 1
+    der = racha[-1] + 1
+    if izq < x0 or der >= x1 or len(racha) > LAGRIMA_MAX_ANCHO:
+        return 0
+    ci = px[izq, y]
+    cd = px[der, y]
+    n = der - izq
+    for k, x in enumerate(racha, start=1):
+        t = k / float(n)
+        px[x, y] = tuple(
+            int(round(ci[i] * (1.0 - t) + cd[i] * t)) for i in range(4))
+    return len(racha)
+
+
 def main():
     DESTINO.mkdir(parents=True, exist_ok=True)
     # El recorte y la escala se deciden UNA vez, sobre `serio`.
@@ -113,6 +200,8 @@ def main():
         recorte = im.crop(caja).resize((nw, nh), Image.LANCZOS)
         hoja = Image.new("RGBA", CANVAS, (255, 255, 255, 0))
         hoja.paste(recorte, ((CANVAS[0] - nw) // 2, CANVAS[1] - nh), recorte)
+        if mood == "triste":
+            hoja = quitar_lagrimas(hoja)
         salida = DESTINO / ("alice_%s.png" % mood)
         hoja.save(salida)
         print("  %-12s -> %s" % (mood, salida))
