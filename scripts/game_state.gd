@@ -1786,6 +1786,8 @@ func _run_achievement_check() -> void:
 	# El PLATO QUEMADO es el recuerdo del PRIMERO que se fue al cubo.
 	if get_stat("plates_wasted") > 0:
 		unlock_collectible("plato_quemado")
+	if get_stat("dish_dorayaki") >= CollectibleData.DORAYAKI_PLATOS:
+		unlock_collectible("dorayaki_mordisco")
 	# LOS PALILLOS suben de material con los platos servidos. Se comprueban los
 	# tres escalones, no solo el siguiente: quien llegue de golpe (un guardado
 	# viejo con miles de platos) se los lleva todos, de uno en uno y con su

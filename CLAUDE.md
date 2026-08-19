@@ -1751,7 +1751,7 @@ primera vez que se entra en ellos (`logros_intro_done` /
     conseguido (nada de un aluvión de toasts al arrancar), pero `claimed`
     queda vacío → todo lo ganado hasta hoy se puede reclamar del tirón.
     Asumido: es el mismo criterio retroactivo de los logros.
-- `scripts/collectible_data.gd` — catálogo de COLECCIONABLES (88, solo datos:
+- `scripts/collectible_data.gd` — catálogo de COLECCIONABLES (101, solo datos:
   id, nombre, `desc` = cómo se consigue o el guiño que lo explica, que SOLO se
   enseña ya conseguido).
   **El ORDEN de `ITEMS` es el de la vitrina y agrupa por REFERENCIA**: tesoros
@@ -1765,7 +1765,11 @@ primera vez que se entra en ellos (`logros_intro_done` /
   tirachinas/Usopp, sartén/Sanji, cuerno de reno/Chopper, sombrero
   vaquero/Robin, botella de cola/Franky, violín de esqueleto/Brook, y el
   caracol teléfono cerrando) → La Isla del Tesoro (marca negra) → Peter Pan
-  (reloj del cocodrilo) → Popeye (lata de espinacas) → La Odisea (tapones de
+  (reloj del cocodrilo) → Popeye (lata de espinacas) → Moby Dick (arpón) →
+  20.000 leguas (casco de escafandra) → El Holandés Errante (farol fantasma)
+  → Buscando a Nemo (máscara de buceo) → Indiana Jones (ídolo dorado) →
+  Overcooked (extintor) → Ratatouille (gorro diminuto) → Naruto (cuenco de
+  ramen) → La Odisea (tapones de
   cera) → Robinson Crusoe (molde de una huella) → Tiburón (bidón amarillo) →
   Sea of Thieves (banana) → Tintín (maqueta del
   Unicornio) → Los Goonies (ojo de cobre) → La Sirenita (tenedor) → El Planeta
@@ -1782,7 +1786,7 @@ primera vez que se entra en ellos (`logros_intro_done` /
   en aventura, arcade o por vías especiales; la excepción son los que uno
   draga literalmente del fondo (botella, ancla, calavera, hueso, pata de palo,
   tentáculo, garfio, brújula, catalejo, bala de cañón), que también se pescan.
-  **Y hay siete TROFEOS que se ganan COCINANDO**, con sus umbrales en
+  **Y hay ocho TROFEOS que se ganan COCINANDO**, con sus umbrales en
   `CollectibleData` para que la ficha no pueda contradecirlos: **cuchillo del
   maestro** (`CUCHILLO_CORTES`, 200 cortes lentos bordados, stat `slices_ok`),
   **galón de oro** (`GALON_OLEADA`, oleada 20 del Arcade), **delantal
@@ -1794,7 +1798,8 @@ primera vez que se entra en ellos (`logros_intro_done` /
   Las tres stats nuevas se apuntan en `_finalize_results`; el galón cuelga de
   `arcade_best`, que NO es una stat, así que `record_arcade_wave` pide la
   pasada de logros a mano.
-  A esos cinco se suman la **piedra de afilar gastada** (`PIEDRA_CORTES`,
+  A esos se suman el **dorayaki con un mordisco** (`DORAYAKI_PLATOS`, 100
+  dorayakis hechos, stat `dish_dorayaki`), la **piedra de afilar gastada** (`PIEDRA_CORTES`,
   1.000 cortes lentos: es el escalón SIGUIENTE del cuchillo del maestro, se
   gasta de tanto afilarlo) y el **plato quemado**, que es el recuerdo del
   PRIMERO que se fue al cubo (`plates_wasted` > 0).
@@ -1829,7 +1834,7 @@ primera vez que se entra en ellos (`logros_intro_done` /
     `who_override == "grumete_sombrero"` — stat `fed_sombrero`; el personaje
     con sombrero AÚN NO EXISTE, queda para niveles futuros). Los tres de stats
     se comprueban al principio de `_run_achievement_check`.
-  · **Pescables** (`FishData.FISHING_COLLECTIBLES`, 56): salen del COFRE del
+  · **Pescables** (`FishData.FISHING_COLLECTIBLES`, 66): salen del COFRE del
     minijuego de PESCA, y son DOS familias — **todas las REFERENCIAS** a otras
     obras (Zelda, One Piece, Monkey Island, Day of the Tentacle, Piratas del
     Caribe, La Isla del Tesoro, Peter Pan, Popeye, El Planeta del Tesoro,
@@ -1851,6 +1856,18 @@ primera vez que se entra en ellos (`logros_intro_done` /
   · **Triángulo dorado**: 8 fragmentos (`GameState.add_triforce_piece`; su
     fuente es el cofre de la PESCA); al octavo se junta en UN coleccionable y
     regala 3 doblones. La vitrina enseña "n/8" sobre su silueta si hay alguno.
+  · **LOS TESOROS ESTÁN SUCIOS** (regla del usuario): llevan años perdidos en
+    el fondo del mar o en la bodega de un naufragio, así que no pueden verse
+    recién comprados. Se pide ya en el prompt de Ludo ("worn", "stained",
+    "tarnished") Y se remata por código con `ensuciar()` de `ui2_prep.py`,
+    que pasa manchas de baja frecuencia, un punto de desaturación y un tinte
+    pardo sobre el dibujo ya recortado (sin tocar el alfa). La semilla sale
+    del NOMBRE, no del reloj: el mismo icono sale siempre con las mismas
+    manchas y relanzar el script no cambia el arte. **La fuerza está medida**
+    (0.46): a 0.22 no se distinguía del original y a 0.52 el latón del
+    catalejo se iba a gris verdoso. Quedan fuera (`NO_ENSUCIAR`) el oro y lo
+    mágico, los trofeos recién ganados, la COMIDA y los que ya nacen sucios o
+    rotos por su propio dibujo — ensuciar dos veces es emborronar.
   · **Iconos** `assets/ui/col_*.png`: Ludo (item-icon, Western Cartoon) →
     `_gen/ui2/col/` → `build_collectibles()` de `tools/ui2_prep.py` (con
     `drop_specks`, NUNCA `keep_largest`: la trifuerza son 8 fragmentos

@@ -9,10 +9,12 @@ por espejo o por tinte en vez de volver a generarlas.
     python tools/ui2_prep.py
 """
 
+import random
 from collections import deque
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageOps
+from PIL import (Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter,
+                 ImageFont, ImageOps)
 
 RAW = Path("_gen/ui2")
 OUT = Path("assets/ui")
@@ -594,8 +596,70 @@ COLLECTIBLES = [
     "palillos_madera", "palillos_plata", "palillos_oro", "tarro_ponyo",
     "tapones_cera", "huella_arena", "bidon_amarillo", "banana",
     "astrolabio_roto", "bitacora_roto", "botella_mensaje", "farol_aceite",
-    "piedra_afilar", "plato_quemado",
+    "piedra_afilar", "plato_quemado", "rallador_tiburon", "extintor",
+    "gorro_chef", "dorayaki_mordisco", "cuenco_ramen", "arpon",
+    "casco_escafandra", "idolo_dorado", "farol_fantasma", "mascara_buceo",
+    "sandalias_geta", "dado_hueso", "baraja_marcada",
 ]
+
+
+# PATINA DE TIEMPO: los coleccionables llevan ANOS perdidos —en el fondo del
+# mar, en un cofre, en la bodega de un naufragio— asi que no pueden verse
+# recien comprados. `ensuciar` les pasa manchas de baja frecuencia, un punto de
+# desaturacion y un tinte pardo. Se aplica al dibujo YA recortado y NO toca el
+# alfa, asi que el recorte del 9-slice ni se entera.
+#
+# Quedan FUERA (NO_ENSUCIAR) tres familias: lo que el juego describe como
+# reluciente o magico (el oro sagrado, las gemas), lo que se acaba de GANAR
+# —un trofeo recien entregado no esta sucio— y la COMIDA, que se sirve fresca.
+# Y los que YA nacen sucios o rotos por su propio dibujo, para no ensuciarlos
+# dos veces.
+NO_ENSUCIAR = {
+    # Oro y magia.
+    "trifuerza", "semilla_dorada", "colgante_cielos", "esfera_tesoro",
+    "corazon_cofre", "perla_negra", "escama_sirena", "moneda_azteca",
+    # Trofeos recien ganados.
+    "palillos_madera", "palillos_plata", "palillos_oro", "galon_oro",
+    "cuchillo_maestro", "campana_servicio", "diente_kappa", "bandera",
+    # Comida y bebida.
+    "banana", "naranja", "dorayaki_mordisco", "cuenco_ramen", "grog",
+    "botella_leche", "botella_sake", "saco_cafe", "tarro_ponyo",
+    # Peluches y dibujos que ya nacen sucios, rotos o quemados.
+    "tentaculo_purpura", "peluche_morsa", "mono_tres_cabezas", "maneki_neko",
+    "plato_quemado", "delantal_chamuscado", "piedra_afilar", "gafas_nerd",
+    "astrolabio_roto", "bitacora_roto", "sandalias_geta", "dado_hueso",
+    "baraja_marcada", "extintor", "gorro_chef", "arpon", "casco_escafandra",
+    "farol_fantasma", "mascara_buceo", "idolo_dorado", "rallador_tiburon",
+}
+
+
+def ensuciar(img: Image.Image, nombre: str, fuerza: float = 0.46) -> Image.Image:
+    """Anade patina de tiempo a un icono ya recortado.
+
+    La semilla sale del NOMBRE, no del reloj: asi el mismo icono sale siempre
+    con las mismas manchas y volver a lanzar el script no cambia el arte.
+    """
+    rnd = random.Random(nombre)
+    w, h = img.size
+    r, g, b, a = img.split()
+    rgb = Image.merge("RGB", (r, g, b))
+    # Manchas grandes (rejilla minuscula ampliada con bicubica) por motas finas.
+    grande = Image.new("L", (5, 5))
+    grande.putdata([rnd.randint(30, 255) for _ in range(25)])
+    fina = Image.new("L", (22, 22))
+    fina.putdata([rnd.randint(120, 255) for _ in range(484)])
+    mancha = ImageChops.multiply(
+        grande.resize((w, h), Image.BICUBIC),
+        fina.resize((w, h), Image.BICUBIC).filter(ImageFilter.GaussianBlur(1)))
+    # Lo perdido pierde color...
+    rgb = ImageEnhance.Color(rgb).enhance(1.0 - fuerza * 0.9)
+    # ...se ensucia a manchas...
+    sucio = ImageChops.multiply(rgb, Image.merge("RGB", (mancha,) * 3))
+    rgb = Image.blend(rgb, sucio, fuerza)
+    # ...y coge un tono pardo de polvo y salitre.
+    pardo = ImageChops.multiply(rgb, Image.new("RGB", (w, h), (176, 158, 126)))
+    rgb = Image.blend(rgb, pardo, fuerza * 0.55)
+    return Image.merge("RGBA", (*rgb.split(), a))
 
 
 def build_collectibles() -> None:
@@ -616,8 +680,10 @@ def build_collectibles() -> None:
             print(f"col_{name:18s} FALTA {src}")
             continue
         img = drop_white(Image.open(src).convert("RGBA"))
-        save(fit_max(crop_alpha(drop_specks(img), 2), COLLECTIBLE_ICON_SIDE),
-             f"col_{name}")
+        img = fit_max(crop_alpha(drop_specks(img), 2), COLLECTIBLE_ICON_SIDE)
+        if name not in NO_ENSUCIAR:
+            img = ensuciar(img, name)
+        save(img, f"col_{name}")
 
 
 # --------------------------------- bocadillo del cliente y chapas de variedad

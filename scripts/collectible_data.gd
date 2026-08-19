@@ -57,6 +57,9 @@ const PALILLOS_PLATOS := [300, 2000, 8000]
 ## La PIEDRA DE AFILAR es el escalón siguiente del cuchillo del maestro: se
 ## gasta de tanto afilarlo, así que cuelga de los mismos cortes lentos.
 const PIEDRA_CORTES := 1000
+## El DORAYAKI MORDIDO llega tras hacer unos cuantos: es el postre de la
+## casa y el guino se gana cocinandolo, no pescandolo.
+const DORAYAKI_PLATOS := 100
 
 ## COLECCIONABLES CON ESCENA: al conseguirlos dejan su id en
 ## `GameState.pending_col_scenes` y alguien la representa después (hoy
@@ -126,6 +129,10 @@ const ITEMS: Array = [
 		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "bitacora_roto", "name": "Cuaderno de bitácora roto",
 		"desc": "Salió de un cofre pescado en alta mar. No queda nada legible." },
+	{ "id": "dado_hueso", "name": "Dados de hueso",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "baraja_marcada", "name": "Baraja marcada",
+		"desc": "Salió de un cofre pescado en alta mar. Alguien hizo trampas." },
 	{ "id": "tentaculo", "name": "Tentáculo de kraken",
 		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "hueso", "name": "Hueso",
@@ -144,6 +151,9 @@ const ITEMS: Array = [
 		"desc": "Tiene los dos ojos pintados: alguien cumplió su deseo." },
 	{ "id": "botella_sake", "name": "Botella de sake", "desc": "" },
 	{ "id": "escama_sirena", "name": "Escama de sirena", "desc": "" },
+	{ "id": "rallador_tiburon", "name": "Rallador de piel de tiburon",
+		"desc": "" },
+	{ "id": "sandalias_geta", "name": "Sandalias geta sucias", "desc": "" },
 	{ "id": "cuchillo_maestro", "name": "Cuchillo del maestro",
 		"desc": "Por bordar %d cortes lentos sin pasarte de rápido."
 			% CUCHILLO_CORTES },
@@ -152,6 +162,9 @@ const ITEMS: Array = [
 			% PIEDRA_CORTES },
 	{ "id": "plato_quemado", "name": "Plato quemado",
 		"desc": "El primero que se te fue al cubo. Se guarda para no repetirlo." },
+	{ "id": "dorayaki_mordisco", "name": "Dorayaki con un mordisco",
+		"desc": "Por preparar %d dorayakis. Este te lo has ganado."
+			% DORAYAKI_PLATOS },
 	{ "id": "galon_oro", "name": "Galón de oro",
 		"desc": "Por aguantar hasta la oleada %d del Arcade." % GALON_OLEADA },
 	{ "id": "delantal_chamuscado", "name": "Delantal chamuscado",
@@ -237,6 +250,30 @@ const ITEMS: Array = [
 		"desc": "Salió de un cofre pescado en alta mar. Con dos mordiscos de algo grande." },
 	# --- Sea of Thieves ------------------------------------------------------
 	{ "id": "banana", "name": "Banana",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- Moby Dick -----------------------------------------------------------
+	{ "id": "arpon", "name": "Arpón",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- 20.000 leguas de viaje submarino ------------------------------------
+	{ "id": "casco_escafandra", "name": "Casco de escafandra",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- El Holandés Errante -------------------------------------------------
+	{ "id": "farol_fantasma", "name": "Farol fantasma",
+		"desc": "Salió de un cofre pescado en alta mar. La llama verde no se apaga." },
+	# --- Buscando a Nemo -----------------------------------------------------
+	{ "id": "mascara_buceo", "name": "Máscara de buceo",
+		"desc": "Salió de un cofre pescado en alta mar. El nombre está borrado." },
+	# --- Indiana Jones -------------------------------------------------------
+	{ "id": "idolo_dorado", "name": "Ídolo dorado",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- Overcooked ----------------------------------------------------------
+	{ "id": "extintor", "name": "Extintor",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- Ratatouille ---------------------------------------------------------
+	{ "id": "gorro_chef", "name": "Gorro de chef diminuto",
+		"desc": "Salió de un cofre pescado en alta mar. ¿De quién era?" },
+	# --- Naruto --------------------------------------------------------------
+	{ "id": "cuenco_ramen", "name": "Cuenco de ramen",
 		"desc": "Salió de un cofre pescado en alta mar." },
 	# --- Las aventuras de Tintín ---------------------------------------------
 	{ "id": "maqueta_unicornio", "name": "Maqueta del Unicornio",

@@ -365,6 +365,12 @@ const FISHING_COLLECTIBLES: Array = [
 	"marca_negra", "reloj_cocodrilo", "lata_espinacas",
 	# Del naufragio (piratas genericos que uno draga del fondo).
 	"botella_mensaje", "farol_aceite", "astrolabio_roto", "bitacora_roto",
+	# Moby Dick, 20.000 leguas, El Holandes Errante, Buscando a Nemo,
+	# Indiana Jones, Overcooked, Ratatouille y Naruto.
+	"arpon", "casco_escafandra", "farol_fantasma", "mascara_buceo",
+	"idolo_dorado", "extintor", "gorro_chef", "cuenco_ramen",
+	# Mas del naufragio.
+	"dado_hueso", "baraja_marcada",
 	# La Odisea, Robinson Crusoe, Tiburon y Sea of Thieves.
 	"tapones_cera", "huella_arena", "bidon_amarillo", "banana",
 	# Tintin, Los Goonies y La Sirenita.
