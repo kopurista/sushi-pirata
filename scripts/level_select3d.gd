@@ -63,11 +63,23 @@ const KIND_MODELS := {
 const KIND_FOOT := { "isla": 2.6, "puerto": 2.9, "abordaje": 2.5, "cueva": 2.7 }
 ## Sitio y tamaño de la sombra de la boca de la cueva, en fracciones de su
 ## huella (medido sobre captura, ver `_base_cueva`).
-const BOCA_U := -0.21
+const BOCA_U := -0.18
 const BOCA_W := 0.65
-const BOCA_Y := 0.46
-const BOCA_ANCHO := 0.38
-const BOCA_ALTO := 0.28
+const BOCA_Y := 0.42
+## LA MAREA. El mar entero sube y baja muy despacio, y lo que la hace creíble
+## no es el agua moviéndose: es que las ISLAS NO se muevan con ella (se mojan
+## más o menos, y la línea de flotación les recorre la roca) mientras que lo
+## que FLOTA —el barco del jugador y los barcos enemigos de los abordajes— sube
+## y baja con el agua. Sin esto, un nodo del mapa parece una pegatina puesta
+## encima del mar.
+## OJO: la marea solo SUBE (0..MAREA_AMP), nunca baja del nivel de siempre. Si
+## bajara, los modelos —que tienen su base a -0.10— se quedarían flotando por
+## encima del agua con un palmo de aire debajo, que es justo lo contrario de lo
+## que se busca.
+const MAREA_AMP := 0.28
+const MAREA_PERIODO := 24.0
+const BOCA_ANCHO := 0.50
+const BOCA_ALTO := 0.38
 const SHIP_FOOT := 2.3
 ## Orientación base del barco (navega hacia la parte alta del mapa).
 const SHIP_YAW := 205.0
@@ -96,6 +108,9 @@ var ship_blob: MeshInstance3D = null
 var ship_tween: Tween = null
 var ship_roll := 0.0
 var _t := 0.0
+## Material del mar (para pasarle la marea) y lo que flota con ella.
+var sea_mat: ShaderMaterial = null
+var flotantes: Array[Node3D] = []
 
 ## Overlays 2D por nodo: { id: {root, unlocked} } reposicionados por frame.
 var node_overlays: Dictionary = {}
@@ -213,6 +228,7 @@ func _setup_sea() -> void:
 	# espuma pinta de blanco toda la roca sumergida de cada isla.
 	mat.shader = load("res://shaders/water_ww.gdshader")
 	mat.set_shader_parameter("espuma", load("res://assets/map/espuma_ww.webp"))
+	sea_mat = mat
 	# Una baldosa de espuma cada ~2.5 u de mundo, aquí y en las otras dos
 	# pantallas con mar, para que el dibujo tenga el mismo tamaño se vea donde
 	# se vea. OJO con la escala: la cámara del juego enseña solo 9.5 u de ancho,
@@ -261,11 +277,17 @@ func _setup_nodes() -> void:
 			float(KIND_FOOT.get(kind, 2.5)))
 		# Los barcos se hunden un poco en el agua; las islas asientan su base.
 		pivot.position.y = -0.10 if kind != "abordaje" else -0.06
+		# Y LO QUE FLOTA, FLOTA: un barco enemigo sube y baja con la marea; una
+		# isla se queda donde está y deja que el agua le trepe por la roca.
+		if kind == "abordaje":
+			pivot.set_meta("y0", pivot.position.y)
+			flotantes.append(pivot)
 		# LA CUEVA lleva su propia BASE de piedra (el modelo es un peñasco sin
 		# suelo y flotaba sobre el agua a corte vivo).
 		var base_cueva: Node3D = null
 		if kind == "cueva":
-			base_cueva = _base_cueva(pos, float(KIND_FOOT.get(kind, 2.5)))
+			base_cueva = _base_cueva(pos, float(KIND_FOOT.get(kind, 2.5)),
+				_textura_de(pivot))
 		# Los nodos NO proyectan sombra: son 9 modelos de ~40k triangulos y el
 		# pase de sombras los dibujaba otra vez enteros, para una mancha que
 		# desde esta camara casi no se ve.
@@ -287,11 +309,34 @@ func _setup_nodes() -> void:
 ## sea irregular desde cualquier ángulo), con la MISMA piedra que se ve dentro
 ## de la cueva, unos pedruscos rompiendo el canto y un anillo de rompiente a
 ## ras de agua para que la roca no salga recortada sobre el mar.
-func _base_cueva(pos: Vector3, foot: float) -> Node3D:
+## La primera textura de albedo que encuentre un modelo. Con ella, la roca que
+## se construye por código sale de la MISMA piedra que el modelo, en vez de
+## parecerle un pegote de otro juego.
+func _textura_de(root: Node3D) -> Texture2D:
+	for n in root.find_children("*", "MeshInstance3D", true, false):
+		var mi: MeshInstance3D = n
+		var mesh: Mesh = mi.mesh
+		if mesh == null:
+			continue
+		for i in mesh.get_surface_count():
+			var mat: Material = mi.get_active_material(i)
+			if mat is StandardMaterial3D:
+				var sm: StandardMaterial3D = mat
+				if sm.albedo_texture != null:
+					return sm.albedo_texture
+	return null
+
+
+func _base_cueva(pos: Vector3, foot: float, tex_modelo: Texture2D) -> Node3D:
 	var pivot := Node3D.new()
 	pivot.position = pos
 	add_child(pivot)
-	var tex: Texture2D = load("res://assets/props/piedra_cueva.webp")
+	# LA PIEDRA DE LAS PLATAFORMAS ES LA DEL PEÑASCO, sacada de su propio
+	# material: con la piedra gris azulada de la cueva del NIVEL, el islote y el
+	# modelo parecían de dos juegos distintos.
+	var tex: Texture2D = tex_modelo
+	if tex == null:
+		tex = load("res://assets/props/piedra_cueva.webp")
 	# NADA DE ROMPIENTE NI DE BAJÍO: el plano del mar es opaco, así que lo que
 	# quede por debajo de y=0 no se ve, y el aro claro que se probó a ras de
 	# agua rodeaba la roca con una fuente blanca. La roca corta el agua a
@@ -303,12 +348,12 @@ func _base_cueva(pos: Vector3, foot: float) -> Node3D:
 	# a ras de base. Así el islote sigue en terrazas por detrás y por los lados
 	# y la entrada queda despejada.
 	var atras := -Vector3(0.70710678, 0.0, 0.70710678)
-	_roca_facetada(pivot, Vector3(0.0, -0.30, 0.0), foot * 0.90, 0.66, 7, 14.0,
-		tex, Color(0.38, 0.41, 0.50))
-	_roca_facetada(pivot, atras * 0.30 + Vector3(0.0, -0.02, 0.0), foot * 0.73,
-		0.48, 6, -27.0, tex, Color(0.48, 0.51, 0.61))
-	_roca_facetada(pivot, atras * 0.52 + Vector3(0.0, 0.16, 0.0), foot * 0.56,
-		0.38, 9, 41.0, tex, Color(0.57, 0.60, 0.71))
+	_roca_facetada(pivot, Vector3(0.0, -0.42, 0.0), foot * 0.90, 0.66, 7, 14.0,
+		tex, Color(0.62, 0.64, 0.66))
+	_roca_facetada(pivot, atras * 0.34 + Vector3(0.0, -0.22, 0.0), foot * 0.73,
+		0.48, 6, -27.0, tex, Color(0.78, 0.80, 0.82))
+	_roca_facetada(pivot, atras * 0.58 + Vector3(0.0, -0.08, 0.0), foot * 0.56,
+		0.38, 9, 41.0, tex, Color(0.92, 0.94, 0.96))
 	# LA BOCA DE LA CUEVA, ENSOMBRECIDA: el modelo trae su entrada tallada en la
 	# cara delantera, pero a este tamaño se pierde entre la roca. Una tarjeta
 	# oscura de canto fundido (el mismo shader que ilumina la boca DENTRO del
@@ -324,8 +369,8 @@ func _base_cueva(pos: Vector3, foot: float) -> Node3D:
 	var mat_b := ShaderMaterial.new()
 	mat_b.shader = load("res://shaders/portal_cueva.gdshader")
 	mat_b.set_shader_parameter("color", Color(0.02, 0.03, 0.05))
-	mat_b.set_shader_parameter("fuerza", 0.92)
-	mat_b.set_shader_parameter("borde", 0.62)
+	mat_b.set_shader_parameter("fuerza", 1.0)
+	mat_b.set_shader_parameter("borde", 0.38)
 	mat_b.set_shader_parameter("latido", 0.0)
 	boca.material_override = mat_b
 	boca.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -336,10 +381,10 @@ func _base_cueva(pos: Vector3, foot: float) -> Node3D:
 	for i in puntos.size():
 		var a: float = puntos[i]
 		var r := foot * (0.62 + 0.08 * float(i % 3) * 0.5)
-		_roca_facetada(pivot, Vector3(cos(a) * r, 0.02 + 0.06 * float(i % 2),
+		_roca_facetada(pivot, Vector3(cos(a) * r, -0.10 + 0.06 * float(i % 2),
 			sin(a) * r), foot * (0.15 + 0.05 * float(i % 3)),
 			0.34 + 0.12 * float(i % 2), 5, a * 40.0, tex,
-			Color(0.43, 0.46, 0.56))
+			Color(0.70, 0.72, 0.74))
 	return pivot
 
 
@@ -384,6 +429,7 @@ func _setup_ship() -> void:
 	ship_pivot = _spawn_model(load("res://assets/models/map_barco.glb"),
 		_world(ship_px), SHIP_FOOT)
 	ship_pivot.position.y = -0.06
+	ship_pivot.set_meta("y0", -0.06)
 	ship_pivot.rotation_degrees.y = SHIP_YAW
 	# El barco lleva su mancha, que viaja con él (ver _update_ship_visual).
 	# MÁS PEQUEÑA QUE LA HUELLA DEL BARCO, a propósito. Es una sombra plana a
@@ -1303,8 +1349,20 @@ func _lista(nombres: Array[String]) -> String:
 
 # ------------------------------------------------------------------- bucle
 
+## Altura del agua AHORA. La misma cuenta la hace el shader del mar por
+## vértice, así que barcos y agua suben acompasados.
+func marea() -> float:
+	return (sin(_t * TAU / MAREA_PERIODO) * 0.5 + 0.5) * MAREA_AMP
+
+
 func _process(delta: float) -> void:
 	_t += delta
+	var m := marea()
+	if sea_mat != null:
+		sea_mat.set_shader_parameter("marea", m)
+	for f in flotantes:
+		if is_instance_valid(f):
+			f.position.y = f.get_meta("y0", 0.0) + m
 	# Inercia del arrastre del mapa: la velocidad que llevaba el dedo al soltar
 	# se va apagando sola. Con el dedo apoyado no se aplica (manda el dedo)
 	# pero TAMPOCO se borra: es la que da el impulso al levantarlo. Cualquier
@@ -1330,7 +1388,8 @@ func _process(delta: float) -> void:
 		# navega quieto (el rolido del viaje sí se mantiene, guía la mirada).
 		var bob := GameState.animations_on()
 		ship_pivot.position = _world(ship_px) \
-			+ Vector3(0.0, -0.06 + (sin(_t * 1.4) * 0.03 if bob else 0.0), 0.0)
+			+ Vector3(0.0, -0.06 + marea()
+				+ (sin(_t * 1.4) * 0.03 if bob else 0.0), 0.0)
 		ship_pivot.rotation_degrees = Vector3(
 			sin(_t * 1.1) * 2.0 if bob else 0.0, SHIP_YAW,
 			(sin(_t * 1.7) * 2.5 if bob else 0.0) + ship_roll)

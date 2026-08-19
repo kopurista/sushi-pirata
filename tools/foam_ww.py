@@ -31,7 +31,7 @@ BORDE = 0.002  # el smoothstep del original
 # con mar liso entre ellas, que es lo que hace que parezca que hay poca espuma.
 # A 1.11 todavia hace red; a 1.14 son manchas separadas y finas. Va a 1.125:
 # justo pasado el punto de rotura, con las manchas ya sueltas pero mas gordas.
-RADIO_MULT = 1.125
+RADIO_MULT = 1.110
 
 # Los 75 circulos del shader, tal cual: (x, y, s) con radio = sqrt(s).
 CIRCULOS = [

@@ -32,6 +32,10 @@ uniform float distortion_speed = 1.1;
 uniform float height = 0.10;
 uniform vec2 wave_size = vec2(6.0, 6.0);
 uniform float wave_speed = 0.9;
+/// LA MAREA: el mapa se la pasa cada fotograma. Sube y baja el plano entero,
+/// así que el agua le trepa por la roca a las islas (que no se mueven) y los
+/// barcos suben con ella (el mapa les suma esta misma altura).
+uniform float marea = 0.0;
 
 const float M_2PI = 6.283185307;
 const float M_6PI = 18.84955592;
@@ -75,7 +79,7 @@ vec2 vaiven(vec2 uv, float t) {
 }
 
 void vertex() {
-	VERTEX.y += vaiven(UV * wave_size, TIME * wave_speed).y * height;
+	VERTEX.y += vaiven(UV * wave_size, TIME * wave_speed).y * height + marea;
 }
 
 void fragment() {

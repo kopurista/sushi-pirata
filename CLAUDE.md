@@ -220,8 +220,10 @@ que cada tipo tenga SU dificultad como la isla tiene su carta cerrada):
     8000) con **ISLOTE de piedra por código** (`level_select3d._base_cueva`:
     el peñasco venía sin suelo y flotaba a corte vivo sobre el agua). Son TRES
     plataformas FACETADAS —pocos lados y giradas entre sí, para que la silueta
-    no sea un disco de tarta— con la piedra de la cueva y pedruscos rompiendo
-    el canto. **LAS DOS DE ARRIBA VAN CORRIDAS HACIA EL FONDO** y algo más
+    no sea un disco de tarta— y pedruscos rompiendo el canto. **LA PIEDRA SALE
+    DEL PROPIO MODELO** (`_textura_de` le saca su primera textura de albedo):
+    con la piedra gris azulada de la cueva del NIVEL, el islote y el peñasco
+    parecían de dos juegos distintos. **LAS DOS DE ARRIBA VAN CORRIDAS HACIA EL FONDO** y algo más
     bajas, y en la cara delantera no hay pedruscos: centradas le tapaban al
     peñasco la BOCA DE LA CUEVA, que está en su cara de delante y a ras de
     base. NADA de rompiente ni de bajío: el plano del mar es opaco, así que
@@ -235,7 +237,8 @@ que cada tipo tenga SU dificultad como la isla tiene su carta cerrada):
     coordenadas de PANTALLA (u, w, y), no en x/y/z de mundo**: puesta con un
     offset de mundo "hacia delante" que en realidad era puro lateral, la
     tarjeta se quedaba DENTRO del peñasco y no se veía. Se localiza pintándola
-    de magenta y midiendo la captura.
+    de magenta y midiendo la captura. **Y las plataformas van BAJAS** (sus
+    cimas rondan y=0): subidas, le tapaban la boca al peñasco.
   · **EN EL MAPA VA MUY APARTE**: sola, centrada y POR ENCIMA del lienzo
     (`MAP_POS` con y **negativa**, −700), a 1.068 px del escenario 19 — casi
     siete veces el paso normal. La distancia no es estética: es la que hace
@@ -2454,8 +2457,9 @@ fondo de prep_screen/tienda/inventario (`scene_backdrop`). El
   blanco. MEDIDO: 1.00 → 15,6% de espuma · 1.05 → 11,4% · 1.12 → 6,5%. Y ahí
   está la gracia: **pasado el punto de rotura la red se parte en manchas
   SUELTAS con mar liso entre ellas**, que es lo que hace que parezca que hay
-  poca espuma. A 1.11 todavía hace red y a 1.14 las manchas salen sueltas pero
-  finas; va a **1.125**, justo pasado el punto de rotura: sueltas y con cuerpo.
+  poca espuma. A 1.14 las manchas salen sueltas pero finas y a 1.125 sueltas y
+  con cuerpo; va a **1.110**, con las vetas ya anchas y alguna volviendo a
+  juntarse — el punto en el que hay espuma sin que sea una red.
   Con el 15,6% del original el mar se lee como una rejilla de líneas blancas.
 - **LA ESCALA (`tile`) SE MIDE CONTRA ESTA CÁMARA, no contra el mundo**: el
   juego enseña solo **9,5 u de ancho**, así que la espuma al tamaño "de verdad"
@@ -2467,6 +2471,18 @@ fondo de prep_screen/tienda/inventario (`scene_backdrop`). El
 - **EL OLEAJE ES DESPLAZAMIENTO DE VÉRTICE**: los planos del mar necesitan
   `subdivide_width/depth` (48 el mapa, 36 el nivel, 40 los fondos) o no se
   mueve nada — un PlaneMesh a pelo son dos triángulos.
+- **LA MAREA** (`level_select3d.marea()`, uniforme `marea` del shader): en el
+  MAPA el mar entero sube y baja muy despacio (24 s de ciclo). Lo que la hace
+  creíble no es el agua moviéndose, sino QUIÉN SE MUEVE CON ELLA: las islas,
+  los puertos y la cueva NO —el agua les trepa por la roca y les come parte de
+  la plataforma—, y lo que flota —el barco del jugador y los barcos enemigos de
+  los abordajes— SÍ, porque el mapa les suma la misma altura. Sin esto los
+  nodos parecían pegatinas puestas sobre el mar.
+  · **SOLO SUBE (0 .. MAREA_AMP), nunca baja del nivel de siempre**: los
+    modelos tienen su base a −0.10, así que con marea negativa se quedarían
+    flotando con un palmo de aire debajo — justo lo contrario de lo que se
+    busca.
+  · Los niveles y los fondos no la usan: el uniforme vale 0 si nadie lo toca.
 - **SE PROBÓ TAMBIÉN EL "TOON WATER SHADER"** (`shaders/water_toon.gdshader`,
   port del de godotshaders/Erik Roystan Ross, con sus dos ruidos en
   `tools/toon_water_tex.py`). Se queda EN EL BANCO, no en el juego, y por dos
