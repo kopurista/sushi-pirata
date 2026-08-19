@@ -1144,6 +1144,10 @@ def build_fishing() -> None:
     # exportado al ancho al que se dibuja.
     boton = drop_white(Image.open(RAW / "pesca_boton_1.webp").convert("RGBA"))
     save(fit_width(crop_alpha(drop_specks(boton), 2), 470), "boton_pesca")
+    # El boton "?" que repite el TUTORIAL de pesca, bajo el album. Sprite
+    # FIJO (es redondo: un 9-slice lo deformaria) al tamano al que se dibuja.
+    ayuda = drop_white(Image.open(RAW / "ayuda_1.webp").convert("RGBA"))
+    save(fit_max(crop_alpha(keep_largest(ayuda), 2), 96), "boton_ayuda")
     # El icono del boton del ALBUM (arriba a la derecha de la pesca).
     album = drop_white(Image.open(RAW / "fish" / "ic_album.webp")
                        .convert("RGBA"))

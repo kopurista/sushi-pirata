@@ -1164,8 +1164,6 @@ func _process(delta: float) -> void:
 	# fotograma vale para cualquier pose y cualquier ajuste de gráficos.
 	if fishing_ui != null and is_instance_valid(fishing_ui) \
 			and ship_pivot != null and cam != null:
-		fishing_ui.rod_tip = cam.unproject_position(
-			ship_pivot.global_transform * ROD_LOCAL)
 		# MIENTRAS EL PEZ TIRA hay que recolocar la camara por fotograma:
 		# el temblor es aleatorio y el zoom va interpolado, y si no nadie
 		# los aplicaria (el menu solo mueve la camara en sus viajes).
@@ -1179,6 +1177,12 @@ func _process(delta: float) -> void:
 			cam.size = cam_size_base
 			cam_size_base = 0.0
 			_update_camera()
+		# LA PUNTA SE PROYECTA AL FINAL, con la camara YA colocada: el
+		# temblor del tiron la mueve justo aqui arriba, y calculandola
+		# antes el sedal nacia donde estaba el barco el fotograma pasado
+		# — se le veia despegado del casco.
+		fishing_ui.rod_tip = cam.unproject_position(
+			ship_pivot.global_transform * ROD_LOCAL)
 	if not in_menu:
 		return
 	_mt += delta

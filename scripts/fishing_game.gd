@@ -276,7 +276,6 @@ var ayuda_btn: Button = null
 ## Opacidad MAXIMA de las lineas. No llega a 1: es un efecto que enmarca,
 ## no un telon — a plena opacidad tapaba el barco y las dos barras.
 const RUSH_FADE := 0.55
-const RUSH_ZOOM := 1.035
 ## Vaivén de la caña durante el tirón (píxeles y velocidad).
 const RUSH_ROD_SWAY := 16.0
 const RUSH_ROD_HZ := 11.0
@@ -501,8 +500,8 @@ func _setup_tutor_card() -> void:
 	tutor_card.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	tutor_card.offset_left = 26.0
 	tutor_card.offset_right = -26.0
-	tutor_card.offset_top = 196.0 + GameState.safe_top()
-	tutor_card.offset_bottom = 336.0 + GameState.safe_top()
+	tutor_card.offset_top = 258.0 + GameState.safe_top()
+	tutor_card.offset_bottom = 398.0 + GameState.safe_top()
 	tutor_card.z_index = 170
 	tutor_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tutor_card.visible = false
@@ -526,18 +525,26 @@ func _setup_tutor_card() -> void:
 	tutor_card.add_child(tutor_label)
 
 
-## El botón "?" que repite el tutorial, bajo el álbum. Es un botón de madera
-## del set con la interrogación escrita: no hace falta arte nuevo para un
-## carácter, y así no desentona con el resto de la esquina.
+## El botón que repite el TUTORIAL, bajo el álbum: madera con aro dorado
+## y la interrogación tallada (`boton_ayuda.png`, generado a juego con el
+## resto del set). Sprite FIJO y no 9-slice: es redondo, y estirarlo lo
+## deformaría.
 func _setup_ayuda_btn() -> void:
 	if ayuda_btn != null and is_instance_valid(ayuda_btn):
 		return
 	ayuda_btn = Button.new()
-	ayuda_btn.text = "?"
-	ayuda_btn.position = Vector2(size.x - 108.0, 196.0 + GameState.safe_top())
-	ayuda_btn.size = Vector2(80.0, 80.0)
-	PrepBoard.skin_button(ayuda_btn)
-	ayuda_btn.add_theme_font_size_override("font_size", 38)
+	for bst in ["normal", "hover", "pressed", "disabled", "focus"]:
+		ayuda_btn.add_theme_stylebox_override(bst, StyleBoxEmpty.new())
+	ayuda_btn.position = Vector2(size.x - 112.0, 196.0 + GameState.safe_top())
+	ayuda_btn.size = Vector2(88.0, 88.0)
+	PrepBoard.add_press_feedback(ayuda_btn)
+	var ic := TextureRect.new()
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.texture = load("res://assets/ui/boton_ayuda.png")
+	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ayuda_btn.add_child(ic)
 	ayuda_btn.pressed.connect(_tutorial_guiado)
 	add_child(ayuda_btn)
 
@@ -575,14 +582,10 @@ func _set_rush(on: bool) -> void:
 			RUSH_FADE if on else 0.0, 0.18 if on else 0.3)
 		if not on:
 			tw.tween_callback(_hide_rush_fx)
-	# EL ACERCAMIENTO va sobre `zone` (donde se dibujan pez, sedal y boya) con
-	# el pivote EN EL PEZ: es un zoom a la presa, no a la pantalla.
-	if zone != null and is_instance_valid(zone):
-		if on:
-			zone.pivot_offset = bobber
-		var tz := zone.create_tween().set_trans(Tween.TRANS_SINE)
-		tz.tween_property(zone, "scale",
-			Vector2.ONE * (RUSH_ZOOM if on else 1.0), 0.22)
+	# EL ACERCAMIENTO lo hace SOLO la camara 3D (ver la senal, en el
+	# menu). Estuvo tambien escalando `zone` con el pivote en el pez, y
+	# no vale: el SEDAL se dibuja dentro de `zone`, asi que al escalarlo
+	# su nacimiento se despegaba del barco y la linea quedaba flotando.
 
 
 func _set_rush_fade(v: float) -> void:
@@ -771,6 +774,13 @@ func _start_attempt() -> void:
 	if clase:
 		roll = GameState.fishing_roll()
 		roll["tier"] = 0
+		# En el TUTORIAL, ademas, nunca sale cofre: se aprende a pelear
+		# con un pez, y un cofre dejaria la leccion a medias.
+		if tutor:
+			while str(roll.get("type", "")) != "fish":
+				roll = GameState.fishing_roll()
+			roll["tier"] = 0
+			roll["practica"] = true
 		tier = 0
 		catch_size = 0.2
 	else:
@@ -1107,6 +1117,16 @@ func _land_catch() -> void:
 	_set_rush(false)
 	instruction.text = ""
 	_set_state(State.REVEAL)
+	# EL TUTORIAL NO APUNTA NADA: es una practica con un pez de mentira,
+	# asi que no toca el album, ni los records, ni el monedero, ni los
+	# coleccionables. Solo se ensena el cartel y se sigue.
+	if bool(roll.get("practica", false)):
+		_show_fish_reveal({
+			"type": "fish", "fish_id": str(roll.get("fish_id", "sardina")),
+			"veces": 0, "size": float(roll.get("size", 0.3)),
+			"practica": true,
+		})
+		return
 	if str(roll.get("type", "")) == "fish":
 		var premio := GameState.fishing_apply(roll)
 		money_changed.emit()
@@ -1423,7 +1443,10 @@ func _show_fish_reveal(premio: Dictionary) -> void:
 		_centered_label(panel, "+%d doblones" % int(premio["coins"]), 26, y,
 			Color(0.2, 0.45, 0.12))
 		y += 40.0
-	if not premio.has("ingredient") and not premio.has("coins"):
+	if bool(premio.get("practica", false)):
+		_centered_label(panel, "Práctica: esta no cuenta", 24, y, FADED)
+		y += 40.0
+	elif not premio.has("ingredient") and not premio.has("coins"):
 		_centered_label(panel, "¡Nuevo en el álbum!", 26, y,
 			Color(0.2, 0.45, 0.12))
 		y += 40.0
@@ -1843,12 +1866,22 @@ func _foco_pesca(nodo: Control) -> ColorRect:
 	velo.create_tween().tween_property(velo, "modulate:a", 1.0, 0.25)
 	if nodo != null and is_instance_valid(nodo):
 		nodo.z_index = 180
+		# Y SE SUBE AL FINAL DEL ARBOL: el z_index solo cambia el orden de
+		# DIBUJADO, no quien recibe el toque — el picking va por orden de
+		# arbol, asi que el velo (anadido despues) se tragaba la pulsacion
+		# y el boton enfocado no respondia. Es la misma trampa del velo
+		# del menu, ya documentada en CLAUDE.md.
+		nodo.set_meta("foco_idx", nodo.get_index())
+		nodo.get_parent().move_child(nodo, -1)
 	return velo
 
 
 func _quitar_foco(velo: ColorRect, nodo: Control, z: int) -> void:
 	if nodo != null and is_instance_valid(nodo):
 		nodo.z_index = z
+		if nodo.has_meta("foco_idx"):
+			nodo.get_parent().move_child(nodo, int(nodo.get_meta("foco_idx")))
+			nodo.remove_meta("foco_idx")
 	if velo == null or not is_instance_valid(velo):
 		return
 	velo.mouse_filter = Control.MOUSE_FILTER_IGNORE

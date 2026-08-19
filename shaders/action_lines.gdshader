@@ -15,17 +15,16 @@
 //   fotograma es lo ultimo que se puede permitir un tiron.
 shader_type canvas_item;
 
-uniform float speed : hint_range(0.0, 5.0) = 1.4;
-uniform float line_length : hint_range(0.0, 4.0) = 0.5;
+uniform float speed : hint_range(0.0, 5.0) = 1.02;
+uniform float line_length : hint_range(0.0, 4.0) = 2.18;
 uniform vec4 line_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
-uniform float softness : hint_range(0.0, 1.0) = 0.06;
-uniform float weirdness : hint_range(0.0, 1.0) = 0.1;
-// Radio del HUECO LIMPIO del centro. Va ALTO a proposito: con el valor del
-// original las lineas llegaban hasta el pez y tapaban el barco, las barras y
-// el rotulo — o sea justo lo que hay que mirar mientras se pulsa. Aqui solo
-// enmarcan los bordes.
-uniform float radius : hint_range(0.0, 2.0) = 1.18;
-uniform float freq : hint_range(3.0, 50.0) = 18.0;
+uniform float softness : hint_range(0.0, 1.0) = 0.8;
+uniform float weirdness : hint_range(0.0, 1.0) = 0.11;
+// Radio del HUECO LIMPIO del centro. Con `line_length` alto y `softness`
+// alta, las lineas salen LARGAS Y DIFUSAS y solo asoman por los bordes: es
+// el ajuste suave que se quiere aqui, no el latigazo del original.
+uniform float radius : hint_range(0.0, 2.0) = 2.0;
+uniform float freq : hint_range(3.0, 50.0) = 10.56;
 uniform vec2 center = vec2(0.5, 0.5);
 uniform float fade : hint_range(0.0, 1.0) = 0.0;
 
@@ -57,11 +56,11 @@ void fragment() {
 	if (fade <= 0.001) {
 		COLOR = vec4(0.0);
 	} else {
-		vec2 res = 1.0 / SCREEN_PIXEL_SIZE;
-		// Centrado en el PEZ y corregido de aspecto, para que las lineas
-		// salgan radiales de verdad y no ovaladas en una pantalla vertical.
+		// Centrado en el PEZ. La escala es la del original (-1..1 en los
+		// DOS ejes, sin corregir aspecto): los parametros vienen afinados
+		// contra ella, y corrigiendo el aspecto un `radius` de 2.0 dejaba
+		// la pantalla sin una sola linea.
 		vec2 uv = (UV - center) * 2.0;
-		uv.x *= res.x / res.y;
 		vec2 puv = vec2(weirdness * length(uv) + speed * TIME,
 			freq * atan(uv.y, uv.x));
 		float value = noise(puv);

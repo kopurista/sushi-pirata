@@ -1433,42 +1433,56 @@ primera vez que se entra en ellos (`logros_intro_done` /
   · **EL TIRÓN SE VE, NO SOLO SE LEE** (`_set_rush`, señal `rush_changed`):
     en cuanto la presa tira con fuerza se enciende un velo de **LÍNEAS DE
     ACCIÓN** de cómic (`shaders/action_lines.gdshader`, port del
-    "Actionlines Comic - Anime" de EriNixie en godotshaders, CC0), la CAÑA se
-    va de lado a lado (`RUSH_ROD_SWAY`), la escena se ACERCA un pelín y la
-    cámara TIEMBLA. Al aflojar vuelve todo solo. Cuatro cosas medidas:
+    "Actionlines Comic - Anime" de EriNixie en godotshaders, CC0), la CAÑA
+    se va de lado a lado (`RUSH_ROD_SWAY`), la cámara se ACERCA un pelín y
+    TIEMBLA. Al aflojar vuelve todo solo. Cuatro cosas medidas:
     · Las líneas **convergen en el pez** (uniform `center`, refrescado por
       fotograma con la boya en UV), no en el centro de la pantalla.
-    · **El hueco limpio del centro va MUY alto** (`radius` 1.18 contra el
-      0.62 del original) y el alfa tope es `RUSH_FADE` (0.55): con los
-      valores de fábrica las líneas llegaban hasta el pez y tapaban el
-      barco, las dos barras y el rótulo, o sea justo lo que hay que mirar
-      mientras se pulsa. Enmarcan; no son un telón.
+    · **La normalización de la UV es la del original** (-1..1 en los dos
+      ejes, sin corregir aspecto): los parámetros vienen afinados a mano
+      en el editor contra ESA escala, y corrigiendo el aspecto un `radius`
+      de 2.0 dejaba la pantalla sin una sola línea. Los vigentes
+      (radius 2.0, line_length 2.18, softness 0.8) dan rayos LARGOS Y
+      DIFUSOS que solo asoman por los bordes: suave, no un latigazo.
     · El ruido baja de **6 octavas a 4**: esto se dibuja a pantalla completa
-      y corre justo en el momento en que hay que pulsar rápido.
-    · El ZOOM va sobre `zone` (donde se dibujan pez, sedal y boya) con el
-      pivote EN EL PEZ, y es leve (1.035) a propósito: el mar de detrás es
-      3D y no se escala con él. El TEMBLOR y el acercamiento de cámara los
-      hace `main_menu._on_pesca_rush`, que **guarda el `cam.size` de antes**
-      en vez de suponerlo (el menú lo cambia en sus transiciones) y lo
-      devuelve clavado al terminar.
-  · **EL TUTORIAL SE PUEDE REPETIR, y no lo cuenta Cai** (botón "?" bajo el
-    álbum → `_tutorial_guiado`): la clase de Cai (`_clase_de_pesca`) es la
-    PRIMERA vez y va con diálogos; esta es la chuleta de siempre y aquí NO
-    habla nadie. Un cartel de pergamino arriba dice lo que toca AHORA y un
-    foco señala dónde mirar, con el juego CORRIENDO — el patrón del rótulo
-    "Toca el agua para lanzar el sedal", paso a paso. Tres cosas que costó
-    medir con un jugador simulado:
-    · **Cada paso se deja leer `TUTOR_MIN_LEER` (1,1 s) como mínimo**: quien
-      ya sabe pescar cumple la condición en el mismo fotograma en que sale
-      el cartel, y dos pasos enteros se perdían sin que nadie los viera.
-    · **El TIRÓN se provoca a mano** (`speed_next = 0`) y, además, la presa
-      NO se puede cobrar hasta haberlo explicado (`tutor_falta_tiron` capa
-      la energía por abajo): jugando bien, la barra se vaciaba en cuatro
+      y corre justo cuando hay que pulsar rápido.
+    · **EL ZOOM ES SOLO DE CÁMARA** (`RUSH_ZOOM_IN`, en `main_menu`).
+      Estuvo escalando además `zone` con el pivote en el pez y NO VALE: el
+      SEDAL se dibuja dentro de `zone`, así que al escalarlo su nacimiento
+      se despegaba del barco y la línea quedaba flotando. El temblor lo
+      hace `_on_pesca_rush`, que **guarda el `cam.size` de antes** en vez
+      de suponerlo (el menú lo cambia en sus transiciones) y lo devuelve
+      clavado al terminar. **Y la punta de la caña se proyecta AL FINAL**
+      del `_process`, con la cámara ya colocada: calculándola antes, el
+      sedal nacía donde estaba el barco el fotograma pasado.
+  · **EL TUTORIAL SE PUEDE REPETIR, y no lo cuenta Cai** (botón
+    `boton_ayuda.png` bajo el álbum → `_tutorial_guiado`): la clase de Cai
+    (`_clase_de_pesca`) es la PRIMERA vez y va con diálogos; esta es la
+    chuleta de siempre y aquí NO habla nadie. Un cartel de pergamino dice
+    lo que toca AHORA y un foco señala dónde mirar, con el juego
+    CORRIENDO — el patrón del rótulo "Toca el agua para lanzar el sedal",
+    paso a paso. Lo que costó medir con un jugador simulado:
+    · **Cada paso se deja leer `TUTOR_MIN_LEER` (1,1 s) como mínimo**:
+      quien ya sabe pescar cumple la condición en el mismo fotograma en
+      que sale el cartel, y dos pasos enteros se perdían sin verse.
+    · **El TIRÓN se provoca a mano** (`speed_next = 0`) y la presa NO se
+      puede cobrar hasta haberlo explicado (`tutor_falta_tiron` capa la
+      energía por abajo): jugando bien, la barra se vaciaba en cuatro
       segundos y el tutorial terminaba sin dar la única lección que de
       verdad se falla.
-    · Los elementos DIBUJADOS (la sombra del pez, el flotador) se señalan
-      con un **anillo pulsante que los sigue** (`_anillo_en`), no con el
-      foco de velo: oscurecer `zone` taparía justo lo que hay que mirar.
+    · **NO APUNTA NADA**: ni álbum, ni récords, ni doblones, ni
+      coleccionables, y nunca sale cofre (solo peces). La marca de
+      práctica viaja **con el INTENTO** (`roll["practica"]`), no con la
+      bandera del guion: el tutorial puede terminar de hablar antes de que
+      el pez caiga, y entonces la captura se cobraba como buena — un
+      intento gratis con premio de verdad (medido: +58 doblones).
+    · Los elementos DIBUJADOS (la sombra, el flotador) se señalan con un
+      **anillo pulsante que los sigue** (`_anillo_en`), no con el foco de
+      velo: oscurecer `zone` taparía justo lo que hay que mirar.
+    · **EL FOCO MUEVE EL NODO AL FINAL DEL ÁRBOL** (`_foco_pesca`): el
+      z_index cambia el DIBUJADO, no quién recibe el toque —el picking va
+      por orden de árbol—, así que el velo se tragaba la pulsación y el
+      botón enfocado NO RESPONDÍA. Es la misma trampa del velo del menú.
     El intento va amañado con la misma bandera que la clase (`clase`): pez
     fácil, gratis y sin poder perderlo.
   · **EL PREMIO SE SORTEA ANTES DE VER LA SOMBRA** (`GameState.fishing_roll`,
