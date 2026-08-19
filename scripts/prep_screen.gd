@@ -735,6 +735,13 @@ func _auto_seleccion() -> void:
 		selected.append(extra)
 		var lv2 := int(RecipeData.get_recipe(extra).get("level", 1))
 		niveles[lv2] = int(niveles.get(lv2, 0)) + 1
+	# COBERTURA POR TIPO DE CLIENTE. La puntuación mide rendimiento MEDIO, y con
+	# un solo capitán entre ocho bocas ningún plato de 3★ gana nunca el reparto:
+	# salía una carta entera de 1★ que dejaba al capitán mirando la cinta toda
+	# la jornada — y que el propio selector regaña por boca de Gigi. Si el
+	# escenario trae piratas o capitanes, se les garantiza UN plato de su nivel.
+	_asegurar_nivel(2, "A", principales)
+	_asegurar_nivel(3, "G", principales)
 	# Se refleja en las tarjetas (el toggle emite y volvería a entrar por
 	# `_on_recipe_toggled`, así que se pone la marca a mano).
 	for id in recipe_cards:
@@ -772,6 +779,45 @@ func _mejor_de(lista: Array, niveles: Dictionary) -> String:
 ## de atención, ponderados por quién viene de verdad. El coste real de un plato
 ## es el tiempo que ocupa el único hueco de elaboración, así que el enfriamiento
 ## es el divisor (ver el bloque de balance de CLAUDE.md).
+## Garantiza un plato de `nivel` estrellas en la carta si el escenario trae
+## clientes del tipo `tipo`. Cambia el PEOR principal de la selección, nunca el
+## postre ni el picoteo (que están ahí por lo que hacen, no por lo que rinden).
+func _asegurar_nivel(nivel: int, tipo: String, candidatos: Array) -> void:
+	var mix: Dictionary = CampaignData.get_port(
+		GameState.current_port).get("client_mix", {})
+	if int(mix.get(tipo, 0)) <= 0:
+		return
+	for id in selected:
+		if int(RecipeData.get_recipe(str(id)).get("level", 1)) == nivel:
+			return
+	var mejor := ""
+	var mejor_p := -1.0
+	for id in candidatos:
+		if int(RecipeData.get_recipe(str(id)).get("level", 1)) != nivel:
+			continue
+		if str(id) in selected:
+			continue
+		var p := _puntuar_receta(str(id))
+		if p > mejor_p:
+			mejor_p = p
+			mejor = str(id)
+	if mejor == "":
+		return
+	var peor := ""
+	var peor_p := INF
+	for id in selected:
+		var r := RecipeData.get_recipe(str(id))
+		if r.get("snack", false) or r.get("leaves_seat", false):
+			continue
+		var p2 := _puntuar_receta(str(id))
+		if p2 < peor_p:
+			peor_p = p2
+			peor = str(id)
+	if peor == "":
+		return
+	selected[selected.find(peor)] = mejor
+
+
 func _puntuar_receta(id: String) -> float:
 	var r := RecipeData.get_recipe(id)
 	var port := CampaignData.get_port(GameState.current_port)

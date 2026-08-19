@@ -456,7 +456,10 @@ var scenery_kind := "abordaje"
 var vacio_pierde := false
 var vacio_roba_reloj := false
 var lost_by_leavers := false
-var vacios_puerto_label: Label = null
+## Fila de las tres CALAVERAS del contador de vacíos (fue un Label con el
+## texto "Vacíos N/3"; el guion del hándicap le pone el foco, y para eso le
+## vale cualquier Control).
+var vacios_puerto_label: Control = null
 
 
 func _ready() -> void:
@@ -4510,11 +4513,9 @@ func _build_xp_row() -> void:
 	caja.add_child(xp_bar_label)
 
 	xp_gain_label = Label.new()
+	# La PRIMA por el oro de más va sumada y sin desglosar (pedido por el
+	# usuario): la cifra sale sola, sin una coletilla que leer.
 	xp_gain_label.text = "+%d de experiencia" % last_xp
-	if last_xp_extra > 0:
-		# La prima se dice APARTE: sin esto, el jugador ve una cifra más alta
-		# de lo que esperaba y no sabe de dónde ha salido.
-		xp_gain_label.text += "  (+%d por el oro de más)" % last_xp_extra
 	xp_gain_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	xp_gain_label.add_theme_font_size_override("font_size", 21)
 	xp_gain_label.add_theme_color_override("font_color", Color(0.30, 0.48, 0.72))
@@ -5424,11 +5425,24 @@ func _setup_vacios_puerto() -> void:
 	if vacios_puerto_label != null and is_instance_valid(vacios_puerto_label):
 		_colocar_vacios_puerto()
 		return
-	vacios_puerto_label = Label.new()
-	vacios_puerto_label.add_theme_font_size_override("font_size", 22)
-	vacios_puerto_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	vacios_puerto_label.add_theme_constant_override("outline_size", 8)
+	# TRES CALAVERAS en vez de un "Vacíos 0/3": apagadas de salida, y cada
+	# cliente que se larga sin probar bocado enciende una de golpe (ver
+	# `_update_vacios_puerto`). A la tercera se pierde la jornada, y eso se lee
+	# de un vistazo mucho mejor que una cifra.
+	vacios_puerto_label = HBoxContainer.new()
+	vacios_puerto_label.add_theme_constant_override("separation", 4)
 	vacios_puerto_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_vacios_calaveras.clear()
+	for i in VACIOS_MAX:
+		var cal := TextureRect.new()
+		cal.texture = load("res://assets/ui/col_calavera.png")
+		cal.custom_minimum_size = Vector2(CALAVERA, CALAVERA)
+		cal.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		cal.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		cal.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cal.pivot_offset = Vector2(CALAVERA, CALAVERA) * 0.5
+		vacios_puerto_label.add_child(cal)
+		_vacios_calaveras.append(cal)
 	$HUD.add_child(vacios_puerto_label)
 	_colocar_vacios_puerto()
 	_update_vacios_puerto()
@@ -5442,21 +5456,35 @@ func _colocar_vacios_puerto() -> void:
 
 
 var _vacios_puerto_last := 0
+## Las tres calaveras del contador de vacíos (de izquierda a derecha).
+var _vacios_calaveras: Array = []
+## Lado de cada calavera.
+const CALAVERA := 34
 
 
 func _update_vacios_puerto() -> void:
 	if vacios_puerto_label == null or not is_instance_valid(vacios_puerto_label):
 		return
-	vacios_puerto_label.text = "Vacíos %d/%d" % [empty_leavers, VACIOS_MAX]
-	vacios_puerto_label.add_theme_color_override("font_color",
-		Color(1.0, 0.38, 0.32) if empty_leavers >= VACIOS_MAX - 1
-		else Color(1.0, 0.92, 0.75, 0.9))
+	for i in _vacios_calaveras.size():
+		var c: TextureRect = _vacios_calaveras[i]
+		if not is_instance_valid(c):
+			continue
+		# Apagada = la sombra de la calavera; encendida = a plena luz.
+		c.modulate = (Color(1, 1, 1) if i < empty_leavers
+			else Color(0.10, 0.11, 0.16, 0.75))
 	if empty_leavers > _vacios_puerto_last:
+		var idx := _vacios_puerto_last
 		_vacios_puerto_last = empty_leavers
-		vacios_puerto_label.pivot_offset = vacios_puerto_label.size * 0.5
-		var t := create_tween()
-		t.tween_property(vacios_puerto_label, "scale", Vector2(1.35, 1.35), 0.12)
-		t.tween_property(vacios_puerto_label, "scale", Vector2.ONE, 0.22) 				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		# EL SPLASH de la calavera que acaba de caer: entra enorme, se aplasta y
+		# rebota hasta su tamaño. Es la única señal de que estás más cerca de
+		# perder la jornada, así que no puede pasar desapercibida.
+		if idx >= 0 and idx < _vacios_calaveras.size():
+			var cal: TextureRect = _vacios_calaveras[idx]
+			if is_instance_valid(cal):
+				cal.scale = Vector2(2.6, 2.6)
+				var t := create_tween()
+				t.tween_property(cal, "scale", Vector2(0.82, 1.18), 0.13) 					.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+				t.tween_property(cal, "scale", Vector2.ONE, 0.26) 					.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 ## El "-15 s" del ABORDAJE: sale del reloj y sube desvaneciéndose, en rojo.
@@ -5481,6 +5509,10 @@ func _flash_castigo_reloj() -> void:
 
 ## Monta la fila de contadores de maestría. Solo salen los que el jugador
 ## LLEVA: sin habilidades no hay fila, y en el tutorial todo va en neutro.
+## Lado del chip de un contador de maestría (chapa cuadrada con el icono).
+const SKILL_CHIP := 58
+
+
 func _setup_skill_counters() -> void:
 	if skill_counter_row != null:
 		return
@@ -5495,23 +5527,41 @@ func _setup_skill_counters() -> void:
 	for id in SKILL_COUNTERS:
 		if not periodos.has(id):
 			continue
-		var chip := HBoxContainer.new()
-		chip.add_theme_constant_override("separation", 4)
+		# EL CHIP ES UNA CHAPA: pergamino de fondo con su marco (el mismo
+		# `CARD_TEX` del resto del juego), el icono dentro y la cuenta que falta
+		# SUPERPUESTA abajo a la derecha. Suelto sobre el 3D, el icono se perdía
+		# y el número parecía de otra cosa.
+		var chip := Control.new()
+		chip.custom_minimum_size = Vector2(SKILL_CHIP, SKILL_CHIP)
 		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var fondo := PrepBoard.make_nine_patch(PrepBoard.CARD_TEX,
+			PrepBoard.CARD_MARGIN)
+		fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip.add_child(fondo)
 		var ic := TextureRect.new()
-		ic.custom_minimum_size = Vector2(34, 34)
 		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		ic.texture = SkillData.icon(id)
 		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+		ic.offset_left = 7.0
+		ic.offset_top = 5.0
+		ic.offset_right = -7.0
+		ic.offset_bottom = -9.0
 		chip.add_child(ic)
 		var num := Label.new()
-		num.add_theme_font_size_override("font_size", 26)
+		num.add_theme_font_size_override("font_size", 24)
 		num.add_theme_color_override("font_outline_color", Color.BLACK)
-		num.add_theme_constant_override("outline_size", 9)
+		num.add_theme_constant_override("outline_size", 10)
+		var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+		if negrita != null:
+			num.add_theme_font_override("font", negrita)
 		num.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		num.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		num.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		num.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+		num.set_anchors_preset(Control.PRESET_FULL_RECT)
+		num.offset_right = 3.0
+		num.offset_bottom = 6.0
 		chip.add_child(num)
 		skill_counter_row.add_child(chip)
 		_skill_chip[id] = num

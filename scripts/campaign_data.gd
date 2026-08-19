@@ -321,7 +321,7 @@ const PORTS: Array = [
 		"goal_stars": 2,
 		"star_money": [18, 32, 50],
 		"reward_recipes": [],
-		"reward_recipes_3": ["sunomono"],
+		"reward_recipes_3": ["caldo_dashi"],
 		# TRES recetas de carta: la cuarta la trae David al empezar (el edamame,
 		# con la lección del picoteo).
 		"fixed_recipes": ["maki_aguacate", "nigiri_salmon"],
@@ -405,7 +405,7 @@ const PORTS: Array = [
 		"goal_stars": 2,
 		"star_money": [20, 38, 58],
 		"reward_recipes": [],
-		"reward_recipes_3": ["caldo_dashi"],
+		"reward_recipes_3": ["sunomono"],
 		# Isla: carta cerrada con lo aprendido. El mochi lo regala David dentro.
 		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "te_verde"],
 		"gift_recipes": ["mochi"],

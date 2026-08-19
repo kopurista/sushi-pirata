@@ -48,6 +48,11 @@ signal busy_changed(on: bool)
 ## BARRA DE NIVEL, con su "+N exp" flotando. Se emite al ENTREGAR el premio
 ## (`GameState.fishing_apply` ya la ha sumado y devuelve cuánta fue).
 signal xp_gained(amount: int)
+## El ÁLBUM se abre o se cierra. La BARRA DE NIVEL vive en el `ui_layer` del
+## menú y va por ENCIMA de la pesca a propósito (ver `main_menu._go_fishing`),
+## así que se colaba sobre las fichas del álbum: con esto el menú la aparta
+## mientras el álbum está puesto.
+signal album_abierto(on: bool)
 
 enum State { READY, SHADOW, APPROACH, FEINT, BITE, FIGHT, REVEAL, ESCAPED }
 
@@ -1377,6 +1382,7 @@ func _fill_chest_loot(fila: HBoxContainer, premio: Dictionary) -> void:
 func _open_album() -> void:
 	if state != State.READY:
 		return
+	album_abierto.emit(true)
 	var overlay := Control.new()
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(overlay)
@@ -1435,7 +1441,9 @@ func _open_album() -> void:
 	cerrar.offset_top = -96.0
 	cerrar.offset_bottom = -34.0
 	panel.add_child(cerrar)
-	cerrar.pressed.connect(func() -> void: overlay.queue_free())
+	cerrar.pressed.connect(func() -> void:
+		album_abierto.emit(false)
+		overlay.queue_free())
 
 
 func _album_cell(fish_id: String, overlay: Control) -> Control:

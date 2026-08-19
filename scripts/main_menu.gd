@@ -2527,6 +2527,12 @@ func _go_fishing() -> void:
 		fishing_ui.money_changed.connect(_refresh_resources)
 		fishing_ui.busy_changed.connect(_set_plus_enabled)
 		fishing_ui.xp_gained.connect(_xp_en_la_barra)
+		# CON EL ÁLBUM ABIERTO, LA BARRA SE QUITA DE EN MEDIO: va por encima de
+		# la pesca (para que no se la trague su panel táctil) y por eso se
+		# dibujaba sobre las fichas de los peces.
+		fishing_ui.album_abierto.connect(func(on: bool) -> void:
+			if level_bar != null and is_instance_valid(level_bar):
+				level_bar.visible = not on)
 		# La barra, POR ENCIMA de la pesca (mismo motivo que las cajas).
 		if level_bar != null:
 			ui_layer.move_child(level_bar, -1)
@@ -2565,7 +2571,9 @@ func _xp_en_la_barra(cantidad: int) -> void:
 	l.position = Vector2(0.0, LVL_BAR_H * 0.5)
 	level_bar.add_child(l)
 	var t := l.create_tween().set_parallel(true)
-	t.tween_property(l, "position:y", -34.0, 0.9) \
+	# DURA MÁS (0.9 s se leía a medias, sobre todo con el cartel del pez
+	# encima): sube despacio y se va al final.
+	t.tween_property(l, "position:y", -46.0, 2.2) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	t.tween_property(l, "modulate:a", 0.0, 0.45).set_delay(0.5)
 	t.chain().tween_callback(l.queue_free)

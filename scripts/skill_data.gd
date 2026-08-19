@@ -414,7 +414,10 @@ static func level_reward(n: int, puertas := {}) -> Dictionary:
 	# realzan. Los multiplicadores son suaves a propósito (×1,2 · ×1,5 · ×2):
 	# con la escalera anterior (×2 · ×3 · ×4) el nivel corriente se quedaba en
 	# nada al lado del hito, y cada nivel ya paga de por sí.
-	var oro := 30 + n * 5
+	# EL ORO DE SUBIR DE NIVEL ES UNA PROPINA, no una paga: a 30+5n, los 450
+	# niveles soltaban medio millón de doblones y el oro dejaba de ser una
+	# moneda escasa. El punto de habilidad es el premio; esto lo acompaña.
+	var oro := 8 + n * 2
 	if n % 25 == 0:
 		oro = int(round(oro * 2.0))
 	elif n % 10 == 0:
@@ -465,10 +468,16 @@ static func reward_text(clave: String, cantidad: int) -> String:
 
 
 ## Experiencia de una captura: el suelo lo pone la RAREZA y la TALLA lo estira.
-static func fishing_xp(tier: int, size: float) -> int:
+## LA PESCA PAGA SEGÚN EL NIVEL DEL COCINERO. Con una tarifa fija (5 a 39) un
+## legendario se notaba en el nivel 3 y era polvo en el 60, donde subir cuesta
+## miles. El factor sube con lo que cuesta el nivel actual, pero ELEVADO A 0.75:
+## a proporción pura la pesca valdría siempre lo mismo y sería un atajo; así
+## sigue contando y a la vez pierde peso poco a poco frente a los escenarios.
+static func fishing_xp(tier: int, size: float, nivel := 1) -> int:
 	var base := float(FISH_XP_TIER[clampi(tier, 0, FISH_XP_TIER.size() - 1)])
-	return maxi(1, int(round(base * (FISH_XP_SIZE
-		+ FISH_XP_GROW * clampf(size, 0.0, 1.0)))))
+	var bruto := base * (FISH_XP_SIZE + FISH_XP_GROW * clampf(size, 0.0, 1.0))
+	var ratio := float(xp_for_next(maxi(nivel, 1))) / float(xp_for_next(1))
+	return maxi(1, int(round(bruto * pow(maxf(ratio, 1.0), 0.75))))
 
 
 static func reward_icon(clave: String) -> String:

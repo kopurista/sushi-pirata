@@ -178,12 +178,14 @@ var map_intro_done := false
 ## la fase de preparación, así que fallar y repetir NO obliga a volver a pasar
 ## por las explicaciones.
 var narrated_ports: Array = []
-## Usos de ingredientes que regala el juego al desbloquear una receta: CINCO de
-## cada cosa que pida. Da para unas cuantas jornadas sin volver la despensa
-## irrelevante, y si aun así se agota antes de que abra la tienda, David repone
-## (ver `gift_missing_ingredients`).
-const TUTORIAL_GIFT := 5
-const PORT_GIFT := 5
+## Usos de ingredientes que regala el juego al desbloquear una receta: TRES de
+## cada cosa NUEVA que pida... y solo UNO (`GIFT_KNOWN`) de las que el jugador
+## ya tenga. La novedad es la receta, no rellenar la despensa entera: con el
+## regalo completo cada vez, la despensa dejaba de gastarse. Si aun así se
+## agota antes de que abra la tienda, David repone (`gift_missing_ingredients`).
+const TUTORIAL_GIFT := 3
+const PORT_GIFT := 3
+const GIFT_KNOWN := 1
 ## Y si aun así se queda a CERO de algo antes de que abra la tienda, David
 ## aparece y le regala esta cantidad (ver `gift_missing_ingredients`).
 const RESCUE_GIFT := 3
@@ -467,13 +469,18 @@ func add_ingredient_uses(id: String, amount: int) -> void:
 ## Regala `uses` usos de todo lo que hace falta para estas recetas, para que una
 ## receta recién desbloqueada se pueda estrenar sin pasar por la tienda.
 ## Los ingredientes GRATIS (arroz, sésamo: cost 0) se saltan, que no se gastan.
+## `uses` es lo que se regala de un ingrediente NUEVO (uno que el jugador no
+## tiene). De los que YA TIENE cae solo `GIFT_KNOWN`: la receta nueva es la
+## novedad, y rellenar la despensa entera cada vez que David regalaba un plato
+## convertía la despensa en infinita.
 func gift_ingredients_for(recipe_ids: Array, uses: int) -> void:
 	for rid in recipe_ids:
 		for ing in RecipeData.get_ingredients(rid):
 			var data: Dictionary = RecipeData.INGREDIENTS.get(ing, {})
 			if int(data.get("cost", 0)) <= 0:
 				continue
-			add_ingredient_uses(ing, uses)
+			add_ingredient_uses(ing,
+				uses if get_ingredient_uses(ing) <= 0 else GIFT_KNOWN)
 
 
 ## ¿Hay al menos 1 uso de cada ingrediente de la receta?
@@ -1118,7 +1125,9 @@ func announce_level_up(resumen: Dictionary) -> void:
 ## no se guarda para después: la serie es una cadencia, no una deuda.
 func reward_gates() -> Dictionary:
 	return {
-		"bait": fishing_unlocked(),
+		# El cebo espera a la CLASE de Cai, no solo a que la pesca esté abierta:
+		# regalado antes, el jugador no sabe qué es ni dónde se gasta.
+		"bait": fishing_intro_done,
 		"rice": rice_intro_done,
 		"ingots": ingots_intro_done,
 		"ingredients": shop_unlocked(),
@@ -1491,7 +1500,11 @@ func achievement_value(a: Dictionary) -> int:
 # --- Notificaciones, coleccionables y reclamo de logros ---------------------
 
 ## Doblones por medalla reclamada: bronce, plata, oro.
-const MEDAL_REWARDS := [25, 50, 100]
+## ORO POR MEDALLA (bronce/plata/oro). BAJO a propósito: con ~160 logros de
+## tres metales cada uno, a 25/50/100 el reclamo pagaba más que media campaña y
+## el oro dejaba de valer nada. Una jornada normal deja 50-110 doblones: una
+## medalla tiene que ser una propina, no un sueldo.
+const MEDAL_REWARDS := [8, 15, 30]
 ## El coleccionable "cartel de recompensa" cae al llegar a este botín de vida.
 const CARTEL_BOUNTY := 1000000
 ## Vueltas al timón del menú que piden el coleccionable "timón".
@@ -1655,7 +1668,7 @@ func fishing_apply(roll: Dictionary) -> Dictionary:
 		# tercera fuente de XP del juego, junto a los escenarios y el arcade, y
 		# la única que no depende de cocinar. Un pez REPETIDO paga la MITAD: lo
 		# que se premia es descubrir catálogo, no dragar la misma especie.
-		var gana := SkillData.fishing_xp(FishData.tier_of(fid), size)
+		var gana := SkillData.fishing_xp(FishData.tier_of(fid), size, chef_level)
 		if veces > 1:
 			gana = maxi(1, gana / 2)
 		if gana > 0:

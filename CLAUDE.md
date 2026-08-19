@@ -301,12 +301,20 @@ que se sabe.
   después sería castigarle dos veces. El escenario lo deduce
   `CampaignData.port_for_collectible`, no una tabla escrita a mano.
 
+**EL CONTADOR DE VACÍOS DEL PUERTO SON TRES CALAVERAS**, no un "Vacíos N/3"
+(`level3d._setup_vacios_puerto`): nacen apagadas —la misma calavera en sombra—
+y cada cliente que se larga sin probar bocado enciende la suya con un SPLASH
+(entra al 260%, se aplasta y rebota). A la tercera se pierde la jornada, y eso
+se lee de un vistazo mucho mejor que una cifra.
+
 **LOS CONTADORES DE MAESTRÍA VIVEN EN EL HUD, BAJO EL NÚMERO DE CLIENTES**
 (`level3d._setup_skill_counters`): las tres habilidades deterministas del
 cocinero —golpe de vista, cocina abundante y golpe de suerte— son CONTADOR y no
 dado justamente para poder planearlas, y planear con un número escondido no se
-puede. Un chip por habilidad con su icono y los platos que faltan; a cero se
-enciende y late. Solo salen las que el jugador LLEVA. El del golpe de vista
+puede. Un chip por habilidad: una CHAPA con el pergamino del juego de fondo y su
+marco (`PrepBoard.CARD_TEX`), el icono dentro y los platos que faltan
+SUPERPUESTOS abajo a la derecha; a cero se enciende y late. Suelto sobre el 3D,
+el icono se perdía y el número parecía de otra cosa. Solo salen las que el jugador LLEVA. El del golpe de vista
 vivía clavado en una esquina de la tabla (`vista_label`) y se retiró: dos
 contadores diciendo lo mismo en dos sitios es peor que uno.
 **Y David los explica con FOCO la primera vez** que se juega con una puesta
@@ -505,6 +513,15 @@ primera vez que se entra en ellos (`logros_intro_done` /
   en aventura lo dispara la lectura del puerto, pero sin puerto hay que llamar
   `prep_board.refresh_extra_ui()` A MANO tras poner `hide_storage` (las cajas
   se quedaban dibujadas en pleno caos).
+- **UN DIRECTOR SIN GUION PROPIO TIENE QUE LLAMAR A `_play()` IGUAL.**
+  `StoryDirector.narrating` nace en **true** y solo lo apaga `_play()`, y
+  `level3d._ask_start` ESPERA a que se apague (con tope de 90 s) antes de sacar
+  el "¿Comenzamos?". Un escenario que monta director SIN guion —el 16, por su
+  vigía del tesoro— y cuyas explicaciones sueltas (contadores de maestría,
+  hándicap del tipo) ya estaban dadas se quedaba con `narrating` en true para
+  siempre: **el nivel no arrancaba**. Ni cartel, ni cuenta atrás, ni clientes,
+  y sin un solo error en consola. Si se añade una rama nueva a `_run`, que
+  termine en `_play()`.
 - **UN GUION QUE SE QUEDA SIN NIVEL SE APARCA PARA SIEMPRE**
   (`StoryDirector._jamas`, una señal que no se emite nunca). Al pulsar **Salir**
   —o Repetir, o al cerrarse el turno— el director se va del árbol con su
@@ -1013,9 +1030,8 @@ primera vez que se entra en ellos (`logros_intro_done` /
     campaña: la misma moneda de más vale 0,45 de XP en el escenario 1 y 4,9 en
     la cueva. MEDIDO con sonda: +10 monedas son +5 XP en el 1 (27 → 32) y +49
     en el 20 (810 → 859). Tope de seguridad en `XP_EXTRA_CAP`: la prima nunca
-    pasa de lo que paga el escenario. El cartel de resultados la canta aparte
-    ("+N de experiencia (+M por el oro de más)"), o el jugador vería una cifra
-    más alta sin saber de dónde sale.
+    pasa de lo que paga el escenario. Va SUMADA Y SIN DESGLOSAR en el cartel
+    de resultados (pedido por el usuario): la cifra sale sola.
   · **La XP de un escenario se paga CONTRA EL RÉCORD** (`GameState.
     scenario_xp`, llamada en `_finalize_results` con las estrellas de ANTES de
     `complete_port`): estreno = 3 × 6·n × mult(estrellas ×0.5/×1/×1.5);
@@ -2428,6 +2444,13 @@ primera vez que se entra en ellos (`logros_intro_done` /
   Debajo, la fila de **potenciadores permanentes** disponibles (solo aventura),
   y el botón "¡Zarpar!". Arriba, "Atrás" (al mapa en aventura, al menú en
   Arcade). NO lleva el título "Sushi Pirata".
+  **LA "SELECCIÓN AUTOMÁTICA" GARANTIZA COBERTURA POR TIPO**
+  (`_asegurar_nivel`): su puntuación mide rendimiento MEDIO, y con un solo
+  capitán entre ocho bocas ningún plato de 3★ gana nunca el reparto — salía una
+  carta entera de 1★ que dejaba al capitán mirando la cinta toda la jornada, y
+  que el propio selector regaña por boca de Gigi. Con piratas en la mezcla se
+  fuerza un plato de 2★, y con capitanes uno de 3★, cambiando el PEOR principal
+  de la carta (nunca el postre ni el picoteo, que están por lo que hacen).
   **CON LA CARTA LLENA, LO QUE NO CABE SE APAGA** (`recipe_cards` +
   `_update_ui`): las no elegidas bajan a opacidad y las elegidas se quedan a
   plena luz, para poder soltar una y cambiarla. Tocar una receta de más nunca
@@ -3418,9 +3441,10 @@ que no hay problema.
   sobrante. El desglose del panel de resultados los enseña por separado.
   **Cada prima solo existe donde tiene sentido**: la de clientes, en los niveles
   con cupo (islas y puertos); la de tiempo, en los que llevan reloj (abordajes).
-- **Regalo de ingredientes**: TODA receta nueva llega con **10 usos** de lo que
-  pide (`GameState.gift_ingredients_for`, con `TUTORIAL_GIFT` = `PORT_GIFT` =
-  10; eran 5 y 3). Diez porque la campaña-escuela no tiene tienda hasta el
+- **Regalo de ingredientes**: una receta nueva llega con **3 usos de cada
+  ingrediente NUEVO** y **solo 1 de los que el jugador ya tenía**
+  (`GameState.gift_ingredients_for`, `TUTORIAL_GIFT` = `PORT_GIFT` = 3,
+  `GIFT_KNOWN` = 1). Lo que se regala es la receta, no la despensa. Diez porque la campaña-escuela no tiene tienda hasta el
   nivel 4: hasta entonces no hay dónde reponer y una receta recién regalada
   tiene que dar para varias jornadas. Por lo mismo `CampaignData.
   INITIAL_INGREDIENTS` está VACÍO: la despensa de salida la reparte

@@ -59,7 +59,14 @@ func _run() -> void:
 	# no un paso del guion.
 	_vigilar_tesoro()
 	# Un escenario sin guion propio monta el director SOLO para lo de arriba.
+	# HAY QUE SOLTAR EL RELOJ IGUAL: `narrating` nace en true y solo lo apaga
+	# `_play()`. Sin esto, `level3d._ask_start` se quedaba esperando (con tope
+	# de 90 s) a un guion que no existía y el nivel NO ARRANCABA: ni cartel de
+	# "¿Comenzamos?", ni cuenta atrás, ni clientes. Pasaba en cualquier
+	# escenario sin guion cuyas dos explicaciones de arriba ya estuvieran
+	# dadas — el 16, por ejemplo, que monta director por el vigía del tesoro.
 	if guion == "":
+		_play()
 		return
 	match guion:
 		"nivel_1":
@@ -587,7 +594,14 @@ func _nivel_3() -> void:
 
 func _nivel_4() -> void:
 	await _say([
-		{ "text": "**Arrecife del Ron**: ocho bocas y de dos en dos. Aquí ya eliges tú la carta... pero solo **tres** recetas.", "mood": "hablando" },
+		{ "text": "**Arrecife del Ron**: ocho bocas y de dos en dos. Y hoy la carta se te queda en **tres** huecos.", "mood": "hablando" },
+		# SAVERIO SALUDA ANTES DE EMPEZAR. Al cerrar el turno abre su puesto, y
+		# que su primera aparición fuera esa —vendiéndote algo— dejaba al
+		# tendero convertido en un botón. Aquí es un vecino del puerto que ve
+		# atracar el barco.
+		{ "text": "¡Eh, los del barco! ¿Ese es el cocinero nuevo?", "who": "saverio", "mood": "hablando" },
+		{ "text": "El mismo. Saverio lleva el puesto de este muelle; ya hablaréis cuando cierres.", "mood": "feliz" },
+		{ "text": "Cocina bien y te hago precio, chaval. Cocina mal y te hago precio también, pero me río.", "who": "saverio", "mood": "riendo" },
 		{ "text": "Con tres recetas y ocho clientes vas a tener que repetir plato. Fíjate en lo que pasa cuando lo hagas.", "mood": "serio" },
 	])
 	_play()
@@ -801,8 +815,6 @@ func _explicar_coleccionables() -> void:
 func _nivel_7() -> void:
 	await _focus_node(lv.time_label, 24.0)
 	await _say([
-		{ "text": "¡Esto es un **ABORDAJE**, %s! Aquí sí corre el **reloj**: dos minutos y medio de asalto." % GameState.player_title(), "mood": "gritando" },
-		{ "text": "Y la clientela **no se acaba**: mientras quede tiempo, sigue subiendo gente por la borda.", "mood": "serio" },
 		{ "text": "Se cierra al agotarse el reloj... o al llegar al **objetivo**. Y cada 10 segundos que sobren, prima extra.", "mood": "hablando" },
 		{ "text": "¡AL ABORDAJE! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
 	])
@@ -953,6 +965,8 @@ var _cai_lleno := false
 func _nivel_8() -> void:
 	await _say([
 		{ "text": "**Isla de Gades**. Poca cosa: una playa, cuatro barcas... y ese de ahí, que lleva un rato mirando nuestra cinta.", "mood": "hablando" },
+		{ "text": "...", "who": "cai", "mood": "callado" },
+		{ "text": "Ni saluda. Habrá que echarle de comer a ver si suelta algo.", "mood": "mira_loro" },
 		{ "text": "Un pescador. De los que comen pescado todos los días y nunca lo prueban bien hecho.", "mood": "serio" },
 		{ "text": "¡PUES QUE SE SIENTE! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
 		{ "text": "En eso estamos. Llénale la barriga, %s, que un pescador agradecido vale más que un cofre." % GameState.player_title(), "mood": "hablando" },
@@ -1031,10 +1045,11 @@ func _cliente_who(quien: String) -> Node3D:
 func _nivel_9() -> void:
 	await _say([
 		{ "text": "**Puerto Tormenta**. Diez bocas en dos oleadas, y la mitad son **piratas**: sin platos de dos estrellas aquí no se come.", "mood": "serio" },
-		{ "text": "Y hoy estrenas otra cosa. ¿Notas algo raro en tu **paladar de capitán**?", "mood": "hablando" },
-		{ "text": "¡EL MULTIPLICADOR LLEGA MÁS ARRIBA! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "Eso es. Con ese bonificador puesto, la chapa de tus clientes puede subir hasta **x6** en vez de quedarse en x5.", "mood": "feliz" },
-		{ "text": "Los bonificadores se **mejoran con doblones** en el menú, y cada mejora sube su tope. Ah, y se ganan repitiendo su hazaña: la suya es llevar a un cliente al máximo.", "mood": "hablando" },
+		# NADA DE BONIFICADORES AQUÍ (pedido por el usuario, no re-litigar): el
+		# sistema entero llega con ALICE, en el escenario 17. Este puerto tuvo
+		# la lección del "paladar de capitán" y sonaba a hablar de algo que el
+		# jugador no tiene ni puede conseguir todavía.
+		{ "text": "Sin lección hoy: esto es el examen. Enséñame lo que has aprendido.", "mood": "serio" },
 	])
 	_play()
 	_vigilar_basura()
