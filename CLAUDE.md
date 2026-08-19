@@ -2494,6 +2494,14 @@ fondo de prep_screen/tienda/inventario (`scene_backdrop`). El
     las islas y los puertos salían medio inundados: los modelos del mapa
     asientan su base casi a ras de agua, así que el margen para jugar es de
     centímetros.
+  · **LO QUE VA PINTADO SOBRE EL AGUA SUBE CON ELLA**: la línea de puntos de la
+    ruta (a 0.025 de altura) y las manchas de sombra de los nodos y del barco
+    (a 0.03) están a ras de mar, así que con la marea alta se hundían y **la
+    línea de puntos entre escenarios DESAPARECÍA** en cada pleamar. Van con la
+    marea, no contra ella: la ruta ya fundida se busca por nombre
+    (`RouteBatch*`) después del `GeometryBatch.bake` y se apunta a la lista de
+    flotantes, y la mancha del barco lleva la marea en su recolocación por
+    fotograma.
   · Los niveles y los fondos no la usan: el uniforme vale 0 si nadie lo toca.
 - **SE PROBÓ TAMBIÉN EL "TOON WATER SHADER"** (`shaders/water_toon.gdshader`,
   port del de godotshaders/Erik Roystan Ross, con sus dos ruidos en

@@ -158,6 +158,14 @@ func _ready() -> void:
 	_setup_camera()
 	# Los ~100 guiones de la ruta son geometría fija: se funden en una malla.
 	GeometryBatch.bake(self, "RouteBatch")
+	# LA RUTA VA PINTADA SOBRE EL AGUA, así que SUBE CON LA MAREA. Los guiones
+	# están a 0.025 de altura y la marea llega a 0.10: sin esto, la línea de
+	# puntos entre escenarios desaparecía bajo el agua en cada pleamar.
+	for hijo in get_children():
+		if hijo is MeshInstance3D and String(hijo.name).begins_with("RouteBatch"):
+			var mi: MeshInstance3D = hijo
+			mi.set_meta("y0", mi.position.y)
+			flotantes.append(mi)
 	_setup_ui()
 
 	_focus_last_port(false)
@@ -297,6 +305,9 @@ func _setup_nodes() -> void:
 		var blob := SceneBackdrop.blob_shadow(foot * 0.95, foot * 0.62)
 		blob.position = pos + Vector3(0.15, 0.03, 0.1)
 		add_child(blob)
+		# La mancha es una sombra EN EL AGUA: sube con ella o se hunde.
+		blob.set_meta("y0", blob.position.y)
+		flotantes.append(blob)
 		if not GameState.is_port_unlocked(id):
 			_dim_model(pivot)
 			if base_cueva != null:
@@ -1406,7 +1417,8 @@ func _process(delta: float) -> void:
 			# la misma en el mapa y en el menú.
 			var esc: float = ship_blob.scale.x
 			ship_blob.position = _world(ship_px) \
-					+ Vector3(-0.30, 0.04, -0.26) * esc
+					+ Vector3(-0.30, 0.04, -0.26) * esc \
+					+ Vector3(0.0, marea(), 0.0)
 
 	# Overlays 2D anclados a sus nodos 3D.
 	if not map_visible:
