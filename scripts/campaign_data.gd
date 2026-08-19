@@ -860,10 +860,13 @@ const MAP_POS: Dictionary = {
 	"nivel_13": Vector2(LANE_LEFT, 685.3),
 	"nivel_14": Vector2(LANE_RIGHT, 526.8),
 	"vispera_kappa": Vector2(LANE_CENTER, 368.4),
-	# LA CUEVA VA APARTE (pedido por el usuario): sola en lo alto del mapa,
-	# centrada y con dos veces y media el paso normal de distancia — el ultimo
-	# tramo de la travesia se navega en silencio hacia ella.
-	"nivel_15": Vector2(LANE_CENTER, 20.0),
+	# LA CUEVA VA APARTE (pedido por el usuario): sola, centrada y POR ENCIMA
+	# del lienzo del mapa (y negativa), a 1.068 px del escenario 19 — casi
+	# SIETE veces el paso normal. La distancia no es un capricho: es la que
+	# hace que, con la cueva en pantalla, NO se vea ningun otro escenario
+	# (`level_select3d.SCROLL_MIN` llega hasta aqui). El ultimo tramo de la
+	# travesia se navega en silencio hacia ella.
+	"nivel_15": Vector2(LANE_CENTER, -700.0),
 }
 
 

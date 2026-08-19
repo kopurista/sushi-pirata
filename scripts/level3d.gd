@@ -902,14 +902,15 @@ func _setup_environment() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.80, 0.85, 0.94)
 	env.ambient_light_energy = 1.15
-	# DENTRO DE LA CUEVA no entra el sol: fondo casi negro, ambiente escaso y
-	# frío en verde agua — el tono de los CRISTALES, que son "la luz" del sitio
-	# (la venden ellos con su emisión y sus charcos de resplandor; luces
-	# dinámicas de verdad costarían un pase que el móvil no paga).
+	# DENTRO DE LA CUEVA no entra el sol: fondo casi negro y un ambiente MUY
+	# escaso, lo justo para que nada quede en negro puro. Quien ilumina de
+	# verdad son los CRISTALES, cada uno con su OmniLight3D: si el ambiente
+	# sube, sus charcos de luz dejan de verse y la cueva vuelve a parecer un
+	# escenario con filtro azul.
 	if scenery_kind == "cueva":
-		env.background_color = Color(0.035, 0.045, 0.065)
-		env.ambient_light_color = Color(0.55, 0.75, 0.72)
-		env.ambient_light_energy = 0.72
+		env.background_color = Color(0.030, 0.040, 0.058)
+		env.ambient_light_color = Color(0.50, 0.57, 0.68)
+		env.ambient_light_energy = 0.90
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -919,9 +920,10 @@ func _setup_environment() -> void:
 	sun.light_energy = 1.45
 	sun.light_color = Color(1.0, 0.97, 0.9)
 	if scenery_kind == "cueva":
-		# Una "luna de cueva" tenue y azulada: lo justo para leer los relieves.
-		sun.light_energy = 0.55
-		sun.light_color = Color(0.62, 0.72, 0.85)
+		# Una "luna de cueva" muy tenue y azulada: solo marca los relieves para
+		# que la piedra no salga plana; la luz de trabajo la ponen los cristales.
+		sun.light_energy = 0.38
+		sun.light_color = Color(0.58, 0.68, 0.84)
 	# SIN sombras proyectadas: cada elemento lleva su mancha fija (ver
 	# SceneBackdrop.blob_shadow). Con personajes que se mecen y palmeras de
 	# decenas de piezas, la sombra dinámica bailaba y costaba un pase entero.
@@ -1078,80 +1080,156 @@ func _spawn_barrels(spots: Array, tipped_idx: int = -1) -> void:
 ## BRILLAN — son la única "luz" del sitio y le dan el tono al duelo. Todo con
 ## los modelos y helpers de siempre: rocas.glb para las paredes y geometría por
 ## código para el resto (GeometryBatch la funde al final, como en los demás).
+## COORDENADAS DE PANTALLA (u, w) PARA MONTAR LA CUEVA. La cámara es
+## isométrica con yaw 45, así que los ejes del MUNDO no son los de la PANTALLA:
+## a la derecha se va por (1,0,-1)/√2 (eje `u`) y hacia el fondo por
+## -(1,0,1)/√2 (eje `w`, negativo = lejos = arriba en pantalla). Colocando los
+## muros en coordenadas de mundo salían en diagonal y uno se metía en cuadro
+## por abajo a la derecha, tapando la barra; en (u, w) el muro del fondo es una
+## banda limpia en lo alto y los laterales, dos columnas en los cantos.
+##
+## El pasillo por el que pasean los clientes (el cuadrado de radio WALK_R) es
+## en (u, w) un ROMBO: |u| + |w| = WALK_R·√2 ≈ 5.23. Todo el decorado va por
+## fuera de 6.3 para no pisarlo.
+func _uw(u: float, w: float) -> Vector3:
+	return Vector3(0.70710678, 0.0, -0.70710678) * u \
+		+ Vector3(0.70710678, 0.0, 0.70710678) * w
+
+
+## Muro de cueva alineado con la PANTALLA: `size` es (ancho en u, alto, fondo
+## en w) y `base` la altura del pie.
+func _muro_cueva(u: float, w: float, size: Vector3, tex: Texture2D, tinte: Color,
+		base := -0.6) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var caja := BoxMesh.new()
+	caja.size = size
+	mi.mesh = caja
+	mi.position = _uw(u, w) + Vector3(0.0, base + size.y * 0.5, 0.0)
+	mi.rotation_degrees.y = 45.0
+	mi.material_override = _mat_piedra(tex, tinte, 0.45)
+	add_child(mi)
+	return mi
+
+
 func _scenery_cueva() -> void:
-	var piedra_tex: Texture2D = load("res://assets/props/piedra_cueva.webp")
-	var cristal_tex: Texture2D = load("res://assets/props/cristal_cueva.webp")
-	# SUELO DE ROCA hasta donde alcanza la vista (aqui no hay mar): un plano
-	# grande con la textura de piedra tileada, y encima los dos discos del
-	# monticulo de juego, triplanar para que el canto tambien sea piedra.
+	var suelo_tex: Texture2D = load("res://assets/props/piedra_cueva.webp")
+	var pared_tex: Texture2D = load("res://assets/props/pared_cueva.webp")
+	# SUELO de roca hasta donde alcanza la vista (aquí no hay mar). La textura
+	# va GRANDE —una baldosa cada ~3.6 u— y de poco contraste a propósito:
+	# estuvo a 6 repeticiones POR UNIDAD y en pantalla se leía como una rejilla.
 	var suelo := MeshInstance3D.new()
 	var plano := PlaneMesh.new()
 	plano.size = Vector2(90.0, 90.0)
 	suelo.mesh = plano
 	suelo.position = Vector3(0.0, -0.55, 0.0)
 	suelo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	suelo.material_override = _mat_piedra(piedra_tex, Color(0.62, 0.64, 0.75), 6.0)
+	suelo.material_override = _mat_piedra(suelo_tex, Color(0.24, 0.27, 0.34), 0.34)
 	add_child(suelo)
-	_cyl_tex(7.4, 7.8, 0.30, Vector3(0.0, -0.42, 0.0), piedra_tex,
-		Color(0.42, 0.44, 0.54), 2.4)
-	_cyl_tex(6.9, 7.3, 0.28, Vector3(0.0, -0.14, 0.0), piedra_tex,
-		Color(0.78, 0.80, 0.92), 2.0)
-	# PAREDES: la cueva se cierra por el fondo y los lados con muros de piedra
-	# texturizada (triplanar) y, delante de ellos, rocas.glb entenebrecidas que
-	# rompen la silueta. El frente queda abierto: por ahi mira la camara.
-	for w in [[Vector3(0.0, 2.6, -8.6), Vector3(20.0, 7.0, 2.2), 0.0],
-			[Vector3(-8.8, 2.6, -3.0), Vector3(2.2, 7.0, 12.0), 0.0],
-			[Vector3(8.8, 2.6, -3.0), Vector3(2.2, 7.0, 12.0), 0.0],
-			[Vector3(-7.4, 2.6, -6.8), Vector3(4.0, 7.0, 4.0), 38.0],
-			[Vector3(7.4, 2.6, -6.8), Vector3(4.0, 7.0, 4.0), -38.0]]:
-		var muro := MeshInstance3D.new()
-		var caja := BoxMesh.new()
-		caja.size = w[1]
-		muro.mesh = caja
-		muro.position = w[0]
-		muro.rotation_degrees.y = w[2]
-		muro.material_override = _mat_piedra(piedra_tex, Color(0.5, 0.52, 0.63), 1.6)
-		add_child(muro)
-	for r in [[Vector3(-5.6, 0.0, -5.2), 2.3], [Vector3(-2.2, 0.0, -6.2), 1.8],
-			[Vector3(1.6, 0.0, -6.3), 2.1], [Vector3(5.2, 0.0, -4.8), 2.0],
-			[Vector3(-6.6, 0.0, -1.0), 1.6], [Vector3(6.5, 0.0, -0.6), 1.5]]:
+	_cyl_tex(7.4, 7.8, 0.30, Vector3(0.0, -0.42, 0.0), suelo_tex,
+		Color(0.20, 0.22, 0.28), 0.26)
+	_cyl_tex(6.9, 7.3, 0.28, Vector3(0.0, -0.14, 0.0), suelo_tex,
+		Color(0.30, 0.33, 0.41), 0.30)
+	# MURO DEL FONDO en dos piezas, con el HUECO DE LA ENTRADA justo en medio
+	# (u ∈ [-1.8, 1.8]): ahí es donde aparecen los clientes de la borda de
+	# arriba (ENTRY cae exactamente en u=0), así que salen de la cueva por su
+	# boca en vez de brotar del suelo.
+	_muro_cueva(-5.9, -7.8, Vector3(8.2, 9.0, 2.8), pared_tex, Color(0.82, 0.86, 0.97))
+	_muro_cueva(5.9, -7.8, Vector3(8.2, 9.0, 2.8), pared_tex, Color(0.82, 0.86, 0.97))
+	# LATERALES: dos columnas que bajan por los cantos de la pantalla. Su cara
+	# interior va a |u| = 4.1 (el ancho visible es 4.78) y arrancan en w = -2.2,
+	# que es lo que las deja a la vista SIN meterse en el rombo del pasillo.
+	_muro_cueva(-6.5, -5.35, Vector3(4.8, 9.0, 6.3), pared_tex, Color(0.74, 0.78, 0.90))
+	_muro_cueva(6.5, -5.35, Vector3(4.8, 9.0, 6.3), pared_tex, Color(0.74, 0.78, 0.90))
+	_entrada_cueva(pared_tex, suelo_tex)
+	# ROCAS al pie de los muros, entenebrecidas: rompen la silueta recta de las
+	# cajas. La textura de rocas.glb es la roca de las islas AL SOL, gris clara,
+	# y sin oscurecerla parecían montones de nieve.
+	for r in [[-3.4, -4.6, 1.6], [3.5, -4.4, 1.5], [-4.4, -2.9, 1.3],
+			[4.5, -2.7, 1.2]]:
+		var pos := _uw(float(r[0]), float(r[1]))
 		var rocas := _spawn_model(load("res://assets/models/rocas.glb"),
-			r[0], float(r[1]), self)
-		rocas.rotation_degrees.y = r[0].x * 53.0 + r[0].z * 17.0
-		# La textura de rocas.glb es gris CLARA (la roca de las islas al sol):
-		# se oscurece multiplicando el albedo, o parecia nieve.
-		_entenebrecer(rocas, Color(0.40, 0.42, 0.52))
-		_add_blob_shadow(r[0] + Vector3(0.15, 0.02, 0.1),
-			float(r[1]) * 1.1, float(r[1]) * 0.7)
-	# ESTALACTITAS colgando del techo que no se ve: nacen altas sobre la pared
-	# del fondo y asoman con la punta hacia abajo por el borde superior.
-	for e in [[Vector3(-4.6, 5.6, -6.6), 2.6], [Vector3(-1.2, 6.1, -7.0), 3.2],
-			[Vector3(2.4, 5.8, -6.8), 2.4], [Vector3(5.4, 5.4, -6.2), 2.0],
-			[Vector3(-6.8, 5.2, -4.6), 1.8], [Vector3(7.0, 5.1, -4.2), 1.7]]:
-		_estalagmita(e[0], float(e[1]), piedra_tex, true)
-	# Estalagmitas subiendo del suelo, fuera del pasillo de los clientes.
-	for e in [[Vector3(-4.3, 0.0, 2.9), 1.1], [Vector3(4.6, 0.0, 2.2), 1.4],
-			[Vector3(-3.6, 0.0, -4.5), 1.7], [Vector3(3.2, 0.0, -4.8), 1.3],
-			[Vector3(5.8, 0.0, -2.6), 0.9]]:
-		_estalagmita(e[0], float(e[1]), piedra_tex, false)
-	# CRISTALES: la luz de la cueva. Facetas texturizadas que ademas EMITEN, y
-	# a sus pies un charco de resplandor sobre la roca.
-	for c in [[Vector3(-5.0, 0.0, 1.8), 1.4, -18.0], [Vector3(2.6, 0.0, -5.2), 1.9, 14.0],
-			[Vector3(-2.9, 0.0, -5.3), 1.3, -9.0], [Vector3(5.4, 0.0, 1.2), 1.6, 22.0],
-			[Vector3(-4.6, 0.0, 3.6), 1.0, 12.0], [Vector3(4.9, 0.0, -2.9), 1.2, -15.0],
-			[Vector3(-6.4, 0.0, -3.4), 1.5, -24.0], [Vector3(6.9, 0.0, -2.0), 1.1, 18.0]]:
-		_cristal(c[0], float(c[1]), float(c[2]), cristal_tex)
-	# Charcas de agua quieta, verdosas, reflejando el brillo.
-	for ch in [[Vector3(-3.6, 0.0, 4.2), 1.05], [Vector3(4.2, 0.0, 3.6), 0.8]]:
-		var charca := _cyl(float(ch[1]), float(ch[1]) * 1.06, 0.05,
-			ch[0] + Vector3(0.0, -0.02, 0.0), Color(0.10, 0.26, 0.24))
-		charca.material_override.roughness = 0.1
-	_spawn_barrels([Vector3(-5.9, 0.0, 3.1), Vector3(6.1, 0.0, -1.7)], 1)
+			pos, float(r[2]), self)
+		rocas.rotation_degrees.y = float(r[0]) * 53.0 + float(r[1]) * 17.0
+		_entenebrecer(rocas, Color(0.46, 0.50, 0.62))
+	for k in [[-4.6, -6.1, 0.9], [-3.3, -6.3, 0.7], [-2.4, -6.2, 0.55],
+			[2.5, -6.2, 0.6], [3.4, -6.3, 0.8], [4.7, -6.0, 0.7],
+			[-4.6, -4.9, 0.6], [4.7, -4.7, 0.65]]:
+		var cascote := _muro_cueva(float(k[0]), float(k[1]),
+			Vector3(float(k[2]) * 2.2, float(k[2]) * 1.5, float(k[2]) * 1.8),
+			pared_tex, Color(0.56, 0.60, 0.70), -0.55)
+		cascote.rotation_degrees.y = 45.0 + float(k[0]) * 19.0
+	# ESTALACTITAS: cuelgan del techo que no se ve y asoman por el borde de
+	# arriba. La punta tiene que quedar BAJA (y ≈ 0.8-2.0): con la cámara orto
+	# todo lo que pase de y≈2.5 al fondo se sale por encima de la pantalla, que
+	# es donde estaban antes y por eso no se veía ninguna.
+	for e in [[-3.6, -6.0, 2.6, 1.0], [-1.9, -6.9, 3.0, 0.7], [2.0, -6.9, 2.8, 0.8],
+			[3.8, -6.1, 2.4, 1.1], [-4.5, -4.6, 2.2, 1.5], [4.6, -4.4, 2.0, 1.6],
+			[-2.7, -4.4, 1.8, 1.9], [2.9, -4.6, 1.7, 1.8]]:
+		_estalagmita(_uw(float(e[0]), float(e[1])) + Vector3(0.0, float(e[3]), 0.0),
+			float(e[2]), pared_tex, true)
+	# Estalagmitas subiendo del suelo, siempre fuera del rombo del pasillo.
+	for e in [[-4.5, -2.4, 1.5], [4.6, -2.2, 1.3], [-3.2, -3.4, 1.7],
+			[3.4, -3.2, 1.2], [-4.9, -1.6, 0.9], [4.9, -1.5, 1.0],
+			[-3.9, 2.6, 1.1], [4.0, 2.5, 0.9]]:
+		_estalagmita(_uw(float(e[0]), float(e[1])), float(e[2]), pared_tex, false)
+	# CRISTALES: la luz del sitio. Los cuatro grandes y el de la boca llevan
+	# LUZ DE VERDAD (OmniLight3D); los pequeños solo brillan.
+	for c in [[-4.2, 2.2, 1.6, true], [4.3, 2.0, 1.4, true],
+			[-3.9, -3.0, 1.9, true], [4.0, -3.2, 1.7, true],
+			[-2.6, -6.5, 1.5, true],
+			[-4.9, -0.9, 0.8, false], [4.8, -1.4, 0.7, false],
+			[2.9, -5.6, 0.9, false], [-4.6, 3.4, 0.7, false]]:
+		_cristal(float(c[0]), float(c[1]), float(c[2]), bool(c[3]))
+	# Charcas de agua quieta: recogen el verde de los cristales.
+	for ch in [[-3.4, 3.5, 0.72], [3.6, 3.3, 0.58]]:
+		var charca := _cyl(float(ch[2]), float(ch[2]) * 1.06, 0.05,
+			_uw(float(ch[0]), float(ch[1])) + Vector3(0.0, -0.02, 0.0),
+			Color(0.06, 0.17, 0.19))
+		charca.material_override.roughness = 0.06
+		charca.material_override.emission_enabled = true
+		charca.material_override.emission = Color(0.05, 0.20, 0.17)
+		charca.material_override.emission_energy_multiplier = 0.20
+
+
+## LA BOCA DE LA CUEVA, en lo alto de la pantalla: el hueco entre las dos
+## piezas del muro del fondo, con su dintel, sus jambas y un pasadizo oscuro
+## detrás. Por aquí entran los clientes de la borda de arriba.
+func _entrada_cueva(pared_tex: Texture2D, suelo_tex: Texture2D) -> void:
+	# Dintel: arranca a 1.55 de alto, que es lo que deja el hueco justo por
+	# encima de la cabeza de un cliente.
+	_muro_cueva(0.0, -7.8, Vector3(4.4, 6.0, 2.8), pared_tex,
+		Color(0.78, 0.82, 0.94), 1.55)
+	# Jambas: dos pilastras de roca marcando los lados de la boca.
+	for lado in [-1.0, 1.0]:
+		_muro_cueva(lado * 2.15, -6.5, Vector3(0.9, 2.9, 1.1), pared_tex,
+			Color(0.66, 0.70, 0.81))
+	# Colmillos del dintel: la boca de una cueva no es un marco de puerta.
+	for d in [[-1.25, 0.62], [-0.35, 0.95], [0.55, 0.55], [1.30, 0.75]]:
+		_estalagmita(_uw(float(d[0]), -6.5) + Vector3(0.0, 0.80, 0.0),
+			float(d[1]), pared_tex, true)
+	# EL PASADIZO: suelo oscuro y paredes que se cierran detrás del hueco, para
+	# que por la boca se vea un túnel y no el mismo suelo iluminado de fuera.
+	_muro_cueva(0.0, -11.0, Vector3(5.2, 0.14, 7.0), suelo_tex,
+		Color(0.09, 0.10, 0.14), -0.52)
+	for lado in [-1.0, 1.0]:
+		_muro_cueva(lado * 3.1, -11.0, Vector3(1.6, 6.0, 7.0), pared_tex,
+			Color(0.14, 0.16, 0.21))
+	# Y la luz fría que se cuela desde fuera: lo único que en esta cueva no es
+	# verde, así que la boca se distingue de un cristal a la primera.
+	var dia := OmniLight3D.new()
+	dia.position = _uw(0.0, -8.2) + Vector3(0.0, 1.1, 0.0)
+	dia.light_color = Color(0.62, 0.78, 0.98)
+	dia.light_energy = 2.0
+	dia.omni_range = 4.6
+	dia.shadow_enabled = false
+	add_child(dia)
 
 
 ## Material de piedra texturizada TRIPLANAR: el mapeado cae por las tres caras
 ## sin depender de las UV, que es lo que deja tilear la misma textura en cajas,
-## conos y cilindros hechos por codigo.
+## conos y cilindros hechos por código. `escala` va en REPETICIONES POR UNIDAD
+## de mundo, así que son números PEQUEÑOS (0.2 ≈ una baldosa cada 5 u): con
+## valores altos la piedra se convierte en una rejilla de puntos.
 func _mat_piedra(tex: Texture2D, tinte: Color, escala: float) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	mat.albedo_texture = tex
@@ -1163,7 +1241,7 @@ func _mat_piedra(tex: Texture2D, tinte: Color, escala: float) -> StandardMateria
 	return mat
 
 
-## Cilindro texturizado (los discos del monticulo).
+## Cilindro texturizado (los discos del montículo).
 func _cyl_tex(r_top: float, r_bottom: float, alto: float, pos: Vector3,
 		tex: Texture2D, tinte: Color, escala: float) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
@@ -1179,8 +1257,10 @@ func _cyl_tex(r_top: float, r_bottom: float, alto: float, pos: Vector3,
 	return mi
 
 
-## Un cono de piedra texturizada. `colgante` lo invierte: la base arriba y la
-## punta hacia abajo (las estalactitas del techo que no se ve).
+## Un cono de piedra texturizada. `colgante` lo invierte —la base arriba y la
+## punta hacia abajo— y entonces `pos` es LA PUNTA: es la altura que hay que
+## poder controlar, porque con esta cámara todo lo que quede por encima de
+## y≈2.5 al fondo se sale por arriba de la pantalla.
 func _estalagmita(pos: Vector3, alto: float, tex: Texture2D, colgante := false) -> void:
 	var mi := MeshInstance3D.new()
 	var cono := CylinderMesh.new()
@@ -1194,58 +1274,61 @@ func _estalagmita(pos: Vector3, alto: float, tex: Texture2D, colgante := false) 
 	cono.radial_segments = 7
 	mi.mesh = cono
 	if colgante:
-		mi.position = pos + Vector3(0.0, -alto * 0.5, 0.0)
+		mi.position = pos + Vector3(0.0, alto * 0.5, 0.0)
 	else:
 		mi.position = pos + Vector3(0.0, alto * 0.5 - 0.05, 0.0)
-	mi.material_override = _mat_piedra(tex, Color(0.44, 0.46, 0.56), 1.2)
+	mi.material_override = _mat_piedra(tex, Color(0.62, 0.66, 0.76), 1.15)
 	add_child(mi)
-	if not colgante:
-		_add_blob_shadow(pos + Vector3(0.05, 0.02, 0.05), alto * 0.7, alto * 0.45)
 
 
-## Un cristal que BRILLA: facetas texturizadas cuya textura tambien EMITE, y a
-## sus pies un charco de resplandor (la luz barata: sin luces dinamicas).
-func _cristal(pos: Vector3, alto: float, tilt: float, tex: Texture2D) -> void:
-	var mi := MeshInstance3D.new()
-	var prisma := CylinderMesh.new()
-	prisma.top_radius = 0.03
-	prisma.bottom_radius = alto * 0.24
-	prisma.height = alto
-	prisma.radial_segments = 6
-	mi.mesh = prisma
-	mi.position = pos + Vector3(0.0, alto * 0.42, 0.0)
-	mi.rotation_degrees = Vector3(tilt, pos.x * 31.0, tilt * 0.5)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_texture = tex
-	# OJO: albedo claro + emision con la misma textura reventaba a BLANCO
-	# puro (medido en captura). El albedo baja a verde agua medio y la emision
-	# se modera: el cristal tiene que brillar en SU color, no deslumbrar.
-	mat.albedo_color = Color(0.34, 0.68, 0.60)
-	mat.uv1_triplanar = true
-	mat.uv1_scale = Vector3(1.1, 1.1, 1.1)
-	mat.emission_enabled = true
-	mat.emission_texture = tex
-	mat.emission = Color(0.30, 0.62, 0.54)
-	mat.emission_energy_multiplier = 0.85
-	mi.material_override = mat
-	add_child(mi)
-	# El charco de resplandor a sus pies.
-	var halo := MeshInstance3D.new()
-	var disco := CylinderMesh.new()
-	disco.top_radius = alto * 0.85
-	disco.bottom_radius = alto * 0.85
-	disco.height = 0.02
-	disco.radial_segments = 18
-	halo.mesh = disco
-	halo.position = pos + Vector3(0.0, 0.015, 0.0)
-	var luz := StandardMaterial3D.new()
-	luz.albedo_color = Color(0.10, 0.30, 0.27)
-	luz.emission_enabled = true
-	luz.emission = Color(0.16, 0.45, 0.38)
-	luz.emission_energy_multiplier = 0.9
-	luz.roughness = 1.0
-	halo.material_override = luz
-	add_child(halo)
+
+## UN CRISTAL: un racimo de agujas con el shader de cristal (`shaders/
+## crystal.gdshader`: translúcidas, con gradiente a lo largo y el canto
+## encendido por fresnel) y, las grandes, con su propia LUZ.
+##
+## LA LUZ ES DE VERDAD, un OmniLight3D. Antes cada cristal llevaba un charco
+## emisivo pintado a sus pies: se veía la mancha, pero no iluminaba nada — ni
+## la piedra de al lado ni a los clientes que pasaban por delante. En una cueva
+## a oscuras la única fuente de luz no puede ser una calcomanía.
+func _cristal(u: float, w: float, alto: float, con_luz: bool) -> void:
+	var pos := _uw(u, w)
+	var color_luz := Color(0.22, 0.88, 0.66)
+	var giro := u * 47.0 + w * 23.0
+	# Racimo: la aguja grande y dos esquirlas apoyadas, cada una con su vuelco.
+	for p in [[Vector2.ZERO, 1.0, 0.0], [Vector2(0.26, 0.10), 0.55, 21.0],
+			[Vector2(-0.22, -0.14), 0.42, -26.0]]:
+		var off: Vector2 = p[0] * alto
+		var h := alto * float(p[1])
+		var mi := MeshInstance3D.new()
+		var prisma := CylinderMesh.new()
+		prisma.top_radius = 0.02
+		prisma.bottom_radius = h * 0.26
+		prisma.height = h
+		prisma.radial_segments = 6
+		mi.mesh = prisma
+		mi.position = pos + Vector3(off.x, h * 0.44, off.y)
+		mi.rotation_degrees = Vector3(float(p[2]), giro, float(p[2]) * 0.6)
+		var mat := ShaderMaterial.new()
+		mat.shader = load("res://shaders/crystal.gdshader")
+		mat.set_shader_parameter("media_altura", h * 0.5)
+		mat.set_shader_parameter("color_luz", color_luz)
+		mat.set_shader_parameter("brillo", 1.55 if con_luz else 1.15)
+		# El latido se apaga con el ajuste de Animaciones, como el resto del
+		# adorno del juego.
+		mat.set_shader_parameter("pulso", 0.10 if GameState.animations_on() else 0.0)
+		mi.material_override = mat
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+	if not con_luz:
+		return
+	var luz := OmniLight3D.new()
+	luz.position = pos + Vector3(0.0, alto * 1.05, 0.0)
+	luz.light_color = color_luz
+	luz.light_energy = 1.9 + alto * 0.85
+	luz.omni_range = 4.2 + alto * 1.7
+	luz.omni_attenuation = 1.05
+	luz.shadow_enabled = false
+	add_child(luz)
 
 
 ## Multiplica el albedo de TODAS las superficies de un modelo (el color de un

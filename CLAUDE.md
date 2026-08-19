@@ -126,29 +126,74 @@ que cada tipo tenga SU dificultad como la isla tiene su carta cerrada):
   clientela sin fin, `is_timed` la incluye) pero SIN el hándicap del reloj: el
   reto es el jefe. Escenario propio (`_scenery_cueva`) que es INTERIOR de
   verdad: sin mar (`_setup_scenery` lo salta), suelo de roca hasta el borde,
-  paredes texturizadas cerrando fondo y lados, estalagmitas Y estalactitas
-  (conos invertidos colgando altos sobre la pared del fondo), rocas.glb
+  muros cerrando el fondo y los cantos, estalagmitas Y estalactitas, rocas.glb
   entenebrecidas (`_entenebrecer` multiplica su albedo: la textura es la roca
-  de las islas AL SOL y salía como nieve) y CRISTALES verde agua que hacen de
-  luz — ambiente y sol propios, tenues y fríos (`_setup_environment`, rama
-  cueva), con un charco de resplandor emisivo a los pies de cada cristal en
-  vez de luces dinámicas.
-  · **Texturas propias en `assets/props`**: `piedra_cueva.webp` y
-    `cristal_cueva.webp`, seamless por DESPLAZAMIENTO+PARCHE (rodar media
-    textura y tapar la cruz con el centro fundido en círculo). El espejado 2×2
-    se probó primero y NO vale: crea una celosía periódica que se leía como
-    rejilla. Van triplanar (`_mat_piedra`) para tilear en cajas y conos por
-    código, con Basis y límite 512 como el resto de props.
-  · **El cristal NO puede llevar albedo claro + emisión de la misma textura**:
-    reventaba a blanco puro (medido en captura). Albedo verde agua medio y
-    emisión moderada: brilla en SU color.
+  de las islas AL SOL y salía como nieve) y CRISTALES que hacen de luz.
+  · **SE MONTA EN COORDENADAS DE PANTALLA (u, w), no de mundo** (`_uw`,
+    `_muro_cueva`). Con la cámara a yaw 45 los ejes del mundo salen en
+    diagonal: los muros puestos en X/Z cruzaban el encuadre torcidos y el del
+    +X asomaba POR ABAJO A LA DERECHA, tapando la barra. En (u, w) el muro del
+    fondo es una banda limpia arriba y los laterales dos columnas en los
+    cantos. Medidas que gobiernan el sitio de todo: se ve `|u| ≤ 4.78` de
+    ancho y `w ∈ [-10.1, 5.8]` de fondo (por debajo lo tapa la tabla), y el
+    pasillo de paseo de los clientes es el ROMBO `|u| + |w| = 5.23`, así que
+    el decorado va por fuera de 6.3.
+  · **LA BOCA DE LA CUEVA VA ARRIBA, EN u = 0** (`_entrada_cueva`): es el
+    hueco entre las dos piezas del muro del fondo, con dintel, jambas y
+    colmillos, y un pasadizo casi negro detrás. Ahí es justo donde aparecen
+    los clientes de la borda de arriba (`ENTRY` cae en u=0), así que salen de
+    la cueva por su boca en vez de brotar del suelo. Lleva su propia luz FRÍA,
+    la única que no es verde: sin sombras una luz de rango largo atraviesa el
+    muro y encendía el suelo de lado a lado, así que va corta (rango 4.6).
+  · **Texturas propias en `assets/props`**, dibujadas por código
+    (`tools/cave_textures.py`, ruido de valor periódico): `piedra_cueva.webp`
+    (moteado suave, suelo) y `pared_cueva.webp` (estratos horizontales, muros;
+    van por FILAS porque el triplanar mapea la V sobre la Y del mundo). Son
+    SENCILLAS y de poco contraste a propósito: cualquier rasgo reconocible se
+    convierte en el motivo que delata el tileado. Seamless por construcción
+    (rejilla pequeña tileada 3×3, ampliada con bicúbica y recortado el
+    centro); el espejado 2×2 que se probó antes crea una celosía.
+  · **LA ESCALA DE TEXTURA ES POR PIEZA, y va en repeticiones POR UNIDAD**
+    (`_mat_piedra`, triplanar): 0.34 el suelo, 0.45 los muros y **1.15 los
+    conos**, porque a la escala del suelo un cono de 1 u no llega ni a media
+    baldosa y salía de color plano. Estuvo a 6 (¡seis baldosas por unidad!) y
+    el suelo se leía como una rejilla de puntos.
+  · **EL SUELO VA OSCURO Y LOS MUROS CLAROS**, no al revés: el suelo es una
+    superficie enorme y plana, así que con el tono de la pared se comía la
+    pantalla y se tragaba los charcos de luz. Y el AMBIENTE es quien pinta las
+    caras verticales (el sol de la cueva casi no existe): por debajo de 0.9 de
+    energía los muros y los conos salían como recortes negros.
+  · **LOS CRISTALES LLEVAN LUZ DE VERDAD** (`OmniLight3D` sin sombras, cinco
+    de ellos) y shader propio, `shaders/crystal.gdshader` — inspirado en el
+    "Crystal Shader" de godotshaders.com: gradiente a lo largo de la pieza,
+    vetas de ruido y transparencia, más FRESNEL, que es lo que enciende los
+    cantos y lo hace leer como cristal desde esta cámara. Cada cristal es un
+    RACIMO de tres agujas. Tres cosas medidas en captura:
+    · El charco emisivo pintado a sus pies que hubo antes NO iluminaba nada
+      (ni la piedra de al lado ni a los clientes): era una calcomanía.
+    · **La emisión no puede pasar de 1**: el renderer Compatibility recorta y
+      el cristal se iba a BLANCO. Y el color tiene que ser VERDE de verdad
+      (0.22, 0.88, 0.66): con un cian los tres canales llegan arriba a la vez
+      y vuelve a salir blanco.
+    · **Las luces van CORTAS** (rango ~4.2 + alto): con rango 10 y cinco
+      cristales, sus charcos se solapaban y encendían el suelo entero de punta
+      a punta, que es lo contrario de lo que se busca.
+  · Sin sol no hay sombra que fingir: aquí NO se usan las manchas de
+    `blob_shadow` (una elipse oscura de borde duro en mitad de la roca).
   · Modelo de mapa propio (`map_cueva.glb`, cadena Ludo completa, presupuesto
-    8000) con **BASE de piedra por código** (dos discos oscuros bajo el nodo:
-    el peñasco venía sin suelo y flotaba a corte vivo sobre el agua), y
-    entrada en `SceneBackdrop.KIND_MODELS` para el selector. **En el mapa va
-    APARTE**: sola en lo alto, centrada y a dos pasos y medio del 19 — el
-    último tramo se navega en silencio hacia ella.
-
+    8000) con **ISLOTE de piedra por código** (`level_select3d._base_cueva`:
+    el peñasco venía sin suelo y flotaba a corte vivo sobre el agua). Son TRES
+    plataformas FACETADAS —pocos lados y giradas entre sí, para que la silueta
+    no sea un disco de tarta— con la piedra de la cueva y pedruscos rompiendo
+    el canto. NADA de rompiente ni de bajío: el plano del mar es opaco, así que
+    lo que quede bajo y=0 no se ve, y el aro claro a ras de agua que se probó
+    rodeaba la roca con una fuente blanca.
+  · **EN EL MAPA VA MUY APARTE**: sola, centrada y POR ENCIMA del lienzo
+    (`MAP_POS` con y **negativa**, −700), a 1.068 px del escenario 19 — casi
+    siete veces el paso normal. La distancia no es estética: es la que hace
+    que, con la cueva en pantalla, NO se vea ningún otro escenario. El tope de
+    scroll (`level_select3d.SCROLL_MIN`) ya no es el borde del mapa sino la
+    cueva menos un margen.
 David presenta los tres tipos CON sus hándicaps en la intro del mapa
 (`_guiar_primer_nivel`), y además la PRIMERA VEZ que se juega un puerto o un
 abordaje lo repite en el nivel con el foco puesto en el contador o en el reloj

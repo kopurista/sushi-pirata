@@ -38,7 +38,11 @@ const CAM_SIZE := 15.0
 ## por encima del centro de la pantalla (640).
 const BAND_CENTER_OFF := 140.0
 ## Límites del scroll (centro de la franja, en px de mapa).
-const SCROLL_MIN := 424.0
+## LA CUEVA VIVE POR ENCIMA DEL LIENZO DEL MAPA (y negativa), a un tramo de
+## mar vacío del resto: por eso el tope de scroll no es el borde del mapa sino
+## su posición menos un margen. Con esto, al llegar arriba del todo en pantalla
+## NO se ve ningún escenario anterior — que es de lo que va la cueva.
+const SCROLL_MIN := -560.0
 const SCROLL_MAX := CampaignData.MAP_HEIGHT - 300.0
 
 ## EL PLANO DEL MAR TIENE QUE CUBRIR TAMBIÉN EL FONDEADERO DEL MENÚ, que está
@@ -241,29 +245,11 @@ func _setup_nodes() -> void:
 			float(KIND_FOOT.get(kind, 2.5)))
 		# Los barcos se hunden un poco en el agua; las islas asientan su base.
 		pivot.position.y = -0.10 if kind != "abordaje" else -0.06
-		# LA CUEVA lleva su propia BASE de piedra: el modelo es un penasco sin
-		# suelo y flotaba sobre el agua a corte vivo. Dos discos oscuros — zocalo
-		# ancho a ras de agua y peana algo mas alta — la asientan como a las
-		# islas su arenal.
+		# LA CUEVA lleva su propia BASE de piedra (el modelo es un peñasco sin
+		# suelo y flotaba sobre el agua a corte vivo).
+		var base_cueva: Node3D = null
 		if kind == "cueva":
-			var foot_c: float = float(KIND_FOOT.get(kind, 2.5))
-			for base in [[foot_c * 0.72, 0.16, -0.16, Color(0.13, 0.14, 0.19)],
-					[foot_c * 0.60, 0.30, -0.06, Color(0.20, 0.21, 0.27)]]:
-				var peana := MeshInstance3D.new()
-				var disco := CylinderMesh.new()
-				disco.top_radius = base[0]
-				disco.bottom_radius = float(base[0]) * 1.12
-				disco.height = base[1]
-				disco.radial_segments = 20
-				peana.mesh = disco
-				peana.position = pos + Vector3(0.0, float(base[2]), 0.0)
-				var mat_b := StandardMaterial3D.new()
-				mat_b.albedo_color = base[3]
-				mat_b.roughness = 1.0
-				peana.mesh = disco
-				peana.material_override = mat_b
-				peana.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-				add_child(peana)
+			base_cueva = _base_cueva(pos, float(KIND_FOOT.get(kind, 2.5)))
 		# Los nodos NO proyectan sombra: son 9 modelos de ~40k triangulos y el
 		# pase de sombras los dibujaba otra vez enteros, para una mancha que
 		# desde esta camara casi no se ve.
@@ -275,6 +261,68 @@ func _setup_nodes() -> void:
 		add_child(blob)
 		if not GameState.is_port_unlocked(id):
 			_dim_model(pivot)
+			if base_cueva != null:
+				_dim_model(base_cueva)
+
+
+## EL ISLOTE DE LA CUEVA. Estuvo resuelto con dos discos lisos de color plano y
+## se leía como un plato: un peñasco no se apoya en una tarta. Van TRES
+## plataformas FACETADAS (pocos lados y giradas entre sí, para que la silueta
+## sea irregular desde cualquier ángulo), con la MISMA piedra que se ve dentro
+## de la cueva, unos pedruscos rompiendo el canto y un anillo de rompiente a
+## ras de agua para que la roca no salga recortada sobre el mar.
+func _base_cueva(pos: Vector3, foot: float) -> Node3D:
+	var pivot := Node3D.new()
+	pivot.position = pos
+	add_child(pivot)
+	var tex: Texture2D = load("res://assets/props/piedra_cueva.webp")
+	# NADA DE ROMPIENTE NI DE BAJÍO: el plano del mar es opaco, así que lo que
+	# quede por debajo de y=0 no se ve, y el aro claro que se probó a ras de
+	# agua rodeaba la roca con una fuente blanca. La roca corta el agua a
+	# cuchillo, igual que los modelos de las islas.
+	# Las tres plataformas, de la más ancha (al agua) a la más alta.
+	_roca_facetada(pivot, Vector3(0.0, -0.30, 0.0), foot * 0.90, 0.66, 7, 14.0,
+		tex, Color(0.38, 0.41, 0.50))
+	_roca_facetada(pivot, Vector3(0.0, 0.06, 0.0), foot * 0.73, 0.48, 6, -27.0,
+		tex, Color(0.48, 0.51, 0.61))
+	_roca_facetada(pivot, Vector3(0.0, 0.30, 0.0), foot * 0.56, 0.38, 9, 41.0,
+		tex, Color(0.57, 0.60, 0.71))
+	# Pedruscos del canto: son los que quitan del todo la silueta de disco.
+	var puntos := [0.35, 1.42, 2.35, 3.60, 4.75, 5.60]
+	for i in puntos.size():
+		var a: float = puntos[i]
+		var r := foot * (0.62 + 0.08 * float(i % 3) * 0.5)
+		_roca_facetada(pivot, Vector3(cos(a) * r, 0.02 + 0.06 * float(i % 2),
+			sin(a) * r), foot * (0.15 + 0.05 * float(i % 3)),
+			0.34 + 0.12 * float(i % 2), 5, a * 40.0, tex,
+			Color(0.43, 0.46, 0.56))
+	return pivot
+
+
+## Un prisma de roca: cilindro de POCOS lados (facetado) y girado, con la
+## piedra triplanar. Sin textura queda de color plano (la rompiente).
+func _roca_facetada(padre: Node3D, off: Vector3, radio: float, alto: float,
+		lados: int, giro: float, tex: Texture2D, color: Color) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radio * 0.86
+	mesh.bottom_radius = radio
+	mesh.height = alto
+	mesh.radial_segments = lados
+	mi.mesh = mesh
+	mi.position = off
+	mi.rotation_degrees.y = giro
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = 1.0
+	if tex != null:
+		mat.albedo_texture = tex
+		mat.uv1_triplanar = true
+		mat.uv1_scale = Vector3(0.95, 0.95, 0.95)
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	padre.add_child(mi)
+	return mi
 
 
 ## Oscurece un modelo bloqueado con una pasada extra translúcida (el modulate

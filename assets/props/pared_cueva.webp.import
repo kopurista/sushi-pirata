@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bfs264douqmmp"
-path="res://.godot/imported/cristal_cueva.webp-841fb8c3f59c283d5169afbc2bdb269b.ctex"
+uid="uid://cggh0vujlhuul"
+path="res://.godot/imported/pared_cueva.webp-2747196eb9f6c69438e374c8f73bb366.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/props/cristal_cueva.webp"
-dest_files=["res://.godot/imported/cristal_cueva.webp-841fb8c3f59c283d5169afbc2bdb269b.ctex"]
+source_file="res://assets/props/pared_cueva.webp"
+dest_files=["res://.godot/imported/pared_cueva.webp-2747196eb9f6c69438e374c8f73bb366.ctex"]
 
 [params]
 
