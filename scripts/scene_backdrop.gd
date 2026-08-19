@@ -16,6 +16,7 @@ const KIND_MODELS := {
 	"isla": "res://assets/models/map_isla.glb",
 	"puerto": "res://assets/models/map_puerto.glb",
 	"abordaje": "res://assets/models/map_enemigo.glb",
+	"cueva": "res://assets/models/map_cueva.glb",
 	"": "res://assets/models/map_barco.glb",
 }
 

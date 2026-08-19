@@ -63,6 +63,7 @@ const BUDGETS := {
 	# igual que sin decimar.
 	"map_isla": 8000,
 	"map_puerto": 8000,
+	"map_cueva": 8000,
 	"map_enemigo": 8000,
 	"map_barco": 8000,
 	# Personajes: el chef y los clientes rondan los 6.000, estos venían a 19.500.

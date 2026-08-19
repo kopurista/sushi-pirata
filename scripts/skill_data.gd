@@ -74,11 +74,13 @@ const XP_SCENARIO := 6
 const STAR_MULT := [0.0, 0.5, 1.0, 1.5]
 const FIRST_MULT := 3.0
 
-## Los escenarios de JEFE (uno cada 10) pagan el DOBLE. Multiplica la BASE en
-## `GameState.scenario_xp`, así que el doble llega igual al estreno, a la
-## repetición y a la mejora de récord. Sobre los 250 escenarios previstos son
-## ~88.000 XP extra (+10%), y narrativamente pone el día de paga donde toca.
-const XP_BOSS_MULT := 2.0
+## Los escenarios de JEFE (uno cada 10) pagan ×1,5 (estuvo en el doble y el
+## usuario lo bajó: con 20 escenarios en el mar, el doble hacía del jefe un
+## salto de golpe). Multiplica la BASE en `GameState.scenario_xp`, así que el
+## plus llega igual al estreno, a la repetición y a la mejora de récord. Sobre
+## los 250 escenarios previstos son ~44.000 XP extra (+5%). MEDIDO: con él, el
+## mar 1 bordado entero deja al cocinero en el nivel 16 clavado.
+const XP_BOSS_MULT := 1.5
 
 ## El ARCADE paga por oleada superada: ARCADE_WAVE_XP × número de la oleada.
 ## Baja con la tarifa de los escenarios (estaba en 15, con ellos a 15): dejarlo

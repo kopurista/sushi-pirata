@@ -276,6 +276,10 @@ var variety_ui := true
 const BOSS_TAKE := 0.95
 ## Perdona el castigo de marcharse sin comer (ver force_leave).
 var _sin_castigo := false
+## En PUERTOS y ABORDAJES el vacío no cuesta oro (el jugador ya pierde por la
+## vía propia del tipo: la derrota a los 3 vacíos o los 15 s de reloj). El
+## nivel lo apaga al crear el cliente; en islas, arcade y tutorial sigue puesto.
+var penaliza_vacio := true
 ## Puntos de la ruta de entrada (el nivel los define; el ultimo es el asiento).
 var route: Array = []
 ## Punto por el que desaparece al marcharse (la borda).
@@ -1495,8 +1499,12 @@ func _leave() -> void:
 	# ya se fue de vacío en esta partida encarece al siguiente (ver
 	# EMPTY_LEAVE_STEP). El "-$N" flotante enseña la cifra creciente, así que
 	# la escalada se comunica sola.
+	# El VACÍO (irse sin probar nada) viaja aparte del castigo en oro: en los
+	# puertos y abordajes el oro no se toca pero el vacío SÍ cuenta — para la
+	# derrota a los 3 en un puerto y para el robo de reloj en un abordaje.
+	var vacio := eaten_ids.is_empty() and not _sin_castigo
 	var penalty := 0
-	if eaten_ids.is_empty() and not _sin_castigo:
+	if vacio and penaliza_vacio:
 		var esc := 1.0
 		if level_ref != null and "empty_leavers" in level_ref:
 			esc = minf(1.0 + EMPTY_LEAVE_STEP * float(level_ref.empty_leavers),
@@ -1509,6 +1517,7 @@ func _leave() -> void:
 		"money": money_earned,
 		"tip": tips_earned,
 		"penalty": penalty,
+		"vacio": vacio,
 		"eaten": eaten_ids.duplicate(),
 		"satiety_eaten": satiety_eaten,
 	})

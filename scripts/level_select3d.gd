@@ -54,8 +54,9 @@ const KIND_MODELS := {
 	"isla": "res://assets/models/map_isla.glb",
 	"puerto": "res://assets/models/map_puerto.glb",
 	"abordaje": "res://assets/models/map_enemigo.glb",
+	"cueva": "res://assets/models/map_cueva.glb",
 }
-const KIND_FOOT := { "isla": 2.6, "puerto": 2.9, "abordaje": 2.5 }
+const KIND_FOOT := { "isla": 2.6, "puerto": 2.9, "abordaje": 2.5, "cueva": 2.7 }
 const SHIP_FOOT := 2.3
 ## Orientación base del barco (navega hacia la parte alta del mapa).
 const SHIP_YAW := 205.0
@@ -677,7 +678,7 @@ func _fill_reward_row(port: Dictionary, id: String) -> void:
 	var extra: Array = port.get("reward_recipes_3", [])
 	var lingotes := int(port.get("reward_ingots_3", 0))
 	var sacos := int(port.get("reward_rice_3", 0))
-	if extra.is_empty() and lingotes <= 0 and sacos <= 0:
+	if extra.is_empty() and lingotes <= 0 and sacos <= 0 			and (port.get("reward_ingredients_3", {}) as Dictionary).is_empty() 			and int(port.get("reward_bait_3", 0)) <= 0:
 		return
 	var hecho := logradas >= 3
 	info_reward_row.add_child(PrepBoard.make_star_row(3, 3, 22, true))
@@ -689,6 +690,16 @@ func _fill_reward_row(port: Dictionary, id: String) -> void:
 	if sacos > 0:
 		_row_icon(info_reward_row, load("res://assets/ui/ic_arroz.png"),
 				"x%d" % sacos, 34, hecho)
+	# Usos de despensa (ingredientes o extras) y cebo, los premios de las
+	# practicas: cada ingrediente con su icono y su xN.
+	var usos: Dictionary = port.get("reward_ingredients_3", {})
+	for ing in usos:
+		_row_icon(info_reward_row, RecipeData.get_ingredient_texture(str(ing)),
+				"x%d" % int(usos[ing]), 34, hecho)
+	var cebos := int(port.get("reward_bait_3", 0))
+	if cebos > 0:
+		_row_icon(info_reward_row, load("res://assets/ui/ic_cebo.png"),
+				"x%d" % cebos, 34, hecho)
 
 
 func _reward_label(texto: String) -> Label:
@@ -905,9 +916,9 @@ func _guiar_primer_nivel(caja: DialogueBox = null) -> void:
 		ui.add_child(caja)
 	caja.say([
 		{ "text": "Nuestra primera parada es esa de ahí: **Cala Tortuga**, una **isla**.", "mood": "feliz" },
-		{ "text": "Porque las paradas son de tres clases. Las **islas** son tranquilas: poca clientela, y con la carta que yo te ponga.", "mood": "hablando" },
-		{ "text": "Los **puertos** son un hervidero: mucha más gente entrando, y ahí eliges tú las recetas.", "mood": "serio" },
-		{ "text": "Y los **abordajes** se juegan contra reloj, con clientela que no se acaba nunca. Esos son los bravos.", "mood": "gritando" },
+		{ "text": "Porque las paradas son de tres clases. Las **islas** son tranquilas: poca clientela, con la carta que yo te ponga... y el que se vaya sin comer te cuesta oro.", "mood": "hablando" },
+		{ "text": "Los **puertos** son un hervidero: mucha más gente entrando y las recetas las eliges tú. Pero ojo: si **tres clientes** se van sin probar bocado, la jornada se **pierde**.", "mood": "serio" },
+		{ "text": "Y los **abordajes** se juegan contra reloj, con clientela que no se acaba nunca. Ahí cada cliente que se marche sin comer te **roba 15 segundos**.", "mood": "gritando" },
 		{ "text": "Hoy empezamos por lo fácil. Dale a **¡Zarpar!** cuando quieras.", "mood": "feliz" },
 	])
 	await caja.finished

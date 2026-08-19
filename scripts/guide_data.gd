@@ -79,7 +79,7 @@ const SECTIONS: Array = [
 	{
 		"title": "Tipos de nivel",
 		"icon": "res://assets/ui/ic_aventura.png",
-		"body": "**Islas** y **puertos** no llevan reloj: los acota la clientela. Acaban cuando se va el último cliente o cuando llegas al oro objetivo.\n\nEn las islas la carta la manda el diseño del nivel: no eliges recetas.\n\nLos **abordajes** son los únicos **contra reloj**, y ahí la clientela no se acaba: entra gente mientras quede tiempo.",
+		"body": "**Islas** y **puertos** no llevan reloj: los acota la clientela. Acaban cuando se va el último cliente o cuando llegas al oro objetivo.\n\nEn las **islas** la carta la manda el diseño del nivel (no eliges recetas), y el cliente que se va **sin comer** te cuesta oro.\n\nEn los **puertos** la carta la eliges tú, pero si **3 clientes** se marchan sin probar bocado la jornada se **pierde**. A cambio, el vacío no cuesta oro.\n\nLos **abordajes** son **contra reloj** y la clientela no se acaba. Cada cliente que se vaya sin comer **resta 15 segundos** al reloj (y tampoco cuesta oro).\n\nLas **cuevas** son las guaridas de los **jefes**: juegan como un abordaje hasta que el jefe se sienta a la barra... y entonces manda él.",
 	},
 	{
 		"title": "Arroz",

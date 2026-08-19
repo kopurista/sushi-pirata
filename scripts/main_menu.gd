@@ -2467,7 +2467,7 @@ func _go_arcade() -> void:
 	if leaving:
 		return
 	if not GameState.arcade_unlocked():
-		_show_locked_notice("El Arcade sin fin se abre al vencer al Kappa\nen la Guarida del Kappa (nivel 15).")
+		_show_locked_notice("El Arcade sin fin se abre al vencer al Kappa\nen la Cueva del Kappa (escenario 20).")
 		return
 	leaving = true
 	GameState.mode = "test"

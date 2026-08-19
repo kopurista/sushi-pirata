@@ -370,7 +370,7 @@ const PORTS: Array = [
 		"id": "practica_2",
 		"chef_rec": 4,
 		"name": "Caleta del Farol",
-		"desc": "Tu primera jornada libre con la carta en tus manos.",
+		"desc": "Una cala tranquila para asentar lo aprendido.",
 		"client_mix": { "E": 8 },
 		"arrival_span": 130.0,
 		"patience_mult": 1.0,
@@ -379,9 +379,15 @@ const PORTS: Array = [
 		"star_money": [28, 50, 78],
 		"reward_recipes": [],
 		"reward_recipes_3": [],
-		"reward_rice_3": 1,
+		# Premio de 3 estrellas: DESPENSA para la pareja de la carta (decidido
+		# por el usuario). Van por `reward_ingredients_3`, el campo generico de
+		# usos de ingrediente.
+		"reward_ingredients_3": { "salmon": 3, "aguacate": 2 },
+		# Isla: carta CERRADA con lo aprendido hasta aqui. El hueco variable lo
+		# ocupa lo mejor que el jugador se haya ganado.
+		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "edamame"],
+		"alt_recipes": ["onigiri", "maki_pepino", "gunkan_wakame"],
 		"arrival_batch": 2,
-		"no_perks": true,
 		"near_seats": true,
 	},
 	{
@@ -451,9 +457,15 @@ const PORTS: Array = [
 		"star_money": [34, 60, 95],
 		"reward_recipes": [],
 		"reward_recipes_3": [],
-		"reward_rice_3": 2,
+		# Premio de 3 estrellas: 3 usos de CADA EXTRA (decidido por el usuario).
+		# Los extras viven en la misma despensa que los ingredientes, asi que
+		# entran por el mismo campo.
+		"reward_ingredients_3": { "jengibre": 3, "wasabi": 3, "soja": 3 },
+		# Isla: carta CERRADA con el postre de los grumetes dentro, que es lo
+		# que esta practica pone a prueba.
+		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "mochi"],
+		"alt_recipes": ["sopa_miso", "caldo_dashi", "onigiri", "gunkan_wakame"],
 		"arrival_batch": 2,
-		"no_perks": true,
 	},
 	{
 		"id": "nivel_7",
@@ -542,7 +554,10 @@ const PORTS: Array = [
 		"star_money": [40, 70, 110],
 		"reward_recipes": [],
 		"reward_recipes_3": [],
-		"reward_ingots_3": 1,
+		# Premio de 3 estrellas: una tirada de pesca gratis (decidido por el
+		# usuario). La pesca abre dos escenarios antes, asi que aqui ya se sabe
+		# que es un cebo.
+		"reward_bait_3": 1,
 	},
 	{
 		"id": "nivel_9",
@@ -644,10 +659,17 @@ const PORTS: Array = [
 		# COLECCIONABLE en vez de con oro (ver `collectible_client`). Es la
 		# lección del nivel y de aquí en adelante puede pasar en cualquiera.
 		"collectible_client": {
-			"who": "capitan", "type": "G", "item": "tricornio", "plates": 3,
+			"who": "capitan", "type": "G", "item": "tricornio",
+			"reto": "receta", "recipe": "sashimi_atun_rojo",
 		},
 		"late_type": "G",
-		"director": "nivel_12",
+		# SIN guion propio: la leccion de "clientes que pagan con tesoro" ya la
+		# dio el pirata de la bandera en el escenario 10, y aqui el encargo lo
+		# canta el propio capitan (el director se monta solo por el vigia del
+		# tesoro). El encargo es DISTINTO al del 10 a proposito: pide una receta
+		# concreta, el sashimi de atun rojo, que es el premio de 3 estrellas del
+		# escenario anterior — quien no lo tenga (o no lo lleve en la carta)
+		# tendra que volver con el.
 		"reward_recipes": [],
 		"reward_recipes_3": ["gunkan_tartar"],
 	},
@@ -720,7 +742,7 @@ const PORTS: Array = [
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
 		"chef_rec": 15,
-		"name": "Guarida del Kappa",
+		"name": "Cueva del Kappa",
 		"desc": "Algo enorme y hambriento ronda estas aguas...",
 		"client_mix": { "E": 3, "A": 2, "G": 1 },
 		"arrival_span": 90.0,
@@ -761,16 +783,20 @@ const KINDS: Dictionary = {
 	"nivel_10": "abordaje",
 	"nivel_11": "isla",
 	"nivel_12": "puerto",
-	"nivel_13": "puerto",
+	# ALICE llega en un ABORDAJE (decidido por el usuario): su escenario es el
+	# único abordaje de la recta final antes de las bandejas y la cueva.
+	"nivel_13": "abordaje",
 	"nivel_14": "puerto",
-	"nivel_15": "abordaje",
-	# LOS ESCENARIOS DE PRÁCTICA. Repiten el TIPO de la pareja que acaban de
-	# enseñar, para que lo que se prueba sea la mecánica y no un escenario
-	# distinto: isla tras las dos islas del principio, puerto tras el primer
-	# puerto, y abordaje tras el primer abordaje.
+	# El JEFE vive en una CUEVA: el tipo nuevo reservado a los jefes. Juega
+	# como un abordaje (reloj y clientela sin fin hasta que entra el jefe) pero
+	# con su propio escenario y SIN el hándicap del reloj: aquí el reto es él.
+	"nivel_15": "cueva",
+	# LOS ESCENARIOS DE PRÁCTICA no tienen por qué repetir el tipo de su
+	# lección (decidido por el usuario): el reparto del mar manda. Con esto el
+	# mar 1 queda en 9 islas, 6 puertos, 4 abordajes y 1 cueva.
 	"practica_1": "isla",
-	"practica_2": "puerto",
-	"practica_3": "puerto",
+	"practica_2": "isla",
+	"practica_3": "isla",
 	"practica_4": "abordaje",
 	"vispera_kappa": "puerto",
 }
@@ -779,12 +805,15 @@ const KIND_NAMES: Dictionary = {
 	"isla": "Isla",
 	"puerto": "Puerto",
 	"abordaje": "Abordaje",
+	"cueva": "Cueva",
 }
 
 const KIND_TEXTURES: Dictionary = {
 	"isla": "res://assets/map/isla.png",
 	"puerto": "res://assets/map/puerto.png",
 	"abordaje": "res://assets/map/barco_enemigo.png",
+	# Solo lo usa el mapa 2D de referencia (level_select.gd, fuera de uso).
+	"cueva": "res://assets/map/isla.png",
 }
 
 ## Alto del lienzo del mapa (el ancho es el de la pantalla).
@@ -843,7 +872,9 @@ static func get_kind(id: String) -> String:
 ## ¿Este nivel se juega CONTRA RELOJ? Solo los abordajes: las islas y los
 ## puertos los acota la clientela, no el tiempo.
 static func is_timed(id: String) -> bool:
-	return get_kind(id) == "abordaje"
+	# La CUEVA (los jefes) juega contra reloj como un abordaje: el guion del
+	# jefe necesita el reloj corriendo hasta que él entra y lo para.
+	return get_kind(id) in ["abordaje", "cueva"]
 
 
 ## Segundos de partida (0 = sin reloj: manda la clientela).

@@ -75,45 +75,91 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   y `easy_next` se fueron con los potenciadores manuales que los encendían, y
   con ellos `_simplify_steps` y `recycle_recipe`.)
 
-## LA CAMPAÑA SON 15 NIVELES (rediseño del 16-8-2026)
+## LA CAMPAÑA: EL MAR 1 SON 20 ESCENARIOS (reparto del 19-8-2026)
 
-El reparto de lecciones, una por nivel (el detalle en la cabecera de
-`campaign_data.gd`). Los SEIS PRIMEROS son todos de grumetes: se aprende a
-cocinar antes de aprender a leer paladares.
+**9 islas, 6 puertos, 4 abordajes y 1 CUEVA** (el tipo nuevo, reservado a los
+jefes). El detalle en la cabecera de `campaign_data.gd`; los ids NO se
+renumeran (el número que ve el jugador es la posición en `PORTS`).
 
-| # | Nivel | Tipo | Lección |
+| # | Escenario | Tipo | Lección |
 |---|---|---|---|
 | 1 | Cala Tortuga | isla | paciencia, bocado, oro y papelera |
 | 2 | Playa del Coco | isla | las CAJAS (4 platos guardados) |
-| 3 | Isla del Bambú | isla | el PICOTEO (edamame) |
-| 4 | Arrecife del Ron | puerto | multiplicador, hastío y paladar; abre la TIENDA |
-| 5 | Cala del Calamar | isla | POSTRES, propinas y potenciadores |
-| 6 | Bahía del Kraken | puerto | los EXTRAS |
-| 7 | Estrecho del Rayo | abordaje | primer ABORDAJE, EL pirata y su BANDERA |
-| 8 | Isla de Gades | isla | CAI y la PESCA |
-| 9 | Puerto Tormenta | puerto | SIN lección: el examen antes de Pablo |
-| 10 | Flota de Pablo | abordaje | CAPITANES, corte lento y LINGOTES |
-| 11 | Cala del Hambre | isla | bocado acelerado y el futomaki |
-| 12 | Ensenada del Naufragio | puerto | clientes que pagan con COLECCIONABLES |
-| 13 | Rada de los Dos Fuegos | puerto | el AYUDANTE |
-| 14 | Muelle de las Bandejas | puerto | el BARCO combinado |
-| 15 | Guarida del Kappa | abordaje | el JEFE; superarlo abre el ARCADE |
+| 3 | Ensenada del Mero | isla | PRÁCTICA |
+| 4 | Isla del Bambú | isla | el PICOTEO (edamame) |
+| 5 | Arrecife del Ron | puerto | multiplicador, hastío y paladar; abre la TIENDA |
+| 6 | Caleta del Farol | isla | PRÁCTICA (3★: despensa de salmón×3 y aguacate×2) |
+| 7 | Cala del Calamar | isla | POSTRES, propinas y potenciadores |
+| 8 | Bahía del Kraken | puerto | los EXTRAS |
+| 9 | Rada del Pulpo | isla | PRÁCTICA (3★: 3 usos de cada extra) |
+| 10 | Estrecho del Rayo | abordaje | primer ABORDAJE, EL pirata y su BANDERA |
+| 11 | Isla de Gades | isla | CAI y la PESCA |
+| 12 | Paso de las Barracudas | abordaje | PRÁCTICA (3★: 1 cebo) |
+| 13 | Puerto Tormenta | puerto | SIN lección: el examen antes de Pablo |
+| 14 | Flota de Pablo | abordaje | CAPITANES, corte lento y LINGOTES |
+| 15 | Cala del Hambre | isla | bocado acelerado y el futomaki |
+| 16 | Ensenada del Naufragio | puerto | el capitán del TESORO pide una receta (sin lección) |
+| 17 | Rada de los Dos Fuegos | abordaje | ALICE y el AYUDANTE |
+| 18 | Muelle de las Bandejas | puerto | el BARCO combinado |
+| 19 | Bruma del Estrecho | puerto | la víspera, a pulso |
+| 20 | Cueva del Kappa | cueva | el JEFE; superarlo abre el ARCADE |
+
+**LOS HÁNDICAPS SON DEL TIPO, no del escenario** (pedido por el usuario, para
+que cada tipo tenga SU dificultad como la isla tiene su carta cerrada):
+- **ISLA**: carta cerrada por diseño, y el cliente que se va SIN COMER cuesta
+  oro (el `LEAVE_PENALTY` escalado de siempre).
+- **PUERTO**: si **3 clientes** se van sin probar bocado, la jornada se
+  **PIERDE** (como el arcade: `lost_by_leavers` fuerza 0 estrellas). El
+  contador "Vacíos N/3" vive bajo el número de clientes
+  (`level3d._setup_vacios_puerto`) — una derrota que no se ve venir no es un
+  reto, es una emboscada.
+- **ABORDAJE**: cada vacío **resta 15 s** al reloj (`CASTIGO_VACIO_SEG`, con
+  su "-15 s" flotando desde el reloj). `time_limit` baja con tope en
+  `elapsed`, así que el turno puede acabarse en el acto.
+- En PUERTO y ABORDAJE **el vacío NO cuesta oro** (`client3d.penaliza_vacio`,
+  apagado por el nivel al crear al cliente): el jugador ya pierde por la vía
+  principal del tipo. OJO: el contador de vacíos se separó del castigo — el
+  reporte del cliente lleva `"vacio"` aparte de `"penalty"`, porque contando
+  por `penalty > 0` (como antes) apagar el oro habría apagado el hándicap.
+  El TUTORIAL conserva los castigos de oro (el marcador del caos los necesita).
+- **CUEVA**: el tipo de los jefes. Juega como un abordaje (reloj de 2:30 y
+  clientela sin fin, `is_timed` la incluye) pero SIN el hándicap del reloj: el
+  reto es el jefe. Escenario propio (`_scenery_cueva`: caverna de piedra con
+  paredes de `rocas.glb`, estalagmitas, charcas y CRISTALES emisivos verde
+  agua), modelo de mapa propio (`map_cueva.glb`, cadena Ludo completa con
+  presupuesto 8000) y entrada en `SceneBackdrop.KIND_MODELS` para el selector.
+
+David presenta los tres tipos CON sus hándicaps en la intro del mapa
+(`_guiar_primer_nivel`), y además la PRIMERA VEZ que se juega un puerto o un
+abordaje lo repite en el nivel con el foco puesto en el contador o en el reloj
+(`level_director._explicar_handicap`, banderas `puerto_handicap_done` /
+`abordaje_handicap_done`; level3d monta el director aunque el escenario no
+tenga guion, igual que con los contadores de maestría). La cueva no se
+anuncia: es la sorpresa del jefe. La GUÍA lleva los cuatro tipos al día.
 
 Campos nuevos de puerto que salieron de aquí: **`client_order`** (orden EXACTO
 de llegada, porque con la baraja no había forma de garantizar que el pirata
 fuera el tercero del 7 ni que cada tanda del 9 llevara dos), **`first_arrival`**
 (el 1 lo pone a 0), **`bite_speed`** (el 11 mastica al doble),
-**`collectible_client`** ({who, type, item, plates}: paga con una pieza de
+**`collectible_client`** ({who, type, item, reto?, recipe?, n?/plates?}: paga con una pieza de
 vitrina en vez de con oro) y **`unlocks_perk`** (compuerta: un bonificador no
 se puede ganar antes del puerto que lo presenta).
 
 **EL CLIENTE DEL TESORO TRAE UN ENCARGO, NO UN PEAJE** (`collectible_client`
 + su campo **`reto`**): la pieza salía sola al cumplir "N platos", una
 condición que nadie decía en voz alta, y eso no es un reto sino un premio por
-casualidad. Ahora David lo CANTA con foco en cuanto el cliente se sienta
-(`level_director._vigilar_tesoro`, un vigía que no bloquea, como el de la
-basura), con la frase de `CampaignData.reto_texto` — la MISMA que se lee luego
-en la vitrina, para que no puedan contradecirse. Nueve tipos en `RETO_TEXTOS`:
+casualidad. Ahora **el encargo lo canta EL PROPIO CLIENTE con foco** en cuanto
+se sienta (`level_director._vigilar_tesoro`, un vigía que no bloquea, como el
+de la basura) — David NO anuncia su presencia (decidido por el usuario): solo
+interviene si el reto es `receta` y ese plato NO va en la carta de hoy, para
+explicar que se puede **volver otro día con él** (sin esa frase, el tesoro
+parecería perdido para siempre). La frase del encargo sale de
+`CampaignData.reto_texto` — la MISMA que se lee luego en la vitrina, para que
+no puedan contradecirse. La LECCIÓN de "clientes que pagan con tesoro" es del
+escenario 10 (el pirata de la bandera); el 16 ya no lleva guion propio (el
+director se monta solo por el vigía) y su capitán pide el **sashimi de atún
+rojo** — el premio de 3★ del escenario anterior, a propósito: quien no lo
+tenga vuelve a por él. Nueve tipos en `RETO_TEXTOS`:
 `platos` (el de siempre, y el que sale si no se declara `reto`), `distintos`,
 `mismo`, `receta` (con `recipe`), `postre_solo`, `platos_y_postre`,
 `picoteos`, `picoteos_sin_plato` y `hasta_el_final`. Los ocho primeros se
@@ -122,7 +168,8 @@ se apuntan ahí, comprobado); **`hasta_el_final` no puede mirarse ahí** y se
 resuelve en `_end_level`, antes de vaciar la barra, que es el único momento en
 que se sabe.
 · **Un puerto con cliente del tesoro monta director SIEMPRE**, narrado o no:
-  es quien canta el encargo, y sin esa frase volvemos al premio por casualidad.
+  su vigía es quien hace hablar al cliente, y sin esa escena volvemos al
+  premio por casualidad.
 · **Y UNA PIEZA QUE SE ESCAPÓ NO SE QUEDA EN MISTERIO**
   (`inventory_screen._pista_coleccionable`): con su escenario ya superado, la
   ficha de la vitrina se abre y dice DÓNDE sale y QUÉ pide, con el dibujo
@@ -826,17 +873,22 @@ primera vez que se entra en ellos (`logros_intro_done` /
     repetir paga la tarifa simple y MEJORAR el récord cobra solo la
     diferencia ×3. Así un escenario deja lo mismo se borde al primer intento o
     al quinto, y no compensa "guardarse" el aprobado.
-    **LOS ESCENARIOS DE JEFE PAGAN EL DOBLE** (`SkillData.XP_BOSS_MULT`, que
-    multiplica la BASE, así que el doble llega igual al estreno, a la
-    repetición y a la mejora de récord). Sobre los 250 previstos son ~88.000
-    XP extra (+10%). Hoy solo `nivel_15` lleva `boss`, así que de momento
-    cambia un único número: 405 → 810 a tres estrellas.
-  · **HAY TRES FUENTES DE XP y están calibradas contra `chef_rec`**
-    (= ceil(n × 1.09), el nivel recomendado del escenario): bordando TODOS los
-    escenarios hasta el n, el cocinero se queda UN nivel por debajo de esa
-    recomendación, y lo que falta lo ponen la PESCA y el ARCADE. Así el nivel
-    recomendado no es un número inventado: es lo que se tiene jugando bien y
-    usando las tres.
+    **LOS ESCENARIOS DE JEFE PAGAN ×1,5** (`SkillData.XP_BOSS_MULT`; estuvo en
+    ×2 y el usuario lo bajó). Multiplica la BASE, así que el plus llega igual
+    al estreno, a la repetición y a la mejora de récord. Sobre los 250
+    previstos son ~44.000 XP extra (+5%). Hoy solo `nivel_15` lleva `boss`:
+    540 → 810 a tres estrellas.
+    **OJO CON LA FÓRMULA AL MEDIRLA DESDE FUERA: la base es `XP_SCENARIO × n`
+    (6·n), NO `XP_SCENARIO × 6 × n`.** Una sonda que metió ese ×6 de más
+    reportó "el mar acaba en nivel 35" cuando la calibración real acaba en 16;
+    se perdió una ronda de recalibración persiguiendo un problema inventado.
+  · **HAY TRES FUENTES DE XP y `chef_rec` SE MIDE, no se calcula**: es el
+    nivel al que se llega bordando todos los escenarios anteriores con la
+    curva real (simulado, y la sonda comprueba que la lista guardada cuadra).
+    La fórmula vieja `ceil(n × 1.09)` murió con la curva cuadrática. Bordando
+    el mar 1 entero (jefe ×1,5 incluido): **5.940 XP → nivel 16 clavado**,
+    que es el cierre que pidió el usuario; aprobando justo con 2★, nivel 13.
+    Lo que falte en mares posteriores lo ponen la PESCA y el ARCADE.
     · `XP_SCENARIO` estuvo en **15** y era muchísimo: tres escenarios bordados
       dejaban al cocinero en el **nivel 5** (68+135+203 = 406 XP contra los
       360 del nivel 5). A **6**, esos mismos tres dan 162 → nivel 3, y el
@@ -859,18 +911,17 @@ primera vez que se entra en ellos (`logros_intro_done` /
     `buy_skill` guarda; la pantalla CONFIRMA antes (patrón de Bonificadores).
   · **EL TECHO CONTRA EL QUE SE CALIBRA ES ×2,0** (revisado el 18-8-2026; era
     ×2,5). Los tres árboles al máximo multiplican el oro ~×2,45, pero ESE
-    JUGADOR NO EXISTE: sobre los **250 escenarios** previstos, bordarlos todos
-    con el ×2 de los jefes deja al cocinero en el **nivel 304** — 304 puntos,
-    el 68% del catálogo—, y el 450 solo sale moliendo arcade y pesca mucho
-    tiempo. Los `star_money` de los escenarios futuros se escalan contra ×2,0,
-    que es el reparto realista; contra el 2,45 los últimos mares quedarían
-    afinados para alguien que no llega. El 450 es techo de COMPLETISTA, lo que
-    encaja con tener un arcade sin fin. Al tocar un valor, rehacer las cuentas.
+    JUGADOR NO EXISTE: los `star_money` de los escenarios futuros se escalan
+    contra ×2,0, que es el reparto realista. El 450 es techo de COMPLETISTA,
+    lo que encaja con tener un arcade sin fin. Al tocar un valor, rehacer las
+    cuentas.
   · **LA CAMPAÑA SON 250 ESCENARIOS** en 7 mares (~36 por mar, jefe cada 10 =
-    25 jefes). Bordándolos todos: 934.875 XP → nivel 304; aprobando justo
-    (2★): 623.250 → nivel 248. `chef_rec = ceil(n × 1.09)` aguanta a esa
-    escala (el último recomienda 273 y se llega con 304). Hoy solo existen los
-    15 del primer mar.
+    25 jefes). Con la tarifa vigente (base 6·n, jefes ×1,5, curva cuadrática):
+    bordándolos todos, 891.000 XP → **nivel ~120**; aprobando justo (2★),
+    594.000 → nivel ~103. O sea que solo los escenarios reparten en torno a
+    un cuarto del catálogo de 450 puntos, y el resto es pesca, arcade y los
+    mares que se rejueguen: al diseñar mares nuevos, medir contra esto. Hoy
+    solo existen los 20 del primer mar.
   · **EFECTOS cableados donde ocurre el suceso**, cada uno con su valor neutro
     sin comprar: `prep_board._apply_skills()` (cooldown, hold/fry/slice/swipe/
     taps, golpe de vista con su CONTADOR VISIBLE `vista_label`, cocina
@@ -888,12 +939,13 @@ primera vez que se entra en ellos (`logros_intro_done` /
   · La subida de nivel sale como TOAST por NoticeLayer (uno aunque caigan
     varios niveles de golpe) y el cartel de resultados lleva la línea
     "+N de experiencia" (`last_xp`).
-  · **`chef_rec` en cada puerto** (CampaignData) = **ceil(n × 1.09)**, o sea
-    2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17. Lo enseña la ficha del
+  · **`chef_rec` en cada puerto** (CampaignData) **se MIDE con la simulación**
+    (el nivel de llegada bordando todo lo anterior); hoy va del 1 al 15 con
+    repetidos donde un escenario corto no da para subir (1-2-3, 6-7, 11-12,
+    16-17 comparten recomendación, y es correcto). Lo enseña la ficha del
     mapa, con "(llevas N)" si el jugador va corto: distingue "voy corto de
-    nivel" de "lo juego mal". Los 15 escenarios actuales están calibrados para
-    cocinero de nivel 1 y NO se les tocó el oro — la recomendación es el
-    listón de las MAESTRÍAS, no un requisito.
+    nivel" de "lo juego mal". La recomendación es el listón de las MAESTRÍAS,
+    no un requisito.
   · **El ACCESO es la BARRA DE NIVEL** (`main_menu._setup_level_bar`):
     estrella cabalgando el canto CON UN "+" DENTRO (crema en reposo, ROJO y
     latiendo en cuanto hay un punto libre: es lo que dice que ahí se mejoran
@@ -1924,7 +1976,8 @@ primera vez que se entra en ellos (`logros_intro_done` /
     general le dejaba la cara diminuta, y `LIGHT_OVERRIDE`, porque su piel
     pálida se quemaba a blanco liso sin ojos ni boca (la misma lección de
     `chef_portraits.gd`, ahora ajustable por icono).
-  · **ESCENARIO 17** (`nivel_13`, Rada de los Dos Fuegos): se sienta de clienta
+  · **ESCENARIO 17** (`nivel_13`, Rada de los Dos Fuegos — un **ABORDAJE**,
+    decidido por el usuario: reloj y clientela sin fin): se sienta de clienta
     (`special_client`, come como un GRUMETE), cuenta que busca a su maestra
     **Miku**, y con `level_director.PLATOS_ALICE` (3) platos se da por servida
     (`GameState.alice_saciada`). La escena en la que SE ENROLA no va en el
@@ -2003,8 +2056,8 @@ primera vez que se entra en ellos (`logros_intro_done` /
   olvidó y borrar la partida no relanzaba la intro), `is_tutorial()`,
   `complete_tutorial()` (entrega `CampaignData.INITIAL_RECIPES`, que ya es
   SOLO el maki de aguacate: el resto de la carta la regala David nivel a
-  nivel), `arcade_unlocked()` (= superar `GameState.ARCADE_PORT`, la **Guarida
-  del Kappa, nivel 15**: vencer al jefe abre el Arcade); el menú manda a la intro del
+  nivel), `arcade_unlocked()` (= superar `GameState.ARCADE_PORT`, la **Cueva
+  del Kappa, escenario 20**: vencer al jefe abre el Arcade); el menú manda a la intro del
   caos si falta el tutorial (`_ir_a_la_intro`) y el botón Arcade queda apagado
   con aviso hasta ganarlo.
   **La partida nueva empieza con 50 doblones** (botín de bienvenida para la

@@ -50,6 +50,10 @@ func _run() -> void:
 	# Va lo PRIMERO, antes del guion del escenario, porque señala una chapa del
 	# HUD que ya está en pantalla desde el primer fotograma.
 	await _explicar_contadores()
+	# EL HÁNDICAP DEL TIPO, la primera vez que se pisa un puerto o un abordaje:
+	# se contó en el mapa al presentar los tipos, pero aquí está el contador (o
+	# el reloj) delante y es donde se entiende de verdad.
+	await _explicar_handicap()
 	# EL CLIENTE DEL TESORO canta su encargo en cuanto se sienta, lo lleve el
 	# escenario que lo lleve. Va SIN `await`: es un vigía que se queda mirando,
 	# no un paso del guion.
@@ -80,8 +84,6 @@ func _run() -> void:
 			await _nivel_10()
 		"nivel_11":
 			await _nivel_11()
-		"nivel_12":
-			await _nivel_12()
 		"nivel_13":
 			await _nivel_13()
 		"nivel_14":
@@ -1211,36 +1213,6 @@ func _nivel_11() -> void:
 # puerto lleva encima un COLECCIONABLE y lo suelta si se le sirve bien
 # (`collectible_client` del puerto, que lo entrega solo en level3d).
 
-func _nivel_12() -> void:
-	# (Qué SON los coleccionables ya lo contó el pirata del nivel 7 con su
-	# bandera en la mano; aquí solo se avisa de que hoy paga uno con una pieza.
-	# Si por lo que sea el jugador se quedó sin bandera, `_explicar_coleccionables`
-	# lo cuenta abajo, cuando el tesoro está sobre el mostrador.)
-	await _say([
-		{ "text": "**Ensenada del Naufragio**. Y hoy vengo con un chisme que te va a gustar.", "mood": "feliz" },
-		{ "text": "Por estas aguas hay clientes que no llevan oro encima... pero llevan **tesoros**.", "mood": "hablando" },
-		{ "text": "¡CHATARRA! ¡RAAAK!", "who": "gigi", "mood": "loro" },
-		{ "text": "Hoy baja uno de esos a la barra. Sírvele bien y verás lo que deja sobre el mostrador.", "mood": "serio" },
-	])
-	_play()
-	_vigilar_basura()
-	await _tras_la_preparacion()
-
-	# Cuando el cliente del tesoro suelta su pieza, David lo remata. La entrega
-	# la hace el propio nivel (`_check_treasure`) con su ventana de aviso.
-	await _esperar(func() -> bool: return lv.ended or lv.treasure_given)
-	if lv.ended:
-		return
-	await _pausa(0.8)
-	if GameState.col_intro_done:
-		await _say([
-			{ "text": "¡Ahí lo tienes! A la **vitrina** del Inventario, con el resto de la colección.", "mood": "riendo" },
-		])
-	else:
-		await _explicar_coleccionables()
-	_play()
-
-
 # ------------------------------------------------------------------- nivel 13
 # Rada de los Dos Fuegos: el AYUDANTE DE COCINA. Aquí se presenta y desde aquí
 # se puede ganar (`unlocks_perk` del puerto).
@@ -1273,13 +1245,63 @@ func _vigilar_tesoro() -> void:
 	var quien := DialogueBox.speaker_for(
 		str(lv.treasure_client.client_type), str(lv.treasure_client.gender))
 	_focus_client(lv.treasure_client)
-	await _say([
-		{ "text": "Ese de ahí no ha venido a pagar en oro. Trae algo mejor en el zurrón.", "mood": "hablando" },
-		{ "text": "Cúmpleme el capricho y es tuyo. Si no, me lo llevo por donde he venido.", "who": quien, "mood": "serio" },
-		{ "text": "Ya lo has oído, %s: **%s**." % [GameState.player_title(),
-			CampaignData.reto_texto(cfg)], "mood": "serio" },
-	])
+	# EL ENCARGO LO CANTA EL PROPIO CLIENTE (decidido por el usuario): David no
+	# anuncia su presencia. Solo interviene después, y únicamente cuando el
+	# encargo es una RECETA CONCRETA que hoy no va en la carta — para decir que
+	# se puede volver otro día con ella, que sin esa frase el tesoro parecería
+	# perdido para siempre.
+	var lineas: Array = [
+		{ "text": "Tú. Cocinero. Yo no pago con oro: pago con esto.", "who": quien, "mood": "serio" },
+		{ "text": "Y solo lo suelto si me cumples el capricho: %s. Si no, me lo llevo por donde he venido." % CampaignData.reto_texto(cfg), "who": quien, "mood": "hablando" },
+	]
+	var falta_receta := str(cfg.get("reto", "")) == "receta" 			and not str(cfg.get("recipe", "")) in GameState.selected_recipes
+	if falta_receta:
+		var nombre := str(RecipeData.RECIPES.get(str(cfg.get("recipe", "")), {})
+				.get("name", cfg.get("recipe", "")))
+		lineas.append({ "text": "¿**%s**? Hoy no lo llevamos en la carta, %s..." % [nombre, GameState.player_title()], "mood": "sorprendido" })
+		lineas.append({ "text": "Apúntatelo: cuando lo tengas, **vuelve aquí con él en la carta**. Este no parece de los que cambian de antojo.", "mood": "hablando" })
+	await _say(lineas)
 	_play("Encargo: **%s**." % CampaignData.reto_texto(cfg))
+
+
+## EL HÁNDICAP DEL TIPO DE ESCENARIO, una vez por tipo en toda la partida:
+## PUERTO = tres clientes que se van sin comer pierden la jornada (con el foco
+## en su contador); ABORDAJE = cada vacío roba 15 segundos de reloj (con el
+## foco en el reloj). En los dos, el vacío ya no cuesta oro — se dice aquí para
+## que el jugador no crea que se ha librado del castigo.
+func _explicar_handicap() -> void:
+	if GameState.is_tutorial() or lv == null:
+		return
+	var kind := CampaignData.get_kind(GameState.current_port)
+	if kind == "puerto" and not GameState.puerto_handicap_done:
+		GameState.puerto_handicap_done = true
+		GameState.save_game()
+		await _say([
+			{ "text": "Una cosa antes de abrir, %s. Esto es un **puerto**, y en los puertos manda la fama." % GameState.player_title(), "mood": "serio" },
+		])
+		if lv.vacios_puerto_label != null and is_instance_valid(lv.vacios_puerto_label):
+			_focus_node(lv.vacios_puerto_label, 14.0)
+		await _say([
+			{ "text": "Si **tres clientes** se marchan sin probar bocado, se corre la voz y la jornada se **pierde entera**. Ese contador de ahí lleva la cuenta.", "mood": "hablando" },
+			{ "text": "¡NI UNO CON LA BARRIGA VACÍA! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+			{ "text": "A cambio, el que se vaya no te cuesta oro: aquí el castigo es la fama, no el bolsillo.", "mood": "loro_resignado" },
+		])
+		_play()
+	elif kind == "abordaje" and not GameState.abordaje_handicap_done:
+		GameState.abordaje_handicap_done = true
+		GameState.save_game()
+		await _say([
+			{ "text": "Esto es un **abordaje**, %s: aquí no manda la clientela, manda el **reloj**." % GameState.player_title(), "mood": "serio" },
+		])
+		var reloj := lv.get_node_or_null("HUD/TopRow/TimeBox")
+		if reloj is Control:
+			_focus_node(reloj, 14.0)
+		await _say([
+			{ "text": "Y ojo: cada cliente que se marche **sin comer** nos roba **15 segundos** de ese reloj. En un turno de dos minutos y medio, tres vacíos son casi un tercio del botín.", "mood": "hablando" },
+			{ "text": "¡QUE COMAN TODOS! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+			{ "text": "Lo bueno: el que se vaya no te cuesta oro. El reloj ya duele bastante.", "mood": "loro_resignado" },
+		])
+		_play()
 
 
 ## LOS CONTADORES DE MAESTRÍA del HUD, explicados UNA vez en toda la partida.
@@ -1322,7 +1344,7 @@ var _alice_llena := false
 ## BONIFICADORES. Aqui NO se explica ningun bonificador: todavia no existen.
 func _nivel_13() -> void:
 	await _say([
-		{ "text": "**Rada de los Dos Fuegos**: diez comandas y un solo par de manos. Las tuyas.", "mood": "serio" },
+		{ "text": "**Rada de los Dos Fuegos**: abordaje, reloj corriendo y clientela que no se acaba. Lo de siempre... casi.", "mood": "serio" },
 		{ "text": "Y una chica que lleva media hora en el muelle mirando la cinta sin sentarse.", "mood": "hablando" },
 		{ "text": "¡PUES QUE MIRE DESDE OTRO LADO! ¡RAAAK! ¡ESTORBA!", "who": "gigi", "mood": "loro_grito" },
 		{ "text": "O que se siente. Tú a lo tuyo, %s, que hoy hay faena." % GameState.player_title(), "mood": "loro_resignado" },
@@ -1402,7 +1424,7 @@ func _nivel_14() -> void:
 
 
 # ------------------------------------------------------------------- nivel 15
-# Guarida del Kappa: el JEFE. Primero se da de comer a la tripulación; cuando
+# Cueva del Kappa: el JEFE. Primero se da de comer a la tripulación; cuando
 # hay suficientes barrigas llenas, el Kappa vacía la barra y empieza el duelo:
 # BOSS_PLATES platos antes de que su paciencia (que corre deprisa) toque fondo.
 # Esta coreografía corre TAMBIÉN en las repeticiones (en mudo): sin ella no

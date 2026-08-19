@@ -148,6 +148,13 @@ var alice_intro_done := false
 ## se juega con una habilidad de "cada N platos" puesta). No va atado a ningún
 ## escenario: esas habilidades se compran cuando el jugador quiere.
 var skill_counters_intro_done := false
+## David ya ha explicado el HÁNDICAP del PUERTO (3 vacíos = derrota) dentro de
+## un puerto. Se cuenta también en el mapa al presentar los tipos, pero la
+## primera jornada de puerto lo repite con el contador delante.
+var puerto_handicap_done := false
+## Y el del ABORDAJE (cada vacío resta 15 s de reloj), la primera vez que se
+## juega uno.
+var abordaje_handicap_done := false
 ## Cai ya ha explicado qué son los COLECCIONABLES (al pescar el primero).
 var col_intro_done := false
 ## David ya ha presentado las MAESTRÍAS (al llegar al nivel 5 de cocinero).
@@ -1203,10 +1210,10 @@ func scenario_xp(port_id: String, stars: int, prev_stars: int) -> int:
 	if n <= 0 or stars <= 0:
 		return 0
 	var base := float(SkillData.XP_SCENARIO * n)
-	# LOS ESCENARIOS DE JEFE PAGAN EL DOBLE. Se multiplica la BASE, así que el
-	# doble llega igual al estreno, a la repetición y a la mejora de récord, sin
-	# tocar la regla de que mejorar cobra solo el salto. El jefe es el día de
-	# paga, y es justo el escenario en el que el cocinero va más corto de nivel.
+	# LOS ESCENARIOS DE JEFE PAGAN ×1,5 (era el doble; el usuario lo bajó). Se
+	# multiplica la BASE, así que el plus llega igual al estreno, a la
+	# repetición y a la mejora de récord, sin tocar la regla de que mejorar
+	# cobra solo el salto. El jefe sigue siendo el día de paga del mar.
 	if str(CampaignData.get_port(port_id).get("boss", "")) != "":
 		base *= SkillData.XP_BOSS_MULT
 	var m := float(SkillData.STAR_MULT[clampi(stars, 0, 3)])
@@ -1328,6 +1335,15 @@ func complete_port(port_id: String, stars: int) -> Array:
 		var sacos := int(port.get("reward_rice_3", 0))
 		if sacos > 0:
 			rice = mini(rice + sacos, RICE_START)
+		# USOS DE DESPENSA de regalo (ingredientes o extras: viven en la misma
+		# despensa). Lo usan los escenarios de practica.
+		var usos: Dictionary = port.get("reward_ingredients_3", {})
+		for ing in usos:
+			ingredients[ing] = get_ingredient_uses(ing) + int(usos[ing])
+		# CEBO: tiradas de pesca gratis.
+		var cebos := int(port.get("reward_bait_3", 0))
+		if cebos > 0:
+			bait += cebos
 	if not newly.is_empty():
 		# Toda receta nueva llega con despensa para estrenarla.
 		gift_ingredients_for(newly, PORT_GIFT)
@@ -1951,6 +1967,8 @@ func save_game() -> void:
 		"alice_saciada": alice_saciada,
 		"alice_intro_done": alice_intro_done,
 		"skill_counters_intro_done": skill_counters_intro_done,
+		"puerto_handicap_done": puerto_handicap_done,
+		"abordaje_handicap_done": abordaje_handicap_done,
 		"col_intro_done": col_intro_done,
 		"skills_intro_done": skills_intro_done,
 		"nivel_intro_done": nivel_intro_done,
@@ -2149,6 +2167,8 @@ func load_game() -> void:
 	alice_saciada = bool(parsed.get("alice_saciada", false))
 	alice_intro_done = bool(parsed.get("alice_intro_done", false))
 	skill_counters_intro_done = bool(parsed.get("skill_counters_intro_done", false))
+	puerto_handicap_done = bool(parsed.get("puerto_handicap_done", false))
+	abordaje_handicap_done = bool(parsed.get("abordaje_handicap_done", false))
 	col_intro_done = bool(parsed.get("col_intro_done", tutorial_done))
 	skills_intro_done = bool(parsed.get("skills_intro_done", false))
 	nivel_intro_done = bool(parsed.get("nivel_intro_done", false))
@@ -2255,6 +2275,8 @@ func _new_game() -> void:
 	alice_saciada = false
 	alice_intro_done = false
 	skill_counters_intro_done = false
+	puerto_handicap_done = false
+	abordaje_handicap_done = false
 	col_intro_done = false
 	skills_intro_done = false
 	nivel_intro_done = false

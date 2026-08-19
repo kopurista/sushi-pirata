@@ -282,6 +282,8 @@ const WAVE_TIME := 45.0
 ## cada vez que se alcanza (y su estrella brilla, que cruzar hitos alegra).
 const ARCADE_META_STEP := 150
 const VACIOS_MAX := 3
+## Segundos de reloj que roba cada vacío en un ABORDAJE.
+const CASTIGO_VACIO_SEG := 15.0
 var arcade := false
 var wave := 1
 var wave_t := 0.0
@@ -438,6 +440,15 @@ var tip_meta: Label = null
 
 ## Tipo de escenario del nivel: "isla", "puerto" o "abordaje" (barco pirata).
 var scenery_kind := "abordaje"
+## HÁNDICAPS POR TIPO (solo aventura, nunca en el tutorial ni en el arcade):
+## en un PUERTO, 3 clientes que se van sin comer pierden el escenario; en un
+## ABORDAJE, cada vacío resta CASTIGO_VACIO_SEG al reloj. En los dos, el vacío
+## NO cuesta oro (el castigo en doblones queda para las islas): el jugador ya
+## pierde por la vía principal de su tipo.
+var vacio_pierde := false
+var vacio_roba_reloj := false
+var lost_by_leavers := false
+var vacios_puerto_label: Label = null
 
 
 func _ready() -> void:
@@ -459,6 +470,9 @@ func _ready() -> void:
 			n.offset_bottom += st
 	if GameState.is_adventure():
 		scenery_kind = CampaignData.get_kind(GameState.current_port)
+		if not GameState.is_tutorial():
+			vacio_pierde = scenery_kind == "puerto"
+			vacio_roba_reloj = scenery_kind == "abordaje"
 	_setup_environment()
 	_setup_camera()
 	_setup_scenery()
@@ -629,8 +643,14 @@ func _ready() -> void:
 		# no: es quien canta el encargo al sentarse, y sin esa frase la pieza
 		# saldría por cumplir una condición que nadie ha dicho en voz alta.
 		var hay_tesoro: bool = not (port.get("collectible_client", {}) as Dictionary).is_empty()
+		# Y el HÁNDICAP del tipo: el primer puerto y el primer abordaje de la
+		# partida lo explican aunque el escenario no tenga guion propio.
+		var toca_handicap: bool = not GameState.is_tutorial() and (
+			(scenery_kind == "puerto" and not GameState.puerto_handicap_done)
+			or (scenery_kind == "abordaje" and not GameState.abordaje_handicap_done))
 		if (str(port.get("director", "")) != "" \
-				and (not ya_narrado or boss_id != "")) or toca_contadores or hay_tesoro:
+				and (not ya_narrado or boss_id != "")) or toca_contadores \
+				or toca_handicap or hay_tesoro:
 			var guia := preload("res://scripts/level_director.gd").new()
 			guia.name = "LevelDirector"
 			add_child.call_deferred(guia)
@@ -967,6 +987,8 @@ func _box(size: Vector3, pos: Vector3, color: Color) -> MeshInstance3D:
 func _setup_scenery() -> void:
 	_add_sea()
 	match scenery_kind:
+		"cueva":
+			_scenery_cueva()
 		"isla":
 			_scenery_island()
 		"puerto":
@@ -1036,6 +1058,87 @@ func _spawn_barrels(spots: Array, tipped_idx: int = -1) -> void:
 
 
 ## ISLA: arenal rodeado de mar, palmeras, rocas y algo de carga varada.
+## LA CUEVA: la guarida de los jefes (el Kappa). Caverna de piedra oscura con
+## paredes de roca al fondo, estalagmitas, charcas verdosas y CRISTALES que
+## BRILLAN — son la única "luz" del sitio y le dan el tono al duelo. Todo con
+## los modelos y helpers de siempre: rocas.glb para las paredes y geometría por
+## código para el resto (GeometryBatch la funde al final, como en los demás).
+func _scenery_cueva() -> void:
+	# Suelo de piedra en dos discos, como la isla pero a oscuras: el de abajo
+	# casi negro hace de sombra del contorno.
+	_cyl(7.4, 7.8, 0.30, Vector3(0.0, -0.42, 0.0), Color(0.10, 0.10, 0.13))
+	var piedra := _cyl(6.9, 7.3, 0.28, Vector3(0.0, -0.14, 0.0),
+		Color(0.24, 0.24, 0.29))
+	piedra.material_override.roughness = 1.0
+	piedra.material_override.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	# Paredes de roca por el fondo (fuera del pasillo de los clientes, radio
+	# 3.7 y bordas en ±4.2), apiladas para que se lean como caverna y no como
+	# pedruscos sueltos.
+	for r in [[Vector3(-5.3, 0.0, -4.6), 2.1], [Vector3(-2.2, 0.0, -5.8), 1.7],
+			[Vector3(1.6, 0.0, -5.9), 2.0], [Vector3(5.0, 0.0, -4.2), 1.8],
+			[Vector3(-6.1, 0.0, -0.6), 1.4], [Vector3(6.0, 0.0, -0.2), 1.3]]:
+		var rocas := _spawn_model(load("res://assets/models/rocas.glb"),
+			r[0], float(r[1]), self)
+		rocas.rotation_degrees.y = r[0].x * 53.0 + r[0].z * 17.0
+		_add_blob_shadow(r[0] + Vector3(0.15, 0.02, 0.1),
+			float(r[1]) * 1.1, float(r[1]) * 0.7)
+	# Estalagmitas: conos de piedra que suben del suelo. Nada cuelga porque con
+	# la camara isometrica un techo taparia la partida.
+	for e in [[Vector3(-4.3, 0.0, 2.9), 1.1], [Vector3(4.6, 0.0, 2.2), 1.4],
+			[Vector3(-3.4, 0.0, -4.3), 1.7], [Vector3(3.2, 0.0, -4.6), 1.2],
+			[Vector3(5.6, 0.0, -2.4), 0.9]]:
+		_estalagmita(e[0], float(e[1]))
+	# Cristales que brillan: la firma de la cueva. Emisivos en verde agua (el
+	# color del Kappa), inclinados como si crecieran de la roca.
+	for c in [[Vector3(-5.0, 0.0, 1.8), 0.9, -18.0], [Vector3(2.6, 0.0, -5.3), 1.3, 14.0],
+			[Vector3(-2.9, 0.0, -5.4), 0.8, -9.0], [Vector3(5.4, 0.0, 1.2), 1.0, 22.0]]:
+		_cristal(c[0], float(c[1]), float(c[2]))
+	# Charcas de agua quieta, verdosas y a ras de suelo, por donde asoma lo que
+	# vive aqui abajo.
+	for ch in [[Vector3(-3.6, 0.0, 4.2), 1.05], [Vector3(4.2, 0.0, 3.6), 0.8]]:
+		var charca := _cyl(float(ch[1]), float(ch[1]) * 1.06, 0.05,
+			ch[0] + Vector3(0.0, -0.02, 0.0), Color(0.10, 0.24, 0.22))
+		charca.material_override.roughness = 0.12
+	# Huesos y barricas de naufragios que la marea arrastro hasta aqui.
+	_spawn_barrels([Vector3(-5.8, 0.0, 2.9), Vector3(5.9, 0.0, -1.6)], 1)
+
+
+## Un cono de piedra hecho por codigo (CylinderMesh con la tapa a cero).
+func _estalagmita(pos: Vector3, alto: float) -> void:
+	var mi := MeshInstance3D.new()
+	var cono := CylinderMesh.new()
+	cono.top_radius = 0.03
+	cono.bottom_radius = alto * 0.32
+	cono.height = alto
+	cono.radial_segments = 7
+	mi.mesh = cono
+	mi.position = pos + Vector3(0.0, alto * 0.5 - 0.05, 0.0)
+	mi.material_override = _mat(Color(0.30, 0.30, 0.36))
+	add_child(mi)
+	_add_blob_shadow(pos + Vector3(0.05, 0.02, 0.05), alto * 0.7, alto * 0.45)
+
+
+## Un cristal EMISIVO: prisma inclinado que brilla en verde agua. El material
+## lleva shader-menos emision, asi que GeometryBatch lo agrupa por color como a
+## cualquier otro; el brillo funciona bajo GL Compatibility.
+func _cristal(pos: Vector3, alto: float, tilt: float) -> void:
+	var mi := MeshInstance3D.new()
+	var prisma := CylinderMesh.new()
+	prisma.top_radius = 0.02
+	prisma.bottom_radius = alto * 0.17
+	prisma.height = alto
+	prisma.radial_segments = 6
+	mi.mesh = prisma
+	mi.position = pos + Vector3(0.0, alto * 0.42, 0.0)
+	mi.rotation_degrees = Vector3(tilt, pos.x * 31.0, tilt * 0.5)
+	var mat := _mat(Color(0.35, 0.85, 0.72))
+	mat.emission_enabled = true
+	mat.emission = Color(0.18, 0.62, 0.5)
+	mat.emission_energy_multiplier = 1.4
+	mi.material_override = mat
+	add_child(mi)
+
+
 func _scenery_island() -> void:
 	# Dos discos de arena (el de abajo mas oscuro hace de orilla mojada). Radio
 	# contenido para que el MAR asome por los bordes de la pantalla.
@@ -2681,6 +2784,8 @@ func _try_spawn_client() -> bool:
 	# soltaba su "+$N" verde flotante hacia un bote que no está en pantalla.
 	c.tips_enabled = not no_powerups
 	c.variety_ui = not no_variety_ui
+	# En puertos y abordajes el vacío no cuesta oro: cobra en derrota o reloj.
+	c.penaliza_vacio = not (vacio_pierde or vacio_roba_reloj)
 	# Entra andando por la borda mas cercana a su asiento, rodea el mostrador
 	# y llega a su taburete; al marcharse saldra por esa misma borda.
 	var entry: Vector3 = seats[idx]["entry"]
@@ -2818,9 +2923,23 @@ func _on_client_finished(report: Dictionary, seat_idx: int) -> void:
 	var penalty := int(report.get("penalty", 0))
 	if penalty > 0:
 		money_earned = maxi(money_earned - penalty, 0)
-		# El cliente calculó su castigo con el contador de ANTES de irse; el
-		# siguiente que se marche de vacío pagará un escalón más.
+	# El VACÍO se cuenta aparte del castigo en oro: en puertos y abordajes el
+	# oro no se toca (penalty 0) pero el vacío sigue contando para su hándicap.
+	# El cliente calculó su castigo con el contador de ANTES de irse; el
+	# siguiente que se marche de vacío pagará un escalón más.
+	if bool(report.get("vacio", penalty > 0)):
 		empty_leavers += 1
+		# PUERTO: al tercer vacío se pierde el escenario, como en el arcade.
+		if vacio_pierde:
+			_update_vacios_puerto()
+			if empty_leavers >= VACIOS_MAX and not ended:
+				lost_by_leavers = true
+				_end_level()
+				return
+		# ABORDAJE: cada vacío roba reloj, y se canta junto al contador.
+		if vacio_roba_reloj and timed and not ended:
+			time_limit = maxf(time_limit - CASTIGO_VACIO_SEG, elapsed)
+			_flash_castigo_reloj()
 	clients_finished += 1
 	_update_client_heads()
 	_update_hud()
@@ -3846,6 +3965,10 @@ func _finalize_results() -> void:
 	# el umbral de dinero de siempre.
 	if boss_id != "":
 		stars = maxi(stars, 2) if boss_done else mini(stars, 1)
+	# DERROTA POR VACÍOS (el hándicap del puerto): da igual el oro que hubiera
+	# en caja — tres clientes yéndose sin comer pierden la jornada entera.
+	if lost_by_leavers:
+		stars = 0
 
 	# Lo que se cobra: platos + propinas + las primas por lo que ha sobrado.
 	bonus_clients = 0
@@ -5035,6 +5158,71 @@ func _button_pad(b: Button, estado: String) -> StyleBox:
 ## Coloca la barra superior segun lo que haya que enseñar. Sin reloj (islas,
 ## puertos y tutorial) el hueco de la izquierda queda vacio, asi que se pone un
 ## relleno del ANCHO del contador de clientes: el oro se queda centrado en la
+## EL CONTADOR DE VACÍOS DEL PUERTO, bajo el número de clientes: el hándicap
+## del tipo es "3 clientes que se van sin comer pierden la jornada", y una
+## derrota que no se ve venir no es un reto, es una emboscada. Nace en crema y
+## se pone ROJO y late al segundo vacío.
+func _setup_vacios_puerto() -> void:
+	if not vacio_pierde or arcade or GameState.is_tutorial():
+		return
+	if vacios_puerto_label != null and is_instance_valid(vacios_puerto_label):
+		_colocar_vacios_puerto()
+		return
+	vacios_puerto_label = Label.new()
+	vacios_puerto_label.add_theme_font_size_override("font_size", 22)
+	vacios_puerto_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	vacios_puerto_label.add_theme_constant_override("outline_size", 8)
+	vacios_puerto_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	$HUD.add_child(vacios_puerto_label)
+	_colocar_vacios_puerto()
+	_update_vacios_puerto()
+
+
+func _colocar_vacios_puerto() -> void:
+	var caja: Control = $HUD/TopRow/ClientsBox
+	vacios_puerto_label.position = Vector2(
+		caja.global_position.x,
+		caja.global_position.y + caja.size.y + 2.0)
+
+
+var _vacios_puerto_last := 0
+
+
+func _update_vacios_puerto() -> void:
+	if vacios_puerto_label == null or not is_instance_valid(vacios_puerto_label):
+		return
+	vacios_puerto_label.text = "Vacíos %d/%d" % [empty_leavers, VACIOS_MAX]
+	vacios_puerto_label.add_theme_color_override("font_color",
+		Color(1.0, 0.38, 0.32) if empty_leavers >= VACIOS_MAX - 1
+		else Color(1.0, 0.92, 0.75, 0.9))
+	if empty_leavers > _vacios_puerto_last:
+		_vacios_puerto_last = empty_leavers
+		vacios_puerto_label.pivot_offset = vacios_puerto_label.size * 0.5
+		var t := create_tween()
+		t.tween_property(vacios_puerto_label, "scale", Vector2(1.35, 1.35), 0.12)
+		t.tween_property(vacios_puerto_label, "scale", Vector2.ONE, 0.22) 				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+## El "-15 s" del ABORDAJE: sale del reloj y sube desvaneciéndose, en rojo.
+## Es el único aviso del robo, así que va grande y pegado a la cifra del reloj.
+func _flash_castigo_reloj() -> void:
+	var caja: Control = $HUD/TopRow/TimeBox
+	var aviso := Label.new()
+	aviso.text = "-%d s" % int(CASTIGO_VACIO_SEG)
+	aviso.add_theme_font_size_override("font_size", 34)
+	aviso.add_theme_color_override("font_color", Color(1.0, 0.32, 0.26))
+	aviso.add_theme_color_override("font_outline_color", Color.BLACK)
+	aviso.add_theme_constant_override("outline_size", 10)
+	aviso.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	aviso.position = caja.global_position + Vector2(6.0, caja.size.y + 2.0)
+	$HUD.add_child(aviso)
+	var t := create_tween()
+	t.set_parallel(true)
+	t.tween_property(aviso, "position:y", aviso.position.y + 46.0, 1.1)
+	t.tween_property(aviso, "modulate:a", 0.0, 1.1).set_delay(0.25)
+	t.chain().tween_callback(aviso.queue_free)
+
+
 ## Monta la fila de contadores de maestría. Solo salen los que el jugador
 ## LLEVA: sin habilidades no hay fila, y en el tutorial todo va en neutro.
 func _setup_skill_counters() -> void:
@@ -5097,9 +5285,14 @@ func _place_skill_counters() -> void:
 	if skill_counter_row == null or not is_instance_valid(skill_counter_row):
 		return
 	var caja: Control = $HUD/TopRow/ClientsBox
+	var alto_extra := 0.0
+	# El contador de vacíos del puerto vive justo debajo del de clientes; si
+	# está puesto, los contadores de maestría bajan un renglón.
+	if vacios_puerto_label != null and is_instance_valid(vacios_puerto_label):
+		alto_extra = 32.0
 	skill_counter_row.position = Vector2(
 		caja.global_position.x,
-		caja.global_position.y + caja.size.y + 4.0)
+		caja.global_position.y + caja.size.y + 4.0 + alto_extra)
 
 
 ## Cifras que faltan. `left` es lo que queda para el próximo premio; a 0 el
@@ -5147,6 +5340,7 @@ func _apply_hud_layout() -> void:
 		get_viewport().size_changed.connect(_fit_top_row)
 	if not get_viewport().size_changed.is_connected(_place_skill_counters):
 		get_viewport().size_changed.connect(_place_skill_counters)
+	_setup_vacios_puerto.call_deferred()
 	_setup_skill_counters.call_deferred()
 	# Sin potenciadores (la escuela), el BOTE entero desaparece del marcador:
 	# una barra azul que nunca sube solo generaría preguntas.

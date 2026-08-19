@@ -160,7 +160,7 @@ func _aviso_antes_de_zarpar() -> void:
 			# NADA de bonificadores aqui: todavia no existen. Se abren DESPUES de
 			# este escenario, cuando Alice se enrola (ver `main_menu._presentar_alice`).
 			lineas = [
-				{ "text": "Diez comandas, %s. Hoy vas a echar de menos un segundo par de manos." % GameState.player_title(), "mood": "serio" },
+				{ "text": "Un abordaje de los gordos, %s: reloj corriendo y gente subiendo sin parar. Hoy vas a echar de menos un segundo par de manos." % GameState.player_title(), "mood": "serio" },
 				{ "text": "Llévate una carta VARIADA: con esta clientela vas a repetir plato antes de darte cuenta.", "mood": "hablando" },
 			]
 		"nivel_14":
