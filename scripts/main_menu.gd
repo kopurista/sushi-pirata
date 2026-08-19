@@ -269,11 +269,11 @@ func _menu_popups() -> void:
 	if GameState.pending_ingots > 0:
 		await get_tree().create_timer(0.7).timeout
 		await _pagar_pablo()
-	# EL CORAZÓN DEL COFRECITO, por si el jugador cerró el juego con la escena
-	# a medias: normalmente la cuenta `_on_fishing_closed`, que es donde toca.
-	if GameState.pending_corazon:
+	# ESCENAS DE COLECCIONABLE que se quedaran a medias (el jugador cerró el
+	# juego con una pendiente): normalmente las cuenta `_on_fishing_closed`.
+	while not GameState.pending_col_scenes.is_empty():
 		await get_tree().create_timer(0.7).timeout
-		await _reaccion_corazon()
+		await _escena_coleccionable(GameState.pending_col_scenes[0])
 	# ALICE SE ENROLA, y con ella LLEGAN LOS BONIFICADORES. Es la escena que
 	# los abre: hasta aquí el jugador no ha visto ninguno, y el primero que
 	# tiene es ella misma (el bonificador del `ayudante`). Va antes que la de
@@ -506,14 +506,19 @@ func _pagar_pablo() -> void:
 	await caja.close_and_free()
 
 
-## EL CORAZÓN EN UN COFRECITO. Sale del mar como cualquier otro coleccionable,
-## pero este lleva el apellido de David escrito por dentro: la escena es el
-## premio de verdad. Espera a que se cierren los avisos globales (la propia
-## ventana del coleccionable, la subida de nivel de la pesca) antes de hablar,
-## porque si no el retrato sale por detrás de un cartel.
-func _reaccion_corazon() -> void:
-	GameState.pending_corazon = false
+## LAS ESCENAS DE COLECCIONABLE (`CollectibleData.SCENE_ITEMS`): las piezas que
+## tienen algo que decir al salir del mar. Espera a que se cierren los avisos
+## globales (la propia ventana del coleccionable, la subida de nivel de la
+## pesca) antes de hablar, porque si no el retrato sale por detrás de un cartel.
+##
+## La cola se vacía SIEMPRE, incluso si el id no trae guion: así una pieza que
+## se apunte por error no deja el bucle de `_on_fishing_closed` girando.
+func _escena_coleccionable(id: String) -> void:
+	GameState.pending_col_scenes.erase(id)
 	GameState.save_game()
+	var lineas := _guion_coleccionable(id)
+	if lineas.is_empty():
+		return
 	var topo := 0
 	while GameState.notices_busy() and topo < 3600:
 		topo += 1
@@ -522,25 +527,47 @@ func _reaccion_corazon() -> void:
 	var caja := DialogueBox.new()
 	caja.z_index = 200
 	ui_layer.add_child(caja)
-	caja.say([
-		{ "text": "¡RAAAK! ¡DAVID! ¡ESO LATE! ¡LA CAJA LATE!", "who": "gigi",
-			"mood": "loro_grito" },
-		{ "text": "Déjalo en la mesa, %s. Despacio." % GameState.player_title(),
-			"mood": "sorprendido" },
-		{ "text": "Cofre pequeño, cerradura de hierro y un corazón dentro que "
-			+ "no se está quieto. Esa historia me la sé.", "mood": "serio" },
-		{ "text": "Un tipo con **mi apellido**, un barco que no volvió a puerto "
-			+ "y una deuda de cien años. Dicen que se lo sacó él mismo para no "
-			+ "sentir nada.", "mood": "hablando" },
-		{ "text": "¿NO SERÁS TÚ? ¿EH? ¿EH? ¡NUNCA TE HE VISTO EL PECHO!",
-			"who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "Si lo fuera, plumas, no estaría fregando cazuelas contigo.",
-			"mood": "loro_resignado" },
-		{ "text": "Guárdalo en la vitrina y no le des conversación. Y si alguna "
-			+ "noche lo oyes latir más fuerte... me despiertas.", "mood": "serio" },
-	])
+	caja.say(lineas)
 	await caja.finished
 	await caja.close_and_free()
+
+
+func _guion_coleccionable(id: String) -> Array:
+	match id:
+		"corazon_cofre":
+			# El cofre del hombre muerto, con el apellido de David dentro.
+			return [
+				{ "text": "¡RAAAK! ¡DAVID! ¡ESO LATE! ¡LA CAJA LATE!",
+					"who": "gigi", "mood": "loro_grito" },
+				{ "text": "Déjalo en la mesa, %s. Despacio."
+					% GameState.player_title(), "mood": "sorprendido" },
+				{ "text": "Cofre pequeño, cerradura de hierro y un corazón "
+					+ "dentro que no se está quieto. Esa historia me la sé.",
+					"mood": "serio" },
+				{ "text": "Un tipo con **mi apellido**, un barco que no volvió "
+					+ "a puerto y una deuda de cien años. Dicen que se lo sacó "
+					+ "él mismo para no sentir nada.", "mood": "hablando" },
+				{ "text": "¿NO SERÁS TÚ? ¿EH? ¿EH? ¡NUNCA TE HE VISTO EL PECHO!",
+					"who": "gigi", "mood": "loro_sorpresa" },
+				{ "text": "Si lo fuera, plumas, no estaría fregando cazuelas "
+					+ "contigo.", "mood": "loro_resignado" },
+				{ "text": "Guárdalo en la vitrina y no le des conversación. Y "
+					+ "si alguna noche lo oyes latir más fuerte... me "
+					+ "despiertas.", "mood": "serio" },
+			]
+		"tenedor":
+			# El chiste del peine: la pieza pesa poco, la escena es el premio.
+			return [
+				{ "text": "¿Un tenedor? ¿Hemos pescado un **tenedor**?",
+					"mood": "sorprendido" },
+				{ "text": "Dicen que hay quien los usa para peinarse, ¿sabes? "
+					+ "Gente de debajo del agua.", "mood": "hablando" },
+				{ "text": "Yo en todo caso lo usaría en la barba.",
+					"mood": "riendo" },
+				{ "text": "¡RAAAK! ¡TE LO VAS A DEJAR CLAVADO OTRA VEZ!",
+					"who": "gigi", "mood": "loro_grito" },
+			]
+	return []
 
 
 ## Antes del PRIMER bonus diario, David explica de qué va el mapa del tesoro.
@@ -2637,11 +2664,11 @@ func _on_fishing_closed() -> void:
 	# (`_ui_in` vuelve a encender el tablón y el submenú, y de paso anima la
 	# experiencia pendiente y anuncia la subida: la pesca PAGA XP por captura.)
 	_ui_in(false)
-	# EL CORAZÓN DEL COFRECITO: si ha salido del mar en esta visita, David
-	# tiene algo que decir sobre su apellido. Se cuenta al SALIR de la pesca,
-	# no en el momento de sacarlo: allí el jugador está peleando con la caña.
-	if GameState.pending_corazon:
-		await _reaccion_corazon()
+	# LAS ESCENAS DE COLECCIONABLE que hayan caído en esta visita (el corazón
+	# con el apellido de David, el tenedor...). Se cuentan al SALIR de la
+	# pesca, no al sacarlos: allí el jugador está peleando con la caña.
+	while not GameState.pending_col_scenes.is_empty():
+		await _escena_coleccionable(GameState.pending_col_scenes[0])
 
 
 func _show_locked_notice(text: String) -> void:

@@ -588,7 +588,10 @@ COLLECTIBLES = [
     "sombrero_vaquero", "botella_cola", "batuta_viento", "botella_leche",
     "pollo_goma", "corazon_cofre", "marca_negra", "reloj_cocodrilo",
     "lata_espinacas", "maneki_neko", "daruma", "botella_sake",
-    "escama_sirena", "cuchillo_maestro", "galon_oro",
+    "escama_sirena", "cuchillo_maestro", "galon_oro", "tenedor",
+    "maqueta_unicornio", "ojo_cobre", "delantal_chamuscado",
+    "campana_servicio", "diente_kappa", "koinobori", "omamori",
+    "palillos_madera", "palillos_plata", "palillos_oro", "tarro_ponyo",
 ]
 
 

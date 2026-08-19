@@ -1751,26 +1751,28 @@ primera vez que se entra en ellos (`logros_intro_done` /
     conseguido (nada de un aluvión de toasts al arrancar), pero `claimed`
     queda vacío → todo lo ganado hasta hoy se puede reclamar del tirón.
     Asumido: es el mismo criterio retroactivo de los logros.
-- `scripts/collectible_data.gd` — catálogo de COLECCIONABLES (66, solo datos:
+- `scripts/collectible_data.gd` — catálogo de COLECCIONABLES (78, solo datos:
   id, nombre, `desc` = cómo se consigue o el guiño que lo explica, que SOLO se
   enseña ya conseguido).
   **El ORDEN de `ITEMS` es el de la vitrina y agrupa por REFERENCIA**: tesoros
   pirata genéricos → la cocina del barco y sus trofeos (maneki-neko, daruma,
-  sake, escama de sirena, cuchillo del maestro, galón de oro) → Piratas del
-  Caribe (perla negra, moneda azteca, corazón en un cofrecito) → Monkey Island
-  (grog, peluche del mono de tres cabezas, lista de insultos, pollo de goma) →
-  Day of the Tentacle (gafas de Bernard, tentáculo púrpura) → One Piece (la
-  banda del sombrero de paja EN ORDEN DE TRIPULACIÓN: sombrero/Luffy,
-  pendientes/Zoro, naranja/Nami, tirachinas/Usopp, sartén/Sanji, cuerno de
-  reno/Chopper, sombrero vaquero/Robin, botella de cola/Franky, violín de
-  esqueleto/Brook, y el caracol teléfono cerrando) → La Isla del Tesoro (marca
-  negra) → Peter Pan (reloj del cocodrilo) → Popeye (lata de espinacas) → El
-  Planeta del Tesoro (esfera) → El castillo en el cielo (colgante) → Zelda
-  (vela y batuta de Wind Waker, semilla dorada/kolog, reloj de arena/Phantom
-  Hourglass, máscara de raza marina/Majora, el bloque de Link's Awakening
-  —escudo, foto de Christine, peluche de morsa, huevo de montaña— y la botella
-  de leche), con la Tripuerca cerrando la vitrina. Un coleccionable nuevo
-  entra en SU grupo, no al final.
+  sake, escama de sirena, koinobori, omamori, los tres pares de palillos y los
+  cinco trofeos) → Piratas del Caribe (perla negra, moneda azteca, corazón en
+  un cofrecito) → Monkey Island (grog, peluche del mono de tres cabezas, lista
+  de insultos, pollo de goma) → Day of the Tentacle (gafas de Bernard,
+  tentáculo púrpura) → One Piece (la banda del sombrero de paja EN ORDEN DE
+  TRIPULACIÓN: sombrero/Luffy, pendientes/Zoro, naranja/Nami,
+  tirachinas/Usopp, sartén/Sanji, cuerno de reno/Chopper, sombrero
+  vaquero/Robin, botella de cola/Franky, violín de esqueleto/Brook, y el
+  caracol teléfono cerrando) → La Isla del Tesoro (marca negra) → Peter Pan
+  (reloj del cocodrilo) → Popeye (lata de espinacas) → Tintín (maqueta del
+  Unicornio) → Los Goonies (ojo de cobre) → La Sirenita (tenedor) → El Planeta
+  del Tesoro (esfera) → Studio Ghibli (colgante de Laputa y tarro de Ponyo) →
+  Zelda (vela y batuta de Wind Waker, semilla dorada/kolog, reloj de
+  arena/Phantom Hourglass, máscara de raza marina/Majora, el bloque de Link's
+  Awakening —escudo, foto de Christine, peluche de morsa, huevo de montaña— y
+  la botella de leche), con la Tripuerca cerrando la vitrina. Un coleccionable
+  nuevo entra en SU grupo, no al final.
   **DE DÓNDE SALE CADA COSA** (regla de diseño del usuario, no re-litigar):
   lo que REFERENCIA otra obra se consigue PESCANDO (el cofre del minijuego),
   con dos excepciones que ya tienen escena propia — el sombrero de paja (el
@@ -1778,19 +1780,30 @@ primera vez que se entra en ellos (`logros_intro_done` /
   en aventura, arcade o por vías especiales; la excepción son los que uno
   draga literalmente del fondo (botella, ancla, calavera, hueso, pata de palo,
   tentáculo, garfio, brújula, catalejo, bala de cañón), que también se pescan.
-  **Y hay dos TROFEOS que se ganan COCINANDO**, con sus umbrales en
-  `CollectibleData` para que la ficha no pueda contradecirlos: el **cuchillo
-  del maestro** (`CUCHILLO_CORTES`, 200 cortes lentos bordados, por la stat
-  `slices_ok`) y el **galón de oro** (`GALON_OLEADA`, llegar a la oleada 20 del
-  Arcade). El galón cuelga de `arcade_best`, que NO es una stat, así que
-  `record_arcade_wave` pide la pasada de logros a mano.
-  **EL CORAZÓN EN UN COFRECITO TIENE ESCENA**: al salir del mar deja
-  `GameState.pending_corazon` (persistente) y David reacciona al cerrar la
-  pesca (`main_menu._reaccion_corazon`) — reconoce su propio apellido en la
-  historia del cofre y Gigi le pregunta si no será él. Se cuenta ALLÍ y no en
-  el desbloqueo porque la ventana del coleccionable la saca NoticeLayer en su
-  capa global, donde no cabe un diálogo con retrato; la escena ESPERA a
-  `GameState.notices_busy()` para no salir por detrás de ese cartel.
+  **Y hay cinco TROFEOS que se ganan COCINANDO**, con sus umbrales en
+  `CollectibleData` para que la ficha no pueda contradecirlos: **cuchillo del
+  maestro** (`CUCHILLO_CORTES`, 200 cortes lentos bordados, stat `slices_ok`),
+  **galón de oro** (`GALON_OLEADA`, oleada 20 del Arcade), **delantal
+  chamuscado** (`DELANTAL_TIRADOS`, 100 platos al cubo, stat `plates_wasted`),
+  **campana del último servicio** (`CAMPANA_PROPINA`, cerrar una jornada con 30
+  doblones de propina, stat `best_tips_run`) y **diente de Kappa** (stat
+  `bosses_beaten`, que sube `level3d._finalize_results` con `boss_done` — el
+  diente cae cuando el JEFE se rinde, no cuando el nivel se cierra por oro).
+  Las tres stats nuevas se apuntan en `_finalize_results`; el galón cuelga de
+  `arcade_best`, que NO es una stat, así que `record_arcade_wave` pide la
+  pasada de logros a mano.
+  **LOS COLECCIONABLES CON ESCENA** (`CollectibleData.SCENE_ITEMS`) apuntan su
+  id en `GameState.pending_col_scenes` (una COLA persistente) y la representa
+  `main_menu._escena_coleccionable` al cerrar la pesca, con un guion por id en
+  `_guion_coleccionable`. Se cuentan ALLÍ y no en el desbloqueo porque la
+  ventana del coleccionable la saca NoticeLayer en su capa global, donde no
+  cabe un diálogo con retrato; la escena ESPERA a `GameState.notices_busy()`
+  para no salir por detrás de ese cartel, y la cola se vacía aunque el id no
+  traiga guion (si no, el bucle de `_on_fishing_closed` giraría para siempre).
+  Hoy son dos: el **corazón en un cofrecito** (David reconoce su propio
+  apellido en la historia del cofre y Gigi le pregunta si no será él) y el
+  **tenedor** (el peine de la sirenita: "yo en todo caso lo usaría en la
+  barba"). Los guardados con la vieja bandera `pending_corazon` migran solos.
   No dan ni hacen nada: son para coleccionar (y para el logro "coleccion").
   El desbloqueo va SIEMPRE por `GameState.unlock_collectible(id)`, que anuncia
   con la ventana modal, guarda y repasa logros. Estado en
@@ -1804,7 +1817,7 @@ primera vez que se entra en ellos (`logros_intro_done` /
     `who_override == "grumete_sombrero"` — stat `fed_sombrero`; el personaje
     con sombrero AÚN NO EXISTE, queda para niveles futuros). Los tres de stats
     se comprueban al principio de `_run_achievement_check`.
-  · **Pescables** (`FishData.FISHING_COLLECTIBLES`, 44): salen del COFRE del
+  · **Pescables** (`FishData.FISHING_COLLECTIBLES`, 48): salen del COFRE del
     minijuego de PESCA, y son DOS familias — **todas las REFERENCIAS** a otras
     obras (Zelda, One Piece, Monkey Island, Day of the Tentacle, Piratas del
     Caribe, La Isla del Tesoro, Peter Pan, Popeye, El Planeta del Tesoro,
@@ -1841,6 +1854,13 @@ primera vez que se entra en ellos (`logros_intro_done` /
   · La pestaña **Colección** del inventario es la vitrina: rejilla de 4, los
     bloqueados en SILUETA oscura con "???" y sin ninguna pista, los
     conseguidos abren su ficha al tocarlos.
+- **LA FICHA SE ENSEÑA TAMBIÉN AL CONSEGUIR LA PIEZA**, no solo en la
+  vitrina y en el álbum: la ventana del coleccionable
+  (`NoticeLayer._show_collectible`) pinta su `desc` bajo el nombre y el
+  cartel de captura de la pesca (`fishing_game._show_fish_reveal`) pinta la
+  del pez entre la rareza y el premio. Los dos paneles CRECEN con el texto,
+  y el alto se ESTIMA por caracteres a propósito: medirlo de verdad pide un
+  fotograma y los dos carteles se montan ya colocados.
 - `scripts/notice_layer.gd` — `NoticeLayer`, capa GLOBAL de avisos colgada del
   autoload GameState (capa 126, bajo el velo de fundido): sobrevive a los
   cambios de escena, así que un coleccionable ganado en mitad de un nivel o en

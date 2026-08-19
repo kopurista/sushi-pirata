@@ -4293,8 +4293,18 @@ func _finalize_results() -> void:
 		else "arcade"), total_money)
 	GameState.bump_stat("money_total", total_money)
 	GameState.max_stat("best_dishes_run", dishes_served)
+	# Estas dos son las que sueltan sus COLECCIONABLES (ver CollectibleData):
+	# el delantal chamuscado cuenta los platos tirados de toda la vida y la
+	# campana el mejor bote de propinas de UNA jornada.
+	GameState.bump_stat("plates_wasted", plates_wasted)
+	GameState.max_stat("best_tips_run", tips_total)
 	if plates_wasted == 0 and dishes_served > 0:
 		GameState.bump_stat("clean_runs")
+	# EL DIENTE DEL KAPPA: se cae cuando el jefe se rinde, no cuando el nivel
+	# se cierra por objetivo — de ahí que cuelgue de `boss_done` y no de las
+	# estrellas del puerto.
+	if boss_done:
+		GameState.bump_stat("bosses_beaten")
 	# La experiencia del cocinero, con su toast de subida si toca. Va antes del
 	# save para que el nivel nuevo viaje en el mismo guardado.
 	GameState.add_chef_xp(last_xp)

@@ -46,6 +46,14 @@ const TRIFORCE_REWARD := 3
 ## y los umbrales viven AQUÍ para que la ficha no pueda contradecirlos.
 const CUCHILLO_CORTES := 200
 const GALON_OLEADA := 20
+const DELANTAL_TIRADOS := 100
+const CAMPANA_PROPINA := 30
+
+## COLECCIONABLES CON ESCENA: al conseguirlos dejan su id en
+## `GameState.pending_col_scenes` y alguien la representa después (hoy
+## `main_menu`, al cerrar la pesca). Son los que tienen algo que decir: el
+## corazón lleva el apellido de David y el tenedor le da pie a su chiste.
+const SCENE_ITEMS := ["corazon_cofre", "tenedor"]
 
 ## El logro "coleccionista" pide TODOS: sus metas viven en
 ## `achievement_data.gd` y la del oro tiene que ser ITEMS.size(). Al añadir un
@@ -124,6 +132,19 @@ const ITEMS: Array = [
 			% CUCHILLO_CORTES },
 	{ "id": "galon_oro", "name": "Galón de oro",
 		"desc": "Por aguantar hasta la oleada %d del Arcade." % GALON_OLEADA },
+	{ "id": "delantal_chamuscado", "name": "Delantal chamuscado",
+		"desc": "Por tirar %d platos al cubo. No es un mérito, pero es tuyo."
+			% DELANTAL_TIRADOS },
+	{ "id": "campana_servicio", "name": "Campana del último servicio",
+		"desc": "Por cerrar una jornada con %d doblones de propina."
+			% CAMPANA_PROPINA },
+	{ "id": "diente_kappa", "name": "Diente de Kappa",
+		"desc": "Se le cayó al jefe cuando por fin se dio por servido." },
+	{ "id": "koinobori", "name": "Koinobori", "desc": "" },
+	{ "id": "omamori", "name": "Omamori", "desc": "" },
+	{ "id": "palillos_madera", "name": "Palillos de madera", "desc": "" },
+	{ "id": "palillos_plata", "name": "Palillos de plata", "desc": "" },
+	{ "id": "palillos_oro", "name": "Palillos de oro", "desc": "" },
 	# --- Piratas del Caribe --------------------------------------------------
 	{ "id": "perla_negra", "name": "Perla negra",
 		"desc": "Salió de un cofre pescado en alta mar." },
@@ -143,8 +164,9 @@ const ITEMS: Array = [
 	# --- Day of the Tentacle -------------------------------------------------
 	{ "id": "gafas_nerd", "name": "Gafas rotas de nerd",
 		"desc": "Tiene grabado el nombre de Bernard Bernoulli." },
+	# El dibujo es un PELUCHE (con su ojo de botón), así que la ficha lo cuenta.
 	{ "id": "tentaculo_purpura", "name": "Tentáculo púrpura radioactivo",
-		"desc": "Sigue templado y brilla en la oscuridad. Juraría que ha parpadeado." },
+		"desc": "Un peluche descolorido que sigue brillando en la oscuridad." },
 	# --- One Piece (la banda del sombrero de paja, en orden de tripulación) --
 	{
 		"id": "sombrero_paja", "name": "Sombrero de paja",
@@ -177,12 +199,23 @@ const ITEMS: Array = [
 	# --- Popeye --------------------------------------------------------------
 	{ "id": "lata_espinacas", "name": "Lata de espinacas",
 		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- Las aventuras de Tintín ---------------------------------------------
+	{ "id": "maqueta_unicornio", "name": "Maqueta del Unicornio",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- Los Goonies ---------------------------------------------------------
+	{ "id": "ojo_cobre", "name": "Ojo de cobre",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- La Sirenita ---------------------------------------------------------
+	{ "id": "tenedor", "name": "Tenedor",
+		"desc": "¿Podría utilizarse como peine?" },
 	# --- El Planeta del Tesoro -----------------------------------------------
 	{ "id": "esfera_tesoro", "name": "Esfera del tesoro",
 		"desc": "Esta esfera con forma de planeta podría ser un mapa del tesoro." },
-	# --- El castillo en el cielo ---------------------------------------------
+	# --- Studio Ghibli -------------------------------------------------------
 	{ "id": "colgante_cielos", "name": "Colgante de los cielos",
 		"desc": "Parece que este colgante cayó de los cielos hace mucho tiempo." },
+	{ "id": "tarro_ponyo", "name": "Tarro con un pez naranja",
+		"desc": "Salió de un cofre pescado en alta mar." },
 	# --- Zelda (el triángulo cierra la vitrina) ------------------------------
 	{ "id": "vela", "name": "Vela de mascarón",
 		"desc": "Salió de un cofre pescado en alta mar." },

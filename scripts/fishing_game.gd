@@ -1171,7 +1171,15 @@ func _centered_label(panel: Control, texto: String, size_f: int, y: float,
 
 func _show_fish_reveal(premio: Dictionary) -> void:
 	var fish_id := str(premio["fish_id"])
-	var alto := 700.0
+	# LA FICHA DEL BICHO VA TAMBIÉN AQUÍ, no solo en el álbum: al sacarlo del
+	# agua es cuando el jugador quiere saber qué acaba de pescar. El cartel
+	# CRECE con el texto (se estima por caracteres: medirlo de verdad pide un
+	# fotograma y el cartel se monta ya colocado).
+	var ficha := str(FishData.get_fish(fish_id).get("desc", ""))
+	var ficha_h := 0.0
+	if ficha != "":
+		ficha_h = clampf(ceili(ficha.length() / 42.0) * 28.0 + 10.0, 38.0, 152.0)
+	var alto := 700.0 + ficha_h
 	var panel := _reveal_panel(alto)
 	var rareza := FishData.rarity_of(fish_id)
 	var title := PrepBoard.make_big_title("¡Pescado!", 52)
@@ -1204,10 +1212,25 @@ func _show_fish_reveal(premio: Dictionary) -> void:
 		linea += " · " + talla
 	_centered_label(panel, linea, 24, 386.0,
 		Color(rareza.get("color", Color.GRAY)))
+	# La FICHA del álbum, entre la rareza y el premio.
+	var y := 426.0
+	if ficha != "":
+		var f := Label.new()
+		f.text = ficha
+		f.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		f.offset_left = 44.0
+		f.offset_right = -44.0
+		f.offset_top = 424.0
+		f.offset_bottom = 424.0 + ficha_h
+		f.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		f.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		f.add_theme_font_size_override("font_size", 20)
+		f.add_theme_color_override("font_color", Color(0.30, 0.20, 0.10))
+		panel.add_child(f)
+		y = 424.0 + ficha_h + 8.0
 	# Las líneas del premio: usos de despensa (peces-ingrediente, siempre) y
 	# monedas por tamaño (desde la 2ª captura). La 1ª de un pez sin
 	# ingrediente es el descubrimiento y lo dice.
-	var y := 426.0
 	if premio.has("ingredient"):
 		var data: Dictionary = RecipeData.INGREDIENTS.get(
 			premio["ingredient"], {})

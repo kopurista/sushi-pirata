@@ -216,10 +216,12 @@ var daily_last: String = ""
 ## triángulo dorado (a CollectibleData.TRIFORCE_PIECES se juntan en uno).
 var collectibles: Array[String] = []
 var triforce_pieces: int = 0
-## EL CORAZÓN DEL COFRECITO ya ha salido del mar y David todavía no ha
-## dicho lo suyo. Es PERSISTENTE: si el jugador cierra el juego con la
-## ventana del coleccionable recién vista, la escena le espera al volver.
-var pending_corazon := false
+## COLECCIONABLES CONSEGUIDOS QUE AÚN DEBEN SU ESCENA (ver
+## `CollectibleData.SCENE_ITEMS`): el corazón con el apellido de David, el
+## tenedor y los que vengan. Es una COLA y es PERSISTENTE: si el jugador
+## cierra el juego con la ventana del coleccionable recién vista, la escena
+## le espera al volver. La representa `main_menu`, al cerrar la pesca.
+var pending_col_scenes: Array[String] = []
 ## ÁLBUM DE PESCA: id de pez (FishData) -> veces pescado, y el RÉCORD de
 ## tamaño por especie (id -> size 0..1, el mayor pescado: es lo que enseña la
 ## ficha). Solo estado; catálogo y economía en `fish_data.gd`.
@@ -1553,12 +1555,11 @@ func unlock_collectible(id: String, extra := "") -> bool:
 	if id in collectibles or CollectibleData.get_item(id).is_empty():
 		return false
 	collectibles.append(id)
-	# EL CORAZÓN DEL COFRECITO tiene escena propia: David reconoce el apellido.
-	# Aquí solo se apunta la deuda —la ventana del coleccionable la saca
-	# NoticeLayer en su capa global, sin sitio para un retrato— y la cobra
-	# `main_menu._reaccion_corazon` al cerrar la pesca.
-	if id == "corazon_cofre":
-		pending_corazon = true
+	# LOS QUE TIENEN ESCENA solo apuntan aquí la deuda: la ventana del
+	# coleccionable la saca NoticeLayer en su capa global, sin sitio para un
+	# retrato, así que la escena la cobra `main_menu` al cerrar la pesca.
+	if id in CollectibleData.SCENE_ITEMS:
+		pending_col_scenes.append(id)
 	save_game()
 	_ensure_notices().announce_collectible(id, extra)
 	# El logro de coleccionista bebe de aquí ("derived:coleccion").
@@ -1774,6 +1775,12 @@ func _run_achievement_check() -> void:
 		unlock_collectible("cuchillo_maestro")
 	if arcade_best >= CollectibleData.GALON_OLEADA:
 		unlock_collectible("galon_oro")
+	if get_stat("plates_wasted") >= CollectibleData.DELANTAL_TIRADOS:
+		unlock_collectible("delantal_chamuscado")
+	if get_stat("best_tips_run") >= CollectibleData.CAMPANA_PROPINA:
+		unlock_collectible("campana_servicio")
+	if get_stat("bosses_beaten") > 0:
+		unlock_collectible("diente_kappa")
 	# Medallas nuevas desde la última pasada: un toast por medalla. NO se
 	# guarda aquí a propósito (`seen_medals` viaja con el siguiente save
 	# natural): guardar a disco en mitad de una partida daría un tirón.
@@ -2011,7 +2018,7 @@ func save_game() -> void:
 		"arcade_best": arcade_best,
 		"collectibles": collectibles,
 		"triforce_pieces": triforce_pieces,
-		"pending_corazon": pending_corazon,
+		"pending_col_scenes": pending_col_scenes,
 		"fish_album": fish_album,
 		"fish_best": fish_best,
 		"claimed_medals": claimed_medals,
@@ -2181,7 +2188,11 @@ func load_game() -> void:
 	arcade_best = maxi(int(parsed.get("arcade_best", 0)), 0)
 	collectibles = _to_string_array(parsed.get("collectibles", []))
 	triforce_pieces = int(parsed.get("triforce_pieces", 0))
-	pending_corazon = bool(parsed.get("pending_corazon", false))
+	pending_col_scenes = _to_string_array(parsed.get("pending_col_scenes", []))
+	# Guardado de cuando la escena del corazón era una bandera suelta.
+	var corazon_viejo := bool(parsed.get("pending_corazon", false))
+	if corazon_viejo and not "corazon_cofre" in pending_col_scenes:
+		pending_col_scenes.append("corazon_cofre")
 	fish_album = {}
 	var fish_dict: Dictionary = parsed.get("fish_album", {})
 	for k in fish_dict.keys():
@@ -2322,7 +2333,7 @@ func _new_game() -> void:
 	daily_last = ""
 	collectibles = []
 	triforce_pieces = 0
-	pending_corazon = false
+	pending_col_scenes = []
 	fish_album = {}
 	fish_best = {}
 	claimed_medals = {}

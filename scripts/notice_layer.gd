@@ -196,8 +196,18 @@ func _show_collectible(item: Dictionary) -> void:
 	if _paused_by_us:
 		tree.paused = true
 
+	# LA FICHA VA EN LA PROPIA VENTANA, no solo en la vitrina: el momento en
+	# que se consigue la pieza es cuando el jugador quiere saber QUÉ es. El
+	# panel CRECE con el texto (se estima por caracteres: medirlo de verdad
+	# pide un fotograma y el cartel se monta ya colocado).
+	var desc := CollectibleData.describe(id)
+	var extra_txt := str(item["extra"])
+	var desc_h := 0.0
+	if desc != "":
+		desc_h = clampf(ceili(desc.length() / 40.0) * 30.0 + 10.0, 40.0, 136.0)
+	var extra_h := 34.0 if extra_txt != "" else 0.0
 	var panel_w := 520.0
-	var panel_h := 560.0
+	var panel_h := 434.0 + desc_h + extra_h + 110.0
 	var panel := Control.new()
 	panel.position = Vector2((cs.x - panel_w) * 0.5, (cs.y - panel_h) * 0.5)
 	panel.size = Vector2(panel_w, panel_h)
@@ -232,13 +242,29 @@ func _show_collectible(item: Dictionary) -> void:
 	nombre.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	panel.add_child(nombre)
 
-	if str(item["extra"]) != "":
-		var extra := _label(str(item["extra"]), 22, Color(0.30, 0.20, 0.10))
+	var y := 428.0
+	if desc != "":
+		var ficha := _label(desc, 21, Color(0.30, 0.20, 0.10))
+		ficha.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		ficha.offset_left = 46.0
+		ficha.offset_right = -46.0
+		ficha.offset_top = y
+		ficha.offset_bottom = y + desc_h
+		ficha.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		ficha.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		panel.add_child(ficha)
+		y += desc_h
+
+	if extra_txt != "":
+		var extra := _label(extra_txt, 22, Color(0.42, 0.26, 0.10))
 		extra.set_anchors_preset(Control.PRESET_TOP_WIDE)
-		extra.offset_top = 424.0
-		extra.offset_bottom = 454.0
+		extra.offset_left = 30.0
+		extra.offset_right = -30.0
+		extra.offset_top = y
+		extra.offset_bottom = y + extra_h
 		extra.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		panel.add_child(extra)
+		y += extra_h
 
 	var seguir := Button.new()
 	seguir.text = "Continuar"
@@ -247,8 +273,8 @@ func _show_collectible(item: Dictionary) -> void:
 	seguir.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	seguir.offset_left = 140.0
 	seguir.offset_right = -140.0
-	seguir.offset_top = 462.0
-	seguir.offset_bottom = 528.0
+	seguir.offset_top = y + 12.0
+	seguir.offset_bottom = y + 78.0
 	panel.add_child(seguir)
 	seguir.pressed.connect(func() -> void:
 		if _paused_by_us and get_tree() != null:

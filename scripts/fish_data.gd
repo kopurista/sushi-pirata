@@ -363,8 +363,10 @@ const FISHING_COLLECTIBLES: Array = [
 	"sombrero_vaquero", "botella_cola", "violin_esqueleto", "caracol_telefono",
 	# La Isla del Tesoro, Peter Pan y Popeye.
 	"marca_negra", "reloj_cocodrilo", "lata_espinacas",
-	# El Planeta del Tesoro y El castillo en el cielo.
-	"esfera_tesoro", "colgante_cielos",
+	# Tintin, Los Goonies y La Sirenita.
+	"maqueta_unicornio", "ojo_cobre", "tenedor",
+	# El Planeta del Tesoro y Studio Ghibli (Laputa y Ponyo).
+	"esfera_tesoro", "colgante_cielos", "tarro_ponyo",
 	# Zelda.
 	"vela", "batuta_viento", "semilla_dorada", "reloj_arena", "mascara_zora",
 	"escudo_antiguo", "foto_christine", "peluche_morsa", "huevo_montana",
