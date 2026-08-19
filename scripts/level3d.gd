@@ -1092,15 +1092,17 @@ func _uw(u: float, w: float) -> Vector3:
 
 
 ## Muro de cueva alineado con la PANTALLA: `size` es (ancho en u, alto, fondo
-## en w) y `base` la altura del pie.
+## en w), `base` la altura del pie y `tilt` el vuelco lateral — que es lo que
+## saca a la roca de la escuadra: con todas las piezas a plomo, la cueva se lee
+## como una fila de cajas.
 func _muro_cueva(u: float, w: float, size: Vector3, tex: Texture2D, tinte: Color,
-		base := -0.6) -> MeshInstance3D:
+		base := -0.6, tilt := 0.0) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var caja := BoxMesh.new()
 	caja.size = size
 	mi.mesh = caja
 	mi.position = _uw(u, w) + Vector3(0.0, base + size.y * 0.5, 0.0)
-	mi.rotation_degrees.y = 45.0
+	mi.rotation_degrees = Vector3(0.0, 45.0, tilt)
 	mi.material_override = _mat_piedra(tex, tinte, 0.45)
 	add_child(mi)
 	return mi
@@ -1124,25 +1126,37 @@ func _scenery_cueva() -> void:
 		Color(0.20, 0.22, 0.28), 0.26)
 	_cyl_tex(6.9, 7.3, 0.28, Vector3(0.0, -0.14, 0.0), suelo_tex,
 		Color(0.30, 0.33, 0.41), 0.30)
-	# MURO DEL FONDO en dos piezas, con el HUECO DE LA ENTRADA justo en medio
-	# (u entre -1.8 y 1.8): ahí es donde aparecen los clientes de la borda de
-	# arriba (ENTRY cae exactamente en u=0), así que salen de la cueva por su
-	# boca en vez de brotar del suelo.
-	_muro_cueva(-5.9, -7.8, Vector3(8.2, 9.0, 2.8), pared_tex, Color(0.82, 0.86, 0.97))
-	_muro_cueva(5.9, -7.8, Vector3(8.2, 9.0, 2.8), pared_tex, Color(0.82, 0.86, 0.97))
-	# LATERALES: dos columnas que bajan por los cantos de la pantalla. Su cara
-	# interior va a |u| = 4.1 (el ancho visible es 4.78) y arrancan en w = -2.2,
-	# que es lo que las deja a la vista SIN meterse en el rombo del pasillo.
-	_muro_cueva(-6.5, -5.35, Vector3(4.8, 9.0, 6.3), pared_tex, Color(0.74, 0.78, 0.90))
-	_muro_cueva(6.5, -5.35, Vector3(4.8, 9.0, 6.3), pared_tex, Color(0.74, 0.78, 0.90))
+	# MURO DEL FONDO, con el HUECO DE LA ENTRADA justo en medio (u entre -1.8 y
+	# 1.8): ahí es donde aparecen los clientes de la borda de arriba (ENTRY cae
+	# exactamente en u=0), así que salen de la cueva por su boca en vez de
+	# brotar del suelo.
+	#
+	# VA EN PIEZAS DESIGUALES, no en dos cajas largas: cada trozo tiene su
+	# ancho, su fondo y su vuelco, así que la pared avanza y retrocede y no
+	# hay ni una arista larga en toda la cueva.
+	for p in [[-8.4, -7.9, 5.4, 9.4, 2.8, 1.5], [-4.7, -7.5, 3.8, 8.6, 2.4, -2.0],
+			[-2.2, -8.0, 3.0, 9.2, 3.0, 1.0], [2.2, -7.9, 3.0, 9.0, 2.8, -1.2],
+			[4.8, -7.4, 3.8, 8.4, 2.3, 1.8], [8.4, -7.9, 5.4, 9.4, 2.8, -1.5]]:
+		_muro_cueva(float(p[0]), float(p[1]),
+			Vector3(float(p[2]), float(p[3]), float(p[4])), pared_tex,
+			Color(0.82, 0.86, 0.97), -0.6, float(p[5]))
+	# LATERALES: dos columnas que bajan por los cantos de la pantalla, cada una
+	# en dos piezas a distinta profundidad. Su cara interior va a |u| = 4.1 (el
+	# ancho visible es 4.78) y arrancan en w = -2.2, que es lo que las deja a la
+	# vista SIN meterse en el rombo del pasillo.
+	for p in [[-6.5, -6.4, 4.8, 9.0, 4.6, 1.2], [-6.9, -3.2, 5.6, 8.4, 3.4, -1.6],
+			[6.5, -6.4, 4.8, 9.0, 4.6, -1.2], [6.9, -3.2, 5.6, 8.4, 3.4, 1.6]]:
+		_muro_cueva(float(p[0]), float(p[1]),
+			Vector3(float(p[2]), float(p[3]), float(p[4])), pared_tex,
+			Color(0.74, 0.78, 0.90), -0.6, float(p[5]))
 	_entrada_cueva(pared_tex)
 	# CASCOTES al pie del muro: sin ellos, la junta pared-suelo es una recta
 	# perfecta de lado a lado y la cueva parece un decorado de cartón.
-	for k in [[-4.4, -6.2, 0.9], [-2.9, -6.3, 0.65], [2.9, -6.3, 0.7],
-			[4.5, -6.1, 0.85], [-4.6, -4.9, 0.6], [4.7, -4.7, 0.65]]:
+	for k in [[-4.4, -6.2, 0.9, 6.0], [-2.9, -6.3, 0.65, -8.0], [2.9, -6.3, 0.7, 7.0],
+			[4.5, -6.1, 0.85, -5.0], [-4.6, -4.9, 0.6, 9.0], [4.7, -4.7, 0.65, -7.0]]:
 		var cascote := _muro_cueva(float(k[0]), float(k[1]),
 			Vector3(float(k[2]) * 2.2, float(k[2]) * 1.5, float(k[2]) * 1.8),
-			pared_tex, Color(0.70, 0.74, 0.86), -0.55)
+			pared_tex, Color(0.70, 0.74, 0.86), -0.55, float(k[3]))
 		cascote.rotation_degrees.y = 45.0 + float(k[0]) * 19.0
 	# ROCAS: la textura de rocas.glb es la roca de las islas AL SOL, gris clara,
 	# y sin oscurecerla parecían montones de nieve.
@@ -1152,11 +1166,13 @@ func _scenery_cueva() -> void:
 			pos, float(r[2]), self)
 		rocas.rotation_degrees.y = float(r[0]) * 53.0 + float(r[1]) * 17.0
 		_entenebrecer(rocas, Color(0.46, 0.50, 0.62))
-	# ESTALAGMITAS del suelo. NO hay estalactitas colgando: sin techo a la
-	# vista, unos conos flotando por el borde de arriba no se leen como nada.
-	for e in [[-2.2, -5.2, 1.5], [2.0, -5.3, 1.3], [-3.6, 3.6, 1.2],
-			[3.7, 3.5, 1.0]]:
-		_estalagmita(_uw(float(e[0]), float(e[1])), float(e[2]), pared_tex)
+	# ESTALAGMITAS del suelo, cada una con su inclinación. NO hay estalactitas
+	# colgando: sin techo a la vista, unos conos flotando por el borde de arriba
+	# no se leen como nada.
+	for e in [[-2.2, -5.2, 1.5, 5.0], [2.0, -5.3, 1.3, -6.0], [-3.6, 3.6, 1.2, -4.0],
+			[3.7, 3.5, 1.0, 6.0]]:
+		_estalagmita(_uw(float(e[0]), float(e[1])), float(e[2]), pared_tex,
+			float(e[3]))
 	# CRISTALES: la luz del sitio. Los cuatro grandes llevan LUZ DE VERDAD.
 	#
 	# EL DECORADO VA CONTADO Y SEPARADO. Llegó a haber ocho estalagmitas, nueve
@@ -1170,32 +1186,35 @@ func _scenery_cueva() -> void:
 		_cristal(float(c[0]), float(c[1]), float(c[2]), bool(c[3]))
 
 
-## LA BOCA DE LA CUEVA, en lo alto de la pantalla: el hueco entre las dos
-## piezas del muro del fondo. NADA DE MARCO DE PUERTA — la boca de una cueva no
-## tiene forma exacta, así que el contorno lo dibujan piezas de roca de tamaños
-## y vuelcos distintos: el dintel son cuatro bloques a alturas diferentes, las
-## jambas otros cuatro ladeados y abajo un par de cascotes que rompen la línea
-## del suelo. Por aquí entran los clientes de la borda de arriba.
+## LA BOCA DE LA CUEVA, en lo alto de la pantalla: el hueco entre las piezas del
+## muro del fondo. NADA DE MARCO DE PUERTA — la boca de una cueva no tiene forma
+## exacta, así que el contorno lo dibujan piezas de roca de tamaños, fondos y
+## VUELCOS distintos: el dintel son seis bloques ladeados a alturas diferentes,
+## las jambas otras seis y abajo cascotes que rompen la línea del suelo. Por
+## aquí entran los clientes de la borda de arriba.
 func _entrada_cueva(pared_tex: Texture2D) -> void:
-	# Dintel a trozos: cada bloque arranca a su altura y el canto de abajo sale
-	# dentado en vez de recto.
-	for d in [[-1.35, 1.34, 1.5], [-0.35, 1.66, 1.1], [0.55, 1.42, 1.0],
-			[1.45, 1.18, 1.3]]:
-		_muro_cueva(float(d[0]), -7.7, Vector3(float(d[2]), 6.0, 2.6),
-			pared_tex, Color(0.78, 0.82, 0.94), float(d[1]))
-	# Jambas: pilastras ladeadas, dos por lado y a distinta profundidad.
-	for j in [[-2.05, -6.35, 0.85, 2.7, 6.0], [-1.72, -5.95, 0.5, 1.7, -9.0],
-			[2.10, -6.35, 0.9, 2.5, -7.0], [1.78, -5.95, 0.45, 1.5, 8.0]]:
-		var jamba := _muro_cueva(float(j[0]), float(j[1]),
+	# Dintel a trozos: cada bloque arranca a su altura, con su vuelco y a su
+	# profundidad, así que el canto de abajo sale dentado y no escalonado.
+	for d in [[-1.20, 0.72, 0.8, -7.7, 11.0], [-0.72, 1.24, 0.65, -7.4, -7.0],
+			[-0.24, 1.62, 0.7, -7.8, 5.0], [0.26, 1.55, 0.65, -7.5, -9.0],
+			[0.74, 1.16, 0.7, -7.9, 8.0], [1.22, 0.66, 0.8, -7.5, -12.0]]:
+		_muro_cueva(float(d[0]), float(d[3]),
+			Vector3(float(d[2]), 6.0, 2.6), pared_tex,
+			Color(0.78, 0.82, 0.94), float(d[1]), float(d[4]))
+	# Jambas: pilastras ladeadas, tres por lado y a distinta profundidad.
+	for j in [[-1.70, -6.35, 0.95, 2.4, 8.0], [-1.48, -5.95, 0.6, 1.5, -9.0],
+			[-1.62, -7.0, 0.8, 2.0, 5.0],
+			[1.74, -6.35, 1.0, 2.2, -9.0], [1.52, -5.95, 0.55, 1.35, 8.0],
+			[1.66, -7.0, 0.7, 1.8, -6.0]]:
+		_muro_cueva(float(j[0]), float(j[1]),
 			Vector3(float(j[2]), float(j[3]), 1.0), pared_tex,
-			Color(0.72, 0.76, 0.88))
-		jamba.rotation_degrees.z = float(j[4])
-	# Y dos cascotes al pie, que quitan la recta del suelo de la boca.
-	for k in [[-1.55, -6.15, 0.95, 1.25], [-0.55, -6.25, 0.62, 0.42],
-			[1.42, -6.18, 0.85, 1.05], [0.58, -6.3, 0.55, 0.34]]:
+			Color(0.72, 0.76, 0.88), -0.6, float(j[4]))
+	# Y cascotes al pie, que quitan la recta del suelo de la boca.
+	for k in [[-1.18, -6.15, 0.75, 1.05, 10.0], [-0.42, -6.25, 0.5, 0.40, -7.0],
+			[1.10, -6.18, 0.68, 0.88, -11.0], [0.45, -6.3, 0.45, 0.32, 8.0]]:
 		_muro_cueva(float(k[0]), float(k[1]),
 			Vector3(float(k[2]), float(k[3]), 0.7), pared_tex,
-			Color(0.66, 0.70, 0.82))
+			Color(0.66, 0.70, 0.82), -0.55, float(k[4]))
 	# EL PASADIZO: suelo oscuro y paredes que se cierran detrás del hueco, para
 	# que por la boca se vea un túnel y no el mismo suelo de fuera.
 	_muro_cueva(0.0, -11.0, Vector3(5.2, 0.14, 7.0), pared_tex,
@@ -1203,33 +1222,36 @@ func _entrada_cueva(pared_tex: Texture2D) -> void:
 	for lado in [-1.0, 1.0]:
 		_muro_cueva(lado * 3.1, -11.0, Vector3(1.6, 6.0, 7.0), pared_tex,
 			Color(0.14, 0.16, 0.21))
-	# LA LUZ DEL DÍA, al fondo de la garganta: una tarjeta plana con el shader
-	# del portal (ver shaders/portal_cueva.gdshader). Se ve a través del hueco
-	# irregular, así que lo que se lee no es un rectángulo sino la silueta rota
-	# de la boca.
+	# LA LUZ DEL DÍA: una tarjeta plana con el shader del portal (ver
+	# `shaders/portal_cueva.gdshader`). Va JUSTO DETRÁS de la boca, no al fondo
+	# del túnel: cuanto más atrás, menos se ve por el hueco y más parece niebla.
 	var tarjeta := MeshInstance3D.new()
 	var quad := QuadMesh.new()
-	quad.size = Vector2(4.8, 2.4)
+	quad.size = Vector2(3.0, 2.3)
 	tarjeta.mesh = quad
-	tarjeta.position = _uw(0.0, -7.3) + Vector3(0.0, 0.55, 0.0)
+	tarjeta.position = _uw(0.0, -6.85) + Vector3(0.0, 0.55, 0.0)
 	tarjeta.rotation_degrees.y = 45.0
 	var mat_p := ShaderMaterial.new()
 	mat_p.shader = load("res://shaders/portal_cueva.gdshader")
-	mat_p.set_shader_parameter("fuerza", 0.50)
+	mat_p.set_shader_parameter("fuerza", 0.70)
 	mat_p.set_shader_parameter("borde", 0.50)
 	tarjeta.material_override = mat_p
 	tarjeta.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(tarjeta)
-	# Y su luz fría, la única que en esta cueva no es verde. Va CORTA: sin
-	# sombras, una luz de rango largo atraviesa el muro y encendía el suelo de
-	# lado a lado en vez de solo ante la boca.
-	var dia := OmniLight3D.new()
-	dia.position = _uw(0.0, -8.2) + Vector3(0.0, 1.1, 0.0)
-	dia.light_color = Color(0.62, 0.78, 0.98)
-	dia.light_energy = 2.6
-	dia.omni_range = 5.8
-	dia.shadow_enabled = false
-	add_child(dia)
+	# Y SU LUZ, que no se queda en la boca: ALUMBRA la cueva. Son DOS focos
+	# fríos —uno en el umbral y otro ya dentro, más suave y de más alcance—,
+	# los únicos que en esta cueva no son verdes. Van sin sombras, como todo el
+	# juego, así que el de dentro se coloca por delante del muro para que no lo
+	# atraviese y encienda el suelo de lado a lado.
+	for l in [[-6.2, 1.15, 2.6, 6.0], [-4.2, 1.6, 1.9, 9.5]]:
+		var dia := OmniLight3D.new()
+		dia.position = _uw(0.0, float(l[0])) + Vector3(0.0, float(l[1]), 0.0)
+		dia.light_color = Color(0.62, 0.78, 0.98)
+		dia.light_energy = float(l[2])
+		dia.omni_range = float(l[3])
+		dia.omni_attenuation = 1.1
+		dia.shadow_enabled = false
+		add_child(dia)
 
 
 ## Material de piedra texturizada TRIPLANAR: el mapeado cae por las tres caras
@@ -1264,10 +1286,11 @@ func _cyl_tex(r_top: float, r_bottom: float, alto: float, pos: Vector3,
 	return mi
 
 
-## Un cono de piedra texturizada: una estalagmita del suelo. Tuvo un modo
-## `colgante` para las ESTALACTITAS y se fue con ellas: colgadas de un techo
-## que esta cámara no enseña, eran conos flotando en el borde de arriba.
-func _estalagmita(pos: Vector3, alto: float, tex: Texture2D) -> void:
+## Un cono de piedra texturizada: una estalagmita del suelo, con su vuelco
+## (`tilt`) para que no salgan todas a plomo. Tuvo un modo `colgante` para
+## las ESTALACTITAS y se fue con ellas: colgadas de un techo que esta cámara
+## no enseña, eran conos flotando en el borde de arriba.
+func _estalagmita(pos: Vector3, alto: float, tex: Texture2D, tilt := 0.0) -> void:
 	var mi := MeshInstance3D.new()
 	var cono := CylinderMesh.new()
 	cono.top_radius = 0.03
@@ -1276,6 +1299,7 @@ func _estalagmita(pos: Vector3, alto: float, tex: Texture2D) -> void:
 	cono.radial_segments = 7
 	mi.mesh = cono
 	mi.position = pos + Vector3(0.0, alto * 0.5 - 0.05, 0.0)
+	mi.rotation_degrees = Vector3(tilt * 0.6, pos.x * 37.0, tilt)
 	mi.material_override = _mat_piedra(tex, Color(0.62, 0.66, 0.76), 1.15)
 	add_child(mi)
 

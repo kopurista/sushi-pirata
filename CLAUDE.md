@@ -147,24 +147,34 @@ que cada tipo tenga SU dificultad como la isla tiene su carta cerrada):
     los clientes de la borda de arriba (`ENTRY` cae en u=0), así que salen de
     la cueva por su boca en vez de brotar del suelo.
     · **NADA DE MARCO DE PUERTA**: la boca de una cueva no tiene forma exacta,
-      así que el contorno lo dibujan PIEZAS SUELTAS de roca a tamaños y vuelcos
-      distintos — el dintel son cuatro bloques a alturas diferentes, las jambas
-      cuatro pilastras ladeadas y al pie unos cascotes que rompen la línea del
-      suelo. La primera versión era un rectángulo perfecto y se leía como una
-      puerta.
+      así que el contorno lo dibujan PIEZAS SUELTAS de roca a tamaños, fondos y
+      VUELCOS distintos — el dintel son seis bloques en ARCO (los de los lados
+      bajan, los del centro suben), las jambas seis pilastras ladeadas a tres
+      profundidades y al pie unos cascotes que rompen la línea del suelo. Los
+      muros del fondo y los laterales van por el mismo camino: en trozos
+      desiguales que se SOLAPAN, con vuelcos de 1 a 3 grados.
+    · **EL HUECO MIDE 2,6 u, no 3,6**: con el ancho de antes el vano salía de
+      270×67 px —más del cuádruple de ancho que de alto— y por muy dentada que
+      fuera la roca se leía como una banda. Estrechándolo se lee como una boca.
+    · **Y EL VUELCO DE LAS PIEZAS TIENE TECHO**: a 7-14 grados y sin solaparse,
+      la pared dejaba de ser pared y pasaba a ser un montón de plaquetas
+      sueltas flotando. La roca rota se hace con piezas ANCHAS que se pisan
+      unas a otras y se ladean poco.
     · **LA LUZ QUE ENTRA es una TARJETA DE PORTAL** (`shaders/
       portal_cueva.gdshader`, en la línea del "Portal Card (N64 Entrance)" de
       godotshaders): un plano sin sombrear metido en la garganta del túnel, que
       se ve a través del hueco irregular. El original resuelve el borde leyendo
       la PROFUNDIDAD de pantalla y este juego va en COMPATIBILITY, que no sirve
       esa textura: el borde se funde con la propia UV, que para una boca fija
-      da lo mismo. **Va a media asta (`fuerza` 0.5) y con el degradado hacia
-      ABAJO**: a plena fuerza llenaba el hueco de un gris uniforme y se leía
-      como niebla. Lo que de verdad dice "entra luz" no es la tarjeta, es el
-      CHARCO que su luz fría deja en el suelo de delante.
-    · Esa luz fría es la única que no es verde. Va CORTA (rango 5.8): sin
-      sombras, una luz de rango largo atraviesa el muro y encendía el suelo de
-      lado a lado.
+      da lo mismo. **Va a media asta y con el degradado hacia ABAJO**: a plena
+      fuerza llenaba el hueco de un gris uniforme y se leía como niebla. Y va
+      JUSTO DETRÁS DE LA BOCA (w = -6.85), no al fondo del túnel: cuanto más
+      atrás, menos se ve por el hueco.
+    · **Y ESA LUZ SALE DE LA BOCA Y ALUMBRA LA CUEVA**: son DOS focos fríos
+      —uno en el umbral y otro ya dentro, más suave y de más alcance—, los
+      únicos que aquí no son verdes. El de dentro va por delante del muro a
+      propósito: sin sombras, una luz de rango largo lo atraviesa y enciende el
+      suelo de lado a lado.
   · **Texturas propias en `assets/props`**, dibujadas por código
     (`tools/cave_textures.py`, ruido de valor periódico): `piedra_cueva.webp`
     (moteado suave, suelo) y `pared_cueva.webp` (estratos horizontales, muros;
@@ -217,6 +227,15 @@ que cada tipo tenga SU dificultad como la isla tiene su carta cerrada):
     base. NADA de rompiente ni de bajío: el plano del mar es opaco, así que
     lo que quede bajo y=0 no se ve, y el aro claro a ras de agua que se probó
     rodeaba la roca con una fuente blanca.
+  · **LA BOCA DEL PEÑASCO SE ENSOMBRECE A MANO** (`BOCA_U/W/Y`, `_base_cueva`):
+    el modelo trae su entrada tallada en la cara delantera, pero a ese tamaño
+    se perdía entre la roca. Lleva encima una tarjeta oscura de canto fundido
+    —el MISMO shader que ilumina la boca dentro del nivel, aquí en negro— que
+    la oscurece hacia dentro y la hace leerse como un agujero. **Su sitio va en
+    coordenadas de PANTALLA (u, w, y), no en x/y/z de mundo**: puesta con un
+    offset de mundo "hacia delante" que en realidad era puro lateral, la
+    tarjeta se quedaba DENTRO del peñasco y no se veía. Se localiza pintándola
+    de magenta y midiendo la captura.
   · **EN EL MAPA VA MUY APARTE**: sola, centrada y POR ENCIMA del lienzo
     (`MAP_POS` con y **negativa**, −700), a 1.068 px del escenario 19 — casi
     siete veces el paso normal. La distancia no es estética: es la que hace
@@ -2443,6 +2462,20 @@ fondo de prep_screen/tienda/inventario (`scene_backdrop`). El
 - **EL OLEAJE ES DESPLAZAMIENTO DE VÉRTICE**: los planos del mar necesitan
   `subdivide_width/depth` (48 el mapa, 36 el nivel, 40 los fondos) o no se
   mueve nada — un PlaneMesh a pelo son dos triángulos.
+- **SE PROBÓ TAMBIÉN EL "TOON WATER SHADER"** (`shaders/water_toon.gdshader`,
+  port del de godotshaders/Erik Roystan Ross, con sus dos ruidos en
+  `tools/toon_water_tex.py`). Se queda EN EL BANCO, no en el juego, y por dos
+  motivos MEDIDOS:
+  · **Cuesta más, no menos**: 0,6–1,4 ms/fotograma contra los 0,29 del Wind
+    Waker (misma sonda, mismo mapa). Lee la PROFUNDIDAD de pantalla, que es
+    justo lo caro en un móvil.
+  · **Y aquí su gracia principal no se ve: este mar NO TIENE FONDO.** El
+    shader colorea el agua por lo hondo que esté lo que hay debajo y pinta
+    espuma donde algo corta la superficie; sin lecho marino el degradado sale
+    plano y la orla de espuma acaba pintando de blanco toda la roca sumergida
+    de cada isla.
+  Cambiarlo es tocar dos líneas en `_setup_sea` (están comentadas ahí), así
+  que el experimento se puede repetir sin rehacer nada.
 
 
 ## Convenciones y decisiones ya tomadas (NO reintroducir bugs resueltos)

@@ -61,6 +61,13 @@ const KIND_MODELS := {
 	"cueva": "res://assets/models/map_cueva.glb",
 }
 const KIND_FOOT := { "isla": 2.6, "puerto": 2.9, "abordaje": 2.5, "cueva": 2.7 }
+## Sitio y tamaño de la sombra de la boca de la cueva, en fracciones de su
+## huella (medido sobre captura, ver `_base_cueva`).
+const BOCA_U := -0.21
+const BOCA_W := 0.65
+const BOCA_Y := 0.46
+const BOCA_ANCHO := 0.38
+const BOCA_ALTO := 0.28
 const SHIP_FOOT := 2.3
 ## Orientación base del barco (navega hacia la parte alta del mapa).
 const SHIP_YAW := 205.0
@@ -198,6 +205,12 @@ func _setup_sea() -> void:
 	var hasta := maxf(CampaignData.MAP_HEIGHT, SEA_BOTTOM_PX)
 	mi.position = D_HAT * ((hasta * 0.5 + 640.0) / PPU_Y)
 	var mat := ShaderMaterial.new()
+	# EL MAR VA CON `water_ww.gdshader`. Se probó también el "Toon Water Shader"
+	# (`shaders/water_toon.gdshader`, aquí es cambiar estas dos líneas) y se
+	# MIDIÓ: cuesta el doble o el triple —lee la profundidad de pantalla— y
+	# encima aquí su gracia principal no se ve, porque este mar NO TIENE FONDO:
+	# sin nada debajo, el degradado por profundidad sale plano y la orla de
+	# espuma pinta de blanco toda la roca sumergida de cada isla.
 	mat.shader = load("res://shaders/water_ww.gdshader")
 	mat.set_shader_parameter("espuma", load("res://assets/map/espuma_ww.webp"))
 	# Una baldosa de espuma cada ~2.5 u de mundo, aquí y en las otras dos
@@ -296,6 +309,27 @@ func _base_cueva(pos: Vector3, foot: float) -> Node3D:
 		0.48, 6, -27.0, tex, Color(0.48, 0.51, 0.61))
 	_roca_facetada(pivot, atras * 0.52 + Vector3(0.0, 0.16, 0.0), foot * 0.56,
 		0.38, 9, 41.0, tex, Color(0.57, 0.60, 0.71))
+	# LA BOCA DE LA CUEVA, ENSOMBRECIDA: el modelo trae su entrada tallada en la
+	# cara delantera, pero a este tamaño se pierde entre la roca. Una tarjeta
+	# oscura de canto fundido (el mismo shader que ilumina la boca DENTRO del
+	# nivel, aquí en negro) la va oscureciendo hacia dentro y la hace leerse
+	# como un agujero. Va mirando a la cámara, como todo en este mapa.
+	var boca := MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	quad.size = Vector2(foot * BOCA_ANCHO, foot * BOCA_ALTO)
+	boca.mesh = quad
+	boca.position = R_HAT * (BOCA_U * foot) + D_HAT * (BOCA_W * foot) \
+		+ Vector3(0.0, BOCA_Y * foot, 0.0)
+	boca.rotation_degrees = Vector3(0.0, 45.0, 0.0)
+	var mat_b := ShaderMaterial.new()
+	mat_b.shader = load("res://shaders/portal_cueva.gdshader")
+	mat_b.set_shader_parameter("color", Color(0.02, 0.03, 0.05))
+	mat_b.set_shader_parameter("fuerza", 0.92)
+	mat_b.set_shader_parameter("borde", 0.62)
+	mat_b.set_shader_parameter("latido", 0.0)
+	boca.material_override = mat_b
+	boca.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	pivot.add_child(boca)
 	# Pedruscos del canto: son los que quitan del todo la silueta de disco.
 	# Sin pedruscos en la cara DELANTERA (la de la boca): hacían de tapón.
 	var puntos := [2.35, 3.05, 3.60, 4.30, 4.95, 5.60]
