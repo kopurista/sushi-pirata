@@ -625,8 +625,12 @@ func _ready() -> void:
 		var toca_contadores: bool = not GameState.skill_counters_intro_done \
 				and not GameState.is_tutorial() \
 				and not GameState.skills.is_empty()
+		# Y un puerto con CLIENTE DEL TESORO monta director SIEMPRE, narrado o
+		# no: es quien canta el encargo al sentarse, y sin esa frase la pieza
+		# saldría por cumplir una condición que nadie ha dicho en voz alta.
+		var hay_tesoro: bool = not (port.get("collectible_client", {}) as Dictionary).is_empty()
 		if (str(port.get("director", "")) != "" \
-				and (not ya_narrado or boss_id != "")) or toca_contadores:
+				and (not ya_narrado or boss_id != "")) or toca_contadores or hay_tesoro:
 			var guia := preload("res://scripts/level_director.gd").new()
 			guia.name = "LevelDirector"
 			add_child.call_deferred(guia)
@@ -2851,13 +2855,102 @@ func _check_treasure() -> void:
 	if treasure_given or treasure_client == null \
 			or not is_instance_valid(treasure_client):
 		return
-	var piden := int(collectible_client.get("plates", 3))
-	if treasure_client.eaten_ids.size() < piden:
+	if not _reto_cumplido():
+		return
+	_entregar_tesoro()
+
+
+## ¿Ha cumplido el cliente del tesoro lo que pedía? Sin `reto` en el puerto es
+## "N platos", que es como funcionaba antes de que existieran los encargos.
+## `hasta_el_final` NO se mira aquí: ese se resuelve al cerrar el turno.
+func _reto_cumplido() -> bool:
+	var cfg := collectible_client
+	var reto := str(cfg.get("reto", "platos"))
+	var n := int(cfg.get("n", cfg.get("plates", 3)))
+	var comidos: Array = treasure_client.eaten_ids
+	match reto:
+		"distintos":
+			var vistos := {}
+			for id in comidos:
+				vistos[id] = true
+			return vistos.size() >= n
+		"mismo":
+			var cuenta := {}
+			for id in comidos:
+				cuenta[id] = int(cuenta.get(id, 0)) + 1
+				if int(cuenta[id]) >= n:
+					return true
+			return false
+		"receta":
+			return str(cfg.get("recipe", "")) in comidos
+		"postre_solo":
+			# Su ÚNICO plato tiene que ser un postre: en cuanto le entra otra
+			# cosa, el encargo se pierde para esta jornada.
+			return comidos.size() == 1 and _es_postre(str(comidos[0]))
+		"platos_y_postre":
+			var principales := 0
+			var postre := false
+			for id in comidos:
+				if _es_postre(str(id)):
+					postre = true
+				elif not _es_picoteo(str(id)):
+					principales += 1
+			return postre and principales >= n
+		"picoteos":
+			return _contar_picoteos(comidos) >= n
+		"picoteos_sin_plato":
+			# Los picoteos tienen que ir ANTES de cualquier plato: en cuanto
+			# aparece uno que no lo es, se corta la cuenta.
+			var picos := 0
+			for id in comidos:
+				if not _es_picoteo(str(id)):
+					break
+				picos += 1
+			return picos >= n
+		_:
+			return comidos.size() >= n
+
+
+func _es_postre(id: String) -> bool:
+	var r: Dictionary = RecipeData.RECIPES.get(id, {})
+	return bool(r.get("leaves_seat", false)) or bool(r.get("tip_always", false))
+
+
+func _es_picoteo(id: String) -> bool:
+	return bool(RecipeData.RECIPES.get(id, {}).get("snack", false))
+
+
+func _contar_picoteos(ids: Array) -> int:
+	var n := 0
+	for id in ids:
+		if _es_picoteo(str(id)):
+			n += 1
+	return n
+
+
+## Suelta la pieza. La anuncia `unlock_collectible` por la capa global de
+## avisos, que ya sabe esperar a que el árbol esté en un momento razonable.
+func _entregar_tesoro() -> void:
+	if treasure_given:
 		return
 	treasure_given = true
 	var pieza := str(collectible_client.get("item", ""))
 	if pieza != "":
 		GameState.unlock_collectible(pieza)
+
+
+## El reto `hasta_el_final` se resuelve al CERRAR el turno: pide que el cliente
+## siga sentado, así que no se puede comprobar antes de que se acabe.
+func _check_treasure_al_cerrar() -> void:
+	if treasure_given or collectible_client.is_empty():
+		return
+	if str(collectible_client.get("reto", "platos")) != "hasta_el_final":
+		return
+	if treasure_client == null or not is_instance_valid(treasure_client):
+		return
+	if not treasure_client in seat_clients:
+		return
+	_entregar_tesoro()
 
 
 ## DINERO BASE: solo el precio de los platos. Es lo que marca el contador del
@@ -3714,6 +3807,9 @@ func _end_level() -> void:
 	if GameState.is_tutorial():
 		return
 	ended = true
+	# El encargo de "que siga sentado cuando acabe el turno" solo se puede
+	# resolver AQUÍ, y antes de que la barra se vacíe.
+	_check_treasure_al_cerrar()
 	# Se acabo: ya no hay nada que abandonar, manda el panel de resultados.
 	if exit_button != null:
 		exit_button.visible = false

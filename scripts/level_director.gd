@@ -50,6 +50,10 @@ func _run() -> void:
 	# Va lo PRIMERO, antes del guion del escenario, porque señala una chapa del
 	# HUD que ya está en pantalla desde el primer fotograma.
 	await _explicar_contadores()
+	# EL CLIENTE DEL TESORO canta su encargo en cuanto se sienta, lo lleve el
+	# escenario que lo lleve. Va SIN `await`: es un vigía que se queda mirando,
+	# no un paso del guion.
+	_vigilar_tesoro()
 	# Un escenario sin guion propio monta el director SOLO para lo de arriba.
 	if guion == "":
 		return
@@ -1241,7 +1245,44 @@ func _nivel_12() -> void:
 # Rada de los Dos Fuegos: el AYUDANTE DE COCINA. Aquí se presenta y desde aquí
 # se puede ganar (`unlocks_perk` del puerto).
 
-## LOS CONTADORES DE MAESTRIA del HUD, explicados UNA vez en toda la partida.
+## EL CLIENTE DEL TESORO ANUNCIA SU ENCARGO. Vigila hasta que se sienta y
+## entonces le pone el FOCO encima y David canta lo que pide, tal cual lo dice
+## `CampaignData.reto_texto`. Sin esto, la pieza salia sola al cumplir una
+## condicion que nadie habia dicho en voz alta, y eso no es un reto: es un
+## premio por casualidad.
+##
+## No bloquea: se lanza y se queda mirando, como `_vigilar_basura`.
+func _vigilar_tesoro() -> void:
+	if lv == null or lv.collectible_client.is_empty():
+		return
+	var cfg: Dictionary = lv.collectible_client
+	while not lv.ended and is_inside_tree():
+		await get_tree().process_frame
+		if lv.treasure_client == null or not is_instance_valid(lv.treasure_client):
+			continue
+		if not lv.treasure_client in lv.seat_clients:
+			continue
+		if dialog.is_talking():
+			continue
+		break
+	if lv == null or not is_instance_valid(lv) or lv.ended:
+		return
+	await _pausa(0.9)
+	if lv.ended or lv.treasure_client == null 			or not is_instance_valid(lv.treasure_client):
+		return
+	var quien := DialogueBox.speaker_for(
+		str(lv.treasure_client.client_type), str(lv.treasure_client.gender))
+	_focus_client(lv.treasure_client)
+	await _say([
+		{ "text": "Ese de ahí no ha venido a pagar en oro. Trae algo mejor en el zurrón.", "mood": "hablando" },
+		{ "text": "Cúmpleme el capricho y es tuyo. Si no, me lo llevo por donde he venido.", "who": quien, "mood": "serio" },
+		{ "text": "Ya lo has oído, %s: **%s**." % [GameState.player_title(),
+			CampaignData.reto_texto(cfg)], "mood": "serio" },
+	])
+	_play("Encargo: **%s**." % CampaignData.reto_texto(cfg))
+
+
+## LOS CONTADORES DE MAESTRÍA del HUD, explicados UNA vez en toda la partida.
 ## Se llama al principio de todo guion y no hace nada si no toca: si el jugador
 ## no lleva ninguna habilidad de "cada N platos", si ya se le explico, o si es
 ## el tutorial (ahi todo va en neutro).
@@ -1257,12 +1298,12 @@ func _explicar_contadores() -> void:
 		return
 	# El foco va DESPUES de `_play`, que llama a `_clear_focus`.
 	await _say([
-		{ "text": "Un momento antes de empezar. Eso de ahi arriba es nuevo.", "mood": "hablando" },
+		{ "text": "Un momento antes de empezar. Eso de ahí arriba es nuevo.", "mood": "hablando" },
 	])
 	_focus_node(lv.skill_counter_row, 16.0)
 	await _say([
-		{ "text": "Tus **maestrias** de cocinero no van a suerte: van a **cuenta**. Cada una te avisa de cuantos platos faltan para su premio.", "mood": "serio" },
-		{ "text": "Cuando una llega a cero, el **siguiente plato que hagas a mano** se lleva lo suyo. Tu decides cual.", "mood": "feliz" },
+		{ "text": "Tus **maestrías** de cocinero no van a suerte: van a **cuenta**. Cada una te avisa de cuántos platos faltan para su premio.", "mood": "serio" },
+		{ "text": "Cuando una llega a cero, el **siguiente plato que hagas a mano** se lleva lo suyo. Tú decides cuál.", "mood": "feliz" },
 		{ "text": "¡PUES MIRA EL NUMERITO, GRUMETE! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
 	])
 	_play()

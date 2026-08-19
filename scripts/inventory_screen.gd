@@ -679,10 +679,31 @@ func _collection_card(it: Dictionary) -> Control:
 	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(name_l)
 
-	if owned:
+	# UNA PIEZA QUE SE ESCAPO NO SE QUEDA EN MISTERIO. Si su escenario ya esta
+	# superado, la ficha se puede abrir para leer DONDE sale y QUE pide su
+	# cliente: el jugador vio al tipo del tesoro, oyo el encargo y no lo cumplio,
+	# asi que esconderselo despues solo seria castigarle dos veces.
+	if owned or _pista_coleccionable(id) != "":
 		card.pressed.connect(_open_collectible_sheet.bind(id))
 		PrepBoard.add_press_feedback(card, 0.92)
 	return card
+
+
+## Pista de una pieza NO conseguida: el escenario donde sale y el encargo que
+## pide, con el `reto` tal y como lo canta David. "" si no la da ningun cliente
+## del tesoro o si su escenario aun no se ha superado.
+func _pista_coleccionable(id: String) -> String:
+	if GameState.has_collectible(id):
+		return ""
+	var port_id := CampaignData.port_for_collectible(id)
+	if port_id == "" or not GameState.port_beaten(port_id):
+		return ""
+	var port := CampaignData.get_port(port_id)
+	var n := CampaignData.PORTS.find(port) + 1
+	return "Lo trae un cliente del escenario %d, **%s**.
+Para que lo suelte, %s." % [
+		n, str(port.get("name", "")),
+		CampaignData.reto_texto(port.get("collectible_client", {}))]
 
 
 ## Ficha de un coleccionable YA conseguido: dibujo grande, nombre y cómo se
@@ -720,6 +741,10 @@ func _open_collectible_sheet(id: String) -> void:
 	ic.texture = CollectibleData.get_icon(id)
 	ic.position = Vector2((pw - 220.0) * 0.5, 52.0)
 	ic.size = Vector2(220, 220)
+	# Sin conseguir sigue en SILUETA: la ficha dice como sacarla, no la desvela.
+	var tengo := GameState.has_collectible(id)
+	if not tengo:
+		ic.modulate = Color(0.12, 0.09, 0.07, 0.85)
 	panel.add_child(ic)
 
 	var name_l := Label.new()
@@ -733,7 +758,7 @@ func _open_collectible_sheet(id: String) -> void:
 	panel.add_child(name_l)
 
 	var desc := Label.new()
-	desc.text = CollectibleData.describe(id)
+	desc.text = CollectibleData.describe(id) if tengo else _pista_coleccionable(id)
 	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc.add_theme_font_size_override("font_size", 21)

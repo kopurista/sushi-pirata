@@ -149,6 +149,51 @@ const INITIAL_RECIPES: Array = ["maki_aguacate"]
 ## regale David después. Poner cifras aquí sumaba encima de ese regalo.
 const INITIAL_INGREDIENTS: Dictionary = {}
 
+## RETOS DEL CLIENTE CON TESORO. Un `collectible_client` puede pedir algo mas
+## que "N platos": lo que pide va en su campo `reto`, y con el la pieza deja de
+## ser un peaje y pasa a ser un ENCARGO que hay que leer y resolver con la
+## carta que se llevo.
+##
+## El texto es el que canta David al sentarse el cliente Y el que se queda en
+## la ficha de la vitrina, para que quien no lo consiguiera sepa a que volver.
+## `%d` se rellena con `n` y `%s` con el nombre de la receta de `recipe`.
+const RETO_TEXTOS := {
+	"platos": "sírvele **%d platos**",
+	"distintos": "sírvele **%d platos DISTINTOS**",
+	"mismo": "sírvele **%d veces el MISMO plato**",
+	"receta": "sírvele un **%s**",
+	"postre_solo": "que su ÚNICO plato sea un **postre**",
+	"platos_y_postre": "sírvele **%d platos** y ciérralo con un **postre**",
+	"picoteos": "sírvele **%d picoteos**",
+	"picoteos_sin_plato": "sírvele **%d picoteos** ANTES de darle ningún plato",
+	"hasta_el_final": "que siga sentado cuando acabe el turno",
+}
+
+
+## Frase del reto de ese cliente, ya rellena. Sin `reto` cae en "platos", que
+## es como funcionaba antes de que existieran los encargos.
+static func reto_texto(cfg: Dictionary) -> String:
+	var reto := str(cfg.get("reto", "platos"))
+	var plantilla := str(RETO_TEXTOS.get(reto, RETO_TEXTOS["platos"]))
+	if plantilla.contains("%s"):
+		var id := str(cfg.get("recipe", ""))
+		var nombre := str(RecipeData.RECIPES.get(id, {}).get("name", id))
+		return plantilla % nombre
+	if plantilla.contains("%d"):
+		return plantilla % int(cfg.get("n", cfg.get("plates", 3)))
+	return plantilla
+
+
+## El puerto que reparte ese coleccionable, o "" si no lo da ninguno. Lo usa la
+## vitrina para decir DONDE se consigue una pieza que aun no se tiene.
+static func port_for_collectible(item: String) -> String:
+	for p in PORTS:
+		var cfg: Dictionary = p.get("collectible_client", {})
+		if str(cfg.get("item", "")) == item:
+			return str(p["id"])
+	return ""
+
+
 const PORTS: Array = [
 	{
 		"id": "nivel_1",
