@@ -582,7 +582,9 @@ COLLECTIBLES = [
     "perla_negra", "bala_canon", "moneda_azteca", "naranja", "tirachinas",
     "sarten", "pendientes_espadachin", "grog", "mono_tres_cabezas",
     "lista_insultos", "semilla_dorada", "reloj_arena", "mascara_zora",
-    "saco_cafe",
+    "saco_cafe", "gafas_nerd", "tentaculo_purpura", "peluche_morsa",
+    "foto_christine", "escudo_antiguo", "huevo_montana", "esfera_tesoro",
+    "colgante_cielos",
 ]
 
 

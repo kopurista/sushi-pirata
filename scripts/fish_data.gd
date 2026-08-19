@@ -336,13 +336,33 @@ const CHEST_COINS_HIGH := Vector2i(126, 150)
 const CHEST_COINS_HIGH_CHANCE := 0.3
 const RECIPE_FALLBACK := 230
 
-## Coleccionables que se pueden PESCAR: la botella (su mecánica prometida) y
-## lo que uno se imagina dragando el fondo del mar. Lo que huele a tierra
-## firme (tricornio, pistola, sartén...) queda para mecánicas futuras.
+## Coleccionables que se pueden PESCAR. Son DOS familias (ver la regla de
+## diseño en la cabecera de `collectible_data.gd`):
+## · TODO lo que REFERENCIA otra obra — Zelda, One Piece, Monkey Island, Day
+##   of the Tentacle, Piratas del Caribe, El Planeta del Tesoro, Laputa. El
+##   cofre del mar es SU vía. Quedan fuera el sombrero de paja (tiene su
+##   escena con el grumete) y la Tripuerca (llega en fragmentos, "triforce").
+## · Lo que uno DRAGA del fondo del mar aunque sea pirata genérico: botella,
+##   ancla, calavera, hueso, pata de palo, tentáculo, garfio, brújula,
+##   catalejo y bala de cañón. El resto de piratas (tricornio, pistola,
+##   cañón, barril...) se ganará en aventura o en arcade, no aquí.
 const FISHING_COLLECTIBLES: Array = [
+	# Del fondo del mar.
 	"botella", "ancla", "bala_canon", "calavera", "hueso", "pata_palo",
-	"tentaculo", "perla_negra", "moneda_azteca", "garfio", "brujula",
-	"catalejo", "grog", "reloj_arena", "mascara_zora",
+	"tentaculo", "garfio", "brujula", "catalejo",
+	# Piratas del Caribe.
+	"perla_negra", "moneda_azteca",
+	# Monkey Island.
+	"grog", "mono_tres_cabezas", "lista_insultos",
+	# Day of the Tentacle.
+	"gafas_nerd", "tentaculo_purpura",
+	# One Piece.
+	"pendientes_espadachin", "naranja", "tirachinas", "sarten",
+	# El Planeta del Tesoro y El castillo en el cielo.
+	"esfera_tesoro", "colgante_cielos",
+	# Zelda.
+	"vela", "semilla_dorada", "reloj_arena", "mascara_zora", "escudo_antiguo",
+	"foto_christine", "peluche_morsa", "huevo_montana",
 ]
 
 

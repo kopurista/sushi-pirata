@@ -640,8 +640,8 @@ func _collection_card(it: Dictionary) -> Control:
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.texture = CollectibleData.get_icon(id)
-	ic.position = Vector2(26, 16)
-	ic.size = Vector2(100, 100)
+	ic.position = Vector2(29, 10)
+	ic.size = Vector2(94, 94)
 	# La silueta OSCURA es la única pista que dan los bloqueados.
 	ic.modulate = Color.WHITE if owned else Color(0.12, 0.09, 0.07, 0.85)
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -663,19 +663,28 @@ func _collection_card(it: Dictionary) -> Control:
 		frag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		card.add_child(frag)
 
+	var nombre := str(it["name"]) if owned else "???"
 	var name_l := Label.new()
-	name_l.text = str(it["name"]) if owned else "???"
+	name_l.text = nombre
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	name_l.add_theme_font_size_override("font_size", 15)
+	# UN NOMBRE LARGO SE ENCOGE EN VEZ DE CORTARSE. "Peluche de un mono con 3
+	# cabezas" pide TRES renglones y la Exo 2 reserva ~1.9x el cuerpo por
+	# línea, así que a 15 el tercero se salía de la tarjeta y se leía
+	# "Peluche de un mono con 3" con la palabra cortada por el canto. Con el
+	# cuerpo menor Y el interlineado negativo (la misma perilla de
+	# `make_big_title`) los tres renglones caben.
+	var largo := nombre.length() > 20
+	name_l.add_theme_font_size_override("font_size", 13 if largo else 15)
+	name_l.add_theme_constant_override("line_spacing", -6)
 	name_l.add_theme_color_override("font_color",
 		Color(0.42, 0.26, 0.10) if owned else Color(0.55, 0.47, 0.36))
 	name_l.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	name_l.offset_left = 10.0
-	name_l.offset_right = -10.0
-	name_l.offset_top = -58.0
-	name_l.offset_bottom = -12.0
+	name_l.offset_left = 8.0
+	name_l.offset_right = -8.0
+	name_l.offset_top = -70.0
+	name_l.offset_bottom = -10.0
 	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(name_l)
 

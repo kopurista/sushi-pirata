@@ -1726,16 +1726,27 @@ primera vez que se entra en ellos (`logros_intro_done` /
     conseguido (nada de un aluvión de toasts al arrancar), pero `claimed`
     queda vacío → todo lo ganado hasta hoy se puede reclamar del tirón.
     Asumido: es el mismo criterio retroactivo de los logros.
-- `scripts/collectible_data.gd` — catálogo de COLECCIONABLES (40, solo datos:
-  id, nombre, `desc` = cómo se consigue, que SOLO se enseña ya conseguido).
+- `scripts/collectible_data.gd` — catálogo de COLECCIONABLES (48, solo datos:
+  id, nombre, `desc` = cómo se consigue o el guiño que lo explica, que SOLO se
+  enseña ya conseguido).
   **El ORDEN de `ITEMS` es el de la vitrina y agrupa por REFERENCIA**: tesoros
   pirata genéricos → Piratas del Caribe (perla negra, moneda azteca) → Monkey
-  Island (grog, mono de tres cabezas, lista de insultos) → One Piece (la banda
-  del sombrero de paja en orden de tripulación: sombrero/Luffy, pendientes de
-  espadachín/Zoro, naranja/Nami, tirachinas/Usopp, sartén/Sanji) → Zelda
-  (vela de Wind Waker, semilla dorada/kolog, reloj de arena/Phantom Hourglass,
-  máscara Zora/Majora y el triángulo dorado cerrando la vitrina). Un
-  coleccionable nuevo entra en SU grupo, no al final.
+  Island (grog, peluche del mono de tres cabezas, lista de insultos) → Day of
+  the Tentacle (gafas de Bernard, tentáculo púrpura) → One Piece (la banda del
+  sombrero de paja en orden de tripulación: sombrero/Luffy, pendientes de
+  espadachín/Zoro, naranja/Nami, tirachinas/Usopp, sartén/Sanji) → El Planeta
+  del Tesoro (esfera) → El castillo en el cielo (colgante) → Zelda (vela de
+  Wind Waker, semilla dorada/kolog, reloj de arena/Phantom Hourglass, máscara
+  de raza marina/Majora, y el bloque de Link's Awakening: escudo, foto de
+  Christine, peluche de morsa y huevo de montaña), con la Tripuerca cerrando
+  la vitrina. Un coleccionable nuevo entra en SU grupo, no al final.
+  **DE DÓNDE SALE CADA COSA** (regla de diseño del usuario, no re-litigar):
+  lo que REFERENCIA otra obra se consigue PESCANDO (el cofre del minijuego),
+  con dos excepciones que ya tienen escena propia — el sombrero de paja (el
+  grumete) y la Tripuerca (sus fragmentos). Los PIRATAS genéricos se ganarán
+  en aventura, arcade o por vías especiales; la excepción son los que uno
+  draga literalmente del fondo (botella, ancla, calavera, hueso, pata de palo,
+  tentáculo, garfio, brújula, catalejo, bala de cañón), que también se pescan.
   No dan ni hacen nada: son para coleccionar (y para el logro "coleccion").
   El desbloqueo va SIEMPRE por `GameState.unlock_collectible(id)`, que anuncia
   con la ventana modal, guarda y repasa logros. Estado en
@@ -1749,12 +1760,14 @@ primera vez que se entra en ellos (`logros_intro_done` /
     `who_override == "grumete_sombrero"` — stat `fed_sombrero`; el personaje
     con sombrero AÚN NO EXISTE, queda para niveles futuros). Los tres de stats
     se comprueban al principio de `_run_achievement_check`.
-  · **Pescables** (`FishData.FISHING_COLLECTIBLES`, 15): la botella y todo lo
-    que uno se imagina dragando el fondo del mar (ancla, bala de cañón,
-    calavera, hueso, pata de palo, tentáculo, perla negra, moneda azteca,
-    garfio, brújula, catalejo, grog, reloj de arena y máscara marina) salen
-    del COFRE del minijuego de PESCA; su `desc` lo cuenta. El repetido paga
-    `FishData.DUP_COINS` (80).
+  · **Pescables** (`FishData.FISHING_COLLECTIBLES`, 31): salen del COFRE del
+    minijuego de PESCA, y son DOS familias — **todas las REFERENCIAS** a otras
+    obras (Zelda, One Piece, Monkey Island, Day of the Tentacle, Piratas del
+    Caribe, El Planeta del Tesoro, Laputa) salvo el sombrero de paja y la
+    Tripuerca, que tienen escena propia; y lo que uno **draga del fondo del
+    mar** aunque sea pirata genérico (botella, ancla, calavera, hueso, pata de
+    palo, tentáculo, garfio, brújula, catalejo, bala de cañón). Su `desc` lo
+    cuenta. El repetido paga `FishData.DUP_COINS` (80).
   · **QUÉ SON los coleccionables se explica UNA VEZ Y CON UNA PIEZA EN LA
     MANO** (`level_director._explicar_coleccionables`, bandera
     `col_intro_done`): la bandera del pirata del nivel 7, el tesoro del cliente

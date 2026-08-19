@@ -7,13 +7,24 @@ class_name CollectibleData
 ## desbloqueos van SIEMPRE por `GameState.unlock_collectible()`, que además
 ## enseña la ventana de anuncio y guarda.
 ##
-## `desc` es CÓMO se consigue: solo se enseña cuando ya está conseguido (los
-## bloqueados van en silueta y sin ninguna pista, a propósito). Los que aún no
-## tienen forma de conseguirse llevan un texto genérico y ningún disparador:
-## quedan bloqueados hasta que su mecánica exista.
-## Los que dicen "cofre pescado" salen del MINIJUEGO DE PESCA
-## (`FishData.FISHING_COLLECTIBLES`): lo que uno se imagina dragando el fondo
-## del mar; lo que huele a tierra firme sigue pendiente de mecánica.
+## `desc` es CÓMO se consigue —o el guiño que lo explica—, y solo se enseña
+## cuando ya está conseguido (los bloqueados van en silueta y sin ninguna
+## pista, a propósito). Los que aún no tienen forma de conseguirse llevan un
+## texto genérico y ningún disparador: quedan bloqueados hasta que su mecánica
+## exista.
+##
+## DE DÓNDE SALE CADA COSA (regla de diseño, decidida por el usuario):
+## · Los que REFERENCIAN otra obra (Zelda, One Piece, Monkey Island, Day of
+##   the Tentacle, Piratas del Caribe, El Planeta del Tesoro, Laputa...) se
+##   consiguen PESCANDO, en el cofre del minijuego
+##   (`FishData.FISHING_COLLECTIBLES`). Excepción: el sombrero de paja, que ya
+##   tiene su escena propia con el grumete, y la Tripuerca, que llega en
+##   fragmentos por ese mismo cofre.
+## · Los PIRATAS genéricos (tricornio, pistola, cañón, barril...) se ganarán
+##   en aventura, en arcade o por vías especiales — de momento la mayoría
+##   sigue sin disparador. La EXCEPCIÓN son los que uno draga literalmente del
+##   fondo del mar (botella, ancla, calavera, hueso, pata de palo, tentáculo,
+##   garfio, brújula, catalejo, bala de cañón): esos también se pescan.
 ##
 ## El TRIÁNGULO DORADO es especial: son TRIFORCE_PIECES fragmentos que se
 ## juntan en UN solo coleccionable; al completarlo se regalan
@@ -92,25 +103,51 @@ const ITEMS: Array = [
 	# --- Monkey Island -------------------------------------------------------
 	{ "id": "grog", "name": "Botella de grog",
 		"desc": "Salió de un cofre pescado en alta mar." },
-	{ "id": "mono_tres_cabezas", "name": "Mono de tres cabezas", "desc": "" },
-	{ "id": "lista_insultos", "name": "Lista de insultos", "desc": "" },
+	{ "id": "mono_tres_cabezas", "name": "Peluche de un mono con 3 cabezas",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "lista_insultos", "name": "Lista de insultos",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- Day of the Tentacle -------------------------------------------------
+	{ "id": "gafas_nerd", "name": "Gafas rotas de nerd",
+		"desc": "Tiene grabado el nombre de Bernard Bernoulli." },
+	{ "id": "tentaculo_purpura", "name": "Tentáculo púrpura radioactivo",
+		"desc": "Sigue templado y brilla en la oscuridad. Juraría que ha parpadeado." },
 	# --- One Piece (la banda del sombrero de paja, en orden de tripulación) --
 	{
 		"id": "sombrero_paja", "name": "Sombrero de paja",
 		"desc": "Regalo del grumete del sombrero de paja: le serviste 20 platos.",
 	},
 	{ "id": "pendientes_espadachin", "name": "Pendientes de espadachín",
-		"desc": "" },
-	{ "id": "naranja", "name": "Naranja robada", "desc": "" },
-	{ "id": "tirachinas", "name": "Tirachinas de mentira", "desc": "" },
-	{ "id": "sarten", "name": "Sartén de cocina", "desc": "" },
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "naranja", "name": "Naranja robada",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "tirachinas", "name": "Tirachinas de mentira",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "sarten", "name": "Sartén de cocina",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- El Planeta del Tesoro -----------------------------------------------
+	{ "id": "esfera_tesoro", "name": "Esfera del tesoro",
+		"desc": "Esta esfera con forma de planeta podría ser un mapa del tesoro." },
+	# --- El castillo en el cielo ---------------------------------------------
+	{ "id": "colgante_cielos", "name": "Colgante de los cielos",
+		"desc": "Parece que este colgante cayó de los cielos hace mucho tiempo." },
 	# --- Zelda (el triángulo cierra la vitrina) ------------------------------
-	{ "id": "vela", "name": "Vela de mascarón", "desc": "" },
-	{ "id": "semilla_dorada", "name": "Semilla dorada", "desc": "" },
+	{ "id": "vela", "name": "Vela de mascarón",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "semilla_dorada", "name": "Semilla dorada",
+		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "reloj_arena", "name": "Reloj de arena",
 		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "mascara_zora", "name": "Máscara de raza marina",
 		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "escudo_antiguo", "name": "Escudo antiguo",
+		"desc": "Por algún motivo tiene tu nombre escrito por detrás." },
+	{ "id": "foto_christine", "name": "Foto de Christine",
+		"desc": "Parece la foto de una antigua princesa." },
+	{ "id": "peluche_morsa", "name": "Peluche de morsa del desierto",
+		"desc": "Una morsa de peluche. Nadie sabe qué hacía tan lejos del mar." },
+	{ "id": "huevo_montana", "name": "Huevo de montaña",
+		"desc": "Ni en mis mejores sueños encontraría un huevo tan grande." },
 	{
 		"id": "trifuerza", "name": "Tripuerca de Oro",
 		"desc": "Reúne los %d fragmentos de la Tripuerca de Oro." % TRIFORCE_PIECES,
