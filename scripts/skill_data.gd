@@ -82,6 +82,19 @@ const FIRST_MULT := 3.0
 ## mar 1 bordado entero deja al cocinero en el nivel 16 clavado.
 const XP_BOSS_MULT := 1.5
 
+## PRIMA POR ORO DE MÁS. Cerrar un escenario pasándose del objetivo paga
+## experiencia extra, y la tarifa sale del propio escenario: si paga X de
+## experiencia y su objetivo son Y monedas, cada moneda vale X/Y. De esa tarifa
+## se cobran DOS TERCIOS, así que pasarse mucho renta, pero nunca tanto como
+## volver a jugarlo mejor.
+##
+## Que la tarifa salga del escenario es lo que la hace CRECER con la campaña:
+## la base de experiencia sube con el número de escenario, así que la misma
+## moneda de más vale cada vez más adelante.
+const XP_EXTRA_FRAC := 2.0 / 3.0
+## Tope de seguridad: la prima no puede pasar de lo que paga el escenario.
+const XP_EXTRA_CAP := 1.0
+
 ## El ARCADE paga por oleada superada: ARCADE_WAVE_XP × número de la oleada.
 ## Baja con la tarifa de los escenarios (estaba en 15, con ellos a 15): dejarlo
 ## arriba habría hecho del arcade la ÚNICA forma sensata de subir de nivel.

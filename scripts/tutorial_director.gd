@@ -136,7 +136,7 @@ func _drenaje_para(pmax: float, t: float) -> float:
 ##    180 se desmoronan delante del jugador — que es exactamente lo que la
 ##    escena tiene que hacerle sentir. (Estuvo CLAVADO por fotograma para que
 ##    la cifra no se moviera; se quitó a propósito.)
-##  · `clients_spawned`/`total_clients` dan el "120/120". El nivel en modo
+##  · `clients_seated`/`total_clients` dan el "120/120". El nivel en modo
 ##    tutorial no termina por clientes (lo cierra este guion), así que subir el
 ##    contador no dispara nada.
 ##  · `timed` + `time_limit` encienden el reloj y lo dejan corriendo de 15 a 0.
@@ -145,7 +145,7 @@ func _drenaje_para(pmax: float, t: float) -> float:
 func _montar_marcador() -> void:
 	lv.money_earned = TEATRO_ORO
 	lv.star_money = [TEATRO_META]
-	lv.clients_spawned = TEATRO_CLIENTES
+	lv.clients_seated = TEATRO_CLIENTES
 	lv.total_clients = TEATRO_CLIENTES
 	lv.timed = true
 	lv.time_limit = TEATRO_RELOJ

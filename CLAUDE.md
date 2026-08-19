@@ -491,8 +491,12 @@ primera vez que se entra en ellos (`logros_intro_done` /
      `level_select3d._guiar_primer_nivel(caja)` (`map_intro_done`) para seguir
      hablando. Cerrar el pergamino y volver a entrar entre las dos era un corte
      a mitad de idea. La segunda tanda arranca señalando el primer puerto
-     ("nuestra primera parada es esa de ahí, una **isla**") y de ahí explica los
-     TRES TIPOS de nivel; NO se menciona ninguna "carta de navegación". Va SIN
+     ("nuestra primera parada es esa de ahí, una **isla**") y explica SOLO LA
+     ISLA: el puerto y el abordaje se cuentan cuando se pisan por primera vez
+     (`level_director._explicar_handicap`, que además de su hándicap presenta
+     ya el TIPO). Tres clases de parada de golpe, antes de haber jugado
+     ninguna, es una lección que no se puede aplicar a nada. NO se menciona
+     ninguna "carta de navegación". Va SIN
      velo ni foco —se ve el mapa entero— y ata al jugador al primer puerto: el
      botón "Atrás" sigue vivo, pero con `_atado_al_puerto` puesto lo que hace es
      sacar a **Gigi** amenazando con echarlo a los tiburones (un botón apagado
@@ -594,9 +598,10 @@ primera vez que se entra en ellos (`logros_intro_done` /
   closure. Costó que no saltara NI UNO de los eventos del nivel: la de fuera
   seguía en null y el guion se daba por fallido en la línea siguiente. La
   condición MIRA; el dato se pide fuera.
-  **AL SUPERARLO, en el mapa** (`main_menu._felicitar_nivel_1`): David explica
-  qué son las estrellas, presenta el NIVEL DE COCINERO señalando su barra e
-  invita al 2; y justo después, la primera vez, `_explicar_bonus_diario` antes
+  **AL SUPERARLO, en el mapa** (`main_menu._felicitar_nivel_1`): David felicita
+  e invita al 2 — **ni las estrellas ni sus recompensas se explican ahí**
+  (pedido por el usuario): el cartel de resultados las acaba de enseñar una a
+  una y la ficha del puerto las lleva escritas; y justo después, la primera vez, `_explicar_bonus_diario` antes
   del cartel del bonus. **La recompensa de las 3 estrellas ya NO se explica**
   —el cartel de resultados y la ficha del puerto la enseñan solas, y gastaba
   dos líneas en lo evidente—; en su hueco entró lo que no se ve por ningún
@@ -731,9 +736,17 @@ primera vez que se entra en ellos (`logros_intro_done` /
     con nombres smpl; el rig_type `humanoid` devolvió huesos `bone_0..14` sin
     nombres y CharacterAnim no lo entiende). Piernas al 27% del alto (es
     rechoncho): `has_humanoid_bones` no las veta y el andar corto le pega.
-- **El contador de clientes del HUD cuenta los que HAN LLEGADO**
-  (`clients_spawned`), no los que se han ido: con los idos se quedaba en 0 con
-  la barra llena, que es justo cuando interesa saber cuánta clientela queda.
+- **El contador de clientes del HUD cuenta los que SE HAN SENTADO**
+  (`clients_seated`, que sube con la señal `client3d.seated`), no los que se han
+  ido —con los idos se quedaba en 0 con la barra llena, que es justo cuando
+  interesa saber cuánta clientela queda— y tampoco los que han APARECIDO. Un
+  cliente tarda ~6 s en cruzar la cubierta, y contarlo desde que asoma por la
+  borda lo daba por atendido antes de que llegara a su taburete: en el nivel 1,
+  con David explicando que a veces alguien deja pasar un plato, el jugador
+  miraba al que aún venía andando en vez de al que lo había despreciado. La FILA
+  DE CABEZAS sigue el mismo criterio (`_update_client_heads` salta a los que no
+  han llegado). `clients_spawned` sigue existiendo para la LÓGICA (cupo, cola de
+  llegadas, `_adelantar_tipo`).
   **Y SU CUERPO DE LETRA SE REMIDE** (`_fit_top_row`, llamado desde
   `_update_hud` en cuanto cambian el ancho de la fila o `total_clients`): la
   medida diferida del arranque llega con el lienzo todavía asentándose, y
@@ -991,6 +1004,18 @@ primera vez que se entra en ellos (`logros_intro_done` /
     que la siembra no pudiera dispararse jamás. Pasó de verdad: una partida
     con nueve escenarios superados se quedó sin sus estrenos. Con la bandera
     se dispara una sola vez y se puede volver a lanzar borrándola del save.
+  · **Y CERRAR PASADO EL OBJETIVO PAGA PRIMA** (`GameState.scenario_extra_xp`,
+    `SkillData.XP_EXTRA_FRAC`): el oro que sobre por encima del escalón de las
+    3 estrellas —contando la jornada ENTERA: platos, propinas y primas de
+    cierre— da experiencia extra a la TARIFA DEL PROPIO ESCENARIO, es decir
+    "lo que paga dividido por su objetivo", y de esa tarifa se cobran DOS
+    TERCIOS. Que la tarifa salga del escenario es lo que la hace crecer con la
+    campaña: la misma moneda de más vale 0,45 de XP en el escenario 1 y 4,9 en
+    la cueva. MEDIDO con sonda: +10 monedas son +5 XP en el 1 (27 → 32) y +49
+    en el 20 (810 → 859). Tope de seguridad en `XP_EXTRA_CAP`: la prima nunca
+    pasa de lo que paga el escenario. El cartel de resultados la canta aparte
+    ("+N de experiencia (+M por el oro de más)"), o el jugador vería una cifra
+    más alta sin saber de dónde sale.
   · **La XP de un escenario se paga CONTRA EL RÉCORD** (`GameState.
     scenario_xp`, llamada en `_finalize_results` con las estrellas de ANTES de
     `complete_port`): estreno = 3 × 6·n × mult(estrellas ×0.5/×1/×1.5);

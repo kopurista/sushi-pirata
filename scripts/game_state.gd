@@ -1226,6 +1226,36 @@ func scenario_xp(port_id: String, stars: int, prev_stars: int) -> int:
 	return int(round(pago))
 
 
+## PRIMA DE EXPERIENCIA POR EL ORO DE MÁS. `oro` es lo que se lleva el jugador
+## de la jornada ENTERA (platos + propinas + primas de cierre), y el objetivo es
+## el escalón de las 3 estrellas, que es el que el juego llama "objetivo" en la
+## ficha y el que cierra el turno antes de tiempo.
+##
+## La tarifa por moneda sale del propio escenario —lo que paga dividido por su
+## objetivo— y de ella se cobran DOS TERCIOS (`XP_EXTRA_FRAC`). Ejemplo con la
+## cuenta del usuario: un escenario que paga 50 con un objetivo de 40 monedas
+## vale 1,25 de experiencia por moneda; 10 monedas de más son 12,5, y dos
+## tercios de eso son 8 de prima.
+##
+## `pago` es la experiencia que ese mismo cierre ha pagado, así que la prima
+## acompaña al escenario: crece con su número y con las estrellas sacadas.
+func scenario_extra_xp(port_id: String, pago: int, oro: int) -> int:
+	if pago <= 0 or oro <= 0:
+		return 0
+	var escalones: Array = CampaignData.get_port(port_id).get("star_money", [])
+	if escalones.is_empty():
+		return 0
+	var objetivo := float(escalones[escalones.size() - 1])
+	if objetivo <= 0.0:
+		return 0
+	var sobrante := float(oro) - objetivo
+	if sobrante <= 0.0:
+		return 0
+	var tarifa := float(pago) / objetivo
+	var extra := sobrante * tarifa * SkillData.XP_EXTRA_FRAC
+	return int(round(minf(extra, float(pago) * SkillData.XP_EXTRA_CAP)))
+
+
 ## Experiencia de una partida de ARCADE: 15 × oleada por cada oleada superada.
 func arcade_xp(waves_done: int) -> int:
 	var total := 0

@@ -121,6 +121,12 @@ const SEAT_DEFS := [
 var elapsed := 0.0
 var money_earned := 0
 var clients_spawned := 0
+## Los que YA SE HAN SENTADO. Es lo que enseña el contador del HUD y lo que
+## cuenta la fila de cabezas: contando desde que APARECEN, un cliente que
+## todavía venía andando ya salía en la cuenta y se leía como si estuviera
+## atendido — y en el nivel 1, con David explicando que a veces dejan pasar un
+## plato, el jugador miraba al que aún caminaba en vez de al que lo despreció.
+var clients_seated := 0
 var clients_finished := 0
 ## Clientes que se han ido DE VACÍO en esta partida: cada uno encarece el
 ## castigo del siguiente (ver client3d.EMPTY_LEAVE_STEP).
@@ -270,6 +276,8 @@ var plate_forget_lap := false
 var waste_frac := WASTE_PENALTY
 ## Experiencia pagada por esta jornada (la enseña el cartel de resultados).
 var last_xp := 0
+## De esa experiencia, cuánta es PRIMA por el oro de más (para el cartel).
+var last_xp_extra := 0
 
 # --- ARCADE SIN FIN (GameState.is_arcade(); ver el documento del modo) ---
 ## Oleadas de WAVE_TIME segundos. Se pierde a los VACIOS_MAX clientes que se
@@ -3036,6 +3044,10 @@ func _try_spawn_client() -> bool:
 			and c.who_override == str(collectible_client.get("who", "")):
 		treasure_client = c
 	clients_spawned += 1
+	# El contador y la fila de cabezas suben cuando el cliente SE SIENTA.
+	c.seated.connect(func() -> void:
+		clients_seated += 1
+		_update_client_heads())
 	_update_client_heads()
 	return true
 
@@ -4229,12 +4241,18 @@ func _finalize_results() -> void:
 
 	var new_recipes: Array = []
 	last_xp = 0
+	last_xp_extra = 0
 	if GameState.is_adventure():
 		# LA EXPERIENCIA SE PAGA CONTRA EL RÉCORD, así que se calcula con las
 		# estrellas de ANTES de apuntarlas (complete_port las pisa después):
 		# mejorar de 2★ a 3★ cobra solo la diferencia.
 		var prev_stars := int(GameState.level_stars.get(GameState.current_port, 0))
 		last_xp = GameState.scenario_xp(GameState.current_port, stars, prev_stars)
+		# PRIMA POR EL ORO DE MÁS: lo que pase del objetivo paga experiencia
+		# extra a la tarifa del propio escenario (ver `scenario_extra_xp`).
+		last_xp_extra = GameState.scenario_extra_xp(
+			GameState.current_port, last_xp, total_money)
+		last_xp += last_xp_extra
 		GameState.money += total_money
 		GameState.record_level_score(GameState.current_port, total_money)
 		new_recipes = GameState.complete_port(GameState.current_port, stars)
@@ -4493,6 +4511,10 @@ func _build_xp_row() -> void:
 
 	xp_gain_label = Label.new()
 	xp_gain_label.text = "+%d de experiencia" % last_xp
+	if last_xp_extra > 0:
+		# La prima se dice APARTE: sin esto, el jugador ve una cifra más alta
+		# de lo que esperaba y no sabe de dónde ha salido.
+		xp_gain_label.text += "  (+%d por el oro de más)" % last_xp_extra
 	xp_gain_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	xp_gain_label.add_theme_font_size_override("font_size", 21)
 	xp_gain_label.add_theme_color_override("font_color", Color(0.30, 0.48, 0.72))
@@ -5207,6 +5229,10 @@ func _update_client_heads() -> void:
 	for c in seat_clients:
 		if c == null or not is_instance_valid(c):
 			continue
+		# Los que todavía vienen andando NO cuentan: la fila dice quién está
+		# EN LA BARRA, no quién ha entrado por la borda.
+		if not c.ya_sentado():
+			continue
 		if str(c.who_override) != "":
 			if not (str(c.who_override) in propios):
 				propios.append(str(c.who_override))
@@ -5691,5 +5717,5 @@ func _update_hud() -> void:
 	# marcador se quedaba en 0 con la barra llena, que es justo cuando el
 	# jugador quiere saber cuánta clientela le queda por llegar. En los
 	# abordajes no hay cupo, así que se enseña solo cuántos han pasado.
-	clients_label.text = "%d" % clients_spawned if unlimited \
-			else "%d/%d" % [clients_spawned, total_clients]
+	clients_label.text = "%d" % clients_seated if unlimited \
+			else "%d/%d" % [clients_seated, total_clients]

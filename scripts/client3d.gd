@@ -761,10 +761,16 @@ func _face_leg() -> void:
 		rotation_degrees.y = rad_to_deg(atan2(dir.x, dir.z))
 
 
+## Ya ha llegado a su taburete (el contador del HUD y la fila de cabezas lo
+## esperan: hasta aquí el cliente es alguien que viene andando, no clientela
+## atendible).
+signal seated
+
 func _seat() -> void:
 	if state != State.ARRIVING:
 		return
 	state = State.WAITING
+	seated.emit()
 	rotation_degrees.y = seat_yaw
 	_sit_on_stool()
 	_place_bars()
@@ -820,6 +826,11 @@ func _pose_sit_idle() -> void:
 ## del juego 2D sin necesitar fisica 3D.
 ## Con snack_only solo mira los platos de PICOTEO: es la pasada que se hace
 ## mientras el cliente esta comiendo, para que pueda picar sin interrumpirse.
+## True en cuanto se ha sentado (sigue siéndolo mientras come y al irse).
+func ya_sentado() -> bool:
+	return state != State.ARRIVING
+
+
 func _scan_belt(snack_only: bool = false) -> void:
 	for plate in get_tree().get_nodes_in_group("plates"):
 		if plate.taken:

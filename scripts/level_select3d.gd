@@ -1088,10 +1088,12 @@ func _guiar_primer_nivel(caja: DialogueBox = null) -> void:
 		ui.add_child(caja)
 	caja.say([
 		{ "text": "Nuestra primera parada es esa de ahí: **Cala Tortuga**, una **isla**.", "mood": "feliz" },
-		{ "text": "Porque las paradas son de tres clases. Las **islas** son tranquilas: poca clientela, con la carta que yo te ponga... y el que se vaya sin comer te cuesta oro.", "mood": "hablando" },
-		{ "text": "Los **puertos** son un hervidero: mucha más gente entrando y las recetas las eliges tú. Pero ojo: si **tres clientes** se van sin probar bocado, la jornada se **pierde**.", "mood": "serio" },
-		{ "text": "Y los **abordajes** se juegan contra reloj, con clientela que no se acaba nunca. Ahí cada cliente que se marche sin comer te **roba 15 segundos**.", "mood": "gritando" },
-		{ "text": "Hoy empezamos por lo fácil. Dale a **¡Zarpar!** cuando quieras.", "mood": "feliz" },
+		# SOLO SE EXPLICA LA ISLA. Los otros dos tipos se cuentan cuando se
+		# pisan (`level_director._explicar_handicap`): tres clases de parada de
+		# golpe, antes de haber jugado ni una, es una lección que no se puede
+		# aplicar a nada.
+		{ "text": "Las **islas** son tranquilas: poca clientela y con la carta que yo te ponga... pero el que se vaya sin comer te cuesta oro.", "mood": "hablando" },
+		{ "text": "Hay otras clases de parada, y ya las verás cuando toque. Dale a **¡Zarpar!** cuando quieras.", "mood": "feliz" },
 	])
 	await caja.finished
 	await caja.close_and_free()

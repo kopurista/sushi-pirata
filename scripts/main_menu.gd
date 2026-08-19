@@ -310,7 +310,10 @@ func _felicitar_nivel_1() -> void:
 	ui_layer.add_child(caja)
 	var lineas: Array = [
 		{ "text": "¡Turno cerrado, %s! Tu primera jornada al mando de mi cocina." % GameState.player_title(), "mood": "riendo" },
-		{ "text": "Cada puerto se puntúa con **estrellas**, y las estrellas salen del **oro** que dejes en caja. Con **dos** apruebas y se abre el puerto siguiente.", "mood": "hablando" },
+		# NI LAS ESTRELLAS NI SUS RECOMPENSAS SE EXPLICAN AQUÍ (pedido por el
+		# usuario): el cartel de resultados las acaba de enseñar una por una y
+		# la ficha del puerto las lleva escritas. Contarlo otra vez era gastar
+		# líneas en lo que el jugador acaba de ver.
 		# LA RECOMPENSA DE LAS 3 ESTRELLAS YA NO SE EXPLICA: el cartel de
 		# resultados y la ficha del puerto la enseñan solas, y decirla aquí era
 		# gastar dos líneas en algo evidente. En su hueco entra lo que de

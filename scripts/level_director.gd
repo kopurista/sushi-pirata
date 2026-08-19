@@ -1277,7 +1277,8 @@ func _explicar_handicap() -> void:
 		GameState.puerto_handicap_done = true
 		GameState.save_game()
 		await _say([
-			{ "text": "Una cosa antes de abrir, %s. Esto es un **puerto**, y en los puertos manda la fama." % GameState.player_title(), "mood": "serio" },
+			{ "text": "Una cosa antes de abrir, %s. Esto no es una isla: es un **puerto**." % GameState.player_title(), "mood": "serio" },
+			{ "text": "Aquí entra mucha más gente, y las recetas las eliges **tú**. Pero en los puertos manda la fama.", "mood": "hablando" },
 		])
 		if lv.vacios_puerto_label != null and is_instance_valid(lv.vacios_puerto_label):
 			_focus_node(lv.vacios_puerto_label, 14.0)
@@ -1291,7 +1292,8 @@ func _explicar_handicap() -> void:
 		GameState.abordaje_handicap_done = true
 		GameState.save_game()
 		await _say([
-			{ "text": "Esto es un **abordaje**, %s: aquí no manda la clientela, manda el **reloj**." % GameState.player_title(), "mood": "serio" },
+			{ "text": "Esto es un **abordaje**, %s: se asalta un barco y se cocina en su cubierta." % GameState.player_title(), "mood": "serio" },
+			{ "text": "Aquí la clientela no se acaba nunca, así que no manda ella: manda el **reloj**.", "mood": "hablando" },
 		])
 		var reloj := lv.get_node_or_null("HUD/TopRow/TimeBox")
 		if reloj is Control:
