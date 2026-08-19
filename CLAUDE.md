@@ -107,6 +107,43 @@ fuera el tercero del 7 ni que cada tanda del 9 llevara dos), **`first_arrival`**
 vitrina en vez de con oro) y **`unlocks_perk`** (compuerta: un bonificador no
 se puede ganar antes del puerto que lo presenta).
 
+**EL CLIENTE DEL TESORO TRAE UN ENCARGO, NO UN PEAJE** (`collectible_client`
++ su campo **`reto`**): la pieza salía sola al cumplir "N platos", una
+condición que nadie decía en voz alta, y eso no es un reto sino un premio por
+casualidad. Ahora David lo CANTA con foco en cuanto el cliente se sienta
+(`level_director._vigilar_tesoro`, un vigía que no bloquea, como el de la
+basura), con la frase de `CampaignData.reto_texto` — la MISMA que se lee luego
+en la vitrina, para que no puedan contradecirse. Nueve tipos en `RETO_TEXTOS`:
+`platos` (el de siempre, y el que sale si no se declara `reto`), `distintos`,
+`mismo`, `receta` (con `recipe`), `postre_solo`, `platos_y_postre`,
+`picoteos`, `picoteos_sin_plato` y `hasta_el_final`. Los ocho primeros se
+resuelven en `level3d._reto_cumplido` leyendo `eaten_ids` (los PICOTEOS también
+se apuntan ahí, comprobado); **`hasta_el_final` no puede mirarse ahí** y se
+resuelve en `_end_level`, antes de vaciar la barra, que es el único momento en
+que se sabe.
+· **Un puerto con cliente del tesoro monta director SIEMPRE**, narrado o no:
+  es quien canta el encargo, y sin esa frase volvemos al premio por casualidad.
+· **Y UNA PIEZA QUE SE ESCAPÓ NO SE QUEDA EN MISTERIO**
+  (`inventory_screen._pista_coleccionable`): con su escenario ya superado, la
+  ficha de la vitrina se abre y dice DÓNDE sale y QUÉ pide, con el dibujo
+  todavía en silueta. El jugador vio al tipo y oyó el encargo; escondérselo
+  después sería castigarle dos veces. El escenario lo deduce
+  `CampaignData.port_for_collectible`, no una tabla escrita a mano.
+
+**LOS CONTADORES DE MAESTRÍA VIVEN EN EL HUD, BAJO EL NÚMERO DE CLIENTES**
+(`level3d._setup_skill_counters`): las tres habilidades deterministas del
+cocinero —golpe de vista, cocina abundante y golpe de suerte— son CONTADOR y no
+dado justamente para poder planearlas, y planear con un número escondido no se
+puede. Un chip por habilidad con su icono y los platos que faltan; a cero se
+enciende y late. Solo salen las que el jugador LLEVA. El del golpe de vista
+vivía clavado en una esquina de la tabla (`vista_label`) y se retiró: dos
+contadores diciendo lo mismo en dos sitios es peor que uno.
+**Y David los explica con FOCO la primera vez** que se juega con una puesta
+(`level_director._explicar_contadores`, bandera `skill_counters_intro_done`).
+Va al principio de TODO guion y **level3d monta el director aunque el escenario
+no tenga guion propio**: estas habilidades se compran cuando al jugador le da
+la gana, así que su explicación no se puede colgar de ningún puerto.
+
 **LOS BONIFICADORES LLEGAN CON ALICE, TODOS DE GOLPE** (decidido por el
 usuario, no re-litigar): el sistema no existe hasta superar SU escenario, el
 **17** (`unlocks_perks: true` en `nivel_13`), que es donde ella se enrola de
@@ -1856,6 +1893,33 @@ primera vez que se entra en ellos (`logros_intro_done` /
   calculan UNA vez sobre `serio`** y se aplican igual a todas, que por eso las
   expresiones no mueven la cabeza. Su cara mide 135 px, entre el grumete (116)
   y la grumete (157) y clavada con Cai (136).
+  **SU MODELO 3D SIRVE PARA SUS DOS PAPELES** (`alice_rig.glb`, una sola
+  entrada en `CharacterData.MODELS["alice"]`): la clienta del escenario 17 y la
+  AYUDANTE de la tabla en cuanto se enrola. Es la misma persona y el mismo rig,
+  así que dos modelos serían dos veces los mismos triángulos. Con ella se
+  fueron `ayudante_rig` y `ayudante_fem_rig` —los dos figurantes que se elegían
+  por el género CONTRARIO al del jugador— y con ellos `GameState.helper_gender()`;
+  el botón de la tabla enseña ahora su icono de cabeza.
+  · **SU CONCEPTO 3D LLEVA EL KIMONO CORTO A PROPÓSITO**: una prenda larga tapa
+    las piernas y el rigueador se las funde en una, que es lo que tuvo al
+    ayudante sin animar durante seis intentos. Kimono hasta la cadera, delantal
+    hasta la cadera, pantalón por piernas separadas y hueco de fondo visible
+    entre ellas hasta arriba. Rig medido: 52 huesos
+    (`humanoid_template_hands`), brazos al 34% del alto y piernas al 60% —
+    largas, pero sanas: el fallo típico son 1-4%.
+  · **Su ICONO DE CABEZA necesitó DOS perillas nuevas en `tools/head_icons.gd`**:
+    `DROP_OVERRIDE`, porque su melena baja la caja del modelo y el encuadre
+    general le dejaba la cara diminuta, y `LIGHT_OVERRIDE`, porque su piel
+    pálida se quemaba a blanco liso sin ojos ni boca (la misma lección de
+    `chef_portraits.gd`, ahora ajustable por icono).
+  · **ESCENARIO 17** (`nivel_13`, Rada de los Dos Fuegos): se sienta de clienta
+    (`special_client`, come como un GRUMETE), cuenta que busca a su maestra
+    **Miku**, y con `level_director.PLATOS_ALICE` (3) platos se da por servida
+    (`GameState.alice_saciada`). La escena en la que SE ENROLA no va en el
+    nivel sino en el mapa (`main_menu._presentar_alice`), igual que con Cai: es
+    la que ESTRENA los bonificadores y le regala el del ayudante, que es ella.
+    Si el turno se cerró por objetivo sin darle de comer, se enrola igual pero
+    sin fingir una comida que no hubo.
 - **Las explicaciones sueltas del menú y del mapa montan UNA CAJA POR BLOQUE**,
   y por eso tienen dos ayudas propias: `DialogueBox.close_and_free()` (cierra
   CON su fundido y espera a que termine antes de soltar el nodo — hacían
