@@ -599,7 +599,10 @@ COLLECTIBLES = [
     "piedra_afilar", "plato_quemado", "rallador_tiburon", "extintor",
     "gorro_chef", "dorayaki_mordisco", "cuenco_ramen", "arpon",
     "casco_escafandra", "idolo_dorado", "farol_fantasma", "mascara_buceo",
-    "sandalias_geta", "dado_hueso", "baraja_marcada",
+    "sandalias_geta", "dado_hueso", "baraja_marcada", "anzuelo_maui",
+    "cuerno_narval", "fosil_amonites", "peine_nacar", "calavera_alada",
+    "esmeralda_caos", "espejo_mano", "cascabel_gato", "bota_vino",
+    "estrella_mar_seca", "obolo_caronte",
 ]
 
 
@@ -630,6 +633,9 @@ NO_ENSUCIAR = {
     "astrolabio_roto", "bitacora_roto", "sandalias_geta", "dado_hueso",
     "baraja_marcada", "extintor", "gorro_chef", "arpon", "casco_escafandra",
     "farol_fantasma", "mascara_buceo", "idolo_dorado", "rallador_tiburon",
+    "espejo_mano", "estrella_mar_seca", "obolo_caronte", "cuerno_narval",
+    "peine_nacar", "bota_vino", "cascabel_gato", "calavera_alada",
+    "fosil_amonites", "anzuelo_maui", "esmeralda_caos",
 }
 
 

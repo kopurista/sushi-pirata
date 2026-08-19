@@ -271,7 +271,7 @@ const ACHIEVEMENTS: Array = [
 		# hay que subir esta cifra con él, o el logro mentiría.
 		"id": "coleccion", "group": "travesia", "name": "Camarote de tesoros",
 		"desc": "Reúne %d coleccionables.",
-		"stat": "derived:coleccion", "tiers": [25, 50, 101],
+		"stat": "derived:coleccion", "tiers": [28, 56, 112],
 	},
 
 	# --- Pesca ---------------------------------------------------------------

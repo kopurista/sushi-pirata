@@ -60,6 +60,11 @@ const PIEDRA_CORTES := 1000
 ## El DORAYAKI MORDIDO llega tras hacer unos cuantos: es el postre de la
 ## casa y el guino se gana cocinandolo, no pescandolo.
 const DORAYAKI_PLATOS := 100
+## El ANZUELO MAGICO se gana pescando: es el premio del que ya vive de la
+## cana. La ESMERALDA la trae la rana caotica del album (`ESMERALDA_PEZ`),
+## que es la unica pieza que cuelga de pescar UNA especie concreta.
+const ANZUELO_PECES := 200
+const ESMERALDA_PEZ := "froggy"
 
 ## COLECCIONABLES CON ESCENA: al conseguirlos dejan su id en
 ## `GameState.pending_col_scenes` y alguien la representa después (hoy
@@ -133,6 +138,18 @@ const ITEMS: Array = [
 		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "baraja_marcada", "name": "Baraja marcada",
 		"desc": "Salió de un cofre pescado en alta mar. Alguien hizo trampas." },
+	{ "id": "cuerno_narval", "name": "Cuerno de narval",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "fosil_amonites", "name": "Fósil de amonites",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "estrella_mar_seca", "name": "Estrella de mar seca",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "espejo_mano", "name": "Espejo de mano oxidado",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "cascabel_gato", "name": "Cascabel del gato del barco",
+		"desc": "Salió de un cofre pescado en alta mar. Suena a bordo perdido." },
+	{ "id": "bota_vino", "name": "Bota de vino",
+		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "tentaculo", "name": "Tentáculo de kraken",
 		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "hueso", "name": "Hueso",
@@ -165,6 +182,10 @@ const ITEMS: Array = [
 	{ "id": "dorayaki_mordisco", "name": "Dorayaki con un mordisco",
 		"desc": "Por preparar %d dorayakis. Este te lo has ganado."
 			% DORAYAKI_PLATOS },
+	# --- Vaiana --------------------------------------------------------------
+	{ "id": "anzuelo_maui", "name": "Anzuelo mágico gigante",
+		"desc": "Por sacar %d capturas del mar. Ya vives de la caña."
+			% ANZUELO_PECES },
 	{ "id": "galon_oro", "name": "Galón de oro",
 		"desc": "Por aguantar hasta la oleada %d del Arcade." % GALON_OLEADA },
 	{ "id": "delantal_chamuscado", "name": "Delantal chamuscado",
@@ -251,6 +272,15 @@ const ITEMS: Array = [
 	# --- Sea of Thieves ------------------------------------------------------
 	{ "id": "banana", "name": "Banana",
 		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- Mitología griega ----------------------------------------------------
+	{ "id": "obolo_caronte", "name": "Óbolo de Caronte",
+		"desc": "Salió de un cofre pescado en alta mar. El pasaje del barquero." },
+	# --- Capitán Harlock -----------------------------------------------------
+	{ "id": "calavera_alada", "name": "Calavera alada",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- Sonic ---------------------------------------------------------------
+	{ "id": "esmeralda_caos", "name": "Esmeralda del caos",
+		"desc": "La traía enganchada la rana caótica." },
 	# --- Moby Dick -----------------------------------------------------------
 	{ "id": "arpon", "name": "Arpón",
 		"desc": "Salió de un cofre pescado en alta mar." },
@@ -281,9 +311,11 @@ const ITEMS: Array = [
 	# --- Los Goonies ---------------------------------------------------------
 	{ "id": "ojo_cobre", "name": "Ojo de cobre",
 		"desc": "Salió de un cofre pescado en alta mar." },
-	# --- La Sirenita ---------------------------------------------------------
+	# --- La Sirenita y las sirenas -------------------------------------------
 	{ "id": "tenedor", "name": "Tenedor",
 		"desc": "¿Podría utilizarse como peine?" },
+	{ "id": "peine_nacar", "name": "Peine de nácar",
+		"desc": "Salió de un cofre pescado en alta mar. Esto sí es un peine." },
 	# --- El Planeta del Tesoro -----------------------------------------------
 	{ "id": "esfera_tesoro", "name": "Esfera del tesoro",
 		"desc": "Esta esfera con forma de planeta podría ser un mapa del tesoro." },

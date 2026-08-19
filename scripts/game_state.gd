@@ -1788,6 +1788,12 @@ func _run_achievement_check() -> void:
 		unlock_collectible("plato_quemado")
 	if get_stat("dish_dorayaki") >= CollectibleData.DORAYAKI_PLATOS:
 		unlock_collectible("dorayaki_mordisco")
+	if get_stat("fish_caught") >= CollectibleData.ANZUELO_PECES:
+		unlock_collectible("anzuelo_maui")
+	# La ESMERALDA la trae la rana caotica: cuelga del ALBUM, asi que cae
+	# tambien si ya se habia pescado antes de que existiera la pieza.
+	if fish_album.has(CollectibleData.ESMERALDA_PEZ):
+		unlock_collectible("esmeralda_caos")
 	# LOS PALILLOS suben de material con los platos servidos. Se comprueban los
 	# tres escalones, no solo el siguiente: quien llegue de golpe (un guardado
 	# viejo con miles de platos) se los lleva todos, de uno en uno y con su

@@ -370,7 +370,10 @@ const FISHING_COLLECTIBLES: Array = [
 	"arpon", "casco_escafandra", "farol_fantasma", "mascara_buceo",
 	"idolo_dorado", "extintor", "gorro_chef", "cuenco_ramen",
 	# Mas del naufragio.
-	"dado_hueso", "baraja_marcada",
+	"dado_hueso", "baraja_marcada", "cuerno_narval", "fosil_amonites",
+	"estrella_mar_seca", "espejo_mano", "cascabel_gato", "bota_vino",
+	# Mitologia griega, Capitan Harlock y el peine de las sirenas.
+	"obolo_caronte", "calavera_alada", "peine_nacar",
 	# La Odisea, Robinson Crusoe, Tiburon y Sea of Thieves.
 	"tapones_cera", "huella_arena", "bidon_amarillo", "banana",
 	# Tintin, Los Goonies y La Sirenita.
