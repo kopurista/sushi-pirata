@@ -44,19 +44,16 @@ static func build(root: Node3D, kind: String, cam_size := 19.0,
 	sun.shadow_enabled = false
 	root.add_child(sun)
 
-	var sea_tex: Texture2D = load("res://assets/map/mar.png")
 	var mesh := PlaneMesh.new()
 	mesh.size = Vector2(120.0, 120.0)
+	mesh.subdivide_width = 40
+	mesh.subdivide_depth = 40
 	var sea := MeshInstance3D.new()
 	sea.mesh = mesh
 	var mat := ShaderMaterial.new()
-	mat.shader = load("res://shaders/water_map_3d.gdshader")
-	mat.set_shader_parameter("sea_tex", sea_tex)
-	mat.set_shader_parameter("tile_scale", Vector2(9.0, 9.0))
-	mat.set_shader_parameter("tint", Vector3(0.62, 0.76, 0.96))
-	mat.set_shader_parameter("deep_color", Vector3(0.10, 0.24, 0.45))
-	mat.set_shader_parameter("flatten", 0.80)
-	mat.set_shader_parameter("drift_speed", 0.05)
+	mat.shader = load("res://shaders/water_ww.gdshader")
+	mat.set_shader_parameter("espuma", load("res://assets/map/espuma_ww.webp"))
+	mat.set_shader_parameter("tile", Vector2(192.0, 192.0))
 	# El plano del mar no proyecta sombra sobre nada: fuera del pase de sombras.
 	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	sea.material_override = mat

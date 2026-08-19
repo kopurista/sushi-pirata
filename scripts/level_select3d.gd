@@ -183,9 +183,12 @@ func _setup_environment() -> void:
 ## Mar: plano enorme con el shader de agua (deriva + senos cruzados), tileado
 ## a la misma escala 1:1 que en el 2D (el tamaño del tile sale de la textura).
 func _setup_sea() -> void:
-	var tex: Texture2D = load("res://assets/map/mar.png")
 	var mesh := PlaneMesh.new()
 	mesh.size = Vector2(SEA_SIZE, SEA_SIZE)
+	# El oleaje del agua es un desplazamiento de VÉRTICE: sin subdividir, el
+	# plano son dos triángulos y no se mueve nada.
+	mesh.subdivide_width = 48
+	mesh.subdivide_depth = 48
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
 	# El plano se centra entre el TOPE DEL MAPA y el fondeadero del menú, que
@@ -195,14 +198,14 @@ func _setup_sea() -> void:
 	var hasta := maxf(CampaignData.MAP_HEIGHT, SEA_BOTTOM_PX)
 	mi.position = D_HAT * ((hasta * 0.5 + 640.0) / PPU_Y)
 	var mat := ShaderMaterial.new()
-	mat.shader = load("res://shaders/water_map_3d.gdshader")
-	mat.set_shader_parameter("sea_tex", tex)
-	# Tiles algo mayores que en 2D; el shader ademas aplana el mosaico contra
-	# un azul profundo (a pelo, el enrejado de rombos leia como una manta).
-	var tile_u := float(tex.get_width()) / PPU_X * 1.25
-	mat.set_shader_parameter("tile_scale",
-		Vector2(SEA_SIZE / tile_u, SEA_SIZE / tile_u))
-	mat.set_shader_parameter("tint", Vector3(0.55, 0.68, 0.9))
+	mat.shader = load("res://shaders/water_ww.gdshader")
+	mat.set_shader_parameter("espuma", load("res://assets/map/espuma_ww.webp"))
+	# Una baldosa de espuma cada ~2.5 u de mundo, aquí y en las otras dos
+	# pantallas con mar, para que el dibujo tenga el mismo tamaño se vea donde
+	# se vea. OJO con la escala: la cámara del juego enseña solo 9.5 u de ancho,
+	# así que la espuma a tamaño "de verdad" salía en manchas de medio palmo y
+	# el mar parecía una vaca.
+	mat.set_shader_parameter("tile", Vector2(SEA_SIZE * 1.6, SEA_SIZE * 1.6))
 	# El plano del mar no proyecta sombra sobre nada: fuera del pase de sombras.
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.material_override = mat
@@ -280,15 +283,22 @@ func _base_cueva(pos: Vector3, foot: float) -> Node3D:
 	# quede por debajo de y=0 no se ve, y el aro claro que se probó a ras de
 	# agua rodeaba la roca con una fuente blanca. La roca corta el agua a
 	# cuchillo, igual que los modelos de las islas.
-	# Las tres plataformas, de la más ancha (al agua) a la más alta.
+	# Las tres plataformas, de la más ancha (al agua) a la más alta. LAS DOS DE
+	# ARRIBA VAN CORRIDAS HACIA EL FONDO (`ATRAS`, en la diagonal que se aleja
+	# de la cámara) y algo más bajas: centradas y a su altura anterior le
+	# tapaban al peñasco la BOCA DE LA CUEVA, que está en su cara delantera y
+	# a ras de base. Así el islote sigue en terrazas por detrás y por los lados
+	# y la entrada queda despejada.
+	var atras := -Vector3(0.70710678, 0.0, 0.70710678)
 	_roca_facetada(pivot, Vector3(0.0, -0.30, 0.0), foot * 0.90, 0.66, 7, 14.0,
 		tex, Color(0.38, 0.41, 0.50))
-	_roca_facetada(pivot, Vector3(0.0, 0.06, 0.0), foot * 0.73, 0.48, 6, -27.0,
-		tex, Color(0.48, 0.51, 0.61))
-	_roca_facetada(pivot, Vector3(0.0, 0.30, 0.0), foot * 0.56, 0.38, 9, 41.0,
-		tex, Color(0.57, 0.60, 0.71))
+	_roca_facetada(pivot, atras * 0.30 + Vector3(0.0, -0.02, 0.0), foot * 0.73,
+		0.48, 6, -27.0, tex, Color(0.48, 0.51, 0.61))
+	_roca_facetada(pivot, atras * 0.52 + Vector3(0.0, 0.16, 0.0), foot * 0.56,
+		0.38, 9, 41.0, tex, Color(0.57, 0.60, 0.71))
 	# Pedruscos del canto: son los que quitan del todo la silueta de disco.
-	var puntos := [0.35, 1.42, 2.35, 3.60, 4.75, 5.60]
+	# Sin pedruscos en la cara DELANTERA (la de la boca): hacían de tapón.
+	var puntos := [2.35, 3.05, 3.60, 4.30, 4.95, 5.60]
 	for i in puntos.size():
 		var a: float = puntos[i]
 		var r := foot * (0.62 + 0.08 * float(i % 3) * 0.5)

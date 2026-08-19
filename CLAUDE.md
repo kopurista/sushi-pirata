@@ -129,6 +129,10 @@ que cada tipo tenga SU dificultad como la isla tiene su carta cerrada):
   muros cerrando el fondo y los cantos, estalagmitas Y estalactitas, rocas.glb
   entenebrecidas (`_entenebrecer` multiplica su albedo: la textura es la roca
   de las islas AL SOL y salía como nieve) y CRISTALES que hacen de luz.
+  · **NI ESTALACTITAS NI CHARCAS**: las estalactitas colgaban de un techo que
+    esta cámara NO enseña, así que se leían como conos flotando por el borde de
+    arriba; y las charcas eran dos discos planos tirados en el suelo. Las dos
+    cosas se quitaron (pedido por el usuario).
   · **SE MONTA EN COORDENADAS DE PANTALLA (u, w), no de mundo** (`_uw`,
     `_muro_cueva`). Con la cámara a yaw 45 los ejes del mundo salen en
     diagonal: los muros puestos en X/Z cruzaban el encuadre torcidos y el del
@@ -139,12 +143,28 @@ que cada tipo tenga SU dificultad como la isla tiene su carta cerrada):
     pasillo de paseo de los clientes es el ROMBO `|u| + |w| = 5.23`, así que
     el decorado va por fuera de 6.3.
   · **LA BOCA DE LA CUEVA VA ARRIBA, EN u = 0** (`_entrada_cueva`): es el
-    hueco entre las dos piezas del muro del fondo, con dintel, jambas y
-    colmillos, y un pasadizo casi negro detrás. Ahí es justo donde aparecen
+    hueco entre las dos piezas del muro del fondo. Ahí es justo donde aparecen
     los clientes de la borda de arriba (`ENTRY` cae en u=0), así que salen de
-    la cueva por su boca en vez de brotar del suelo. Lleva su propia luz FRÍA,
-    la única que no es verde: sin sombras una luz de rango largo atraviesa el
-    muro y encendía el suelo de lado a lado, así que va corta (rango 4.6).
+    la cueva por su boca en vez de brotar del suelo.
+    · **NADA DE MARCO DE PUERTA**: la boca de una cueva no tiene forma exacta,
+      así que el contorno lo dibujan PIEZAS SUELTAS de roca a tamaños y vuelcos
+      distintos — el dintel son cuatro bloques a alturas diferentes, las jambas
+      cuatro pilastras ladeadas y al pie unos cascotes que rompen la línea del
+      suelo. La primera versión era un rectángulo perfecto y se leía como una
+      puerta.
+    · **LA LUZ QUE ENTRA es una TARJETA DE PORTAL** (`shaders/
+      portal_cueva.gdshader`, en la línea del "Portal Card (N64 Entrance)" de
+      godotshaders): un plano sin sombrear metido en la garganta del túnel, que
+      se ve a través del hueco irregular. El original resuelve el borde leyendo
+      la PROFUNDIDAD de pantalla y este juego va en COMPATIBILITY, que no sirve
+      esa textura: el borde se funde con la propia UV, que para una boca fija
+      da lo mismo. **Va a media asta (`fuerza` 0.5) y con el degradado hacia
+      ABAJO**: a plena fuerza llenaba el hueco de un gris uniforme y se leía
+      como niebla. Lo que de verdad dice "entra luz" no es la tarjeta, es el
+      CHARCO que su luz fría deja en el suelo de delante.
+    · Esa luz fría es la única que no es verde. Va CORTA (rango 5.8): sin
+      sombras, una luz de rango largo atraviesa el muro y encendía el suelo de
+      lado a lado.
   · **Texturas propias en `assets/props`**, dibujadas por código
     (`tools/cave_textures.py`, ruido de valor periódico): `piedra_cueva.webp`
     (moteado suave, suelo) y `pared_cueva.webp` (estratos horizontales, muros;
@@ -180,12 +200,21 @@ que cada tipo tenga SU dificultad como la isla tiene su carta cerrada):
       a punta, que es lo contrario de lo que se busca.
   · Sin sol no hay sombra que fingir: aquí NO se usan las manchas de
     `blob_shadow` (una elipse oscura de borde duro en mitad de la roca).
+  · **EL DECORADO VA CONTADO Y SEPARADO**: seis cristales, cuatro
+    estalagmitas, dos rocas y seis cascotes, y ningún par a menos de ~1.3 u.
+    Llegó a haber el doble de todo y se amontonaba y se atravesaba: el sitio
+    donde cabe algo —la franja entre el rombo del pasillo y el borde de la
+    pantalla— es MUY estrecha, así que la lista se escribe a mano y se
+    comprueba, no se rellena a ojo.
   · Modelo de mapa propio (`map_cueva.glb`, cadena Ludo completa, presupuesto
     8000) con **ISLOTE de piedra por código** (`level_select3d._base_cueva`:
     el peñasco venía sin suelo y flotaba a corte vivo sobre el agua). Son TRES
     plataformas FACETADAS —pocos lados y giradas entre sí, para que la silueta
     no sea un disco de tarta— con la piedra de la cueva y pedruscos rompiendo
-    el canto. NADA de rompiente ni de bajío: el plano del mar es opaco, así que
+    el canto. **LAS DOS DE ARRIBA VAN CORRIDAS HACIA EL FONDO** y algo más
+    bajas, y en la cara delantera no hay pedruscos: centradas le tapaban al
+    peñasco la BOCA DE LA CUEVA, que está en su cara de delante y a ras de
+    base. NADA de rompiente ni de bajío: el plano del mar es opaco, así que
     lo que quede bajo y=0 no se ve, y el aro claro a ras de agua que se probó
     rodeaba la roca con una fuente blanca.
   · **EN EL MAPA VA MUY APARTE**: sola, centrada y POR ENCIMA del lienzo
@@ -2281,8 +2310,9 @@ primera vez que se entra en ellos (`logros_intro_done` /
   MAP_POS` sobre un lienzo de `MAP_HEIGHT`; los bloqueados no reciben al barco.
   **La travesía va de ABAJO ARRIBA** (nivel 1 el más bajo) y los nodos alternan
   entre TRES carriles (`LANE_LEFT/CENTER/RIGHT`) para que la ruta serpentee.
-  **Todo está animado**: el mar usa `shaders/water_map.gdshader` (repite la
-  textura y la hace derivar y ondular sin fin) y el barco pasa los 16 fotogramas
+  **Todo está animado**: el mar usa `shaders/water_ww.gdshader` (ver el bloque
+  del MAR más abajo; el `water_map.gdshader` 2D se queda para esta referencia)
+  y el barco pasa los 16 fotogramas
   de `barco_anim.webp` (velas al viento, generado con Ludo `animateSprite` +
   `editSpritesheet` en modo `fix_loop`), recortados con `AtlasTexture` de una
   rejilla 4x4 (el tamaño de fotograma se deduce de la textura).
@@ -2380,6 +2410,40 @@ primera vez que se entra en ellos (`logros_intro_done` /
   (inundación desde los bordes + recorte + reescalado). Para los ICONOS con
   fondo gris claro la inundación deja halo: se pasan antes por el
   `removeBackground` de Ludo y `ui_prep` solo recorta y reescala.
+
+## EL MAR (`shaders/water_ww.gdshader`)
+
+Agua estilo **Wind Waker**, portada del shader de NekotoArts
+("Wind Waker style water - no textures needed", godotshaders.com, a su vez de
+shadertoy.com/view/3tKBDz). La montan los TRES sitios con mar: el mapa/menú/
+portada (`level_select3d._setup_sea`), los niveles (`level3d._add_sea`) y el
+fondo de prep_screen/tienda/inventario (`scene_backdrop`). El
+`water_map_3d.gdshader` que había antes (textura de agua + deriva) se retiró.
+
+- **LA ESPUMA VA HORNEADA EN UNA TEXTURA** (`tools/foam_ww.py` →
+  `assets/map/espuma_ww.webp`). El original la construye sumando **75 círculos
+  POR PÍXEL** y la evalúa DOS veces por fragmento —unas 2.500 operaciones por
+  píxel, con el mar cubriendo la pantalla entera—, que en un móvil se lleva el
+  fotograma. El dibujo NO depende del tiempo y además TILEA solo (el
+  `min(c, 1-c)` del original envuelve la distancia), así que hornearlo da el
+  MISMO resultado con dos `texture()`. El fbm del warp baja de 6 octavas a 3.
+  MEDIDO con sonda (mapa, 150 fotogramas, vsync fuera): **0,29 ms/fotograma**
+  el mar entero contra un material plano.
+- **EL RADIO DE LOS CÍRCULOS ES UNA PERILLA DELICADA** (`RADIO_MULT`): el
+  dibujo es "todo blanco MENOS los círculos", y están al borde de la
+  percolación, así que un pelo de radio se lleva por delante la mitad del
+  blanco. MEDIDO: 1.00 → 15,6% de espuma · 1.05 → 11,4% · 1.12 → 6,5%. Va a
+  **1.05**: con el 15,6% del original el mar se lee como una RED de líneas
+  blancas.
+- **LA ESCALA (`tile`) SE MIDE CONTRA ESTA CÁMARA, no contra el mundo**: el
+  juego enseña solo **9,5 u de ancho**, así que la espuma al tamaño "de verdad"
+  del original salía en manchas de medio palmo y el mar parecía una vaca. Una
+  baldosa cada ~2,5 u en las tres pantallas (mapa 190·1.6, nivel 144, fondos
+  192; el shader multiplica por 0.25 por dentro, como el original).
+- **EL OLEAJE ES DESPLAZAMIENTO DE VÉRTICE**: los planos del mar necesitan
+  `subdivide_width/depth` (48 el mapa, 36 el nivel, 40 los fondos) o no se
+  mueve nada — un PlaneMesh a pelo son dos triángulos.
+
 
 ## Convenciones y decisiones ya tomadas (NO reintroducir bugs resueltos)
 
