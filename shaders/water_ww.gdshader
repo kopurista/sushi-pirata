@@ -17,9 +17,9 @@
 shader_type spatial;
 render_mode specular_disabled;
 
-uniform vec4 WATER_COL : source_color = vec4(0.08, 0.30, 0.66, 1.0);
-uniform vec4 WATER2_COL : source_color = vec4(0.11, 0.38, 0.78, 1.0);
-uniform vec4 FOAM_COL : source_color = vec4(0.72, 0.90, 0.97, 1.0);
+uniform vec4 WATER_COL : source_color = vec4(0.05, 0.21, 0.48, 1.0);
+uniform vec4 WATER2_COL : source_color = vec4(0.07, 0.27, 0.58, 1.0);
+uniform vec4 FOAM_COL : source_color = vec4(0.60, 0.80, 0.90, 1.0);
 /// Cuánta espuma se deja ver. El dibujo horneado cubre ~1/3 del mar y a
 /// plena fuerza el agua se lee como una vaca; a 0.8 sigue siendo espuma.
 uniform float foam_amount : hint_range(0.0, 1.0) = 0.72;
