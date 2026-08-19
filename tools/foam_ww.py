@@ -29,8 +29,9 @@ BORDE = 0.002  # el smoothstep del original
 # de radio se lleva por delante la mitad del blanco (no subirlo a ojo) — y ahi
 # esta la gracia: pasado el punto de rotura, la red se parte en manchas SUELTAS
 # con mar liso entre ellas, que es lo que hace que parezca que hay poca espuma.
-# A 1.11 todavia hace red; a 1.14 ya son manchas separadas.
-RADIO_MULT = 1.14
+# A 1.11 todavia hace red; a 1.14 son manchas separadas y finas. Va a 1.125:
+# justo pasado el punto de rotura, con las manchas ya sueltas pero mas gordas.
+RADIO_MULT = 1.125
 
 # Los 75 circulos del shader, tal cual: (x, y, s) con radio = sqrt(s).
 CIRCULOS = [

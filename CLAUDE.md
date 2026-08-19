@@ -2454,7 +2454,8 @@ fondo de prep_screen/tienda/inventario (`scene_backdrop`). El
   blanco. MEDIDO: 1.00 → 15,6% de espuma · 1.05 → 11,4% · 1.12 → 6,5%. Y ahí
   está la gracia: **pasado el punto de rotura la red se parte en manchas
   SUELTAS con mar liso entre ellas**, que es lo que hace que parezca que hay
-  poca espuma. A 1.11 todavía hace red; va a **1.14**, ya en manchas sueltas.
+  poca espuma. A 1.11 todavía hace red y a 1.14 las manchas salen sueltas pero
+  finas; va a **1.125**, justo pasado el punto de rotura: sueltas y con cuerpo.
   Con el 15,6% del original el mar se lee como una rejilla de líneas blancas.
 - **LA ESCALA (`tile`) SE MIDE CONTRA ESTA CÁMARA, no contra el mundo**: el
   juego enseña solo **9,5 u de ancho**, así que la espuma al tamaño "de verdad"
