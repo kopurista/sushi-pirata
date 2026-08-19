@@ -252,6 +252,24 @@ var tension_fill: StyleBoxTexture = null
 var rush_fx: ColorRect = null
 var rush_mat: ShaderMaterial = null
 var rush_on := false
+## EL TUTORIAL GUIADO en curso (ver `_tutorial_guiado`). Comparte con la
+## clase de Cai el amaño del intento (`clase`), pero aquí no habla nadie:
+## el cartel y los focos lo cuentan todo mientras se juega.
+## Lo que se deja leer un paso del tutorial antes de dejarlo pasar.
+const TUTOR_MIN_LEER := 1.1
+## Salto de linea de los carteles del tutorial. Va por `char(10)` y no
+## por una secuencia de escape: los parches automaticos de este repo se
+## comen las barras invertidas (ver el aviso de CLAUDE.md).
+const TUTOR_NL := char(10)
+var tutor := false
+## En el TUTORIAL la presa no se puede cobrar hasta haber explicado el
+## TIRON: jugando bien la barra se vaciaba en cuatro segundos y la
+## leccion mas importante se quedaba sin dar (medido con un jugador
+## simulado). Se libera en cuanto el tiron termina.
+var tutor_falta_tiron := false
+var tutor_card: Control = null
+var tutor_label: Label = null
+var ayuda_btn: Button = null
 ## Cuánto se acerca la escena durante el tirón. MUY leve a propósito: el mar
 ## que hay detrás es 3D y no se escala con esto, así que un zoom grande
 ## delataría que solo se agranda lo dibujado.
@@ -431,6 +449,8 @@ func _setup_ui() -> void:
 	album_btn.pressed.connect(_open_album)
 	add_child(album_btn)
 
+	_setup_tutor_card()
+	_setup_ayuda_btn()
 	_setup_rush_fx()
 	_setup_fight_ui()
 	_refresh_cast_label()
@@ -470,6 +490,58 @@ const ENERGY_BAR_X := -38.0
 ## botín (z 200) y del velo de los focos (150): es un efecto, no una capa que
 ## deba tapar lo que hay que leer. Y no recibe toques, que justo entonces hay
 ## que estar pulsando como un poseso.
+## EL CARTEL DEL TUTORIAL: una tarjeta de pergamino ARRIBA, bajo la fila de
+## botones. Va arriba y no abajo a propósito — abajo están el agua donde se
+## pesca, el rótulo de estado y el botón de lanzar, y taparlos mientras se
+## explica cómo usarlos sería una broma pesada.
+func _setup_tutor_card() -> void:
+	if tutor_card != null and is_instance_valid(tutor_card):
+		return
+	tutor_card = Control.new()
+	tutor_card.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	tutor_card.offset_left = 26.0
+	tutor_card.offset_right = -26.0
+	tutor_card.offset_top = 196.0 + GameState.safe_top()
+	tutor_card.offset_bottom = 336.0 + GameState.safe_top()
+	tutor_card.z_index = 170
+	tutor_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tutor_card.visible = false
+	add_child(tutor_card)
+	var fondo := PrepBoard.make_nine_patch(PrepBoard.CARD_TEX,
+		PrepBoard.CARD_MARGIN)
+	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tutor_card.add_child(fondo)
+	tutor_label = Label.new()
+	tutor_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tutor_label.offset_left = 24.0
+	tutor_label.offset_right = -24.0
+	tutor_label.offset_top = 14.0
+	tutor_label.offset_bottom = -14.0
+	tutor_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tutor_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	tutor_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tutor_label.add_theme_font_size_override("font_size", 25)
+	tutor_label.add_theme_color_override("font_color", DARK)
+	tutor_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tutor_card.add_child(tutor_label)
+
+
+## El botón "?" que repite el tutorial, bajo el álbum. Es un botón de madera
+## del set con la interrogación escrita: no hace falta arte nuevo para un
+## carácter, y así no desentona con el resto de la esquina.
+func _setup_ayuda_btn() -> void:
+	if ayuda_btn != null and is_instance_valid(ayuda_btn):
+		return
+	ayuda_btn = Button.new()
+	ayuda_btn.text = "?"
+	ayuda_btn.position = Vector2(size.x - 108.0, 196.0 + GameState.safe_top())
+	ayuda_btn.size = Vector2(80.0, 80.0)
+	PrepBoard.skin_button(ayuda_btn)
+	ayuda_btn.add_theme_font_size_override("font_size", 38)
+	ayuda_btn.pressed.connect(_tutorial_guiado)
+	add_child(ayuda_btn)
+
+
 func _setup_rush_fx() -> void:
 	if rush_fx != null and is_instance_valid(rush_fx):
 		return
@@ -673,6 +745,9 @@ func _set_state(s: int) -> void:
 		busy_changed.emit(is_busy())
 	cast_btn.visible = s == State.READY
 	album_btn.visible = s == State.READY
+	if ayuda_btn != null and is_instance_valid(ayuda_btn):
+		# El "?" solo en reposo: en plena pelea no se cambia de tema.
+		ayuda_btn.visible = s == State.READY and not tutor
 	# En plena faena no hay "Atrás": los 50 ya están apostados.
 	back_btn.visible = s == State.READY or s == State.REVEAL
 	fight_box.visible = s == State.FIGHT
@@ -998,6 +1073,9 @@ func _tick_fight(delta: float) -> void:
 	if clase:
 		tension = minf(tension, 0.93)
 		energy = minf(energy, 0.93)
+	if tutor and tutor_falta_tiron:
+		# Ver `tutor_falta_tiron`: aguanta hasta la leccion del tiron.
+		energy = maxf(energy, 0.12)
 	if tension >= 1.0:
 		GameState.bump_stat("fish_line_broken")
 		_escaped("¡El sedal se ha roto!")
@@ -1820,7 +1898,7 @@ func _clase_de_pesca() -> void:
 			await _leccion([
 				{ "text": "Se fue. Pasa. Otra vez.", "who": "cai", "mood": "callado" },
 			])
-		await _esperar_pesca(func() -> bool: return state != State.READY)
+		await _tutor_espera(func() -> bool: return state != State.READY)
 
 		# 2) LA SOMBRA. Que la vea nadar y lance por delante.
 		await _leccion([
@@ -1952,3 +2030,169 @@ func _cai_explica_coleccion() -> void:
 	])
 	await caja.finished
 	await caja.close_and_free()
+
+
+# ------------------------------------------------- TUTORIAL GUIADO (repetible)
+
+## EL TUTORIAL DE LA PESCA, EN TIEMPO REAL Y SIN NARRADOR. Lo abre el botón
+## "?" de la esquina y se puede repetir siempre que se quiera.
+##
+## No es la clase de Cai (`_clase_de_pesca`) con otras frases: aquí NADIE
+## habla. El juego corre, y lo único que hay es un cartel que dice lo que
+## toca AHORA MISMO y un foco sobre lo que hay que mirar — el patrón del
+## rótulo "Toca el agua para lanzar el sedal", pero llevado paso a paso. Cada
+## paso se cierra SOLO cuando el jugador lo hace, así que no se puede leer
+## sin tocar ni tocar sin leer.
+##
+## El intento va AMAÑADO con la misma bandera que la clase (`clase`): pez
+## fácil, gratis, el sedal perdona y no se puede perder. Y el TIRÓN se
+## provoca a mano (`speed_next = 0`) cuando toca explicarlo, porque en un
+## intento de tier 0 puede no salir ninguno.
+func _tutorial_guiado() -> void:
+	if tutor or clase or state != State.READY:
+		return
+	tutor = true
+	clase = true
+	_refresh_cast_label()
+	tutor_card.modulate.a = 0.0
+	tutor_card.visible = true
+
+	# 1) EL BOTÓN. Con foco, y no se sigue hasta que lo pulsa.
+	var z := cast_btn.z_index
+	var velo := _foco_pesca(cast_btn)
+	_tutor_di("Aquí empieza todo.\nPulsa para lanzar la caña.")
+	await _esperar_pesca(func() -> bool: return state != State.READY)
+	_quitar_foco(velo, cast_btn, z)
+
+	# 2) LA SOMBRA. Se señala con un anillo que la SIGUE: lo primero que hay
+	#    que entender es que no se queda quieta.
+	var anillo := _anillo_en(func() -> Vector2: return shadow_pos)
+	_tutor_di("Esa sombra es tu presa.\nNada sin parar: no la esperes quieta.")
+	await _tutor_pausa(3.0)
+	_tutor_di("Toca el agua POR DELANTE de ella\npara lanzar el sedal.")
+	await _tutor_espera(func() -> bool: return bobber_out and not casting)
+	_borrar_anillo(anillo)
+
+	# 3) RECOGER. Solo si el sedal cayó lejos: si el pez ya va hacia el
+	#    anzuelo, esta lección sobra y no se suelta.
+	if state == State.SHADOW:
+		_tutor_di("Si ha caído lejos, MANTÉN pulsado\npara recoger el sedal y vuelve a lanzar.")
+	await _esperar_pesca(func() -> bool:
+		return state == State.APPROACH or state == State.FEINT)
+
+	# 4) LAS FINTAS: la parte que más intentos cuesta, y la única que no se
+	#    puede explicar después de haberla fallado.
+	var anillo2 := _anillo_en(func() -> Vector2: return bobber)
+	_tutor_di("Ya viene. Dará mordisquitos de prueba:\nsi tocas en uno, lo espantas.")
+	await _tutor_espera(func() -> bool: return feints_done >= 1, 25.0)
+	_tutor_di("Eso era un amago.\nEspera al «¡Ha picado!» y toca ENTONCES.")
+	await _tutor_espera(func() -> bool: return state == State.FIGHT, 40.0)
+	_borrar_anillo(anillo2)
+
+	tutor_falta_tiron = true
+	# 5) LA PELEA, barra por barra y con foco en cada una.
+	var zs := rod.z_index
+	var velo2 := _foco_pesca(rod)
+	_tutor_di("MANTÉN pulsado para recoger.\nEl sedal se tensa: verde, naranja... y rojo se rompe.")
+	await _tutor_pausa(4.0)
+	_tutor_di("Suelta de vez en cuando y el sedal descansa.\nVacía la barra de la presa y será tuyo.")
+	await _tutor_pausa(4.0)
+	_quitar_foco(velo2, rod, zs)
+
+	# 6) EL TIRON. Se PROVOCA aqui mismo (`speed_next = 0`) y no se deja
+	#    al azar: jugando bien, la presa se vaciaba antes de que llegara
+	#    ninguno y el tutorial terminaba sin explicar lo unico que de
+	#    verdad se falla. Si el pez ya esta cobrado, se salta.
+	if state == State.FIGHT:
+		speed_next = 0.0
+		await _esperar_pesca(func() -> bool:
+			return speed_left > 0.0 or state != State.FIGHT, 12.0)
+	if state == State.FIGHT and speed_left > 0.0:
+		_tutor_di("¡AHORA! Pulsa rápido y sin parar." + TUTOR_NL
+			+ "Aquí MANTENER no vale: rompe el sedal.")
+		await _esperar_pesca(func() -> bool:
+			return speed_left <= 0.0 or state != State.FIGHT, 15.0)
+		_tutor_di("Eso es. Cuando afloje, vuelve a mantener.")
+		await _tutor_pausa(2.6)
+	tutor_falta_tiron = false
+
+	# 7) FIN: se recoge todo pase lo que pase con el pez.
+	_tutor_di("Ya sabes pescar.\nCuanto más grande, más doblones.")
+	await _tutor_pausa(3.5)
+	_tutor_fin()
+
+
+## Cierra el tutorial y devuelve el minijuego a la normalidad. Se llama
+## también desde `_set_state` si el intento termina antes de tiempo: el
+## cartel no puede quedarse colgado sobre una pantalla que ya no lo espera.
+func _tutor_fin() -> void:
+	if not tutor:
+		return
+	tutor = false
+	tutor_falta_tiron = false
+	clase = false
+	_refresh_cast_label()
+	if tutor_card != null and is_instance_valid(tutor_card):
+		var tw := tutor_card.create_tween()
+		tw.tween_property(tutor_card, "modulate:a", 0.0, 0.25)
+		tw.tween_callback(func() -> void: tutor_card.visible = false)
+
+
+## Espera a que se cumpla algo, PERO nunca antes de `TUTOR_MIN_LEER`
+## segundos: un jugador que ya sabe pescar cumple el paso en el mismo
+## fotograma en que sale el cartel, y el texto parpadeaba sin que diera
+## tiempo a leerlo.
+func _tutor_espera(cond: Callable, tope := 40.0) -> void:
+	await _tutor_pausa(TUTOR_MIN_LEER)
+	await _esperar_pesca(cond, tope)
+
+
+## Escribe el paso actual en el cartel (y lo hace aparecer la primera vez).
+func _tutor_di(texto: String) -> void:
+	if tutor_label == null or not is_instance_valid(tutor_label):
+		return
+	tutor_label.text = texto
+	tutor_card.visible = true
+	var tw := tutor_card.create_tween()
+	tw.tween_property(tutor_card, "modulate:a", 1.0, 0.18)
+
+
+## Espera de tutorial: como `_esperar_pesca`, no bloquea el juego (el jugador
+## tiene que poder seguir pescando mientras lee) y se corta sola si el
+## tutorial se cierra antes.
+func _tutor_pausa(segundos: float) -> void:
+	var t := 0.0
+	while is_inside_tree() and tutor and t < segundos:
+		t += get_process_delta_time()
+		await get_tree().process_frame
+
+
+## ANILLO PULSANTE sobre un punto del agua que se MUEVE (el pez, el
+## flotador). No se usa el foco con velo de `_foco_pesca` porque lo que hay
+## que señalar aquí está DIBUJADO dentro de `zone`: oscurecerlo lo taparía
+## justo a él. El anillo se dibuja encima y sigue al objetivo por fotograma.
+func _anillo_en(get_pos: Callable) -> Control:
+	var c := Control.new()
+	c.set_anchors_preset(Control.PRESET_FULL_RECT)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.z_index = 160
+	c.set_meta("pos", get_pos)
+	add_child(c)
+	c.draw.connect(_dibujar_anillo.bind(c))
+	return c
+
+
+func _dibujar_anillo(c: Control) -> void:
+	var get_pos: Callable = c.get_meta("pos")
+	var p: Vector2 = get_pos.call()
+	# Dos anillos que laten en contrafase: se ven sobre el agua clara y sobre
+	# la sombra oscura del pez, que es justo lo que hay debajo.
+	var k := 0.5 + 0.5 * sin(_t * 4.0)
+	var r := 44.0 + 16.0 * k
+	c.draw_arc(p, r, 0.0, TAU, 36, Color(1.0, 0.86, 0.35, 0.95 - 0.5 * k), 5.0, true)
+	c.draw_arc(p, r + 5.0, 0.0, TAU, 36, Color(0.2, 0.12, 0.05, 0.55 - 0.3 * k), 2.0, true)
+
+
+func _borrar_anillo(c: Control) -> void:
+	if c != null and is_instance_valid(c):
+		c.queue_free()

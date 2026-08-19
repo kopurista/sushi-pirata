@@ -1430,6 +1430,47 @@ primera vez que se entra en ellos (`logros_intro_done` /
     (`ic_album.png`, el libro del pez dorado) ARRIBA A LA DERECHA, y la
     pantalla va SIN lazo de título (el tablón del botón ya dice dónde
     estamos).
+  · **EL TIRÓN SE VE, NO SOLO SE LEE** (`_set_rush`, señal `rush_changed`):
+    en cuanto la presa tira con fuerza se enciende un velo de **LÍNEAS DE
+    ACCIÓN** de cómic (`shaders/action_lines.gdshader`, port del
+    "Actionlines Comic - Anime" de EriNixie en godotshaders, CC0), la CAÑA se
+    va de lado a lado (`RUSH_ROD_SWAY`), la escena se ACERCA un pelín y la
+    cámara TIEMBLA. Al aflojar vuelve todo solo. Cuatro cosas medidas:
+    · Las líneas **convergen en el pez** (uniform `center`, refrescado por
+      fotograma con la boya en UV), no en el centro de la pantalla.
+    · **El hueco limpio del centro va MUY alto** (`radius` 1.18 contra el
+      0.62 del original) y el alfa tope es `RUSH_FADE` (0.55): con los
+      valores de fábrica las líneas llegaban hasta el pez y tapaban el
+      barco, las dos barras y el rótulo, o sea justo lo que hay que mirar
+      mientras se pulsa. Enmarcan; no son un telón.
+    · El ruido baja de **6 octavas a 4**: esto se dibuja a pantalla completa
+      y corre justo en el momento en que hay que pulsar rápido.
+    · El ZOOM va sobre `zone` (donde se dibujan pez, sedal y boya) con el
+      pivote EN EL PEZ, y es leve (1.035) a propósito: el mar de detrás es
+      3D y no se escala con él. El TEMBLOR y el acercamiento de cámara los
+      hace `main_menu._on_pesca_rush`, que **guarda el `cam.size` de antes**
+      en vez de suponerlo (el menú lo cambia en sus transiciones) y lo
+      devuelve clavado al terminar.
+  · **EL TUTORIAL SE PUEDE REPETIR, y no lo cuenta Cai** (botón "?" bajo el
+    álbum → `_tutorial_guiado`): la clase de Cai (`_clase_de_pesca`) es la
+    PRIMERA vez y va con diálogos; esta es la chuleta de siempre y aquí NO
+    habla nadie. Un cartel de pergamino arriba dice lo que toca AHORA y un
+    foco señala dónde mirar, con el juego CORRIENDO — el patrón del rótulo
+    "Toca el agua para lanzar el sedal", paso a paso. Tres cosas que costó
+    medir con un jugador simulado:
+    · **Cada paso se deja leer `TUTOR_MIN_LEER` (1,1 s) como mínimo**: quien
+      ya sabe pescar cumple la condición en el mismo fotograma en que sale
+      el cartel, y dos pasos enteros se perdían sin que nadie los viera.
+    · **El TIRÓN se provoca a mano** (`speed_next = 0`) y, además, la presa
+      NO se puede cobrar hasta haberlo explicado (`tutor_falta_tiron` capa
+      la energía por abajo): jugando bien, la barra se vaciaba en cuatro
+      segundos y el tutorial terminaba sin dar la única lección que de
+      verdad se falla.
+    · Los elementos DIBUJADOS (la sombra del pez, el flotador) se señalan
+      con un **anillo pulsante que los sigue** (`_anillo_en`), no con el
+      foco de velo: oscurecer `zone` taparía justo lo que hay que mirar.
+    El intento va amañado con la misma bandera que la clase (`clase`): pez
+    fácil, gratis y sin poder perderlo.
   · **EL PREMIO SE SORTEA ANTES DE VER LA SOMBRA** (`GameState.fishing_roll`,
     PURO: no toca estado) y de su `tier` 0..3 sale la DIFICULTAD: el sedal se
     tensa más deprisa (+28%/tier), la presa recupera más y las fases de

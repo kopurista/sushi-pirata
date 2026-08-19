@@ -20,3 +20,7 @@ __pycache__/
 # error (ya pasó: 28 MB de _gen/ colados en el historial).
 /_*
 
+# Sondas de verificacion de la raiz: escenas y scripts "zz_*" que inyectan
+# estado y capturan pantallazos, y sus PNG. Se nombran asi para que caigan
+# aqui y no acaben en un commit por error (ya paso: siete se colaron).
+/zz*
