@@ -53,6 +53,9 @@ signal xp_gained(amount: int)
 ## así que se colaba sobre las fichas del álbum: con esto el menú la aparta
 ## mientras el álbum está puesto.
 signal album_abierto(on: bool)
+## EL PEZ ESTÁ TIRANDO: lo escucha `main_menu` para temblar la cámara y
+## acercarla un pelín. Se apaga al terminar el tirón (o la pelea).
+signal rush_changed(on: bool)
 
 enum State { READY, SHADOW, APPROACH, FEINT, BITE, FIGHT, REVEAL, ESCAPED }
 
@@ -241,6 +244,24 @@ var crank: TextureRect = null
 ## El relleno del SEDAL, guardado para teñirlo por fotograma (ver
 ## `_tension_color`): verde → naranja → rojo según la tensión.
 var tension_fill: StyleBoxTexture = null
+## --- EL TIRÓN, EN PANTALLA. Cuando la presa tira con fuerza no basta con
+## que cambie un número: se enciende un velo de LÍNEAS DE ACCIÓN de cómic
+## centradas en el pez, la caña se va de lado a lado, la escena se acerca
+## un pelín y la cámara tiembla (eso último lo hace el menú, ver la señal
+## `rush_changed`). Todo vuelve a su sitio al acabar el tirón. ---
+var rush_fx: ColorRect = null
+var rush_mat: ShaderMaterial = null
+var rush_on := false
+## Cuánto se acerca la escena durante el tirón. MUY leve a propósito: el mar
+## que hay detrás es 3D y no se escala con esto, así que un zoom grande
+## delataría que solo se agranda lo dibujado.
+## Opacidad MAXIMA de las lineas. No llega a 1: es un efecto que enmarca,
+## no un telon — a plena opacidad tapaba el barco y las dos barras.
+const RUSH_FADE := 0.55
+const RUSH_ZOOM := 1.035
+## Vaivén de la caña durante el tirón (píxeles y velocidad).
+const RUSH_ROD_SWAY := 16.0
+const RUSH_ROD_HZ := 11.0
 
 
 func _ready() -> void:
@@ -410,6 +431,7 @@ func _setup_ui() -> void:
 	album_btn.pressed.connect(_open_album)
 	add_child(album_btn)
 
+	_setup_rush_fx()
 	_setup_fight_ui()
 	_refresh_cast_label()
 
@@ -443,6 +465,70 @@ const ENERGY_BAR_X := -38.0
 ## pez se lleva sedal (`_animate_rod`). Al lado, la barra de la PRESA
 ## (textura horizontal del set girada -90°: el 9-slice se dibuja en
 ## horizontal y la rotación lo pone de pie sin deformar los topes).
+## EL VELO DE LÍNEAS DE ACCIÓN del tirón (`shaders/action_lines.gdshader`).
+## Va por encima del agua y de la caña, pero POR DEBAJO de los carteles del
+## botín (z 200) y del velo de los focos (150): es un efecto, no una capa que
+## deba tapar lo que hay que leer. Y no recibe toques, que justo entonces hay
+## que estar pulsando como un poseso.
+func _setup_rush_fx() -> void:
+	if rush_fx != null and is_instance_valid(rush_fx):
+		return
+	rush_mat = ShaderMaterial.new()
+	rush_mat.shader = load("res://shaders/action_lines.gdshader")
+	rush_mat.set_shader_parameter("fade", 0.0)
+	rush_fx = ColorRect.new()
+	rush_fx.color = Color.WHITE
+	rush_fx.material = rush_mat
+	rush_fx.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rush_fx.z_index = 120
+	rush_fx.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rush_fx.visible = false
+	add_child(rush_fx)
+
+
+## Enciende o apaga TODO el aparato del tirón: líneas de acción, acercamiento
+## de la escena y aviso al menú para que tiemble la cámara.
+func _set_rush(on: bool) -> void:
+	if on == rush_on:
+		return
+	rush_on = on
+	rush_changed.emit(on)
+	if rush_fx != null and is_instance_valid(rush_fx):
+		if on:
+			rush_fx.visible = true
+		# El fundido va por METODO, no por lambda multilinea dentro de la
+		# llamada: GDScript no las digiere bien ahi.
+		var tw := rush_fx.create_tween()
+		tw.tween_method(_set_rush_fade, _rush_fade(),
+			RUSH_FADE if on else 0.0, 0.18 if on else 0.3)
+		if not on:
+			tw.tween_callback(_hide_rush_fx)
+	# EL ACERCAMIENTO va sobre `zone` (donde se dibujan pez, sedal y boya) con
+	# el pivote EN EL PEZ: es un zoom a la presa, no a la pantalla.
+	if zone != null and is_instance_valid(zone):
+		if on:
+			zone.pivot_offset = bobber
+		var tz := zone.create_tween().set_trans(Tween.TRANS_SINE)
+		tz.tween_property(zone, "scale",
+			Vector2.ONE * (RUSH_ZOOM if on else 1.0), 0.22)
+
+
+func _set_rush_fade(v: float) -> void:
+	if rush_mat != null:
+		rush_mat.set_shader_parameter("fade", v)
+
+
+func _hide_rush_fx() -> void:
+	if rush_fx != null and is_instance_valid(rush_fx):
+		rush_fx.visible = false
+
+
+func _rush_fade() -> float:
+	if rush_mat == null:
+		return 0.0
+	return float(rush_mat.get_shader_parameter("fade"))
+
+
 func _setup_fight_ui() -> void:
 	# Idempotente: la clase de Cai la monta antes de tiempo para poder
 	# enseñarla, y sin esta salida montaba una segunda caña encima.
@@ -561,6 +647,13 @@ func _animate_rod(delta: float, en_velocidad: bool) -> void:
 		var temblor := sin(_t * 26.0) * (0.014 if en_velocidad else 0.005)
 		rod.rotation = lerpf(rod.rotation, destino,
 			minf(delta * 6.0, 1.0)) + temblor
+		# Y CON EL TIRON SE VA DE LADO A LADO: la cana entera baila, que
+		# es lo que se ve desde lejos. Vuelve a su sitio al aflojar.
+		var sway := 0.0
+		if en_velocidad:
+			sway = sin(_t * RUSH_ROD_HZ) * RUSH_ROD_SWAY
+		rod.position.x = lerpf(rod.position.x,
+			ROD_RECT.position.x + sway, minf(delta * 14.0, 1.0))
 
 
 # ------------------------------------------------------------ estados y bucle
@@ -892,6 +985,14 @@ func _tick_fight(delta: float) -> void:
 	# La barra de la presa parpadea en la fase de velocidad: es el aviso.
 	energy_bar.modulate = Color(1, 0.7, 0.7) \
 		if en_velocidad and fmod(_t, 0.22) < 0.11 else Color.WHITE
+	# EL TIRON EN PANTALLA: lineas de accion, acercamiento y temblor.
+	_set_rush(en_velocidad)
+	if rush_on and rush_mat != null:
+		# Las lineas convergen EN EL PEZ, que va debajo de la boya y se
+		# mueve: el centro se refresca por fotograma, en UV del lienzo.
+		var cs := GameState.canvas_size()
+		rush_mat.set_shader_parameter("center",
+			Vector2(bobber.x / maxf(cs.x, 1.0), bobber.y / maxf(cs.y, 1.0)))
 	# EN LA CLASE NO SE PIERDE: el sedal se queda a un pelo de romperse y la
 	# presa a un pelo de soltarse, para que el susto se vea sin castigo.
 	if clase:
@@ -912,6 +1013,7 @@ func _tick_fight(delta: float) -> void:
 
 func _escaped(motivo: String) -> void:
 	holding = false
+	_set_rush(false)
 	instruction.text = motivo
 	_set_state(State.ESCAPED)
 	zone.queue_redraw()
@@ -924,6 +1026,7 @@ func _escaped(motivo: String) -> void:
 ## Captura lograda: AHORA se entrega el premio sorteado al empezar.
 func _land_catch() -> void:
 	holding = false
+	_set_rush(false)
 	instruction.text = ""
 	_set_state(State.REVEAL)
 	if str(roll.get("type", "")) == "fish":

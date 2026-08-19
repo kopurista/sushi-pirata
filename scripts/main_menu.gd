@@ -134,6 +134,15 @@ var in_menu := true
 var leaving := false
 ## La PESCA montada sobre el menú (misma escena, ver `_go_fishing`).
 var fishing_ui: Control = null
+## EL TIRON DEL PEZ SACUDE LA CAMARA (senal `FishingGame.rush_changed`):
+## `cam_shake` son pixeles de lienzo de temblor y `cam_zoom` va de 0 a 1
+## para acercarla un pelin. `cam_size_base` guarda el encuadre de antes,
+## que el menu cambia `cam.size` en sus transiciones y no se puede
+## suponer cual era.
+var cam_shake := 0.0
+var cam_zoom := 0.0
+var cam_size_base := 0.0
+var rush_tween: Tween = null
 var birds: Array = []
 var clouds: Array = []
 ## Mientras las gaviotas y las nubes se retiran, `_process` deja de colocarlas.
@@ -1016,7 +1025,14 @@ func _update_camera() -> void:
 	if cam == null:
 		return
 	var off := lerpf(BAND_CENTER_OFF, MENU_BAND_OFF, menu_blend)
-	var target := _world(Vector2(360.0 + cam_side, cam_center + off))
+	# El TEMBLOR del tiron se suma aqui, en pixeles de lienzo: asi
+	# sacude el mar y el barco sin tocar nada mas.
+	var sh := Vector2.ZERO
+	if cam_shake > 0.01:
+		sh = Vector2(randf_range(-1.0, 1.0),
+			randf_range(-1.0, 1.0)) * cam_shake
+	var target := _world(Vector2(360.0 + cam_side + sh.x,
+		cam_center + off + sh.y))
 	cam.position = target + cam.transform.basis.z * 30.0
 
 
@@ -1150,6 +1166,19 @@ func _process(delta: float) -> void:
 			and ship_pivot != null and cam != null:
 		fishing_ui.rod_tip = cam.unproject_position(
 			ship_pivot.global_transform * ROD_LOCAL)
+		# MIENTRAS EL PEZ TIRA hay que recolocar la camara por fotograma:
+		# el temblor es aleatorio y el zoom va interpolado, y si no nadie
+		# los aplicaria (el menu solo mueve la camara en sus viajes).
+		if cam_shake > 0.01 or cam_zoom > 0.001:
+			if cam_size_base > 0.0:
+				cam.size = lerpf(cam_size_base,
+					cam_size_base * RUSH_ZOOM_IN, cam_zoom)
+			_update_camera()
+		elif cam_size_base > 0.0:
+			# Tiron terminado: se devuelve el encuadre exacto de antes.
+			cam.size = cam_size_base
+			cam_size_base = 0.0
+			_update_camera()
 	if not in_menu:
 		return
 	_mt += delta
@@ -2598,6 +2627,7 @@ func _go_fishing() -> void:
 		fishing_ui.money_changed.connect(_refresh_resources)
 		fishing_ui.busy_changed.connect(_set_plus_enabled)
 		fishing_ui.xp_gained.connect(_xp_en_la_barra)
+		fishing_ui.rush_changed.connect(_on_pesca_rush)
 		# CON EL ÁLBUM ABIERTO, LA BARRA SE QUITA DE EN MEDIO: va por encima de
 		# la pesca (para que no se la trague su panel táctil) y por eso se
 		# dibujaba sobre las fichas de los peces.
@@ -2650,6 +2680,32 @@ func _xp_en_la_barra(cantidad: int) -> void:
 	t.chain().tween_callback(l.queue_free)
 	# Y la barra sube de verdad (con su fogonazo si cruza un nivel).
 	_play_xp_anim_if_pending()
+
+
+## EL PEZ TIRA CON FUERZA: la camara TIEMBLA y se acerca un pelin, y al
+## aflojar vuelve sola a su sitio. El aviso llega de `FishingGame` (senal
+## `rush_changed`), que ademas enciende las lineas de accion y mueve la cana.
+##
+## `cam_size_base` se GUARDA al empezar el tiron y NO se supone: el menu
+## cambia `cam.size` en sus transiciones (el atraque de la tienda), y clavar
+## aqui la constante dejaria el encuadre torcido si algo se solapa.
+const RUSH_SHAKE := 5.0
+const RUSH_ZOOM_IN := 0.965
+
+
+func _on_pesca_rush(on: bool) -> void:
+	if cam == null:
+		return
+	if on and cam_size_base <= 0.0:
+		cam_size_base = cam.size
+	if rush_tween != null and rush_tween.is_valid():
+		rush_tween.kill()
+	rush_tween = create_tween().set_parallel()
+	rush_tween.tween_property(self, "cam_shake",
+		RUSH_SHAKE if on else 0.0, 0.18 if on else 0.35)
+	rush_tween.tween_property(self, "cam_zoom", 1.0 if on else 0.0,
+		0.22 if on else 0.35)
+
 
 
 func _on_fishing_closed() -> void:

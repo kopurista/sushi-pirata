@@ -1874,6 +1874,19 @@ primera vez que se entra en ellos (`logros_intro_done` /
     (`ESMERALDA_PEZ` = "froggy", la rana caótica): es la única pieza que se
     gana pescando un pez CONCRETO, y mira el ÁLBUM y no una estadística, así
     que cae también si esa rana se pescó antes de que la pieza existiera.
+  · **LOS DADOS SE VALIDAN CONTANDO POR CÓDIGO, NO A OJO** (lección del
+    19-8-2026): a Ludo se le pidieron las caras y devolvió dados con el 5
+    repetido en dos caras del mismo dado, algo imposible. A tamaño de icono
+    un 4 y un 5 no se distinguen, así que se comprobó detectando los pips
+    por componente conexa y repartiéndolos por cara SEGÚN EL ÁNGULO desde
+    el centro del dado (repartir por bandas horizontales metía los pips
+    altos de la cara frontal en la de arriba y daba cuentas falsas). De ocho
+    pares generados no salió ni uno correcto: el generador acierta un dado y
+    falla el otro. La solución fue pedir UN SOLO dado —ahí sí acertó, 1-2-4—
+    y **componer el par con dos copias suyas**, una girada 8°; dos dados
+    iguales son una tirada de dobles, que existe. Si hay que rehacerlo:
+    describir el PATRÓN de cada cara ("un punto centrado", "dos en
+    diagonal", "cuatro en las esquinas") funciona mejor que el número.
   · **UN ICONO CON AGUJERO NECESITA LA SEGUNDA PASADA** (`CON_HUECO` en
     ui2_prep, hoy solo el cucharón sin fondo del umibōzu): `drop_white`
     inunda desde los BORDES, así que el blanco encerrado por el propio
