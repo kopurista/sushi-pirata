@@ -1202,10 +1202,27 @@ func _david_regala_genero(faltan: Array) -> void:
 	await caja.close_and_free()
 
 
+## ¿Puede el jugador llevarse hoy algún bonificador? (desbloqueado y con usos).
+func _hay_bonificadores() -> bool:
+	for id in PerkData.ids():
+		if GameState.is_perk_unlocked(id) and GameState.get_perk_uses(id) > 0:
+			return true
+	return false
+
+
 ## Manda al nivel con una carta cerrada ya decidida.
 func _zarpar_con(recetas: Array[String]) -> void:
 	GameState.selected_recipes = recetas
 	GameState.selected_perks = []
+	# LA CARTA NO SE ELIGE, PERO EL BONIFICADOR SÍ (pedido por el usuario): con
+	# alguno disponible, la isla pasa por el selector igual — allí la carta sale
+	# puesta y sin tocar, y debajo la fila de bonificadores. Saltándose la
+	# pantalla, quien tuviera a Alice no podía llevársela a ninguna isla.
+	# Sin ninguno que elegir se va directo, como siempre: una pantalla entera
+	# para pulsar "¡Zarpar!" no es una decisión.
+	if _hay_bonificadores():
+		GameState.fade_to_scene("res://scenes/prep_screen.tscn", 0.35, 0.45)
+		return
 	GameState.fade_to_scene("res://scenes/level3d.tscn", 0.35, 0.45)
 
 

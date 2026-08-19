@@ -170,11 +170,31 @@ const RETO_TEXTOS := {
 }
 
 
+## LO MISMO EN PRIMERA PERSONA, que es como lo canta EL PROPIO CLIENTE al
+## sentarse. Las de arriba estan escritas para que las narre un tercero
+## ("sirvele un sashimi"), y puestas en su boca sonaban a que hablaba de otro.
+## Van en una tabla aparte y no con un reemplazo de "le" por "me": hay frases
+## que cambian mas ("que su UNICO plato" -> "que mi UNICO plato").
+const RETO_TEXTOS_YO := {
+	"platos": "sírveme **%d platos**",
+	"distintos": "sírveme **%d platos DISTINTOS**",
+	"mismo": "sírveme **%d veces el MISMO plato**",
+	"receta": "sírveme un **%s**",
+	"postre_solo": "que mi ÚNICO plato sea un **postre**",
+	"platos_y_postre": "sírveme **%d platos** y ciérrame con un **postre**",
+	"picoteos": "sírveme **%d picoteos**",
+	"picoteos_sin_plato": "sírveme **%d picoteos** ANTES de darme ningún plato",
+	"hasta_el_final": "que siga aquí sentado cuando acabe el turno",
+}
+
+
 ## Frase del reto de ese cliente, ya rellena. Sin `reto` cae en "platos", que
-## es como funcionaba antes de que existieran los encargos.
-static func reto_texto(cfg: Dictionary) -> String:
+## es como funcionaba antes de que existieran los encargos. Con `yo`, la
+## version que dice el cliente en vez de la que narra David.
+static func reto_texto(cfg: Dictionary, yo := false) -> String:
 	var reto := str(cfg.get("reto", "platos"))
-	var plantilla := str(RETO_TEXTOS.get(reto, RETO_TEXTOS["platos"]))
+	var tabla: Dictionary = RETO_TEXTOS_YO if yo else RETO_TEXTOS
+	var plantilla := str(tabla.get(reto, tabla["platos"]))
 	if plantilla.contains("%s"):
 		var id := str(cfg.get("recipe", ""))
 		var nombre := str(RecipeData.RECIPES.get(id, {}).get("name", id))
@@ -705,16 +725,18 @@ const PORTS: Array = [
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
 		"chef_rec": 13,
 		"name": "Muelle de las Bandejas",
-		"desc": "Aquí no se sirve plato a plato: se sirve por bandejas.",
+		"desc": "Muelle largo y clientela sin prisa: buen día para probar cosas.",
 		"client_mix": { "E": 5, "A": 4, "G": 2 },
 		"arrival_span": 130.0,
 		"patience_mult": 0.85,
 		"arrival_scale": 0.7,
 		"goal_stars": 2,
 		"star_money": [52, 88, 135],
-		# EL BARCO COMBINADO: el puerto lo permite y aquí se gana su bonificador.
 		"boat": true,
-		"unlocks_perk": "barco",
+		# SIN `unlocks_perk`: el BARCO se aprende en el mar 2 (decidido por el
+		# usuario). El puerto sigue PERMITIENDO el barco para cuando llegue, y
+		# aqui Alice explica en su lugar que hay mas bonificadores y como se
+		# ganan (`level_director._nivel_14`).
 		"prep_dialog": "nivel_14",
 		"director": "nivel_14",
 		"reward_recipes": [],

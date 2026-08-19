@@ -25,6 +25,14 @@ class_name CollectibleData
 ##   sigue sin disparador. La EXCEPCIÓN son los que uno draga literalmente del
 ##   fondo del mar (botella, ancla, calavera, hueso, pata de palo, tentáculo,
 ##   garfio, brújula, catalejo, bala de cañón): esos también se pescan.
+## · Los TROFEOS (cuchillo del maestro, galón de oro) se ganan COCINANDO, con
+##   su hazaña — son la vía de "aventura y arcade" ya estrenada.
+##
+## EL CORAZÓN EN UN COFRECITO TIENE ESCENA: al salir del mar deja
+## `GameState.pending_corazon`, y David reacciona al cerrar la pesca
+## (`main_menu._reaccion_corazon`). Se cuenta ALLÍ y no aquí porque la ventana
+## del coleccionable la saca NoticeLayer en su capa global, donde no cabe un
+## diálogo con retrato.
 ##
 ## El TRIÁNGULO DORADO es especial: son TRIFORCE_PIECES fragmentos que se
 ## juntan en UN solo coleccionable; al completarlo se regalan
@@ -32,6 +40,12 @@ class_name CollectibleData
 
 const TRIFORCE_PIECES := 8
 const TRIFORCE_REWARD := 3
+
+## TROFEOS POR HAZAÑA: los dos coleccionables que no se pescan ni se regalan,
+## sino que se ganan cocinando. Los vigila `GameState._run_achievement_check`
+## y los umbrales viven AQUÍ para que la ficha no pueda contradecirlos.
+const CUCHILLO_CORTES := 200
+const GALON_OLEADA := 20
 
 ## El logro "coleccionista" pide TODOS: sus metas viven en
 ## `achievement_data.gd` y la del oro tiene que ser ITEMS.size(). Al añadir un
@@ -95,17 +109,36 @@ const ITEMS: Array = [
 		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "pata_palo", "name": "Pata de palo",
 		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- La cocina del barco y sus trofeos -----------------------------------
+	{ "id": "maneki_neko", "name": "Maneki-neko roto",
+		"desc": "Roto y pegado a mano. Salió de un cofre pescado en alta mar." },
+	# El dibujo trae los DOS ojos pintados (el generador no hace la asimetría
+	# del daruma a medias), así que la ficha lo cuenta: un daruma con los dos
+	# ojos pintados es un deseo ya cumplido.
+	{ "id": "daruma", "name": "Daruma",
+		"desc": "Tiene los dos ojos pintados: alguien cumplió su deseo." },
+	{ "id": "botella_sake", "name": "Botella de sake", "desc": "" },
+	{ "id": "escama_sirena", "name": "Escama de sirena", "desc": "" },
+	{ "id": "cuchillo_maestro", "name": "Cuchillo del maestro",
+		"desc": "Por bordar %d cortes lentos sin pasarte de rápido."
+			% CUCHILLO_CORTES },
+	{ "id": "galon_oro", "name": "Galón de oro",
+		"desc": "Por aguantar hasta la oleada %d del Arcade." % GALON_OLEADA },
 	# --- Piratas del Caribe --------------------------------------------------
 	{ "id": "perla_negra", "name": "Perla negra",
 		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "moneda_azteca", "name": "Moneda azteca",
 		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "corazon_cofre", "name": "Corazón en un cofrecito",
+		"desc": "Sigue latiendo. David prefiere no hablar de ello." },
 	# --- Monkey Island -------------------------------------------------------
 	{ "id": "grog", "name": "Botella de grog",
 		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "mono_tres_cabezas", "name": "Peluche de un mono con 3 cabezas",
 		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "lista_insultos", "name": "Lista de insultos",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "pollo_goma", "name": "Pollo de goma con polea",
 		"desc": "Salió de un cofre pescado en alta mar." },
 	# --- Day of the Tentacle -------------------------------------------------
 	{ "id": "gafas_nerd", "name": "Gafas rotas de nerd",
@@ -125,6 +158,25 @@ const ITEMS: Array = [
 		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "sarten", "name": "Sartén de cocina",
 		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "cuerno_reno", "name": "Cuerno de reno",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "sombrero_vaquero", "name": "Sombrero vaquero morado",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "botella_cola", "name": "Botella de cola",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "violin_esqueleto", "name": "Violín de esqueleto",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "caracol_telefono", "name": "Caracol teléfono",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- La Isla del Tesoro --------------------------------------------------
+	{ "id": "marca_negra", "name": "La marca negra",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- Peter Pan -----------------------------------------------------------
+	{ "id": "reloj_cocodrilo", "name": "Reloj despertador del cocodrilo",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- Popeye --------------------------------------------------------------
+	{ "id": "lata_espinacas", "name": "Lata de espinacas",
+		"desc": "Salió de un cofre pescado en alta mar." },
 	# --- El Planeta del Tesoro -----------------------------------------------
 	{ "id": "esfera_tesoro", "name": "Esfera del tesoro",
 		"desc": "Esta esfera con forma de planeta podría ser un mapa del tesoro." },
@@ -133,6 +185,8 @@ const ITEMS: Array = [
 		"desc": "Parece que este colgante cayó de los cielos hace mucho tiempo." },
 	# --- Zelda (el triángulo cierra la vitrina) ------------------------------
 	{ "id": "vela", "name": "Vela de mascarón",
+		"desc": "Salió de un cofre pescado en alta mar." },
+	{ "id": "batuta_viento", "name": "Batuta del viento",
 		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "semilla_dorada", "name": "Semilla dorada",
 		"desc": "Salió de un cofre pescado en alta mar." },
@@ -148,6 +202,8 @@ const ITEMS: Array = [
 		"desc": "Una morsa de peluche. Nadie sabe qué hacía tan lejos del mar." },
 	{ "id": "huevo_montana", "name": "Huevo de montaña",
 		"desc": "Ni en mis mejores sueños encontraría un huevo tan grande." },
+	{ "id": "botella_leche", "name": "Botella de leche",
+		"desc": "Seguramente esté caducada. Salió de un cofre pescado en alta mar." },
 	{
 		"id": "trifuerza", "name": "Tripuerca de Oro",
 		"desc": "Reúne los %d fragmentos de la Tripuerca de Oro." % TRIFORCE_PIECES,

@@ -584,7 +584,11 @@ COLLECTIBLES = [
     "lista_insultos", "semilla_dorada", "reloj_arena", "mascara_zora",
     "saco_cafe", "gafas_nerd", "tentaculo_purpura", "peluche_morsa",
     "foto_christine", "escudo_antiguo", "huevo_montana", "esfera_tesoro",
-    "colgante_cielos",
+    "colgante_cielos", "caracol_telefono", "cuerno_reno", "violin_esqueleto",
+    "sombrero_vaquero", "botella_cola", "batuta_viento", "botella_leche",
+    "pollo_goma", "corazon_cofre", "marca_negra", "reloj_cocodrilo",
+    "lata_espinacas", "maneki_neko", "daruma", "botella_sake",
+    "escama_sirena", "cuchillo_maestro", "galon_oro",
 ]
 
 
@@ -1093,3 +1097,27 @@ if __name__ == "__main__":
     build_submenu()
     build_menu_panel()
     build_fishing()
+
+
+# --------------------------------- calavera del contador y chapa de bonificador
+
+def build_perks_ui() -> None:
+    """Dos piezas que no encajan en ningun grupo anterior.
+
+    `calavera_vacio` es el contador de vacios del PUERTO: hasta ahora reusaba
+    `col_calavera` (la calavera de la vitrina, que es un craneo pelado) y no se
+    leia como lo que es. Esta es la de la BANDERA PIRATA, con los dos huesos
+    cruzados por detras.
+
+    `boton_perk` es la chapa de laton de los bonificadores. Va aparte del boton
+    de madera del resto del juego a proposito (pedido por el usuario): un
+    bonificador no es un boton mas, y con la misma madera no se distinguia de
+    una receta. Se exporta a 330 de ancho como `boton_madera`, asi que su marco
+    cae en ~34 texeles: el margen 9-slice que deja los remaches enteros.
+    """
+    cal = drop_white(Image.open(RAW / "misc" / "calavera_pirata.webp")
+        .convert("RGBA"))
+    save(fit_max(crop_alpha(drop_specks(cal), 2), 128), "calavera_vacio")
+    plate = drop_white(Image.open(RAW / "misc" / "boton_perk.webp")
+        .convert("RGBA"))
+    save(fit_width(solidify(crop_alpha(plate)), 330), "boton_perk")

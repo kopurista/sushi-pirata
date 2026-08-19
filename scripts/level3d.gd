@@ -2324,6 +2324,17 @@ const PHASE_W := 430.0
 const PHASE_H := 78.0
 
 
+## Altura del cartel de fase. Se calcula y no se clava porque los CONTADORES
+## DE MAESTRIA viven en esta misma banda, pegados al canto izquierdo, y el
+## cartel va centrado (x 145..575): con los dos a la misma altura se pisaban.
+## Cuando hay contadores, el cartel sube su renglon.
+func _phase_sign_y() -> float:
+	var y := GameState.canvas_size().y - 588.0 - HEAD_ICON - 12.0 - PHASE_H
+	if skill_counter_row != null and is_instance_valid(skill_counter_row):
+		y -= float(SKILL_CHIP) + 10.0
+	return y
+
+
 func _setup_phase_sign() -> void:
 	var padre := phase_label.get_parent()
 	var sign := Control.new()
@@ -2335,7 +2346,7 @@ func _setup_phase_sign() -> void:
 	# ahí es donde el jugador tiene los ojos mientras cocina, y arriba competía
 	# con el reloj y el marcador. Se apoya sobre la fila de cabezas de cliente.
 	sign.position = Vector2((GameState.canvas_size().x - PHASE_W) * 0.5,
-		GameState.canvas_size().y - 588.0 - HEAD_ICON - 12.0 - PHASE_H)
+		_phase_sign_y())
 	sign.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sign.visible = false
 	padre.add_child(sign)
@@ -4258,9 +4269,16 @@ func _finalize_results() -> void:
 		last_xp += last_xp_extra
 		GameState.money += total_money
 		GameState.record_level_score(GameState.current_port, total_money)
+		# LOS BONIFICADORES SE MIRAN ANTES DE `complete_port`, y esto no es un
+		# detalle: `complete_port` apunta las estrellas de ESTE escenario, y las
+		# compuertas de los bonificadores se leen justo de ahí. Calculado
+		# después, superar el escenario 17 abría el sistema y en el mismo
+		# fotograma cobraba los combos hechos DENTRO del 17, así que el jugador
+		# llegaba al 18 con "Cocina veloz" ya puesta sin haberla ganado con el
+		# sistema abierto. Se gana A PARTIR del escenario que lo presenta.
+		var perks_nuevos := _check_perk_unlocks()
 		new_recipes = GameState.complete_port(GameState.current_port, stars)
-		# Los potenciadores permanentes se ganan por combos, no por estrellas.
-		for p in _check_perk_unlocks():
+		for p in perks_nuevos:
 			new_recipes.append({ "perk": p })
 	elif GameState.is_arcade():
 		# ARCADE: el oro generado va ENTERO al monedero (es una jornada de
@@ -5435,7 +5453,10 @@ func _setup_vacios_puerto() -> void:
 	_vacios_calaveras.clear()
 	for i in VACIOS_MAX:
 		var cal := TextureRect.new()
-		cal.texture = load("res://assets/ui/col_calavera.png")
+		# La calavera de la BANDERA PIRATA (craneo y huesos cruzados), no la
+		# `col_calavera` de la vitrina, que es un craneo pelado y no se leia
+		# como el aviso que es.
+		cal.texture = load("res://assets/ui/calavera_vacio.png")
 		cal.custom_minimum_size = Vector2(CALAVERA, CALAVERA)
 		cal.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		cal.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -5567,6 +5588,11 @@ func _setup_skill_counters() -> void:
 		_skill_chip[id] = num
 		_skill_drawn[id] = -999
 	_place_skill_counters()
+	# El cartel de fase se monta antes que esto (`_skin_panels`), así que hay
+	# que recolocarlo AHORA que ya sabe que tiene vecinos. Solo la `y`: la `x`
+	# la lleva su propia animación de entrada y salida.
+	if phase_sign != null and is_instance_valid(phase_sign):
+		phase_sign.position.y = _phase_sign_y()
 	_refresh_skill_counters()
 
 
@@ -5584,21 +5610,22 @@ func _skill_periods() -> Dictionary:
 	return out
 
 
-## Se cuelga JUSTO DEBAJO del contador de clientes, alineada con él. Va por
-## posición y no dentro de la fila superior porque esa fila reparte su ancho
-## entre reloj, oro y clientes: metida ahí, descuadraba el centrado del oro.
+## Margen al canto izquierdo de la fila de contadores.
+const SKILL_MARGIN := 12.0
+
+
+## LOS CONTADORES VIVEN ABAJO, JUSTO ENCIMA DE LA CINTA de la tabla de
+## elaboración y pegados al canto izquierdo (pedido por el usuario). Estuvieron
+## bajo el número de clientes, arriba del todo, y eso los dejaba en la otra
+## punta de la pantalla justo cuando hacen falta: son contadores y no dados
+## para poder PLANEAR el plato gratis, y para planear hay que verlos mientras
+## se cocina. Aquí comparten banda con el cartel de fase, que sube su renglón
+## para no pisarlos (ver `_phase_sign_y`).
 func _place_skill_counters() -> void:
 	if skill_counter_row == null or not is_instance_valid(skill_counter_row):
 		return
-	var caja: Control = $HUD/TopRow/ClientsBox
-	var alto_extra := 0.0
-	# El contador de vacíos del puerto vive justo debajo del de clientes; si
-	# está puesto, los contadores de maestría bajan un renglón.
-	if vacios_puerto_label != null and is_instance_valid(vacios_puerto_label):
-		alto_extra = 32.0
-	skill_counter_row.position = Vector2(
-		caja.global_position.x,
-		caja.global_position.y + caja.size.y + 4.0 + alto_extra)
+	skill_counter_row.position = Vector2(SKILL_MARGIN,
+		GameState.canvas_size().y - 588.0 - HEAD_ICON - 8.0 - float(SKILL_CHIP))
 
 
 ## Cifras que faltan. `left` es lo que queda para el próximo premio; a 0 el

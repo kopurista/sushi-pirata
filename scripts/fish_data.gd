@@ -350,19 +350,25 @@ const FISHING_COLLECTIBLES: Array = [
 	# Del fondo del mar.
 	"botella", "ancla", "bala_canon", "calavera", "hueso", "pata_palo",
 	"tentaculo", "garfio", "brujula", "catalejo",
+	# De la cocina del barco (el único de los suyos que sale del mar).
+	"maneki_neko",
 	# Piratas del Caribe.
-	"perla_negra", "moneda_azteca",
+	"perla_negra", "moneda_azteca", "corazon_cofre",
 	# Monkey Island.
-	"grog", "mono_tres_cabezas", "lista_insultos",
+	"grog", "mono_tres_cabezas", "lista_insultos", "pollo_goma",
 	# Day of the Tentacle.
 	"gafas_nerd", "tentaculo_purpura",
 	# One Piece.
-	"pendientes_espadachin", "naranja", "tirachinas", "sarten",
+	"pendientes_espadachin", "naranja", "tirachinas", "sarten", "cuerno_reno",
+	"sombrero_vaquero", "botella_cola", "violin_esqueleto", "caracol_telefono",
+	# La Isla del Tesoro, Peter Pan y Popeye.
+	"marca_negra", "reloj_cocodrilo", "lata_espinacas",
 	# El Planeta del Tesoro y El castillo en el cielo.
 	"esfera_tesoro", "colgante_cielos",
 	# Zelda.
-	"vela", "semilla_dorada", "reloj_arena", "mascara_zora", "escudo_antiguo",
-	"foto_christine", "peluche_morsa", "huevo_montana",
+	"vela", "batuta_viento", "semilla_dorada", "reloj_arena", "mascara_zora",
+	"escudo_antiguo", "foto_christine", "peluche_morsa", "huevo_montana",
+	"botella_leche",
 ]
 
 

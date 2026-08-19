@@ -312,6 +312,17 @@ static func make_nine_patch(tex_path: String, margin: int) -> NinePatchRect:
 const BUTTON_TEX := "res://assets/ui/boton_madera.png"
 const BUTTON_MARGIN := 44
 
+## CHAPA DE LATÓN de los BONIFICADORES. Es el único botón del juego que NO va
+## en madera (pedido por el usuario): un bonificador no es un botón más, y con
+## el tablón de siempre no se distinguía de una receta o de un "Atrás". Sigue
+## siendo un botón pulsable —se hunde igual—, solo que de otro material.
+##
+## El margen 36 no es libre: la textura sale a 330 de ancho y ahí su marco mide
+## 19 téxeles y los REMACHES de las esquinas llegan hasta el 30. Por debajo de
+## 36, el 9-slice parte un remache por la mitad.
+const PERK_TEX := "res://assets/ui/boton_perk.png"
+const PERK_MARGIN := 36
+
 ## PERGAMINO: el fondo de todos los carteles, paneles y cajas del juego.
 ##
 ## El margen NO es libre: Godot dibuja la esquina del 9-slice a `patch_margin`
@@ -785,6 +796,32 @@ static func skin_button(b: Button) -> void:
 		shadow.offset_bottom = off)
 	b.button_down.connect(func() -> void: b.scale = Vector2(0.965, 0.94))
 	b.button_up.connect(func() -> void: b.scale = Vector2.ONE)
+
+
+## Viste un botón con la CHAPA DE LATÓN de los bonificadores. El rótulo va
+## GRABADO (letra oscura con reborde claro) y no en crema con reborde negro
+## como sobre la madera: el latón es claro y la letra crema se perdía en él.
+static func skin_perk_button(b: Button) -> void:
+	var empty := StyleBoxEmpty.new()
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(st, empty)
+	for c in ["font_color", "font_hover_color", "font_pressed_color"]:
+		b.add_theme_color_override(c, Color(0.27, 0.15, 0.04))
+	b.add_theme_color_override("font_disabled_color", Color(0.45, 0.34, 0.22))
+	b.add_theme_color_override("font_outline_color", Color(1, 0.93, 0.70))
+	b.add_theme_constant_override("outline_size", 5)
+	if b.has_node("Skin"):
+		return
+	var shadow := make_nine_patch(PERK_TEX, PERK_MARGIN)
+	shadow.name = "SkinShadow"
+	shadow.modulate = Color(0, 0, 0, 0.35)
+	shadow.offset_left = 2.0
+	shadow.offset_top = 4.0
+	shadow.offset_right = 2.0
+	shadow.offset_bottom = 4.0
+	b.add_child(shadow)
+	b.add_child(make_nine_patch(PERK_TEX, PERK_MARGIN))
+	add_press_feedback(b, 0.95)
 
 
 ## Hundido al pulsar para botones que NO usan skin_button (los de imagen,

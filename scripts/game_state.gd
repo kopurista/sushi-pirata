@@ -216,6 +216,10 @@ var daily_last: String = ""
 ## triángulo dorado (a CollectibleData.TRIFORCE_PIECES se juntan en uno).
 var collectibles: Array[String] = []
 var triforce_pieces: int = 0
+## EL CORAZÓN DEL COFRECITO ya ha salido del mar y David todavía no ha
+## dicho lo suyo. Es PERSISTENTE: si el jugador cierra el juego con la
+## ventana del coleccionable recién vista, la escena le espera al volver.
+var pending_corazon := false
 ## ÁLBUM DE PESCA: id de pez (FishData) -> veces pescado, y el RÉCORD de
 ## tamaño por especie (id -> size 0..1, el mayor pescado: es lo que enseña la
 ## ficha). Solo estado; catálogo y economía en `fish_data.gd`.
@@ -880,6 +884,12 @@ func perk_gate_open(id: String) -> bool:
 		if str(p.get("unlocks_perk", "")) != id:
 			continue
 		return int(level_stars.get(p["id"], 0)) >= int(p.get("goal_stars", 1))
+	# UN BONIFICADOR QUE PIDE ESCENARIO Y NO LO TIENE SIGUE CERRADO
+	# (`needs_port` en PerkData): es lo que aparca el BARCO para el mar 2. Sin
+	# esto, quitarle su puerto lo dejaba abierto de par en par, que es justo lo
+	# contrario de lo que se busca.
+	if bool(PerkData.get_perk(id).get("needs_port", false)):
+		return false
 	return true
 
 
@@ -1280,6 +1290,9 @@ func record_arcade_wave(waves_done: int) -> bool:
 	if waves_done <= arcade_best:
 		return false
 	arcade_best = waves_done
+	# El GALÓN DE ORO cuelga de este récord (no de una estadística), así que
+	# hay que pedir la pasada a mano: `max_stat` de arriba solo mira `stats`.
+	queue_achievement_check()
 	return true
 
 
@@ -1540,6 +1553,12 @@ func unlock_collectible(id: String, extra := "") -> bool:
 	if id in collectibles or CollectibleData.get_item(id).is_empty():
 		return false
 	collectibles.append(id)
+	# EL CORAZÓN DEL COFRECITO tiene escena propia: David reconoce el apellido.
+	# Aquí solo se apunta la deuda —la ventana del coleccionable la saca
+	# NoticeLayer en su capa global, sin sitio para un retrato— y la cobra
+	# `main_menu._reaccion_corazon` al cerrar la pesca.
+	if id == "corazon_cofre":
+		pending_corazon = true
 	save_game()
 	_ensure_notices().announce_collectible(id, extra)
 	# El logro de coleccionista bebe de aquí ("derived:coleccion").
@@ -1750,6 +1769,11 @@ func _run_achievement_check() -> void:
 		unlock_collectible("sombrero_paja")
 	if bounty() >= CARTEL_BOUNTY:
 		unlock_collectible("cartel_recompensa")
+	# TROFEOS: los dos que se ganan cocinando, no pescando ni de regalo.
+	if get_stat("slices_ok") >= CollectibleData.CUCHILLO_CORTES:
+		unlock_collectible("cuchillo_maestro")
+	if arcade_best >= CollectibleData.GALON_OLEADA:
+		unlock_collectible("galon_oro")
 	# Medallas nuevas desde la última pasada: un toast por medalla. NO se
 	# guarda aquí a propósito (`seen_medals` viaja con el siguiente save
 	# natural): guardar a disco en mitad de una partida daría un tirón.
@@ -1987,6 +2011,7 @@ func save_game() -> void:
 		"arcade_best": arcade_best,
 		"collectibles": collectibles,
 		"triforce_pieces": triforce_pieces,
+		"pending_corazon": pending_corazon,
 		"fish_album": fish_album,
 		"fish_best": fish_best,
 		"claimed_medals": claimed_medals,
@@ -2156,6 +2181,7 @@ func load_game() -> void:
 	arcade_best = maxi(int(parsed.get("arcade_best", 0)), 0)
 	collectibles = _to_string_array(parsed.get("collectibles", []))
 	triforce_pieces = int(parsed.get("triforce_pieces", 0))
+	pending_corazon = bool(parsed.get("pending_corazon", false))
 	fish_album = {}
 	var fish_dict: Dictionary = parsed.get("fish_album", {})
 	for k in fish_dict.keys():
@@ -2296,6 +2322,7 @@ func _new_game() -> void:
 	daily_last = ""
 	collectibles = []
 	triforce_pieces = 0
+	pending_corazon = false
 	fish_album = {}
 	fish_best = {}
 	claimed_medals = {}

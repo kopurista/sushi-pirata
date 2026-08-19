@@ -100,7 +100,7 @@ renumeran (el número que ve el jugador es la posición en `PORTS`).
 | 15 | Cala del Hambre | isla | bocado acelerado y el futomaki |
 | 16 | Ensenada del Naufragio | puerto | el capitán del TESORO pide una receta (sin lección) |
 | 17 | Rada de los Dos Fuegos | abordaje | ALICE y el AYUDANTE |
-| 18 | Muelle de las Bandejas | puerto | el BARCO combinado |
+| 18 | Muelle de las Bandejas | puerto | ALICE y los BONIFICADORES |
 | 19 | Bruma del Estrecho | puerto | la víspera, a pulso |
 | 20 | Cueva del Kappa | cueva | el JEFE; superarlo abre el ARCADE |
 
@@ -302,13 +302,21 @@ que se sabe.
   `CampaignData.port_for_collectible`, no una tabla escrita a mano.
 
 **EL CONTADOR DE VACÍOS DEL PUERTO SON TRES CALAVERAS**, no un "Vacíos N/3"
-(`level3d._setup_vacios_puerto`): nacen apagadas —la misma calavera en sombra—
+(`level3d._setup_vacios_puerto`): son la calavera de la BANDERA PIRATA
+(`calavera_vacio.png`, cráneo con los dos huesos cruzados por detrás), no la
+`col_calavera` de la vitrina, que es un cráneo pelado y no se leía como el
+aviso que es. Nacen apagadas —la misma calavera en sombra—
 y cada cliente que se larga sin probar bocado enciende la suya con un SPLASH
 (entra al 260%, se aplasta y rebota). A la tercera se pierde la jornada, y eso
 se lee de un vistazo mucho mejor que una cifra.
 
-**LOS CONTADORES DE MAESTRÍA VIVEN EN EL HUD, BAJO EL NÚMERO DE CLIENTES**
-(`level3d._setup_skill_counters`): las tres habilidades deterministas del
+**LOS CONTADORES DE MAESTRÍA VIVEN ABAJO, JUSTO ENCIMA DE LA CINTA** de la
+tabla de elaboración y pegados al canto izquierdo
+(`level3d._place_skill_counters`; estuvieron bajo el número de clientes, arriba
+del todo, y allí quedaban en la otra punta de la pantalla justo cuando hacen
+falta). Comparten banda con el CARTEL DE FASE, que va centrado y mide 430 de
+ancho: por eso su altura se calcula (`_phase_sign_y`) y sube un renglón cuando
+hay contadores, en vez de ir clavada.: las tres habilidades deterministas del
 cocinero —golpe de vista, cocina abundante y golpe de suerte— son CONTADOR y no
 dado justamente para poder planearlas, y planear con un número escondido no se
 puede. Un chip por habilidad: una CHAPA con el pergamino del juego de fondo y su
@@ -323,11 +331,28 @@ Va al principio de TODO guion y **level3d monta el director aunque el escenario
 no tenga guion propio**: estas habilidades se compran cuando al jugador le da
 la gana, así que su explicación no se puede colgar de ningún puerto.
 
+**EL BARCO COMBINADO SE APRENDE EN EL MAR 2** (decidido por el usuario, no
+re-litigar): su bonificador ya no lo ata ningún escenario del mar 1. El puerto
+18 sigue PERMITIÉNDOLO (`boat`) para cuando llegue, pero su lección la ocupa
+ahora ALICE explicando que hay MÁS bonificadores y cómo se ganan
+(`level_director._nivel_14`) — la da ella y no David a propósito: acaba de
+enrolarse de ayudante, o sea que ella misma ES un bonificador. Y quitarle el
+`unlocks_perk` a un bonificador NO basta para aparcarlo: `perk_gate_open` da
+por abierta la compuerta de cualquiera que no ate puerto, así que el barco
+lleva **`needs_port: true`** en `PerkData` — "pide escenario y no lo tiene,
+luego sigue cerrado".
+
 **LOS BONIFICADORES LLEGAN CON ALICE, TODOS DE GOLPE** (decidido por el
 usuario, no re-litigar): el sistema no existe hasta superar SU escenario, el
 **17** (`unlocks_perks: true` en `nivel_13`), que es donde ella se enrola de
 ayudante de cocina. `GameState.perks_unlocked()` lo resuelve y
 `perk_gate_open()` lo exige ANTES de mirar la compuerta propia de cada uno.
+**Y LOS COMBOS SE MIRAN ANTES DE `complete_port`** (`level3d._finalize_results`):
+`complete_port` apunta las estrellas de ESTE escenario y las compuertas se leen
+justo de ahí, así que calculándolos después, superar el 17 abría el sistema y
+en el mismo fotograma cobraba los combos hechos DENTRO del 17 — el jugador
+llegaba al 18 con "Cocina veloz" puesta sin haberla ganado nunca con el sistema
+abierto. Se gana A PARTIR del escenario que lo presenta, no en él.
 Estuvo repartido y mal: Puerto Tormenta (escenario 13) regalaba el paladar con
 una parrafada de David en el selector, y **`cocina_veloz` no tenía compuerta
 ninguna**, así que se ganaba desde el escenario 1 — un bonificador apareciendo
@@ -1726,20 +1751,26 @@ primera vez que se entra en ellos (`logros_intro_done` /
     conseguido (nada de un aluvión de toasts al arrancar), pero `claimed`
     queda vacío → todo lo ganado hasta hoy se puede reclamar del tirón.
     Asumido: es el mismo criterio retroactivo de los logros.
-- `scripts/collectible_data.gd` — catálogo de COLECCIONABLES (48, solo datos:
+- `scripts/collectible_data.gd` — catálogo de COLECCIONABLES (66, solo datos:
   id, nombre, `desc` = cómo se consigue o el guiño que lo explica, que SOLO se
   enseña ya conseguido).
   **El ORDEN de `ITEMS` es el de la vitrina y agrupa por REFERENCIA**: tesoros
-  pirata genéricos → Piratas del Caribe (perla negra, moneda azteca) → Monkey
-  Island (grog, peluche del mono de tres cabezas, lista de insultos) → Day of
-  the Tentacle (gafas de Bernard, tentáculo púrpura) → One Piece (la banda del
-  sombrero de paja en orden de tripulación: sombrero/Luffy, pendientes de
-  espadachín/Zoro, naranja/Nami, tirachinas/Usopp, sartén/Sanji) → El Planeta
-  del Tesoro (esfera) → El castillo en el cielo (colgante) → Zelda (vela de
-  Wind Waker, semilla dorada/kolog, reloj de arena/Phantom Hourglass, máscara
-  de raza marina/Majora, y el bloque de Link's Awakening: escudo, foto de
-  Christine, peluche de morsa y huevo de montaña), con la Tripuerca cerrando
-  la vitrina. Un coleccionable nuevo entra en SU grupo, no al final.
+  pirata genéricos → la cocina del barco y sus trofeos (maneki-neko, daruma,
+  sake, escama de sirena, cuchillo del maestro, galón de oro) → Piratas del
+  Caribe (perla negra, moneda azteca, corazón en un cofrecito) → Monkey Island
+  (grog, peluche del mono de tres cabezas, lista de insultos, pollo de goma) →
+  Day of the Tentacle (gafas de Bernard, tentáculo púrpura) → One Piece (la
+  banda del sombrero de paja EN ORDEN DE TRIPULACIÓN: sombrero/Luffy,
+  pendientes/Zoro, naranja/Nami, tirachinas/Usopp, sartén/Sanji, cuerno de
+  reno/Chopper, sombrero vaquero/Robin, botella de cola/Franky, violín de
+  esqueleto/Brook, y el caracol teléfono cerrando) → La Isla del Tesoro (marca
+  negra) → Peter Pan (reloj del cocodrilo) → Popeye (lata de espinacas) → El
+  Planeta del Tesoro (esfera) → El castillo en el cielo (colgante) → Zelda
+  (vela y batuta de Wind Waker, semilla dorada/kolog, reloj de arena/Phantom
+  Hourglass, máscara de raza marina/Majora, el bloque de Link's Awakening
+  —escudo, foto de Christine, peluche de morsa, huevo de montaña— y la botella
+  de leche), con la Tripuerca cerrando la vitrina. Un coleccionable nuevo
+  entra en SU grupo, no al final.
   **DE DÓNDE SALE CADA COSA** (regla de diseño del usuario, no re-litigar):
   lo que REFERENCIA otra obra se consigue PESCANDO (el cofre del minijuego),
   con dos excepciones que ya tienen escena propia — el sombrero de paja (el
@@ -1747,6 +1778,19 @@ primera vez que se entra en ellos (`logros_intro_done` /
   en aventura, arcade o por vías especiales; la excepción son los que uno
   draga literalmente del fondo (botella, ancla, calavera, hueso, pata de palo,
   tentáculo, garfio, brújula, catalejo, bala de cañón), que también se pescan.
+  **Y hay dos TROFEOS que se ganan COCINANDO**, con sus umbrales en
+  `CollectibleData` para que la ficha no pueda contradecirlos: el **cuchillo
+  del maestro** (`CUCHILLO_CORTES`, 200 cortes lentos bordados, por la stat
+  `slices_ok`) y el **galón de oro** (`GALON_OLEADA`, llegar a la oleada 20 del
+  Arcade). El galón cuelga de `arcade_best`, que NO es una stat, así que
+  `record_arcade_wave` pide la pasada de logros a mano.
+  **EL CORAZÓN EN UN COFRECITO TIENE ESCENA**: al salir del mar deja
+  `GameState.pending_corazon` (persistente) y David reacciona al cerrar la
+  pesca (`main_menu._reaccion_corazon`) — reconoce su propio apellido en la
+  historia del cofre y Gigi le pregunta si no será él. Se cuenta ALLÍ y no en
+  el desbloqueo porque la ventana del coleccionable la saca NoticeLayer en su
+  capa global, donde no cabe un diálogo con retrato; la escena ESPERA a
+  `GameState.notices_busy()` para no salir por detrás de ese cartel.
   No dan ni hacen nada: son para coleccionar (y para el logro "coleccion").
   El desbloqueo va SIEMPRE por `GameState.unlock_collectible(id)`, que anuncia
   con la ventana modal, guarda y repasa logros. Estado en
@@ -1760,14 +1804,15 @@ primera vez que se entra en ellos (`logros_intro_done` /
     `who_override == "grumete_sombrero"` — stat `fed_sombrero`; el personaje
     con sombrero AÚN NO EXISTE, queda para niveles futuros). Los tres de stats
     se comprueban al principio de `_run_achievement_check`.
-  · **Pescables** (`FishData.FISHING_COLLECTIBLES`, 31): salen del COFRE del
+  · **Pescables** (`FishData.FISHING_COLLECTIBLES`, 44): salen del COFRE del
     minijuego de PESCA, y son DOS familias — **todas las REFERENCIAS** a otras
     obras (Zelda, One Piece, Monkey Island, Day of the Tentacle, Piratas del
-    Caribe, El Planeta del Tesoro, Laputa) salvo el sombrero de paja y la
-    Tripuerca, que tienen escena propia; y lo que uno **draga del fondo del
-    mar** aunque sea pirata genérico (botella, ancla, calavera, hueso, pata de
-    palo, tentáculo, garfio, brújula, catalejo, bala de cañón). Su `desc` lo
-    cuenta. El repetido paga `FishData.DUP_COINS` (80).
+    Caribe, La Isla del Tesoro, Peter Pan, Popeye, El Planeta del Tesoro,
+    Laputa) salvo el sombrero de paja y la Tripuerca, que tienen escena
+    propia; y lo que uno **draga del fondo del mar** aunque sea pirata
+    genérico (botella, ancla, calavera, hueso, pata de palo, tentáculo,
+    garfio, brújula, catalejo, bala de cañón), más el maneki-neko roto. Su
+    `desc` lo cuenta. El repetido paga `FishData.DUP_COINS` (80).
   · **QUÉ SON los coleccionables se explica UNA VEZ Y CON UNA PIEZA EN LA
     MANO** (`level_director._explicar_coleccionables`, bandera
     `col_intro_done`): la bandera del pirata del nivel 7, el tesoro del cliente
@@ -2156,13 +2201,17 @@ primera vez que se entra en ellos (`logros_intro_done` /
     `chef_portraits.gd`, ahora ajustable por icono).
   · **ESCENARIO 17** (`nivel_13`, Rada de los Dos Fuegos — un **ABORDAJE**,
     decidido por el usuario: reloj y clientela sin fin): se sienta de clienta
-    (`special_client`, come como un GRUMETE), cuenta que busca a su maestra
-    **Miku**, y con `level_director.PLATOS_ALICE` (3) platos se da por servida
+    (`special_client`, come como un GRUMETE), cuenta que busca a **una
+    persona** —su maestra— y con `level_director.PLATOS_ALICE` (3) platos se da por servida
     (`GameState.alice_saciada`). La escena en la que SE ENROLA no va en el
     nivel sino en el mapa (`main_menu._presentar_alice`), igual que con Cai: es
     la que ESTRENA los bonificadores y le regala el del ayudante, que es ella.
     Si el turno se cerró por objetivo sin darle de comer, se enrola igual pero
     sin fingir una comida que no hubo.
+  · **EL NOMBRE DE MIKU NO SUENA EN EL NIVEL** (pedido por el usuario): allí
+    Alice solo dice que busca "a una persona". Lo suelta después, en el mapa,
+    al pedir enrolarse: acaba de conocerlos y ese es el momento en que se abre
+    con ellos.
 - **Las explicaciones sueltas del menú y del mapa montan UNA CAJA POR BLOQUE**,
   y por eso tienen dos ayudas propias: `DialogueBox.close_and_free()` (cierra
   CON su fundido y espera a que termine antes de soltar el nodo — hacían
@@ -2497,6 +2546,10 @@ primera vez que se entra en ellos (`logros_intro_done` /
   `tendero.glb` (tienda, sin rig) y `ayudante_rig.glb` (potenciador "ayudante",
   rigueado y animado con `CharacterAnim`).
   `art/concepts/` es solo referencia (tiene `.gdignore`).
+  `build_perks_ui()` de `tools/ui2_prep.py` saca las dos piezas sueltas de esta
+  tanda: `calavera_vacio.png` (el contador de vacíos del puerto) y
+  `boton_perk.png` (la chapa de latón), esta última a 330 de ancho como
+  `boton_madera` para que su marco caiga en los 36 téxeles del margen.
   Las imágenes de UI generadas con Ludo se recortan con `tools/ui_prep.gd`
   (inundación desde los bordes + recorte + reescalado). Para los ICONOS con
   fondo gris claro la inundación deja halo: se pasan antes por el
@@ -3468,6 +3521,34 @@ que no hay problema.
 - **El MENÚ anuncia las recetas nuevas** (`GameState.pending_reveal`, que
   llenan `complete_tutorial`/`complete_port` y consume `main_menu`): pergamino
   con los platos entrando de uno en uno con su bote.
+- **LOS BONIFICADORES LLEVAN CHAPA DE LATÓN, no el tablón de madera del resto
+  del juego** (`PrepBoard.PERK_TEX/PERK_MARGIN`, `skin_perk_button`, pedido por
+  el usuario): un bonificador no es un botón más, y con la misma madera no se
+  distinguía de una receta o de un "Atrás". Sigue hundiéndose al pulsarlo, y su
+  rótulo va GRABADO —letra oscura con reborde claro—, porque el latón es claro y
+  la letra crema de la madera se perdía en él. Dos medidas que no son libres:
+  el margen 9-slice es **36** (la textura sale a 330 de ancho y ahí su marco
+  mide 19 téxeles y los REMACHES llegan al 30; por debajo de 36 el 9-slice parte
+  un remache), y la tarjeta mide **336×86** y va de DOS EN DOS por renglón —de
+  un botón de 216 solo quedan ~120 px de cara útil y "Ayudante de cocina" se
+  salía por encima del latón.
+  **Y SU FILA ES UN `HFlowContainer`, no un HBox**: cuatro chapas miden 900 px,
+  el HBox no encoge a sus hijos por debajo de su mínimo, y eso estiraba el VBox
+  de TODA la pantalla — la parrilla de recetas se descuadraba hacia la izquierda
+  y se salía por los dos cantos. El síntoma no apuntaba a la fila de abajo.
+- **EL ICONO DEL AYUDANTE ES LA CARA DE ALICE** (`head_AL.png`): el ayudante ES
+  ella desde que se enrola, y el arcón de `ic_inventario` que llevaba antes no
+  decía nada de eso.
+- **LAS ISLAS TAMBIÉN PASAN POR EL SELECTOR SI HAY BONIFICADOR QUE ELEGIR**
+  (`level_select3d._zarpar_con` → `_hay_bonificadores`): la carta no se elige,
+  pero el bonificador sí, y saltándose la pantalla quien tuviera a Alice no
+  podía llevársela a ninguna isla. Allí la carta sale PUESTA y sin tocar
+  (`prep_screen.carta_fija` / `_marcar_carta_fija`: tarjetas marcadas, con su
+  resalte y `disabled`), el subtítulo lo dice, y se apagan la selección
+  automática y el aviso de clientela desatendida —el jugador no puede cambiar
+  nada, así que solo serían un susto—. Sin ningún bonificador que elegir se va
+  directo al nivel, como siempre: una pantalla entera para pulsar "¡Zarpar!" no
+  es una decisión.
 - **La TIENDA se gana** superando el puerto que la trae (`unlocks_shop`, el
   nivel 4); el botón del menú queda apagado hasta entonces. La presentación de
   Saverio va DENTRO del guion del nivel 4 (`level_director._nivel_4`, al cerrar

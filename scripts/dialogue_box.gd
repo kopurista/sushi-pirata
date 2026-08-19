@@ -120,7 +120,17 @@ const SPEAKERS := {
 ## `gender` del propio `client3d`, así que el retrato de la caja es siempre el
 ## del que está sentado en la barra. Si faltara el femenino, cae al masculino en
 ## vez de dejar la caja sin retrato.
+## LA LETRA DEL TIPO DE CLIENTE ("E"/"A"/"G") NO ES EL NOMBRE DEL HABLANTE.
+## `client3d.client_type` guarda la letra, y quien le pasaba esa letra a
+## `speaker_for` se llevaba el hablante por defecto -o sea DAVID- sin ningun
+## error: en el escenario 16 era David quien decia el "yo no pago con oro" del
+## capitan del tesoro. Se traduce aqui y no en cada llamada, para que ningun
+## sitio nuevo vuelva a pisar la misma piedra.
+const CLIENT_SPEAKERS := { "E": "grumete", "A": "pirata", "G": "capitan" }
+
+
 static func speaker_for(tipo: String, genero: String) -> String:
+	tipo = str(CLIENT_SPEAKERS.get(tipo, tipo))
 	var fem := "%s_f" % tipo
 	if genero == CharacterData.FEMALE and SPEAKERS.has(fem):
 		return fem

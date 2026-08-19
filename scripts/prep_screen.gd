@@ -35,6 +35,10 @@ var perk_bar: Control = null
 var _avisado_piratas := false
 ## Tarjetas ELEGIBLES por id, para poder apagarlas cuando la carta se llena.
 var recipe_cards: Dictionary = {}
+## CARTA CERRADA de una isla. Con esto puesto la pantalla no deja elegir
+## recetas —salen las del escenario, marcadas y apagadas— y lo único que se
+## decide aquí es el bonificador.
+var carta_fija: Array[String] = []
 var _t := 0.0
 
 @onready var content: Control = $UI/Root/Margin/VBox/Scroll/Content
@@ -63,6 +67,11 @@ func _ready() -> void:
 		var puerto := CampaignData.get_port(GameState.current_port)
 		slots = MAX_RECIPES if GameState.port_beaten(GameState.current_port) \
 				else int(puerto.get("recipe_slots", MAX_RECIPES))
+		# Las ISLAS traen la carta puesta por el diseño (ver `fixed_recipes`).
+		carta_fija.assign(CampaignData.fixed_recipes_for(GameState.current_port,
+				GameState.port_beaten(GameState.current_port)))
+		if not carta_fija.is_empty():
+			slots = carta_fija.size()
 	# La lista de recetas se recorre con el DEDO (con inercia): el
 	# ScrollContainer de Godot no se arrastra con eventos táctiles.
 	TouchScroll.attach($UI/Root/Margin/VBox/Scroll)
@@ -95,6 +104,10 @@ func _ready() -> void:
 		# RED DE SEGURIDAD DE LA ESCUELA: mientras no haya TIENDA (nivel 4) el
 		# jugador no tiene dónde reponer, así que quedarse sin NINGUNA receta
 		# jugable sería un callejón sin salida. David rellena lo que falte.
+		# Con carta cerrada, la parrilla enseña SOLO lo que se lleva hoy: el
+		# resto del recetario no pinta nada cuando no se puede elegir.
+		if not carta_fija.is_empty():
+			available = carta_fija.duplicate()
 		if not GameState.shop_unlocked() and not available.is_empty():
 			var jugable := false
 			for id in available:
@@ -124,8 +137,18 @@ func _ready() -> void:
 			grid.add_child(_build_card(id, board_script))
 		sections.add_child(grid)
 	_add_top_bar(board_script)
+	# CON LA CARTA CERRADA NO SE ELIGE NADA: el subtitulo de siempre ("elige
+	# las recetas...") mandaba a hacer algo que la pantalla no deja hacer.
+	if not carta_fija.is_empty():
+		var sub: Label = $UI/Root/Margin/VBox/Subtitle
+		sub.text = "La carta la manda la isla: elige tu bonificador"
 	_build_info_row()
-	_add_auto_button(board_script)
+	# La selección automática no pinta nada con la carta cerrada: no hay nada
+	# que seleccionar.
+	if carta_fija.is_empty():
+		_add_auto_button(board_script)
+	else:
+		_marcar_carta_fija()
 	_add_perk_bar(board_script)
 	_skin_start_button(board_script)
 	start_button.pressed.connect(_on_start_pressed)
@@ -164,10 +187,13 @@ func _aviso_antes_de_zarpar() -> void:
 				{ "text": "Llévate una carta VARIADA: con esta clientela vas a repetir plato antes de darte cuenta.", "mood": "hablando" },
 			]
 		"nivel_14":
+			# NADA DEL BARCO AQUÍ: se aprende en el mar 2. Lo que este puerto
+			# estrena es la fila de BONIFICADORES de esta misma pantalla, que
+			# hasta que llegó Alice no existía.
 			lineas = [
-				{ "text": "Este muelle sirve por **bandejas**, no por platos sueltos.", "mood": "hablando" },
-				{ "text": "El bonificador del **barco de sushi** se gana teniendo **3 platos guardados en 2 cajas distintas** a la vez. Cocina de más y tenlo.", "mood": "serio" },
-				{ "text": "¡BANDEJAS! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+				{ "text": "Fíjate ahí abajo, %s: desde que Alice se enroló tienes la fila de **bonificadores**." % GameState.player_title(), "mood": "hablando" },
+				{ "text": "Se eligen aquí, junto con la carta, y cada uno gasta **un uso** por jornada. Ponte el que te convenga antes de zarpar.", "mood": "serio" },
+				{ "text": "¡QUE TE LO PONGAS! ¡RAAAK!", "who": "gigi", "mood": "loro" },
 			]
 		"nivel_4":
 			# La primera vez que el jugador PISA el selector: hasta aquí las
@@ -319,9 +345,15 @@ func _add_perk_bar(board_script: GDScript) -> void:
 	title.add_theme_constant_override("outline_size", 7)
 	box.add_child(title)
 
-	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 12)
+	# LA FILA SE ENVUELVE (HFlowContainer), no es un HBox. Con cuatro
+	# bonificadores desbloqueados, cuatro chapas de 216 miden 900 px: el HBox no
+	# encoge a sus hijos por debajo de su minimo, asi que estiraba el VBox de
+	# toda la pantalla y DESCUADRABA la parrilla de recetas hacia la izquierda
+	# ademas de salirse por los dos cantos. Envolviendo caben tres por renglon.
+	var row := HFlowContainer.new()
+	row.alignment = FlowContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("h_separation", 12)
+	row.add_theme_constant_override("v_separation", 8)
 	box.add_child(row)
 	for id in ids:
 		row.add_child(_build_perk_card(id, board_script))
@@ -334,33 +366,40 @@ func _build_perk_card(id: String, board_script: GDScript) -> Button:
 	var data := PerkData.get_perk(id)
 	var b := Button.new()
 	b.toggle_mode = true
-	b.custom_minimum_size = Vector2(210, 78)
+	# DOS POR RENGLÓN, no tres. La chapa lleva 36 téxeles de marco por cada
+	# lado, así que de un botón de 216 solo quedan ~120 px de cara útil y
+	# "Ayudante de cocina" se salía por encima del latón. A 336 caben dos por
+	# renglón (672 + separación) y el nombre entra de una pieza.
+	b.custom_minimum_size = Vector2(336, 86)
 	b.tooltip_text = str(data.get("desc", ""))
-	board_script.skin_button(b)
+	board_script.skin_perk_button(b)
 
 	var icon := TextureRect.new()
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.texture = load(str(data.get("icon", "")))
 	icon.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	icon.offset_left = 16.0
-	icon.offset_right = 62.0
-	icon.offset_top = 12.0
-	icon.offset_bottom = -12.0
+	# Por DENTRO del marco de la chapa (36 téxeles), no encima de él.
+	icon.offset_left = 30.0
+	icon.offset_right = 82.0
+	icon.offset_top = 14.0
+	icon.offset_bottom = -14.0
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(icon)
 
 	var name_l := Label.new()
 	name_l.text = "%s\nx%d" % [data.get("name", id), GameState.get_perk_uses(id)]
 	name_l.set_anchors_preset(Control.PRESET_FULL_RECT)
-	name_l.offset_left = 66.0
-	name_l.offset_right = -10.0
+	name_l.offset_left = 90.0
+	name_l.offset_right = -26.0
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	name_l.add_theme_font_size_override("font_size", 17)
-	name_l.add_theme_color_override("font_color", Color(1, 0.96, 0.86))
-	name_l.add_theme_color_override("font_outline_color", Color(0.13, 0.07, 0.02))
-	name_l.add_theme_constant_override("outline_size", 6)
+	name_l.add_theme_font_size_override("font_size", 18)
+	# GRABADO sobre el latón: letra oscura con reborde claro. En crema, como
+	# sobre la madera, se perdía en la chapa.
+	name_l.add_theme_color_override("font_color", Color(0.27, 0.15, 0.04))
+	name_l.add_theme_color_override("font_outline_color", Color(1, 0.93, 0.70))
+	name_l.add_theme_constant_override("outline_size", 5)
 	name_l.add_theme_constant_override("line_spacing", -2)
 	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(name_l)
@@ -579,6 +618,22 @@ func _build_card(id: String, board_script: GDScript) -> Button:
 	# ingredientes salen antes por su propia rama y ya van marcadas.
 	recipe_cards[id] = b
 	return b
+
+
+## Deja la carta cerrada MARCADA y sin tocar: las tarjetas salen elegidas, con
+## su resalte, y apagadas para el toque. Las que se quedaron sin ingredientes ni
+## siquiera están en `recipe_cards` (salen por su propia rama con el aviso), y
+## aun así viajan en `selected`: la carta la manda el escenario, no la despensa.
+func _marcar_carta_fija() -> void:
+	selected = carta_fija.duplicate()
+	for id in recipe_cards:
+		var carta: Button = recipe_cards[id]
+		if not is_instance_valid(carta):
+			continue
+		carta.set_pressed_no_signal(true)
+		carta.get_node("Check").visible = true
+		carta.get_node("Highlight").visible = true
+		carta.disabled = true
 
 
 func _on_recipe_toggled(pressed: bool, id: String, button: Button) -> void:
@@ -868,7 +923,8 @@ func _take_chance(tipo: String, nivel: int, id: String) -> float:
 
 
 func _update_ui() -> void:
-	count_label.text = "%d/%d elegidas" % [selected.size(), slots]
+	count_label.text = "Carta del escenario" if not carta_fija.is_empty() \
+			else "%d/%d elegidas" % [selected.size(), slots]
 	# Basta con 1 receta: en los primeros niveles no hay 4 disponibles.
 	start_button.disabled = selected.is_empty()
 	# Apagado por OPACIDAD, no aclarando la letra: sobre el oro no se leía.
@@ -922,8 +978,10 @@ func _on_start_pressed() -> void:
 	# mirando la cinta. Gigi avisa, pero NO bloquea: si el jugador insiste, allá
 	# él. Y NO avisa en el nivel que estrena cada tipo (ver
 	# `_clientela_desatendida`).
+	# Con la carta cerrada, el aviso de clientela no cabe: el jugador no puede
+	# cambiar nada, así que solo sería un susto.
 	var falta := "" if not GameState.is_adventure() or _avisado_piratas \
-			else _clientela_desatendida()
+			or not carta_fija.is_empty() else _clientela_desatendida()
 	if falta != "":
 		_avisado_piratas = true
 		var quien := "capitanes" if falta == "G" else "piratas"

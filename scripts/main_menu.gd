@@ -269,6 +269,11 @@ func _menu_popups() -> void:
 	if GameState.pending_ingots > 0:
 		await get_tree().create_timer(0.7).timeout
 		await _pagar_pablo()
+	# EL CORAZÓN DEL COFRECITO, por si el jugador cerró el juego con la escena
+	# a medias: normalmente la cuenta `_on_fishing_closed`, que es donde toca.
+	if GameState.pending_corazon:
+		await get_tree().create_timer(0.7).timeout
+		await _reaccion_corazon()
 	# ALICE SE ENROLA, y con ella LLEGAN LOS BONIFICADORES. Es la escena que
 	# los abre: hasta aquí el jugador no ha visto ninguno, y el primero que
 	# tiene es ella misma (el bonificador del `ayudante`). Va antes que la de
@@ -398,7 +403,9 @@ func _presentar_alice() -> void:
 		{ "text": "He estado pensando lo que dijo." if comio
 			else "Perdone. Antes no me atreví a decirlo.",
 			"who": "alice", "mood": "callado" },
-		{ "text": "No sé dónde está Miku. Pero mientras la busco... podría aprender.", "who": "alice", "mood": "serio" },
+		# AQUI es donde suena el nombre por primera vez: en el nivel Alice solo
+		# dijo "una persona", y este es el momento en que se abre con ellos.
+		{ "text": "Mi maestra se llama **Miku**. No sé dónde está... pero mientras la busco, podría aprender.", "who": "alice", "mood": "serio" },
 		{ "text": "¿Aprender? Chiquilla, esto es un barco pirata, no una escuela.", "mood": "sorprendido" },
 		{ "text": "Fregaré. Cortaré. Lo que haga falta.", "who": "alice", "mood": "hablando" },
 		{ "text": "¡QUE FRIEGUE! ¡RAAAK! ¡QUE FRIEGUE!", "who": "gigi", "mood": "loro_grito" },
@@ -494,6 +501,43 @@ func _pagar_pablo() -> void:
 		{ "text": "Y valen más, plumas. Los **lingotes** son la moneda de verdad: con ellos se compran **sacos de arroz** y bolsas de doblones cuando andas justo.", "mood": "hablando" },
 		{ "text": "Mira arriba del todo, %s: ahí los tienes contados, con su botón **+** al lado. Gástalos con cabeza: no caen todos los días." % GameState.player_title(), "mood": "serio" },
 		{ "text": "Y guárdame un sitio en la barra para la próxima. Con el cuchillo lejos, si puede ser.", "who": "pablo", "mood": "punal" },
+	])
+	await caja.finished
+	await caja.close_and_free()
+
+
+## EL CORAZÓN EN UN COFRECITO. Sale del mar como cualquier otro coleccionable,
+## pero este lleva el apellido de David escrito por dentro: la escena es el
+## premio de verdad. Espera a que se cierren los avisos globales (la propia
+## ventana del coleccionable, la subida de nivel de la pesca) antes de hablar,
+## porque si no el retrato sale por detrás de un cartel.
+func _reaccion_corazon() -> void:
+	GameState.pending_corazon = false
+	GameState.save_game()
+	var topo := 0
+	while GameState.notices_busy() and topo < 3600:
+		topo += 1
+		await get_tree().process_frame
+	await get_tree().create_timer(0.6).timeout
+	var caja := DialogueBox.new()
+	caja.z_index = 200
+	ui_layer.add_child(caja)
+	caja.say([
+		{ "text": "¡RAAAK! ¡DAVID! ¡ESO LATE! ¡LA CAJA LATE!", "who": "gigi",
+			"mood": "loro_grito" },
+		{ "text": "Déjalo en la mesa, %s. Despacio." % GameState.player_title(),
+			"mood": "sorprendido" },
+		{ "text": "Cofre pequeño, cerradura de hierro y un corazón dentro que "
+			+ "no se está quieto. Esa historia me la sé.", "mood": "serio" },
+		{ "text": "Un tipo con **mi apellido**, un barco que no volvió a puerto "
+			+ "y una deuda de cien años. Dicen que se lo sacó él mismo para no "
+			+ "sentir nada.", "mood": "hablando" },
+		{ "text": "¿NO SERÁS TÚ? ¿EH? ¿EH? ¡NUNCA TE HE VISTO EL PECHO!",
+			"who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "Si lo fuera, plumas, no estaría fregando cazuelas contigo.",
+			"mood": "loro_resignado" },
+		{ "text": "Guárdalo en la vitrina y no le des conversación. Y si alguna "
+			+ "noche lo oyes latir más fuerte... me despiertas.", "mood": "serio" },
 	])
 	await caja.finished
 	await caja.close_and_free()
@@ -2593,6 +2637,11 @@ func _on_fishing_closed() -> void:
 	# (`_ui_in` vuelve a encender el tablón y el submenú, y de paso anima la
 	# experiencia pendiente y anuncia la subida: la pesca PAGA XP por captura.)
 	_ui_in(false)
+	# EL CORAZÓN DEL COFRECITO: si ha salido del mar en esta visita, David
+	# tiene algo que decir sobre su apellido. Se cuenta al SALIR de la pesca,
+	# no en el momento de sacarlo: allí el jugador está peleando con la caña.
+	if GameState.pending_corazon:
+		await _reaccion_corazon()
 
 
 func _show_locked_notice(text: String) -> void:

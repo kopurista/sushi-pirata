@@ -44,8 +44,10 @@ const PERKS: Dictionary = {
 	},
 	"ayudante": {
 		"name": "Ayudante de cocina",
-		"desc": "Un ayudante se suma a la cocina: al empezar una receta puedes pasársela con su botón y la termina él solo.",
-		"icon": "res://assets/ui/ic_inventario.png",
+		"desc": "Alice se suma a la cocina: al empezar una receta puedes pasársela con su botón y la termina ella sola.",
+		# SU CARA, no un cofre. El ayudante ES Alice desde que se enrola, y el
+		# icono de `ic_inventario` (un arcon) no decia nada de eso.
+		"icon": "res://assets/ui/head_AL.png",
 		"unlock": "Dale de comer 4 platos a 4 clientes distintos en una partida.",
 		# Segundos de descanso entre plato y plato.
 		"levels": [60.0, 54.0, 48.0, 40.0, 30.0],
@@ -77,6 +79,12 @@ const PERKS: Dictionary = {
 		# este bonificador no existe. Con la plantilla general decía "paga un 0%
 		# más de prima", que se lee como un bonificador roto.
 		"level_text_1": "Habilita el barco combinado en los puertos que lo permiten.",
+		# EL BARCO ESPERA AL MAR 2 (decidido por el usuario). Ningun escenario
+		# del mar 1 lo presenta ya, y con `needs_port` puesto eso significa que
+		# NO se puede ganar todavia: sin esta linea, `perk_gate_open` daria por
+		# abierta la compuerta de cualquier bonificador que no ate puerto y el
+		# barco volveria a caer en el 18 sin escena detras.
+		"needs_port": true,
 	},
 }
 

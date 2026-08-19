@@ -1267,7 +1267,7 @@ func _vigilar_tesoro() -> void:
 	# perdido para siempre.
 	var lineas: Array = [
 		{ "text": "Tú. Cocinero. Yo no pago con oro: pago con esto.", "who": quien, "mood": "serio" },
-		{ "text": "Y solo lo suelto si me cumples el capricho: %s. Si no, me lo llevo por donde he venido." % CampaignData.reto_texto(cfg), "who": quien, "mood": "hablando" },
+		{ "text": "Y solo lo suelto si me cumples el capricho: %s. Si no, me lo llevo por donde he venido." % CampaignData.reto_texto(cfg, true), "who": quien, "mood": "hablando" },
 	]
 	var falta_receta := str(cfg.get("reto", "")) == "receta" 			and not str(cfg.get("recipe", "")) in GameState.selected_recipes
 	if falta_receta:
@@ -1388,7 +1388,10 @@ func _nivel_13() -> void:
 	await _say([
 		{ "text": "...", "who": "alice", "mood": "callado" },
 		{ "text": "Siéntate, muchacha, que no mordemos. ¿Buscas a alguien?", "mood": "hablando" },
-		{ "text": "A mi maestra. Se llama **Miku**. Cocinaba... como nadie.", "who": "alice", "mood": "triste" },
+		# EL NOMBRE DE MIKU NO SE DICE AQUI (pedido por el usuario): Alice
+		# acaba de conocerlos y todavia no se fia. Lo suelta despues, ya en el
+		# mapa, cuando pide enrolarse (`main_menu._presentar_alice`).
+		{ "text": "A una persona. Mi maestra. Cocinaba... como nadie.", "who": "alice", "mood": "triste" },
 		{ "text": "Llevo tres puertos preguntando. Nadie la ha visto.", "who": "alice", "mood": "serio" },
 		{ "text": "¡PUES AQUÍ TAMPOCO! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
 		{ "text": "Aquí lo que hay es comida. Come algo primero y luego hablamos, que con hambre no se busca a nadie.", "mood": "loro_resignado" },
@@ -1424,17 +1427,26 @@ func _on_alice_come(_precio: int, _propina: int) -> void:
 
 
 # ------------------------------------------------------------------- nivel 14
-# Muelle de las Bandejas: el BARCO COMBINADO. El puerto lo permite (`boat`) y
-# aquí se gana su bonificador.
+# Muelle de las Bandejas: ALICE explica QUE MAS BONIFICADORES HAY y como se
+# ganan. Este puerto tuvo la leccion del BARCO COMBINADO y se la lleva el mar 2
+# (decidido por el usuario, no re-litigar): el puerto sigue permitiendo el barco
+# (`boat`) para cuando llegue, pero ya no ata su bonificador.
+#
+# La da ELLA y no David a proposito: acaba de enrolarse de ayudante, o sea que
+# ella misma ES un bonificador, y explicar el sistema desde dentro es la unica
+# forma de que la escena no sea otra parrafada del capitan.
 
 func _nivel_14() -> void:
 	await _say([
-		{ "text": "**Muelle de las Bandejas**. Aquí no se sirve plato a plato: se sirve por **bandejas**.", "mood": "feliz" },
-		{ "text": "El **barco de sushi** junta cuatro platos que tengas guardados —de clases distintas— en una sola bandeja.", "mood": "hablando" },
-		{ "text": "Y esa bandeja casi nadie la deja pasar: la cogen los tres paladares, paga lo que valen sus platos MÁS una prima por variedad...", "mood": "serio" },
-		{ "text": "...y se come despacísimo, así que aparca al cliente un buen rato. Su botón está bajo las cajas.", "mood": "hablando" },
-		{ "text": "¡BANDEJA! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "Para ganártelo: ten **3 platos guardados en 2 cajas distintas** a la vez. Cocina de más, que hoy sobra clientela.", "mood": "riendo" },
+		{ "text": "**Muelle de las Bandejas**. Puerto grande, clientela larga y nadie con prisa. Buen día para probar cosas.", "mood": "hablando" },
+		{ "text": "Capitán... ¿puedo decir yo una? Es sobre los **bonificadores**.", "who": "alice", "mood": "callado" },
+		{ "text": "Para eso te enrolaste, muchacha. Suelta.", "mood": "feliz" },
+		{ "text": "Yo soy uno. El **ayudante de cocina**. Pero hay más, y ninguno se compra: se **ganan jugando**.", "who": "alice", "mood": "hablando" },
+		{ "text": "Cada uno pide una **hazaña** distinta dentro de una partida, y la suya la lleva escrita en su ficha, en **Bonificadores**. Ahí se ven todos, tengas el que tengas.", "who": "alice", "mood": "serio" },
+		{ "text": "Y no es de una vez: cada vez que repitas esa hazaña te llevas **otro uso**. Un uso es un turno con él puesto.", "who": "alice", "mood": "hablando" },
+		{ "text": "¡USOS! ¡RAAAK! ¡QUE SE GASTAN!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "Lo que sí cuesta doblones es **mejorarlos**: cinco niveles cada uno, y cada nivel aprieta un poco más lo que hacen.", "mood": "hablando" },
+		{ "text": "Así que hoy no hay lección de cocina, %s. Sirve, gana, y ve fijándote en cuáles te faltan." % GameState.player_title(), "mood": "serio" },
 	])
 	_play()
 	_vigilar_basura()
