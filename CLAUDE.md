@@ -1727,14 +1727,21 @@ primera vez que se entra en ellos (`logros_intro_done` /
       `boya`, una sola toma) al terminar el vuelo del sedal; los chapoteos de
       la presa que se suelta y del pez que sale del agua viven en su propia
       familia (`chapoteo`, las dos tomas) porque son otro momento.
-    · **LAS LIBRERÍAS DE SONIDO LLEVAN `.gdignore`** (`sounds/ui` y las cuatro
-      `sounds/Game Sound Effects*`): son más de 1.000 tomas de packs, ~80 MB en
-      disco y encima en TRIPLICADO (WAV, OGG y MP3 del mismo sonido). El
-      preset web exporta con `export_filter="all_resources"`, o sea que Godot
-      las empaqueta TODAS aunque no suene ninguna. **MEDIDO exportando con y
-      sin ellas: 97,6 MB contra 61,0 — casi 35 MB, un 60% más de descarga.**
-      Mismo criterio que `assets/models/source` y `snapshots`: material de
-      consulta que el juego no ve.
+    · **LAS LIBRERÍAS DE SONIDO NO ESTÁN EN EL REPOSITORIO NI LAS VE GODOT**
+      (`sounds/ui` y las cuatro `sounds/Game Sound Effects*`): son más de mil
+      tomas de packs comprados, material de consulta del que se PICOTEA, no
+      assets del juego. Llevan `.gdignore` **y** están en `.gitignore`.
+      · Godot: el preset web exporta con `export_filter="all_resources"`, o
+        sea que las empaquetaría TODAS aunque no suene ninguna. **MEDIDO
+        exportando con y sin ellas: 97,6 MB contra 61,0 — casi 35 MB, un 60%
+        más de descarga.** Mismo criterio que `assets/models/source` y
+        `snapshots`.
+      · Git: venían en TRIPLICADO (WAV, OGG y MP3 del mismo sonido) y pesaban
+        ~80 MB. Se dejaron **solo los OGG** (−63 MB) y se sacaron del índice.
+        **Las dos únicas tomas que NO tenían gemelo .ogg se conservaron** en
+        su formato (`Crossbow - 1` y `Assembling - 4`): ahí borrar no habría
+        sido quitar un duplicado, habría sido perder el sonido. Al limpiar una
+        librería por formato, comprobar los huérfanos ANTES de borrar.
       **Cuando se elija un sonido hay que SACARLO de ahí** (copiarlo a su
       propia carpeta, como `sounds/pesca`), NO quitar el `.gdignore` — así
       salió "Frog Death - 1" del Pack 3. Y se prefiere `.gdignore` al

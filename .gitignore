@@ -24,3 +24,9 @@ __pycache__/
 # estado y capturan pantallazos, y sus PNG. Se nombran asi para que caigan
 # aqui y no acaben en un commit por error (ya paso: siete se colaron).
 /zz*
+
+# Librerias de sonido: material de consulta, no assets del juego.
+# Ocupan ~80 MB y se llevarian 35 MB al .pck si Godot las viera, por eso
+# ademas llevan .gdignore. Lo que se use se COPIA a su carpeta (sounds/pesca).
+/sounds/ui/
+/sounds/Game Sound Effects*/
