@@ -99,7 +99,10 @@ func _setup_ui() -> void:
 	# SIN cinta de título: la pantalla ya se identifica por su cabecera ("Nivel
 	# de cocinero N") y el lazo rojo solo robaba alto a las columnas.
 	var back := PrepBoard.make_back_button()
+	# VUELVE A DONDE SE ENTRO, no siempre al menu: a esta pantalla se llega
+	# por la BARRA DE NIVEL, que vive tambien en el mapa y en la pesca.
 	back.pressed.connect(func() -> void:
+		GameState.transition = GameState.skills_from
 		GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45))
 	bar.add_child(back)
 

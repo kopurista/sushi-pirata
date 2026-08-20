@@ -15,6 +15,12 @@ var selected_perks: Array[String] = []
 ## salida de una con la de entrada de la otra ("arcade", "inventario",
 ## "menu"...). Lo consume la pantalla que se abre y se limpia sola.
 var transition: String = ""
+## DE DONDE se entro a Maestrias, para que su "Atras" devuelva ahi y no
+## siempre al menu: la BARRA DE NIVEL que la abre vive en el menu, en el
+## mapa y en la pesca, asi que volver al menu desde las otras dos sacaba al
+## jugador de donde estaba. "menu" | "mapa" | "pesca". De SESION: no se
+## guarda, porque no es progreso sino por donde se iba.
+var skills_from: String = "menu"
 ## Recetas recién desbloqueadas que el MENÚ principal tiene que anunciar con su
 ## animación. Lo llena complete_tutorial/complete_port y lo consume el menú.
 var pending_reveal: Array = []

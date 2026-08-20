@@ -1332,6 +1332,31 @@ primera vez que se entra en ellos (`logros_intro_done` /
     enganchado. Cada captura emite `fishing_game.xp_gained` y el menú saca el
     **"+N exp"** flotando sobre ella (`_xp_en_la_barra`) y la llena; sin eso la
     experiencia de la pesca se sumaba en silencio.
+    **EL VIAJE ES UN TWEEN EN LOS DOS SENTIDOS** (`lvl_tween`), no una
+    asignación: la barra es lo ÚNICO que se queda en pantalla mientras el
+    resto del menú se va, así que un salto seco ahí es lo único que se ve
+    moverse mal. Al VOLVER se sube DESDE DONDE ESTÁ
+    (`_barra_nivel_a_casa`, con `_ui_in(false, false)` para que no la toque):
+    el camino de serie la ponía en `home - 220` para dejarla caer con el
+    resto, que son 296 px de salto en un fotograma. La animación de la
+    experiencia pendiente se encadena al final del viaje, que es lo que hacía
+    `_ui_in` cuando la movía él.
+  · **LA PESCA SE FUNDE AL SALIR** (`main_menu.PESCA_FADE`): el "Atrás", el
+    álbum y el "?" viven DENTRO de ella, así que se van con el conjunto y en
+    el mismo gesto. Liberándola en seco desaparecían de un fotograma al
+    siguiente mientras el menú entraba, y el corte se veía más que la
+    transición. Mientras se va no responde a nada (botones a `disabled`): un
+    toque en uno a medio desvanecer volvería a abrir el álbum sobre un menú
+    que ya está entrando.
+  · **MAESTRÍAS VUELVE A DONDE SE ENTRÓ** (`GameState.skills_from`, de
+    sesión): su acceso es la barra de nivel, que vive en el MENÚ, en el MAPA
+    y en la PESCA, así que devolver siempre al menú sacaba al jugador de
+    donde estaba. `_go_skills` apunta el origen y el "Atrás" lo devuelve como
+    `transition`, que es el mismo carril por el que ya volvía el mapa.
+    Volviendo a la pesca se cae DIRECTO en ella (`_montar_pesca`, partido de
+    `_go_fishing` para no repetir la lista de conexiones): el menú ni se
+    enseña, se monta ya escondido (`_ocultar_ui_menu`), porque animarlo para
+    que se vaya acto seguido solo sería un parpadeo.
     OJO con el globo: su anfitrión va con **posición y tamaño explícitos**, no
     con `set_anchors_preset` — el preset no toca los offsets y con un
     anfitrión de tamaño cero el globo no llegaba a dibujarse (la trampa de

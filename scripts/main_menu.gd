@@ -222,6 +222,13 @@ func _ready() -> void:
 			# de tripulación está relleno.
 			_show_ficha()
 			return
+		"pesca":
+			# Se vuelve de Maestrias habiendo entrado desde la PESCA: se cae
+			# directo en ella, sin pasar por el menu. La interfaz del menu ni
+			# se ensena: se monta ya escondida, que es donde la deja `_ui_out`.
+			_show_menu(false)
+			_ocultar_ui_menu()
+			_montar_pesca()
 		"menu":
 			_show_menu(false)
 			_play_menu_intro()
@@ -2676,31 +2683,56 @@ func _go_fishing() -> void:
 	tw.tween_interval(OUT_TIME + 0.05)
 	tw.tween_callback(func() -> void:
 		leaving = false
-		# (`_ui_out` ya ha escondido el tablón y el submenú al acabar de bajarlos.)
-		fishing_ui = preload("res://scripts/fishing_game.gd").new()
-		ui_layer.add_child(fishing_ui)
-		fishing_ui.closed.connect(_on_fishing_closed)
-		fishing_ui.money_changed.connect(_refresh_resources)
-		fishing_ui.busy_changed.connect(_set_plus_enabled)
-		fishing_ui.xp_gained.connect(_xp_en_la_barra)
-		fishing_ui.rush_changed.connect(_on_pesca_rush)
-		# CON EL ÁLBUM ABIERTO, LA BARRA SE QUITA DE EN MEDIO: va por encima de
-		# la pesca (para que no se la trague su panel táctil) y por eso se
-		# dibujaba sobre las fichas de los peces.
-		fishing_ui.album_abierto.connect(func(on: bool) -> void:
-			if level_bar != null and is_instance_valid(level_bar):
-				level_bar.visible = not on)
-		# La barra, POR ENCIMA de la pesca (mismo motivo que las cajas).
-		if level_bar != null:
-			ui_layer.move_child(level_bar, -1)
-		# LAS CAJAS DE RECURSOS, POR ENCIMA DE LA PESCA. Su panel táctil ocupa
-		# la pantalla entera con MOUSE_FILTER_STOP, y como se cuelga DESPUÉS que
-		# las cajas se llevaba también los toques de sus botones "+": pulsarlos
-		# no hacía nada. El reparto de toques va por orden de árbol, así que
-		# basta con mandarlas al final.
-		for caja in [ingot_box, money_box, rice_box]:
-			if caja != null:
-				ui_layer.move_child(caja, -1))
+		_montar_pesca())
+
+
+## MONTA la pesca sobre el menú. Va aparte del viaje de `_go_fishing` porque
+## se entra por DOS sitios: pulsando el pergamino (con su animación de
+## salida) y volviendo de Maestrías, que cae aquí directamente porque el
+## jugador estaba pescando cuando se fue.
+func _montar_pesca() -> void:
+	if fishing_ui != null:
+		return
+	# (`_ui_out` ya ha escondido el tablón y el submenú al acabar de bajarlos.)
+	fishing_ui = preload("res://scripts/fishing_game.gd").new()
+	ui_layer.add_child(fishing_ui)
+	fishing_ui.closed.connect(_on_fishing_closed)
+	fishing_ui.money_changed.connect(_refresh_resources)
+	fishing_ui.busy_changed.connect(_set_plus_enabled)
+	fishing_ui.xp_gained.connect(_xp_en_la_barra)
+	fishing_ui.rush_changed.connect(_on_pesca_rush)
+	# CON EL ÁLBUM ABIERTO, LA BARRA SE QUITA DE EN MEDIO: va por encima de
+	# la pesca (para que no se la trague su panel táctil) y por eso se
+	# dibujaba sobre las fichas de los peces.
+	fishing_ui.album_abierto.connect(func(on: bool) -> void:
+		if level_bar != null and is_instance_valid(level_bar):
+			level_bar.visible = not on)
+	# La barra, POR ENCIMA de la pesca (mismo motivo que las cajas).
+	if level_bar != null:
+		level_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ui_layer.move_child(level_bar, -1)
+	# LAS CAJAS DE RECURSOS, POR ENCIMA DE LA PESCA. Su panel táctil ocupa
+	# la pantalla entera con MOUSE_FILTER_STOP, y como se cuelga DESPUÉS que
+	# las cajas se llevaba también los toques de sus botones "+": pulsarlos
+	# no hacía nada. El reparto de toques va por orden de árbol, así que
+	# basta con mandarlas al final.
+	for caja in [ingot_box, money_box, rice_box]:
+		if caja != null:
+			ui_layer.move_child(caja, -1)
+
+
+## Deja la interfaz del menú donde la deja `_ui_out`, pero SIN animación: se
+## usa al caer en la pesca viniendo de Maestrías, donde el menú no llega a
+## verse y animarlo solo sería un parpadeo.
+func _ocultar_ui_menu() -> void:
+	if ui_tween != null and ui_tween.is_valid():
+		ui_tween.kill()
+	menu_panel.position.y = home_box_y + 660.0
+	submenu_bar.position.y = home_sub_y + 260.0
+	menu_panel.visible = false
+	submenu_bar.visible = false
+	if level_bar != null:
+		level_bar.position.y = home_lvl_y + LVL_BAR_PESCA
 
 
 ## "+N exp" flotando sobre la BARRA DE NIVEL y la barra llenándose, con cada
@@ -2764,27 +2796,62 @@ func _on_pesca_rush(on: bool) -> void:
 
 
 
+## Cuánto tarda la pesca en desvanecerse al salir. Corto: es una salida, no
+## una escena.
+const PESCA_FADE := 0.34
+
+
 func _on_fishing_closed() -> void:
 	if fishing_ui == null:
 		return
-	fishing_ui.queue_free()
+	# LA PESCA SE FUNDE, no se borra de golpe. El "Atrás", el álbum y el "?"
+	# viven dentro de ella, así que se van con el conjunto y en el mismo gesto:
+	# liberándola en seco, los tres desaparecían de un fotograma al siguiente
+	# mientras el menú entraba, y el corte se veía más que la transición.
+	var saliendo: Control = fishing_ui
 	fishing_ui = null
+	# Ya no responde a nada mientras se va: un toque en un botón a medio
+	# desvanecer volvería a abrir el álbum sobre un menú que ya está entrando.
+	saliendo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for b in saliendo.find_children("*", "Button", true, false):
+		(b as Button).disabled = true
+	var fade := saliendo.create_tween()
+	fade.tween_property(saliendo, "modulate:a", 0.0, PESCA_FADE) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	fade.tween_callback(saliendo.queue_free)
 	if level_bar != null:
 		level_bar.mouse_filter = Control.MOUSE_FILTER_STOP
-	# El viaje de bajada puede seguir vivo si se entra y se sale deprisa:
-	# sin matarlo pelearía con el `_ui_in` de abajo por la misma `y`.
 	if lvl_tween != null and lvl_tween.is_valid():
 		lvl_tween.kill()
 	_set_plus_enabled(false)
 	_refresh_resources()
-	# (`_ui_in` vuelve a encender el tablón y el submenú, y de paso anima la
-	# experiencia pendiente y anuncia la subida: la pesca PAGA XP por captura.)
-	_ui_in(false)
+	# `con_nivel` en FALSE: la barra no se va arriba para volver a caer —eso
+	# era un salto de 296 px en un fotograma—, sube DESDE DONDE ESTÁ hasta su
+	# sitio de siempre, que es el camino que de verdad ha hecho.
+	_ui_in(false, false)
+	_barra_nivel_a_casa()
 	# LAS ESCENAS DE COLECCIONABLE que hayan caído en esta visita (el corazón
 	# con el apellido de David, el tenedor...). Se cuentan al SALIR de la
 	# pesca, no al sacarlos: allí el jugador está peleando con la caña.
 	while not GameState.pending_col_scenes.is_empty():
 		await _escena_coleccionable(GameState.pending_col_scenes[0])
+
+
+## La barra de nivel vuelve a su altura del menú DESDE DONDE ESTÁ, y solo
+## cuando llega anima la experiencia pendiente (que es lo que `_ui_in` hace
+## por su cuenta cuando sí la mueve él).
+func _barra_nivel_a_casa() -> void:
+	if level_bar == null:
+		return
+	_refresh_level_bar()
+	if not level_bar.visible:
+		return
+	if lvl_tween != null and lvl_tween.is_valid():
+		lvl_tween.kill()
+	lvl_tween = create_tween()
+	lvl_tween.tween_property(level_bar, "position:y", home_lvl_y, OUT_TIME) \
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	lvl_tween.tween_callback(_play_xp_anim_if_pending)
 
 
 func _show_locked_notice(text: String) -> void:
@@ -3397,7 +3464,11 @@ func _go_perks() -> void:
 	_leave_to("res://scenes/perks_screen.tscn")
 
 
+## Se apunta DE DONDE se sale para que el "Atras" de Maestrias devuelva
+## aqui mismo: la barra de nivel que la abre esta en las tres pantallas.
 func _go_skills() -> void:
+	GameState.skills_from = "pesca" if fishing_ui != null else (
+		"mapa" if map_visible else "menu")
 	_leave_to("res://scenes/skills_screen.tscn")
 
 
