@@ -1671,15 +1671,39 @@ primera vez que se entra en ellos (`logros_intro_done` /
     · **El bucle DUPLICA el recurso** antes de marcarle `loop`: `load()`
       devuelve la instancia de la caché, y ponérselo ahí se lo pondría
       también a quien use ese mismo archivo como efecto puntual.
-    · Reparto por lo que HACE cada sonido, no por su nombre: "Open Bait Box"
-      abre el intento (se saca el cebo) y ABRE EL COFRE —es literalmente
-      abrir una caja—; "Fish Biting" suena DOS veces con intención distinta
-      (flojito y agudo en cada AMAGO, a plena voz en la picada); "Reeling in
-      Fishing Rod" es el carrete de la pelea (y en el TIRÓN, el mismo bucle a
-      pitch 1.45: es el pez quien se lleva el sedal) y "Moving Line Closer"
-      el arrastre de recoger ANTES de que pique; "Line Break (With Throw)"
-      para el sedal roto, y el chapoteo de la boya para la presa que se
-      suelta y para el pez que sale del agua.
+    · Reparto por lo que HACE cada sonido, no por su nombre (**las tomas
+      concretas las eligió el usuario a oído, no re-barajarlas**): "Open Bait
+      Box" abre el intento (se saca el cebo) y ABRE EL COFRE —es literalmente
+      abrir una caja—; "Fish Biting" tiene DOS papeles con tomas distintas
+      (las **2 y 3** para los AMAGOS, flojitas porque es un mordisqueo, y las
+      **1 y 2** a plena voz para la PICADA: comparten la 2 a propósito,
+      porque es la misma boca); "Reeling in Fishing Rod" es el carrete en sus
+      dos usos —la **1** para recoger el sedal ANTES de que pique y la **2**
+      en bucle para la pelea, esa misma a pitch **1.45** en el TIRÓN (en
+      Godot el pitch corre además más rápido, que es lo que se busca)—;
+      **"Moving Line Closer - 1" es el SEDAL SUELTO en plena pelea**, con el
+      dedo levantado: ahí no se recoge nada, es el pez quien se lleva línea y
+      es justo cuando su barra sube, así que el hueco de silencio que había
+      era el peor sitio posible para uno; "Line Break (With Throw)" para el
+      sedal roto, y el chapoteo de la boya para la presa que se suelta y para
+      el pez que sale del agua.
+    · **EL LANZAMIENTO VA RECORTADO** ("Casting Line - 4", la única toma que
+      se usa): traía su PROPIO chapoteo al final, así que sonaban dos plofs
+      seguidos —el suyo y el de la boya— y encima el suyo caía cuando le daba
+      la gana, no cuando la boya toca el agua en pantalla (`CAST_TIME` 0.38).
+      Lo recorta `tools/ogg_trim.py` a 1.335 s **SIN RECODIFICAR**: se queda
+      con las páginas Ogg completas hasta ahí, marca la última con el flag de
+      fin de flujo y le recalcula el CRC, así que no se toca ni un bit de
+      audio y el corte cae en un límite de página (sin chasquido). **El
+      instante NO se elige a ojo**: sale de la CURVA DE BITRATE por páginas,
+      que se lee sin decodificar nada — el chapoteo es un estallido de 365
+      kbps contra los 45 del tramo anterior, y detrás va la cola de las ondas
+      a 33. La misma firma que tiene "Bobber Lands in Water" en sus primeras
+      décimas, que es como se confirmó qué era ese pico.
+    · **El plof lo pone ahora la BOYA** ("Bobber Lands in Water - 2", familia
+      `boya`, una sola toma) al terminar el vuelo del sedal; los chapoteos de
+      la presa que se suelta y del pez que sale del agua viven en su propia
+      familia (`chapoteo`, las dos tomas) porque son otro momento.
     · Los bucles van **más bajos que los golpes** (-11 dB contra -4): suenan
       segundos seguidos y a la misma altura se comen la partida. Y NINGÚN
       bucle sobrevive a un cambio de estado ni al soltar el dedo — un carrete
