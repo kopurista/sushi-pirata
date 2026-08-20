@@ -795,6 +795,17 @@ primera vez que se entra en ellos (`logros_intro_done` /
     dado— ni picoteos). Cualquier otro plato = calavera + decomiso + cuenta a
     cero. Ojo: repetirle 5 veces el mismo plato carga su hastío — los EXTRAS
     (que hacen "nuevo" a un repetido) son la herramienta pensada para esta fase.
+  · **TODO DIÁLOGO DE FALLO TERMINA EN `_play(aviso)`**: la caja del director
+    solo la cierra `_play`, así que un `_decir` suelto dejaba el "¡KAPPA TIENE
+    HAMBRE!" clavado en pantalla con el input tragado — y en la derrota, la
+    caja encima del cartel de resultados: no se podía salir NI se cobraba el
+    oro de la jornada (que se paga en `_finalize_results`). Cada fase pasa su
+    recordatorio a `_fase_kappa` para que el aviso de Gigi siga siendo el
+    encargo vigente. Perder el duelo da 0 estrellas pero el oro generado
+    (menos los decomisos) SÍ se cobra: verificado 2471 → 2529.
+  · **SUS PROPINAS VAN RECORTADAS** (`client3d.BOSS_TIP_MULT`, ×0.25 sobre la
+    probabilidad): come 18+ platos con las reglas de capitán (25%→50%) y a
+    tarifa normal regaba el bote — pagaba como cuatro capitanes.
   · **EL GUION VA POR SONDEO de `eaten_ids`, no por señales** (`_fase_kappa`):
     el id del plato solo está ahí, y resolver los fallos en el mismo bucle los
     SERIALIZA con las frases (un handler async hablaba encima de la charla de

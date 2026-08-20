@@ -1560,7 +1560,8 @@ func _nivel_15() -> void:
 	_play("¡**%d platos** para el Kappa, sin dejar que su barra toque fondo!" % BOSS_PLATES)
 
 	# --- FASE 1: los platos ---
-	if not await _fase_kappa(kappa, BOSS_PLATES, "platos"):
+	if not await _fase_kappa(kappa, BOSS_PLATES, "platos", "", "enfadado",
+			"¡**%d platos** para el Kappa, sin dejar que su barra toque fondo!" % BOSS_PLATES):
 		return
 	kappa.boss_patience_add(KAPPA_PREMIO_F1)
 	_focus_client(kappa)
@@ -1571,7 +1572,8 @@ func _nivel_15() -> void:
 	_play("Fase 2: ¡**%d platos DISTINTOS**, sin repetir ninguno!" % KAPPA_DISTINTOS)
 
 	# --- FASE 2: la variedad ---
-	if not await _fase_kappa(kappa, KAPPA_DISTINTOS, "distintos", "", "furioso"):
+	if not await _fase_kappa(kappa, KAPPA_DISTINTOS, "distintos", "", "furioso",
+			"Fase 2: ¡**%d platos DISTINTOS**, sin repetir ninguno!" % KAPPA_DISTINTOS):
 		return
 	kappa.boss_patience_add(KAPPA_PREMIO_F2)
 	var plato := _plato_mas_caro()
@@ -1584,7 +1586,8 @@ func _nivel_15() -> void:
 	_play("Fase 3: ¡**%d veces** el **%s** y nada más!" % [KAPPA_MISMO, nombre])
 
 	# --- FASE 3: el antojo ---
-	if not await _fase_kappa(kappa, KAPPA_MISMO, "mismo", plato, "colerico"):
+	if not await _fase_kappa(kappa, KAPPA_MISMO, "mismo", plato, "colerico",
+			"Fase 3: ¡**%d veces** el **%s** y nada más!" % [KAPPA_MISMO, nombre]):
 		return
 
 	# --- VICTORIA ---
@@ -1611,7 +1614,7 @@ func _nivel_15() -> void:
 ## y leerlo en el mismo bucle que decide serializa los fallos con las frases
 ## (un handler async podía hablar ENCIMA de la charla de cambio de fase).
 func _fase_kappa(kappa: Node3D, objetivo: int, modo: String,
-		target := "", ira := "enfadado") -> bool:
+		target := "", ira := "enfadado", aviso := "") -> bool:
 	_oro_fase = 0
 	_prop_fase = 0
 	_hambre = false
@@ -1628,14 +1631,14 @@ func _fase_kappa(kappa: Node3D, objetivo: int, modo: String,
 			return false
 		if _hambre:
 			_hambre = false
-			if not await _hambruna_kappa(kappa, ira):
+			if not await _hambruna_kappa(kappa, ira, aviso):
 				return false
 			continue
 		vistos += 1
 		var id := str(kappa.eaten_ids[vistos - 1])
 		if modo == "distintos" and distintos.has(id):
 			if not await _fallo_kappa(kappa,
-					"Eso... YA LO HE COMIDO. ¡DISTINTOS he dicho! ¡Empezamos de nuevo!", ira):
+					"Eso... YA LO HE COMIDO. ¡DISTINTOS he dicho! ¡Empezamos de nuevo!", ira, aviso):
 				return false
 			distintos.clear()
 			progreso = 0
@@ -1648,7 +1651,7 @@ func _fase_kappa(kappa: Node3D, objetivo: int, modo: String,
 		if modo == "mismo" and id != target:
 			var nombre := str(RecipeData.get_recipe(target).get("name", target))
 			if not await _fallo_kappa(kappa,
-					"¡ESO NO! ¡He dicho **%s**! ¡La cuenta A CERO!" % nombre, ira):
+					"¡ESO NO! ¡He dicho **%s**! ¡La cuenta A CERO!" % nombre, ira, aviso):
 				return false
 			progreso = 0
 			lv.boss_chip_set(objetivo)
@@ -1667,7 +1670,7 @@ func _fase_kappa(kappa: Node3D, objetivo: int, modo: String,
 ## El Kappa se ha quedado sin paciencia: calavera, el oro de la fase se pierde
 ## y recupera un trozo de barra — cada vez menos (75% → 50% → 30%). Devuelve
 ## false si esa calavera era la quinta.
-func _hambruna_kappa(kappa: Node3D, ira := "enfadado") -> bool:
+func _hambruna_kappa(kappa: Node3D, ira := "enfadado", aviso := "") -> bool:
 	_hambres += 1
 	var quedan: int = lv.boss_lose_skull()
 	lv.boss_forfeit(_oro_fase, _prop_fase)
@@ -1682,12 +1685,16 @@ func _hambruna_kappa(kappa: Node3D, ira := "enfadado") -> bool:
 	await _decir([
 		{ "text": "¡KAPPA TIENE **HAMBRE**! ¡Más deprisa, cocinero, o me como la cueva!", "who": "kappa", "mood": ira },
 	])
+	# LA CAJA SOLO LA CIERRA `_play`: sin esta llamada el diálogo del hambre se
+	# quedaba clavado en pantalla con todo el input tragado (softlock).
+	_play(aviso)
 	return true
 
 
 ## Un fallo de fase (plato repetido, plato equivocado): calavera, el oro de la
 ## fase se pierde y el Kappa lo canta. Devuelve false si era la quinta.
-func _fallo_kappa(kappa: Node3D, frase: String, ira := "enfadado") -> bool:
+func _fallo_kappa(kappa: Node3D, frase: String, ira := "enfadado",
+		aviso := "") -> bool:
 	var quedan: int = lv.boss_lose_skull()
 	lv.boss_forfeit(_oro_fase, _prop_fase)
 	_oro_fase = 0
@@ -1697,6 +1704,7 @@ func _fallo_kappa(kappa: Node3D, frase: String, ira := "enfadado") -> bool:
 		return false
 	_focus_client(kappa)
 	await _decir([{ "text": frase, "who": "kappa", "mood": ira }])
+	_play(aviso)
 	return true
 
 
@@ -1706,6 +1714,10 @@ func _derrota_kappa() -> void:
 		{ "text": "¡¡BASTA!! Kappa se harta. ¡KAPPA SE VA!", "who": "kappa", "mood": "colerico" },
 		{ "text": "Se acabó la jornada... Un Kappa enfadado no perdona. ¡Volveremos: ahora ya sabes cómo mastica!", "mood": "triste" },
 	])
+	# Cerrar la caja ANTES de cerrar el turno: se quedaba abierta encima del
+	# cartel de resultados tragándose los toques — el jugador no podía salir,
+	# y sin llegar al cartel el oro de la jornada ni se cobraba.
+	_play()
 	lv._end_level()
 
 

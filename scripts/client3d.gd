@@ -278,6 +278,10 @@ var always_drain := false
 var variety_ui := true
 ## Piso de probabilidad con el que el jefe coge cualquier plato no-postre.
 const BOSS_TAKE := 0.95
+## Recorte de la PROBABILIDAD de propina del jefe. Come tantos platos (18+ por
+## duelo, con las reglas de capitán subiendo al 50%) que a tarifa normal
+## regaba el bote de propinas: paga como cuatro capitanes sin esto.
+const BOSS_TIP_MULT := 0.25
 ## Perdona el castigo de marcharse sin comer (ver force_leave).
 var _sin_castigo := false
 ## En PUERTOS y ABORDAJES el vacío no cuesta oro (el jugador ya pierde por la
@@ -1657,6 +1661,9 @@ func _roll_plate_tip() -> int:
 	# por el precio.
 	if RecipeData.get_recipe(current_id).get("tip_always", false):
 		tip_chance = 1.0
+	# El JEFE deja propina de uvas a peras (ver BOSS_TIP_MULT).
+	if boss:
+		tip_chance *= BOSS_TIP_MULT
 	if randf() < tip_chance:
 		return maxi(int(round(money_earned * float(rules.pct) * amount_mult)), 1)
 	return 0
