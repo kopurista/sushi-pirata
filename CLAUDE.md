@@ -1727,6 +1727,17 @@ primera vez que se entra en ellos (`logros_intro_done` /
       `boya`, una sola toma) al terminar el vuelo del sedal; los chapoteos de
       la presa que se suelta y del pez que sale del agua viven en su propia
       familia (`chapoteo`, las dos tomas) porque son otro momento.
+    · **LA LIBRERÍA DE SONIDOS DE INTERFAZ (`sounds/ui`) LLEVA `.gdignore`**:
+      son 604 tomas de packs de UI, 49 MB y encima en TRIPLICADO (WAV, OGG y
+      MP3 del mismo sonido). El preset web exporta con
+      `export_filter="all_resources"`, o sea que Godot las empaqueta TODAS
+      aunque no suene ninguna — medido: 17,9 MB de recursos importados, un 30%
+      más de descarga. Mismo criterio que `assets/models/source` y
+      `snapshots`: material de consulta que el juego no ve.
+      **Cuando se elija un sonido hay que SACARLO de ahí** (a su propia
+      carpeta, como `sounds/pesca`), NO quitar el `.gdignore`. Y se prefiere
+      `.gdignore` al `exclude_filter` del preset porque ese dejaría el sonido
+      funcionando en el editor y ROTO en el juego publicado.
     · Los bucles van **más bajos que los golpes** (-11 dB contra -4): suenan
       segundos seguidos y a la misma altura se comen la partida. Y NINGÚN
       bucle sobrevive a un cambio de estado ni al soltar el dedo — un carrete
