@@ -2436,7 +2436,7 @@ const PITCH_TIRON_MAX := 2.05
 ## así que con él no se pueden separar. El efecto se apaga cuando no hace
 ## falta (recogiendo y en el tirón), que para eso está `set_bus_effect_enabled`.
 const BUS_SEDAL := "SedalPesca"
-const TONO_PEZ := 0.88
+const TONO_PEZ := 0.95
 
 
 func _setup_audio() -> void:

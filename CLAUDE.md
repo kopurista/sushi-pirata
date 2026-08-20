@@ -1706,9 +1706,11 @@ primera vez que se entra en ellos (`logros_intro_done` /
         ahí solo se mueve la barra de la presa, y es verdad que no está
         pasando gran cosa.
     · **Y CUANDO TIRA EL PEZ CAMBIA EL TONO, APARTE DE LA VELOCIDAD**: el
-      carrete suena algo más grave (`TONO_PEZ` 0.88), como un freno que
-      patina. **A 0.72 quedaba raro** —demasiado grave para lo que es— y el
-      usuario lo subió: aquí se busca reconocer el estado, no un efecto.
+      carrete suena un punto más grave (`TONO_PEZ` 0.95), como un freno que
+      patina. Bajó DOS veces por el mismo motivo (0.72 → 0.88 → 0.95): aquí
+      se busca **reconocer el estado, no oír un efecto**, y cuanto más se
+      aleja de 1.0 más suena a truco y más lo pastosea el desplazador. Si
+      algún día hay que retocarlo, el camino es hacia arriba.
       Eso NO se puede hacer con el `pitch_scale` del reproductor, que mueve
       tono y velocidad a la vez; va por un bus propio (`BUS_SEDAL`) con un
       `AudioEffectPitchShift`, que es lo único que mueve el tono SIN tocar la
