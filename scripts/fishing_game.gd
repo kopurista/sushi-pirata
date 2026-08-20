@@ -270,6 +270,8 @@ var tutor_falta_tiron := false
 var tutor_card: Control = null
 var tutor_label: Label = null
 var ayuda_btn: Button = null
+## El banco de efectos de la pesca (ver `SND` y `_setup_audio`).
+var snd: SoundBank = null
 ## Opacidad MAXIMA de las lineas. Casi opaca: con los parametros suaves
 ## (lineas largas y difusas) el velo no tapa nada, y a media opacidad el
 ## tiron apenas se notaba.
@@ -446,6 +448,7 @@ func _setup_ui() -> void:
 	album_btn.pressed.connect(_open_album)
 	add_child(album_btn)
 
+	_setup_audio()
 	_setup_tutor_card()
 	_setup_ayuda_btn()
 	_setup_rush_fx()
@@ -740,6 +743,10 @@ func is_busy() -> bool:
 
 
 func _set_state(s: int) -> void:
+	# Ningun bucle sobrevive a un cambio de estado: el carrete sonando
+	# sobre el cartel del botin (o sobre el menu al salir) canta muchisimo.
+	if snd != null and s != State.FIGHT and s != State.SHADOW:
+		snd.todos_los_bucles_off()
 	var antes := is_busy()
 	state = s
 	if is_busy() != antes:
@@ -802,6 +809,7 @@ func _start_attempt() -> void:
 	casting = false
 	retrieving = false
 	feints_done = 0
+	snd.play("cebo", SND_EFECTO)
 	instruction.text = "Toca el agua para lanzar el sedal"
 	_set_state(State.SHADOW)
 
@@ -818,6 +826,7 @@ func _cast_to(punto: Vector2) -> void:
 	cast_from = rod_tip
 	cast_to = Vector2(clampf(punto.x, WATER.position.x, WATER.end.x),
 		clampf(punto.y, WATER.position.y, WATER.end.y))
+	snd.play("lanzar", SND_EFECTO)
 	casting = true
 	cast_t = 0.0
 	bobber_out = true
@@ -830,15 +839,18 @@ func _tick_precast(delta: float) -> void:
 		# RECOGER el sedal: solo MANTENIENDO la pantalla (la única forma de
 		# volver a lanzar si el pez pasa del anzuelo).
 		if retrieving and bobber_out and not casting:
+			snd.loop_on("recoger", SND_BUCLE)
 			bobber = bobber.move_toward(rod_tip, RETRIEVE_SPEED * delta)
 			if bobber.distance_to(rod_tip) < 26.0:
 				bobber_out = false
 				retrieving = false
+				snd.loop_off("recoger")
 				instruction.text = "Toca el agua para lanzar el sedal"
 	if casting:
 		cast_t += delta / CAST_TIME
 		if cast_t >= 1.0:
 			casting = false
+			snd.play("boya", SND_EFECTO)
 			bobber = cast_to
 			if state == State.SHADOW \
 					and shadow_pos.distance_to(bobber) > VISION_R:
@@ -891,6 +903,7 @@ func _tick_precast(delta: float) -> void:
 					feints_left -= 1
 					feints_done += 1
 					feint_anim = FEINT_ANIM
+					snd.play("mordisco", SND_AMAGO, 1.25)
 					feint_timer = randf_range(0.55, 1.1)
 				else:
 					_enter_bite()
@@ -950,6 +963,7 @@ func _start_approach() -> void:
 
 
 func _enter_bite() -> void:
+	snd.play("mordisco", SND_EFECTO)
 	bite_t = BITE_WINDOW
 	bite_sink = 0.0
 	# La picada de verdad: el pez se queda ADELANTADO, con la boca en el
@@ -1071,6 +1085,7 @@ func _tick_fight(delta: float) -> void:
 	line_t = move_toward(line_t, destino_t, LINE_FOLLOW * delta)
 	bobber = rod_tip + (fight_far - rod_tip) * line_t
 	bobber.y = maxf(bobber.y, WATER.position.y + 14.0)
+	_audio_pelea(en_velocidad)
 	_animate_rod(delta, en_velocidad)
 	tension_bar.value = tension
 	energy_bar.value = energy
@@ -1111,6 +1126,14 @@ func _tick_fight(delta: float) -> void:
 
 
 func _escaped(motivo: String) -> void:
+	# El sedal roto tiene su latigazo; lo demas (se solto, se llevo el
+	# cebo) es un chapoteo: no se ha roto nada.
+	if snd != null:
+		snd.todos_los_bucles_off()
+		if motivo.contains("sedal"):
+			snd.play("rotura", SND_EFECTO)
+		else:
+			snd.play("boya", SND_EFECTO, 0.85)
 	holding = false
 	_set_rush(false)
 	instruction.text = motivo
@@ -1124,6 +1147,10 @@ func _escaped(motivo: String) -> void:
 
 ## Captura lograda: AHORA se entrega el premio sorteado al empezar.
 func _land_catch() -> void:
+	# El pez sale del agua: chapoteo grave y ancho.
+	if snd != null:
+		snd.todos_los_bucles_off()
+		snd.play("boya", SND_EFECTO + 2.0, 0.8)
 	holding = false
 	_set_rush(false)
 	instruction.text = ""
@@ -1193,6 +1220,8 @@ func _on_zone_input(ev: InputEvent) -> void:
 					tension = minf(tension + TAP_TENSION_KICK, 1.0)
 	else:
 		retrieving = false
+		if snd != null:
+			snd.loop_off("recoger")
 		if state == State.FIGHT:
 			holding = false
 
@@ -1546,6 +1575,8 @@ func _show_chest_reveal() -> void:
 		tw.tween_property(cofre, "rotation_degrees", 0.0, 0.07)
 		tw.tween_callback(func() -> void:
 			cofre.texture = load("res://assets/ui/daily_cofre_abierto.png"))
+		tw.tween_callback(func() -> void:
+			snd.play("cebo", SND_EFECTO + 2.0, 0.9))
 		tw.tween_property(cofre, "scale", Vector2(1.12, 1.12), 0.16) \
 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		tw.tween_property(cofre, "scale", Vector2.ONE, 0.12)
@@ -2240,3 +2271,87 @@ func _dibujar_anillo(c: Control) -> void:
 func _borrar_anillo(c: Control) -> void:
 	if c != null and is_instance_valid(c):
 		c.queue_free()
+
+
+# ------------------------------------------------------------------- sonido
+
+## LAS FAMILIAS DE SONIDO de la pesca (`sounds/pesca`). Las rutas van a mano
+## y no por escaneo de carpeta: los .ogg se importan y en el export los
+## originales no están (ver `SoundBank`).
+##
+## El reparto sale de lo que hace cada sonido, no de su nombre:
+## · "Open Bait Box" abre el intento (se saca el cebo) y ABRE EL COFRE, que
+##   es literalmente abrir una caja.
+## · "Fish Biting" suena DOS veces con intención distinta: flojito y agudo en
+##   cada AMAGO, y a plena voz en la picada de verdad. Es la misma boca.
+## · "Reeling in Fishing Rod" es el carrete de la PELEA (bucle mientras se
+##   mantiene) y "Moving Line Closer" el de recoger el sedal ANTES de que
+##   pique, que es un arrastre más suave.
+## · "Line Break (With Throw)" para el sedal roto —la toma con el latigazo—
+##   y el chapoteo de la boya para cuando la presa se suelta y para el pez
+##   que sale del agua.
+const SND := {
+	"cebo": [
+		"res://sounds/pesca/Open Bait Box - 1.ogg",
+		"res://sounds/pesca/Open Bait Box - 2.ogg",
+	],
+	"lanzar": [
+		"res://sounds/pesca/Casting Line - 1.ogg",
+		"res://sounds/pesca/Casting Line - 2.ogg",
+		"res://sounds/pesca/Casting Line - 3.ogg",
+		"res://sounds/pesca/Casting Line - 4.ogg",
+	],
+	"boya": [
+		"res://sounds/pesca/Bobber Lands in Water - 1.ogg",
+		"res://sounds/pesca/Bobber Lands in Water - 2.ogg",
+	],
+	"mordisco": [
+		"res://sounds/pesca/Fish Biting - 1.ogg",
+		"res://sounds/pesca/Fish Biting - 2.ogg",
+		"res://sounds/pesca/Fish Biting - 3.ogg",
+		"res://sounds/pesca/Fish Biting - 4.ogg",
+	],
+	"recoger": [
+		"res://sounds/pesca/Moving Line Closer - 2.ogg",
+		"res://sounds/pesca/Moving Line Closer - 1.ogg",
+	],
+	"carrete": [
+		"res://sounds/pesca/Reeling in Fishing Rod - 3.ogg",
+		"res://sounds/pesca/Reeling in Fishing Rod - 5.ogg",
+	],
+	"rotura": [
+		"res://sounds/pesca/Line Break - 1 (With Throw).ogg",
+		"res://sounds/pesca/Line Break - 2.ogg",
+	],
+}
+
+## Volúmenes, en dB. El carrete y la recogida van MÁS BAJOS que los golpes:
+## son bucles que suenan segundos seguidos, y a la misma altura que un efecto
+## puntual acaban tapando la partida.
+const SND_EFECTO := -4.0
+const SND_BUCLE := -11.0
+const SND_AMAGO := -13.0
+
+
+func _setup_audio() -> void:
+	if snd != null and is_instance_valid(snd):
+		return
+	snd = SoundBank.new()
+	add_child(snd)
+	for familia in SND:
+		snd.cargar(str(familia), SND[familia])
+
+
+## El carrete de la PELEA: suena mientras se recoge, y en el TIRÓN va más
+## rápido y agudo porque es el pez quien se lleva el sedal. Se llama por
+## fotograma desde `_tick_fight`, y `loop_on` solo arranca si no sonaba ya.
+func _audio_pelea(en_velocidad: bool) -> void:
+	if snd == null:
+		return
+	if en_velocidad:
+		snd.loop_off("recoger")
+		snd.loop_on("carrete", SND_BUCLE + 2.0, 1.45)
+	elif holding:
+		snd.loop_on("carrete", SND_BUCLE, 1.0)
+	else:
+		snd.loop_off("carrete")

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://ghscwnfhej6p"
+path="res://.godot/imported/Bobber Lands in Water - 1.ogg-5cc67ecadd7f5ebed9e650117c9a614f.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/pesca/Bobber Lands in Water - 1.ogg"
+dest_files=["res://.godot/imported/Bobber Lands in Water - 1.ogg-5cc67ecadd7f5ebed9e650117c9a614f.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://ccudtda2nryx1"
+path="res://.godot/imported/Fish Biting - 1.ogg-c975fb0ba98bfab4e373054dcc898f45.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/pesca/Fish Biting - 1.ogg"
+dest_files=["res://.godot/imported/Fish Biting - 1.ogg-c975fb0ba98bfab4e373054dcc898f45.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://cngat70sgw4fj"
+path="res://.godot/imported/Casting Line - 4.ogg-5ad5b0fad8200aa09e77adde0717581a.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/pesca/Casting Line - 4.ogg"
+dest_files=["res://.godot/imported/Casting Line - 4.ogg-5ad5b0fad8200aa09e77adde0717581a.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

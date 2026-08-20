@@ -1658,6 +1658,32 @@ primera vez que se entra en ellos (`logros_intro_done` /
       clavado al terminar. **Y la punta de la caña se proyecta AL FINAL**
       del `_process`, con la cámara ya colocada: calculándola antes, el
       sedal nacía donde estaba el barco el fotograma pasado.
+  · **EL SONIDO DE LA PESCA** (`scripts/sound_bank.gd`, primer audio del
+    juego): `SoundBank` agrupa las tomas por FAMILIA y suelta una AL AZAR SIN
+    REPETIR LA ÚLTIMA — con dos tomas alternando ya no suena a máquina, que
+    es lo que delata una acción repetida veinte veces. Los efectos puntuales
+    salen por un pool de seis voces y los BUCLES (carrete, recogida) tienen
+    su propio reproductor.
+    · **LAS RUTAS SE ESCRIBEN A MANO** (`FishingGame.SND`), nunca por
+      DirAccess: los .ogg se importan a `.godot/imported/*.oggvorbisstr` y en
+      el EXPORT los originales no están, así que un escaneo funcionaría en el
+      editor y devolvería una lista VACÍA en el juego publicado.
+    · **El bucle DUPLICA el recurso** antes de marcarle `loop`: `load()`
+      devuelve la instancia de la caché, y ponérselo ahí se lo pondría
+      también a quien use ese mismo archivo como efecto puntual.
+    · Reparto por lo que HACE cada sonido, no por su nombre: "Open Bait Box"
+      abre el intento (se saca el cebo) y ABRE EL COFRE —es literalmente
+      abrir una caja—; "Fish Biting" suena DOS veces con intención distinta
+      (flojito y agudo en cada AMAGO, a plena voz en la picada); "Reeling in
+      Fishing Rod" es el carrete de la pelea (y en el TIRÓN, el mismo bucle a
+      pitch 1.45: es el pez quien se lleva el sedal) y "Moving Line Closer"
+      el arrastre de recoger ANTES de que pique; "Line Break (With Throw)"
+      para el sedal roto, y el chapoteo de la boya para la presa que se
+      suelta y para el pez que sale del agua.
+    · Los bucles van **más bajos que los golpes** (-11 dB contra -4): suenan
+      segundos seguidos y a la misma altura se comen la partida. Y NINGÚN
+      bucle sobrevive a un cambio de estado ni al soltar el dedo — un carrete
+      sonando sobre el cartel del botín (o sobre el menú) canta muchísimo.
   · **EL TUTORIAL SE PUEDE REPETIR, y no lo cuenta Cai** (botón
     `boton_ayuda.png` bajo el álbum → `_tutorial_guiado`): la clase de Cai
     (`_clase_de_pesca`) es la PRIMERA vez y va con diálogos; esta es la

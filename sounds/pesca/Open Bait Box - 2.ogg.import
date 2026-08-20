@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://bkhuws8fg1yw3"
+path="res://.godot/imported/Open Bait Box - 2.ogg-5380430eab0585ab266568a874bc5e60.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/pesca/Open Bait Box - 2.ogg"
+dest_files=["res://.godot/imported/Open Bait Box - 2.ogg-5380430eab0585ab266568a874bc5e60.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

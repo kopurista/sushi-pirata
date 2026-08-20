@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://d1avom610e1pi"
+path="res://.godot/imported/Line Break - 1 (With Throw).ogg-6cc12f495110dc7554ccc152b4084083.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/pesca/Line Break - 1 (With Throw).ogg"
+dest_files=["res://.godot/imported/Line Break - 1 (With Throw).ogg-6cc12f495110dc7554ccc152b4084083.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4
