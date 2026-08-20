@@ -72,6 +72,8 @@ var _t := 0.0
 
 
 func _ready() -> void:
+	# La TIENDA tiene su propio tema: el puesto de Saverio es otro sitio.
+	Audio.musica("tienda")
 	# Las pantallas de menu van a la mitad de fotogramas que el juego
 	# (GameState.fps_for): aqui no se juega y renderizar mas gasta bateria.
 	Engine.max_fps = GameState.fps_for(false)
@@ -896,6 +898,7 @@ func _open_buy_dialog(ing: String) -> void:
 	var state := { "qty": 1 }
 
 	var overlay := ColorRect.new()
+	Audio.ventana(overlay)
 	overlay.color = Color(0, 0, 0, 0.55)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(overlay)

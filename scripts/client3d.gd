@@ -370,6 +370,7 @@ var _blob: MeshInstance3D = null
 var _t := 0.0                 ## reloj local para respirar/sentado
 var _walk_t := 0.0            ## reloj del ciclo de marcha (solo avanza andando)
 var _eat_t := 0.0             ## reloj del bocado (solo avanza comiendo)
+var _mordiscos := 0           ## mordiscos ya sonados del plato en curso
 var _walk_speed := 1.2
 var _leg := 0
 var _leg_dist := 0.0
@@ -757,6 +758,12 @@ func _process(delta: float) -> void:
 			if _anim != null:
 				_anim.reset()
 				_anim.bite(_eat_t)
+				# UN sonido por mordisco, no uno por fotograma: el ciclo es
+				# procedural y `bite_chews` es lo único que sabe cuándo muerde.
+				var n := _anim.bite_chews(_eat_t)
+				if n > _mordiscos:
+					_mordiscos = n
+					Audio.sfx("comer")
 			eat_timer -= delta * speed
 			_eat_bar.value = maxf(eat_timer, 0.0)
 			# INTRO DEL CAOS: aquí la paciencia NO se detiene al comer. Esta
@@ -823,6 +830,8 @@ func _seat() -> void:
 		return
 	state = State.WAITING
 	seated.emit()
+	if randf() < VOZ_AL_SENTARSE:
+		_hablar("hablando")
 	rotation_degrees.y = seat_yaw
 	_sit_on_stool()
 	_place_bars()
@@ -1038,6 +1047,13 @@ func _eat_snack(recipe_id: String, data: Dictionary) -> void:
 func _start_eating(plate_global: Vector3) -> void:
 	state = State.EATING
 	_eat_t = 0.0
+	_mordiscos = 0
+	# El plato que se levanta de la cinta, y de vez en cuando el cliente lo
+	# celebra. La VOZ va sorteada y no en cada plato: con ocho bocas comiendo
+	# a la vez, un gruñido por bocado convierte la barra en un gallinero.
+	Audio.sfx("coger_plato")
+	if randf() < VOZ_AL_COMER:
+		_hablar("feliz")
 	# Plato nuevo: vuelve a tener derecho a un picoteo y al ritmo normal.
 	snack_taken = false
 	bite_speed = bite_base
@@ -1584,6 +1600,9 @@ func _leave() -> void:
 		"eaten": eaten_ids.duplicate(),
 		"satiety_eaten": satiety_eaten,
 	})
+	# Al levantarse SÍ habla siempre: es el momento en que el jugador tiene
+	# que enterarse de si se va servido o se le ha escapado.
+	_hablar("serio" if vacio else "feliz")
 	state = State.LEAVING
 	_patience_bar.visible = false
 	_eat_bar.visible = false
@@ -1667,3 +1686,25 @@ func _roll_plate_tip() -> int:
 	if randf() < tip_chance:
 		return maxi(int(round(money_earned * float(rules.pct) * amount_mult)), 1)
 	return 0
+
+
+# ------------------------------------------------------------------ sonido
+
+## Cada cuánto habla un cliente por su cuenta. Va SORTEADO y bajo a propósito:
+## en la barra hay hasta ocho a la vez y un gruñido por cada cosa que hacen
+## convierte el nivel en un gallinero. Al LEVANTARSE sí habla siempre — ese es
+## el momento que el jugador tiene que oír.
+const VOZ_AL_SENTARSE := 0.35
+const VOZ_AL_COMER := 0.22
+
+
+## La voz del cliente que está en el taburete, con su tipo y su género. El
+## hablante NO se escribe a mano: lo compone `DialogueBox.speaker_for`, el
+## mismo que elige el retrato cuando a un guion le toca hacerle hablar — así
+## la cara y la voz no pueden ser de dos personas distintas.
+##
+## Si es un ESPECIAL con retrato propio (Cai, Pablo, el Kappa), habla con el
+## suyo: `who_override` es justo el nombre del hablante.
+func _hablar(expresion: String) -> void:
+	var quien := who_override if Audio.VOCES.has(who_override) 		else DialogueBox.speaker_for(client_type, gender)
+	Audio.voz(quien, expresion)

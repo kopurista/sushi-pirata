@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dxb0wgjpudao0"
+path="res://.godot/imported/Place Item - 2.ogg-1fcf3b1abbf68a414b5e5b7e79ef775b.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/cocina/Place Item - 2.ogg"
+dest_files=["res://.godot/imported/Place Item - 2.ogg-1fcf3b1abbf68a414b5e5b7e79ef775b.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

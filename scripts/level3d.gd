@@ -497,6 +497,7 @@ func _ready() -> void:
 	GeometryBatch.bake(self, "SceneryBatch")
 	_setup_exit_button()
 	_setup_heads_row()
+	_musica_del_nivel()
 
 	seat_clients.resize(seats.size())
 	prep_board.dish_served.connect(_on_player_dish_served)
@@ -2223,6 +2224,24 @@ func _add_rope_corners(box: Control) -> void:
 ## CARTEL DE ARRANQUE: el nivel ya no empieza solo. Entre elegir la carta y la
 ## cuenta atrás de preparación se pregunta "¿Comenzamos?", para que el jugador
 ## entre en la partida cuando quiera y no le pille el reloj andando.
+## EL TEMA DE LA JORNADA LO DECIDE EL TIPO DE ESCENARIO, no el escenario: una
+## isla suena a isla y un abordaje a abordaje, aquí y en el mar 7. La CUEVA es
+## la excepción del jefe y el ARCADE tiene el suyo, que no es una travesía sino
+## una carrera.
+##
+## El TUTORIAL suena a abordaje: es una cubierta desbordada contra el reloj, y
+## el tema de la isla debajo de aquel desastre lo dejaba en broma.
+func _musica_del_nivel() -> void:
+	if GameState.is_arcade():
+		Audio.musica("arcade")
+		return
+	if GameState.is_tutorial():
+		Audio.musica("abordaje")
+		return
+	var kind := scenery_kind
+	Audio.musica(kind if Audio.TEMAS.has(kind) else "isla")
+
+
 func _ask_start() -> void:
 	awaiting_start = true
 	# Si un guion está presentando el puerto (David en los primeros niveles), el
@@ -2586,6 +2605,12 @@ func _place_goal_value(estrella: TextureRect, lado: float) -> void:
 ## Se apaga también (con el castigo por plato tirado o por cliente que se va de
 ## vacío el oro BAJA), pero sin bote: perder una estrella no se celebra.
 func _light_star_mark(n: TextureRect, ganada: bool) -> void:
+	# Solo suena al ENCENDERSE. Apagarse también pasa (los castigos bajan el
+	# oro) y ahí no hay nada que celebrar, igual que tampoco hay bote.
+	if ganada and n != null and not n.get_meta("encendida", false):
+		Audio.sfx("estrella")
+	if n != null:
+		n.set_meta("encendida", ganada)
 	n.texture = load(STAR_MARK_TEX % ("llena" if ganada else "vacia"))
 	n.modulate = STAR_MARK_ON if ganada else STAR_MARK_OFF
 	# Un bote a medias que se quedara colgado dejaría la estrella de otro
@@ -2896,6 +2921,9 @@ func _process(delta: float) -> void:
 		phase_label.text = "Preparación: %d s" % ceili(maxf(prep_time_left, 0.0))
 		if prep_time_left <= 0.0:
 			prep_phase = false
+			# La campana del barco: se acabó la preparación y empieza el
+			# servicio. Es el único aviso que marca ese instante.
+			Audio.sfx("campana")
 			_show_phase(false)
 			# (El guion del puerto se marca como visto al SUPERARLO, no aquí:
 			# ver `_finalize_results`. Quien se quede corto de estrellas y
@@ -3219,7 +3247,11 @@ func _on_client_finished(report: Dictionary, seat_idx: int) -> void:
 ## monedero). La propina va unicamente al bote de potenciadores.
 func _on_client_served(food: int, tip: int) -> void:
 	money_earned += food
+	Audio.sfx("moneda")
 	if tip > 0:
+		# La propina suena aparte del plato y más rica: es lo que llena el
+		# bote de los potenciadores, no el oro de la jornada.
+		Audio.sfx("monedas", -2.0)
 		_add_tip(tip)
 	_check_treasure()
 	_check_goal_reached()
@@ -3635,6 +3667,7 @@ func _open_upgrade_choice() -> void:
 	for i in mini(3, pool.size()):
 		powerup_options.add_child(_make_upgrade_card(pool[i]))
 	powerup_panel.visible = true
+	Audio.sfx("potenciador")
 	get_tree().paused = true
 	_animate_powerup_panel()
 
@@ -3888,6 +3921,7 @@ func _open_powerup_choice() -> void:
 	for i in mini(3, ids.size()):
 		powerup_options.add_child(_make_powerup_card(str(ids[i])))
 	powerup_panel.visible = true
+	Audio.sfx("potenciador")
 	get_tree().paused = true
 	_animate_powerup_panel()
 
@@ -4108,6 +4142,9 @@ func _forget_declined(plate_id: int) -> void:
 ## Un plato desechado (una vuelta entera sin que nadie lo coja) cuesta una parte
 ## de su precio (WASTE_PENALTY).
 func _on_plate_discarded(recipe_id: String, plate: Node3D = null) -> void:
+	# El plato volcándose en el cubo. Suena aunque el castigo esté perdonado
+	# ("Nada se tira"): lo que se oye es el plato cayendo, no la multa.
+	Audio.sfx("basura")
 	# Logro "aquí no se tira nada": la partida deja de ser limpia.
 	plates_wasted += 1
 	# DÓNDE ha caído, para que el guion del nivel 1 pueda enfocar el cubo
@@ -4178,6 +4215,11 @@ func _anyone_finishing_bite() -> bool:
 ## Marca el fin del nivel: desaloja a los que queden, para los platos de la
 ## cinta (la banda deja de avanzar sola al estar "ended") y bloquea la tabla.
 func _end_level() -> void:
+	# La sirena de fin de jornada. Va la primera, antes de los cuatro segundos
+	# con todo parado, para que se oiga sobre la partida y no sobre el cartel.
+	if not ended:
+		Audio.sfx("fin_turno")
+		Audio.loops_off()
 	if ended:
 		return
 	# El tutorial no termina ni por reloj ni por clientes: termina su guion
@@ -4392,6 +4434,9 @@ func _build_star_slots() -> void:
 ## `especial` es la TERCERA: gira entera, tarda más y deja un fogonazo dorado
 ## que se abre detrás. Sacar las tres tiene que notarse.
 func _pop_star(idx: int, especial := false) -> void:
+	# La estrella del recuento final. La TERCERA suena a trofeo, no a estrella:
+	# es el cierre de la jornada y ya lleva su propio fogonazo dorado.
+	Audio.sfx("trofeo" if especial else "estrella")
 	if idx < 0 or idx >= star_slots.size():
 		return
 	var ic: TextureRect = star_slots[idx]
@@ -4474,6 +4519,7 @@ func _cerrar_cajas_de_guion() -> void:
 
 func _show_results(stars: int, total_money: int, new_recipes: Array) -> void:
 	_cerrar_cajas_de_guion()
+	Audio.sfx("ventana")
 	# El juego se dirige al jugador por su nombre (Opciones); sin nombre usa el
 	# tratamiento que toque por el género elegido.
 	for c in stars_row.get_children():
@@ -4853,6 +4899,7 @@ func _reveal_recipes(recipes: Array) -> void:
 
 
 func _show_next_recipe(overlay: ColorRect, queue: Array) -> void:
+	Audio.sfx("premio")
 	for c in overlay.get_children():
 		c.queue_free()
 	if queue.is_empty():
@@ -5434,6 +5481,7 @@ func _on_exit_pressed() -> void:
 
 
 func _confirm_exit() -> void:
+	Audio.sfx("ventana")
 	# En la fase de preparacion la salida es gratis: se devuelve TODO lo que se
 	# descuento al empezar el nivel (usos de ingredientes, potenciadores
 	# permanentes Y EL SACO DE ARROZ). Aun no se ha jugado nada, asi que no se
@@ -5530,6 +5578,7 @@ func _build_calaveras(n: int, lista: Array) -> HBoxContainer:
 ## El SPLASH de una calavera que acaba de encenderse: entra enorme, se aplasta
 ## y rebota hasta su tamaño. Es la señal de que se está más cerca de perder.
 func _splash_calavera(cal: TextureRect) -> void:
+	Audio.sfx("calavera")
 	cal.scale = Vector2(2.6, 2.6)
 	var t := create_tween()
 	t.tween_property(cal, "scale", Vector2(0.82, 1.18), 0.13) \

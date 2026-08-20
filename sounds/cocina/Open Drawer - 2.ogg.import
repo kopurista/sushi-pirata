@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://erd2677lbk8m"
+path="res://.godot/imported/Open Drawer - 2.ogg-06e246cb61f123deaa6391d2772fc323.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/cocina/Open Drawer - 2.ogg"
+dest_files=["res://.godot/imported/Open Drawer - 2.ogg-06e246cb61f123deaa6391d2772fc323.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

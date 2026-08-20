@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dklviq6txwb8n"
+path="res://.godot/imported/Cutting Cloth & Paper - 2.ogg-a352b1c9bba7a0c7ade4ac016b24da5d.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/interfaz/Cutting Cloth & Paper - 2.ogg"
+dest_files=["res://.godot/imported/Cutting Cloth & Paper - 2.ogg-a352b1c9bba7a0c7ade4ac016b24da5d.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -630,6 +630,10 @@ static func skin_icon_button(b: Button, tex_path: String,
 ## Botón de ACEPTAR o CANCELAR (comprar/cancelar, salir/seguir).
 static func skin_action_button(b: Button, ok: bool) -> void:
 	skin_icon_button(b, OK_TEX if ok else NO_TEX)
+	# El visto verde y el aspa roja no suenan como un botón cualquiera: son la
+	# respuesta a una pregunta. Se marca aquí, que es por donde pasan TODOS los
+	# aceptar y cancelar del juego.
+	b.set_meta("snd", "ok" if ok else "no")
 
 
 ## Botón de VOLVER: el único con la flecha dibujada en la propia madera.
@@ -1143,12 +1147,20 @@ func _ready() -> void:
 	var belt_mat := ShaderMaterial.new()
 	belt_mat.shader = load("res://shaders/belt_scroll.gdshader")
 	belt_sprite.material = belt_mat
+	# EL SONIDO DE LA COCINA SE CUELGA DE LA SEÑAL QUE YA EXISTE. `craft_event`
+	# se emite en los veinte sitios donde el jugador hace algo, así que
+	# escuchándola aquí no hay que repartir llamadas de audio por el archivo —
+	# y un gesto nuevo suena solo con emitir su evento.
+	craft_event.connect(_sonido_gesto)
+	slice_failed.connect(func() -> void: Audio.sfx("error"))
+	helper_used.connect(func() -> void: Audio.sfx("chispa"))
 	_update_ui()
 
 
 
 func _process(delta: float) -> void:
 	_tick_guide(delta)
+	_sonido_sostenido()
 	# Cinta del panel siempre en marcha (sincronizada con la de la cubierta).
 	if belt_sprite.material != null:
 		var tex := belt_sprite.texture
@@ -1234,6 +1246,10 @@ static func _recipe_group(data: Dictionary) -> int:
 func _build_recipe_button(id: String) -> void:
 	var data := RecipeData.get_recipe(id)
 	var b := Button.new()
+	# Su sonido lo pone el evento "select" de `craft_event`, que también salta
+	# al empezar una receta por otras vías; con el clic genérico encima
+	# sonarían dos cosas por cada toque.
+	b.set_meta("snd", "")
 	b.custom_minimum_size = Vector2(172, 144)
 	# Fondo de pergamino desgastado (en lugar de madera) para que el plato y
 	# las estrellas destaquen.
@@ -1860,6 +1876,7 @@ func _finish_fry(window: Dictionary, best_price: int = 0) -> void:
 	if price <= 0:
 		# Ni crudo ni carbonizado se sirven: se pierde la elaboración, el
 		# plato malogrado se escurre por abajo y el descuido cuesta dinero.
+		Audio.sfx("quemado")
 		_slide_out_dish(str(window["dish"]))
 		money_penalty.emit(FRY_WASTE_PENALTY)
 		var lost := current_recipe
@@ -1872,6 +1889,7 @@ func _finish_fry(window: Dictionary, best_price: int = 0) -> void:
 	# receta tiene sus propias franjas: la tempura, el yaki y el wagyu).
 	var top: int = best_price if best_price > 0 else RecipeData.FRY_BEST_PRICE
 	if price >= top:
+		Audio.sfx("perfecto")
 		GameState.bump_stat("fry_perfect")
 	_advance_step()
 
@@ -2323,12 +2341,15 @@ func _toggle_extra(id: String) -> void:
 		return
 	if extras_chosen.get(id, false):
 		extras_chosen.erase(id)
+		Audio.sfx("off")
 	else:
 		# Solo se puede echar si queda en la despensa.
 		if GameState.get_ingredient_uses(id) <= 0:
 			_flash_message("¡Sin %s!" % RecipeData.get_ingredient(id).get("short", id))
+			Audio.sfx("error")
 			return
 		extras_chosen[id] = true
+		Audio.sfx("extra")
 	_bump_extra(extra_buttons.get(id, null))
 	_update_extra_buttons()
 
@@ -2828,6 +2849,7 @@ func _auto_store_index() -> int:
 func _store_dish(d: Control, panel_index: int) -> void:
 	dishes.erase(d)
 	d.queue_free()
+	Audio.sfx("guardar")
 	# Los EXTRAS marcados viajan CON el plato a la caja (todavía sin gastar de
 	# la despensa: se cobran al servir de verdad). El siguiente plato de la
 	# tabla empieza limpio.
@@ -2998,10 +3020,13 @@ func _pop_stack_unit(i: int) -> Array:
 func _restore_from_stack(i: int) -> void:
 	if state != State.IDLE or not stacks.has(i):
 		return
+	Audio.sfx("caja_abre")
 	var id: String = stacks[i].id
 	var unit := _pop_stack_unit(i)
 	stacks[i].count -= 1
 	if stacks[i].count <= 0:
+		# La caja se queda vacía: se oye cerrarse.
+		Audio.sfx("caja_cierra")
 		stacks[i].node.queue_free()
 		stacks.erase(i)
 	else:
@@ -3166,6 +3191,10 @@ func _handle_ingredient_drag(event: InputEvent, step: Dictionary) -> void:
 		if event.pressed:
 			var node: Control = ingredient_nodes.get(ing_id)
 			if ghost == null and _touched(node, event.position):
+				# COGER el ingrediente. El evento `drag` de `craft_event` es
+				# el de SOLTARLO sobre la tabla, así que el momento de
+				# levantarlo no sonaba.
+				Audio.sfx("ingrediente")
 				ghost = _make_ghost(ing_id)
 				add_child(ghost)
 				ghost.global_position = event.position - ghost.size / 2.0
@@ -4063,3 +4092,69 @@ func _update_tap_bar() -> void:
 			tap_bar.value = clampf(slice_progress / SLICE_SWEEP, 0.0, 1.0)
 		_:
 			tap_bar.visible = false
+
+
+# ------------------------------------------------------------------ sonido
+
+## QUÉ SUENA EN CADA GESTO. `craft_event` manda un `kind` por cada cosa que
+## hace el jugador y aquí se traduce a una familia de `Audio`; el resto del
+## archivo no sabe que existe el sonido.
+##
+## Los gestos SOSTENIDOS (aguantar, remover, freír, soplete) NO están aquí:
+## son bucles, y un bucle no se enciende con un evento sino mientras dura un
+## estado — ver `_sonido_sostenido`.
+const SONIDO_GESTO := {
+	"tap": "arroz",
+	"cut": "corte",
+	"slice": "corte_lento",
+	"swipe": "enrollar",
+	"drag": "soltar",
+	"stage": "paso",
+	"done": "listo",
+	"select": "click_suave",
+	"cancel": "no",
+	"serve": "cinta",
+}
+
+
+func _sonido_gesto(kind: String, _stage_id: String) -> void:
+	var fam := str(SONIDO_GESTO.get(kind, ""))
+	if fam != "":
+		Audio.sfx(fam)
+
+
+## LOS BUCLES DE LA COCINA SE DEDUCEN DEL ESTADO, no se encienden y apagan a
+## mano en cada sitio: `holding`, `stirring` y `frying` ya dicen lo que está
+## pasando, y así ningún camino de salida —cancelar, fallar el corte, que se
+## acabe el turno— puede dejarse un soplete encendido. Es el mismo motivo por
+## el que `is_gesture_locked` los mira a los tres.
+##
+## El AGUANTE del aburi es un soplete y suena como tal: lo distingue el
+## `prop` del paso, no el tipo de gesto.
+func _sonido_sostenido() -> void:
+	var quiere := ""
+	if state == State.CRAFTING:
+		if frying:
+			quiere = "freir"
+		elif holding:
+			quiere = "soplete" if _current_step().get("prop", "") == "soplete" 				else "mantener"
+		elif stirring:
+			quiere = "remover"
+	if quiere == _bucle_cocina:
+		return
+	if _bucle_cocina != "":
+		Audio.loop_off(_bucle_cocina)
+	_bucle_cocina = quiere
+	if quiere != "":
+		Audio.loop_on(quiere)
+
+
+var _bucle_cocina := ""
+
+
+func _exit_tree() -> void:
+	# Un bucle que sobrevive a la tabla se queda sonando sobre el cartel de
+	# resultados o sobre el menú, que es lo que más canta de todo.
+	if _bucle_cocina != "":
+		Audio.loop_off(_bucle_cocina)
+		_bucle_cocina = ""

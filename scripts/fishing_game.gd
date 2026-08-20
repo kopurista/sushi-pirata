@@ -1459,6 +1459,9 @@ func _centered_label(panel: Control, texto: String, size_f: int, y: float,
 
 
 func _show_fish_reveal(premio: Dictionary) -> void:
+	# El cartel de la captura. El chapoteo del pez saliendo del agua ya lo ha
+	# puesto `_cobrar`; esto es la ficha, y suena a premio.
+	Audio.sfx("premio")
 	var fish_id := str(premio["fish_id"])
 	# LA FICHA DEL BICHO VA TAMBIÉN AQUÍ, no solo en el álbum: al sacarlo del
 	# agua es cuando el jugador quiere saber qué acaba de pescar. El cartel
@@ -1551,6 +1554,7 @@ func _show_fish_reveal(premio: Dictionary) -> void:
 ## `roll` no se entrega hasta que el jugador lo abre (ver el botón), así que
 ## la ventana del coleccionable llega DESPUÉS de ver el cofre abrirse.
 func _show_chest_reveal() -> void:
+	Audio.sfx("ventana")
 	var alto := 620.0
 	var panel := _reveal_panel(alto)
 	var title := PrepBoard.make_big_title("¡Un cofre\ndel mar!", 44)
@@ -1606,6 +1610,9 @@ func _show_chest_reveal() -> void:
 			_set_state(State.READY)
 			return
 		estado["abierto"] = true
+		# La tapa del cofre. Va aquí, en la pulsación que lo ABRE, y no en la
+		# que cierra el cartel: el botón hace los dos papeles.
+		Audio.sfx("cofre")
 		espera.kill()
 		btn.disabled = true
 		PrepBoard.set_dimmed(btn, true)
@@ -2481,6 +2488,10 @@ func _setup_audio() -> void:
 	if snd != null and is_instance_valid(snd):
 		return
 	snd = SoundBank.new()
+	# Por el bus de EFECTOS, como el resto del juego: así la barra de efectos
+	# de Opciones también manda sobre la pesca (era el único audio anterior al
+	# director y salía por Master, o sea sin control).
+	snd.bus = Audio.BUS_EFECTOS
 	add_child(snd)
 	for familia in SND:
 		snd.cargar(str(familia), SND[familia])

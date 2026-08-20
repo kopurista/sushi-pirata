@@ -20,6 +20,10 @@ var _t := 0.0
 
 
 func _ready() -> void:
+	# Las pantallas de casa (inventario, opciones, logros, maestrías,
+	# bonificadores y perfil) siguen con el tema del menú: se entra y se sale
+	# de ellas todo el rato y cortar la música en cada una sería un tajo.
+	Audio.musica("menu")
 	Engine.max_fps = GameState.fps_for(false)
 	backdrop = SceneBackdrop.build(self, "", 17.0, 40.0, 6.0)
 	_setup_ui()
@@ -292,6 +296,7 @@ func _confirmar_mejora(id: String) -> void:
 	if cost <= 0 or GameState.money < cost:
 		return
 	var velo := ColorRect.new()
+	Audio.ventana(velo)
 	velo.color = Color(0, 0, 0, 0.55)
 	velo.set_anchors_preset(Control.PRESET_FULL_RECT)
 	velo.z_index = 160

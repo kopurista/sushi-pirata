@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dv4k6cmof87q1"
+path="res://.godot/imported/Open - Close Bag 3.ogg-cedfda96f27f27f85c17c4dc91a1f290.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/interfaz/Open - Close Bag 3.ogg"
+dest_files=["res://.godot/imported/Open - Close Bag 3.ogg-cedfda96f27f27f85c17c4dc91a1f290.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

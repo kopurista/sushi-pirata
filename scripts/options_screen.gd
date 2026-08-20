@@ -43,6 +43,10 @@ var wipe_time := 0.0
 
 
 func _ready() -> void:
+	# Las pantallas de casa (inventario, opciones, logros, maestrías,
+	# bonificadores y perfil) siguen con el tema del menú: se entra y se sale
+	# de ellas todo el rato y cortar la música en cada una sería un tajo.
+	Audio.musica("menu")
 	Engine.max_fps = GameState.fps_for(false)
 	backdrop = SceneBackdrop.build(self, "", 17.0, 40.0, 6.0)
 	_reset_drafts()
@@ -129,10 +133,14 @@ func _setup_ui() -> void:
 	# CUATRO tablones en 720 px: los rótulos van cortos y a cuerpo 22, que es lo
 	# que deja el marco dorado del botón sin comerse las letras.
 	# El PERFIL ya no es una pestaña: es su propia pantalla (profile_screen,
-	# botón "Perfil" del submenú del menú principal). Tres tablones respiran
-	# mejor que cuatro, así que los rótulos recuperan el cuerpo 26.
-	for def in [["graficos", "Gráficos"], ["guia", "Guía"],
-			["progreso", "Progreso"]]:
+	# botón "Perfil" del submenú del menú principal).
+	#
+	# SONIDO entra como CUARTA pestaña y no metido en Gráficos: allí no cabía
+	# —los cuatro bloques de calidad más las cuatro filas a medida y el botón
+	# de aplicar ya llenan la hoja— y además no es lo mismo. Los cuatro
+	# rótulos siguen siendo cortos, así que se quedan a cuerpo 26.
+	for def in [["graficos", "Gráficos"], ["sonido", "Sonido"],
+			["guia", "Guía"], ["progreso", "Progreso"]]:
 		var b := Button.new()
 		b.text = def[1]
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -182,6 +190,8 @@ func _show_tab(tab: String) -> void:
 	match tab:
 		"graficos":
 			_build_graphics(box)
+		"sonido":
+			_build_sound(box)
 		"guia":
 			_build_guide(box)
 		"progreso":
@@ -387,6 +397,92 @@ func _show_graphics_values() -> void:
 	content.add_child(box)
 	draft_graphics = keep
 	_build_graphics(box)
+
+
+# --------------------------------------------------------------- SONIDO
+
+## Los tres volúmenes del juego. Se aplican EN EL ACTO al soltar la barra (no
+## hay botón de "aplicar" como en gráficos) porque el sonido se juzga oyéndolo:
+## un volumen que hay que confirmar para escuchar se ajusta a ciegas.
+##
+## Y cada barra suena AL MOVERLA con algo de SU bus —la música con la música,
+## los efectos con un clic, las voces con David—, que es la única forma de
+## saber dónde la estás dejando.
+const VOL_FILAS := [
+	["vol_musica", "Música", "Los temas de cada sitio."],
+	["vol_efectos", "Efectos", "La cocina, la barra y la interfaz."],
+	["vol_voces", "Voces", "Lo que dicen los personajes al hablar."],
+]
+
+
+func _build_sound(box: VBoxContainer) -> void:
+	_header(box, "Volumen")
+	for fila in VOL_FILAS:
+		_slider_row(box, str(fila[0]), str(fila[1]), str(fila[2]))
+	var pad := Control.new()
+	pad.custom_minimum_size = Vector2(0, 16)
+	box.add_child(pad)
+	_note(box, "Con la barra a cero el canal se calla del todo.")
+
+
+func _slider_row(box: Control, clave: String, titulo: String,
+		nota: String) -> void:
+	var fila := VBoxContainer.new()
+	fila.add_theme_constant_override("separation", 2)
+	box.add_child(fila)
+	var arriba := HBoxContainer.new()
+	arriba.custom_minimum_size = Vector2(0, 46)
+	arriba.add_child(_row_label(titulo))
+	var cifra := Label.new()
+	cifra.custom_minimum_size = Vector2(84, 0)
+	cifra.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	cifra.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	cifra.add_theme_font_size_override("font_size", 25)
+	cifra.add_theme_color_override("font_color", DARK)
+	arriba.add_child(cifra)
+	fila.add_child(arriba)
+
+	var barra := HSlider.new()
+	barra.min_value = 0.0
+	barra.max_value = 1.0
+	barra.step = 0.05
+	barra.value = float(GameState.get_setting(clave))
+	barra.custom_minimum_size = Vector2(0, 44)
+	# El canal de madera y el relleno del resto del juego, para que no parezca
+	# un control del tema por defecto de Godot en mitad del pergamino.
+	barra.add_theme_stylebox_override("slider",
+		PrepBoard.make_bar_box(PrepBoard.BAR_BG_TEX))
+	barra.add_theme_stylebox_override("grabber_area",
+		PrepBoard.make_bar_box(PrepBoard.BAR_FILL_TEX, Color(0.36, 0.88, 0.38)))
+	fila.add_child(barra)
+	_note(fila, nota)
+
+	cifra.text = "%d%%" % int(round(barra.value * 100.0))
+	barra.value_changed.connect(func(v: float) -> void:
+		cifra.text = "%d%%" % int(round(v * 100.0))
+		# Se guarda al vuelo: `set_setting` aplica y guarda, y aplicar es lo
+		# que hace que se OIGA mientras se arrastra.
+		GameState.set_setting(clave, v)
+		_muestra_de(clave))
+
+
+## Un pellizco del canal que se está tocando, para oír dónde queda la barra.
+## Con reposo: arrastrando el dedo llegan decenas de cambios por segundo y sin
+## el freno sonaría una ametralladora (los efectos ya lo tienen por dentro,
+## pero la música y la voz no).
+var _ultima_muestra := 0.0
+
+
+func _muestra_de(clave: String) -> void:
+	if clave == "vol_efectos":
+		Audio.sfx("click")
+		return
+	var ahora := float(Time.get_ticks_msec()) / 1000.0
+	if ahora - _ultima_muestra < 0.45:
+		return
+	_ultima_muestra = ahora
+	if clave == "vol_voces":
+		Audio.voz("david", "hablando")
 
 
 # ------------------------------------------------------------- PROGRESO
@@ -925,8 +1021,13 @@ func _toggle_row(box: Control, label: String, key: String,
 		var on := bool(draft_graphics[key])
 		b.text = "Sí" if on else "No"
 	paint.call()
+	# Un interruptor no suena como un botón: tiene dos sonidos, y cuál suena
+	# dice si se acaba de encender o de apagar.
+	b.set_meta("snd", "")
 	b.pressed.connect(func() -> void:
-		_set_custom(key, not bool(draft_graphics[key]), repaint)
+		var nuevo := not bool(draft_graphics[key])
+		Audio.sfx("on" if nuevo else "off")
+		_set_custom(key, nuevo, repaint)
 		paint.call())
 	row.add_child(b)
 	box.add_child(row)

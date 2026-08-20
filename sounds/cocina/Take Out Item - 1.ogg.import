@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://bdn2xyoasveeg"
+path="res://.godot/imported/Take Out Item - 1.ogg-514e83f78f1071b15c6afd0c2e714447.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/cocina/Take Out Item - 1.ogg"
+dest_files=["res://.godot/imported/Take Out Item - 1.ogg-514e83f78f1071b15c6afd0c2e714447.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

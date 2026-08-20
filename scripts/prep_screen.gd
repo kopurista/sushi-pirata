@@ -57,6 +57,12 @@ func _ready() -> void:
 	# encadenado. En aventura, el escenario del nivel elegido.
 	var kind := CampaignData.get_kind(GameState.current_port) \
 			if GameState.is_adventure() else "mar"
+	# EL SELECTOR YA SUENA AL SITIO AL QUE SE VA. Elegir carta es parte del
+	# viaje, no un menú aparte: con el tema del destino puesto desde aquí, la
+	# transición al nivel no corta la música y el jugador ya sabe si le espera
+	# una playa o un abordaje antes de pulsar "¡Zarpar!".
+	Audio.musica("arcade" if GameState.is_arcade()
+			else (kind if Audio.TEMAS.has(kind) else "menu"))
 	# El escenario va CENTRADO en la pantalla (band_off 0): arriba lo tapaba el
 	# pergamino con la parrilla de recetas.
 	backdrop = SceneBackdrop.build(self, kind, 19.0, -230.0)
@@ -973,6 +979,7 @@ func _clientela_desatendida() -> String:
 
 
 func _on_start_pressed() -> void:
+	Audio.sfx("zarpar")
 	# UNA CARTA DE SOLO GRUMETES NO DA DE COMER A UN PUERTO CON PIRATAS (o con
 	# capitanes): comen de dos y de tres estrellas y sin un plato así se quedan
 	# mirando la cinta. Gigi avisa, pero NO bloquea: si el jugador insiste, allá

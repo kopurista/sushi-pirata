@@ -60,6 +60,10 @@ var reset_btn: Button = null
 
 
 func _ready() -> void:
+	# Las pantallas de casa (inventario, opciones, logros, maestrías,
+	# bonificadores y perfil) siguen con el tema del menú: se entra y se sale
+	# de ellas todo el rato y cortar la música en cada una sería un tajo.
+	Audio.musica("menu")
 	Engine.max_fps = GameState.fps_for(false)
 	backdrop = SceneBackdrop.build(self, "", 17.0, 40.0, 6.0)
 	_setup_ui()
@@ -701,6 +705,7 @@ func _open_popup(id: String) -> void:
 	popup.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(popup)
 	var velo := ColorRect.new()
+	Audio.ventana(velo)
 	velo.color = Color(0, 0, 0, 0.0)
 	velo.set_anchors_preset(Control.PRESET_FULL_RECT)
 	popup.add_child(velo)
@@ -961,6 +966,7 @@ func _on_menos(id: String) -> void:
 func _confirmar_perdida(id: String) -> void:
 	var s := SkillData.get_skill(id)
 	var overlay := ColorRect.new()
+	Audio.ventana(overlay)
 	overlay.color = Color(0, 0, 0, 0.55)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(overlay)
@@ -1029,6 +1035,7 @@ func _confirmar_reinicio(tree: String) -> void:
 		if str(t["id"]) == tree:
 			nombre = str(t.get("name", tree))
 	var overlay := ColorRect.new()
+	Audio.ventana(overlay)
 	overlay.color = Color(0, 0, 0, 0.55)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(overlay)
@@ -1101,6 +1108,7 @@ func _celebrar_rango(id: String, antes: int, ahora: int) -> void:
 	# el canto de madera.
 	var alto := 552.0
 	var overlay := ColorRect.new()
+	Audio.ventana(overlay)
 	overlay.color = Color(0, 0, 0, 0.55)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(overlay)

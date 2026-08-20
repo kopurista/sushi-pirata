@@ -256,12 +256,18 @@ var settings: Dictionary = {}
 
 ## Ajustes por defecto. `quality` 0 = baja, 1 = media, 2 = alta; `preset` es el
 ## bloque de gráficos elegido (ver GRAPHICS_PRESETS; "custom" = a medida).
+## Los tres volúmenes van de 0 a 1 y los aplica `Audio.aplicar_volumenes()` a
+## sus buses. La MÚSICA arranca por debajo del resto a propósito: es el fondo,
+## y quien quiera subirla lo tiene a un dedo en Opciones.
 const DEFAULT_SETTINGS := {
 	"preset": "alta",
 	"shadows": true,
 	"anim": true,
 	"quality": 2,
 	"fps": 60,
+	"vol_musica": 0.7,
+	"vol_efectos": 1.0,
+	"vol_voces": 1.0,
 }
 ## Topes de fotogramas que se pueden elegir.
 const FPS_CHOICES := [30, 45, 60]
@@ -360,6 +366,10 @@ func fade_in(time := 0.4) -> void:
 ## pantalla en negro: entonces la escena que entra tiene que llamar a
 ## `fade_in()` cuando le venga bien.
 func fade_to_scene(path: String, out_time := 0.3, in_time := 0.45) -> void:
+	# Un roce de vela acompaña al telón. Es el único sonido que tienen las
+	# transiciones, y las hay en cada cambio de pantalla del juego.
+	if has_node("/root/Audio"):
+		get_node("/root/Audio").sfx("swoosh")
 	await fade_out(out_time)
 	get_tree().change_scene_to_file(path)
 	# La escena nueva se monta al FINAL del frame y alguna coloca su interfaz un
@@ -2113,6 +2123,12 @@ func fps_for(playing: bool) -> int:
 ## Lo demás (sombras y animaciones) lo consulta cada escena al construirse.
 func apply_graphics() -> void:
 	Engine.max_fps = fps_for(false)
+	# Los volúmenes viajan con el resto de ajustes: `set_setting` llama aquí,
+	# así que mover una barra en Opciones se oye en el acto.
+	# (al arrancar, GameState monta antes que Audio: entonces no hay nada
+	# que refrescar y ya lo hace Audio en su propio `_ready`.)
+	if has_node("/root/Audio"):
+		get_node("/root/Audio").aplicar_volumenes()
 	var tree := get_tree()
 	if tree == null or tree.root == null:
 		return

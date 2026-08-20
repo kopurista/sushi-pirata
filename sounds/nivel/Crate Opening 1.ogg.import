@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://cq64gc2eiejnt"
+path="res://.godot/imported/Crate Opening 1.ogg-5b4293c1a34d07dbe6c51ade828b398c.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/nivel/Crate Opening 1.ogg"
+dest_files=["res://.godot/imported/Crate Opening 1.ogg-5b4293c1a34d07dbe6c51ade828b398c.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

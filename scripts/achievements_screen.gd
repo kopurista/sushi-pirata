@@ -28,6 +28,10 @@ var _t := 0.0
 
 
 func _ready() -> void:
+	# Las pantallas de casa (inventario, opciones, logros, maestrías,
+	# bonificadores y perfil) siguen con el tema del menú: se entra y se sale
+	# de ellas todo el rato y cortar la música en cada una sería un tajo.
+	Audio.musica("menu")
 	Engine.max_fps = GameState.fps_for(false)
 	backdrop = SceneBackdrop.build(self, "", 17.0, 40.0, 6.0)
 	_setup_ui()
@@ -369,6 +373,9 @@ func _claim_one(id: String, card: Control) -> void:
 ## pantalla (no en la tarjeta) para que puedan salirse de ella.
 func _coin_burst(desde: Vector2, cantidad: int, cuantas := COINS_N,
 		con_cifra := true) -> void:
+	# El mismo sitio sirve para el cobro de UNA tarjeta y para el del cofre
+	# entero, así que la cuantía decide si suena a puñado o a tesoro.
+	Audio.sfx("tesoro" if cantidad >= 200 else "monedas")
 	var capa := Control.new()
 	capa.set_anchors_preset(Control.PRESET_FULL_RECT)
 	capa.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -449,6 +456,7 @@ func _open_claim() -> void:
 
 	var overlay := Control.new()
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	Audio.ventana(overlay)
 	ui.add_child(overlay)
 	var veil := ColorRect.new()
 	veil.color = Color(0, 0, 0, 0.0)
@@ -556,6 +564,7 @@ func _open_claim() -> void:
 	tw.tween_property(chest, "rotation", deg_to_rad(-4.0), 0.09)
 	tw.tween_property(chest, "rotation", 0.0, 0.09)
 	tw.tween_callback(func() -> void:
+		Audio.sfx("cofre")
 		chest.texture = load("res://assets/ui/daily_cofre_abierto.png")
 		# Y AQUÍ la lluvia: sale de la boca del cofre en el mismo fotograma en
 		# que se abre. Sin cifra, que el cartel ya canta el total.

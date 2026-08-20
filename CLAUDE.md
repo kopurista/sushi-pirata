@@ -1809,8 +1809,16 @@ primera vez que se entra en ellos (`logros_intro_done` /
         sido quitar un duplicado, habría sido perder el sonido. Al limpiar una
         librería por formato, comprobar los huérfanos ANTES de borrar.
       **Cuando se elija un sonido hay que SACARLO de ahí** (copiarlo a su
-      propia carpeta, como `sounds/pesca`), NO quitar el `.gdignore` — así
-      salió "Frog Death - 1" del Pack 3. Y se prefiere `.gdignore` al
+      propia carpeta: `sounds/pesca`, `sounds/interfaz`, `sounds/cocina`,
+      `sounds/nivel`), NO quitar el `.gdignore` — así salió "Frog Death - 1"
+      del Pack 3. **Y la copia se pasa a MONO** (`python tools/ludo_audio.py
+      --mono <carpeta>`): estas tomas vienen en estéreo a 151-243 kbps y un
+      clic de interfaz o un golpe de cuchillo no tienen imagen estéreo que
+      conservar —en un móvil salen por un altavoz solo—, así que el segundo
+      canal es peso regalado. MEDIDO sobre las copias del juego: 3,77 → 1,91 MB
+      (el 42% en interfaz, el 64-68% en cocina y nivel, con la misma calidad
+      útil). La herramienta SALTA lo que ya es mono, para no meterle una
+      segunda generación de pérdida a cambio de nada. Y se prefiere `.gdignore` al
       `exclude_filter` del preset porque ese dejaría el sonido funcionando en
       el editor y ROTO en el juego publicado.
       **OJO al medirlo**: si se borran a mano los `.godot/imported/*` de esos
@@ -2364,6 +2372,19 @@ primera vez que se entra en ellos (`logros_intro_done` /
   coleccionable (pausa el árbol mientras está puesta y RESPETA la pausa previa
   del cartel de resultados o de un guion). Todo EN COLA: varios avisos salen
   de uno en uno.
+- `scripts/audio.gd` — **autoload `Audio`**: música, ambiente, efectos y voces
+  del juego entero. Ver el bloque **EL SONIDO** más abajo; lo que hay que saber
+  al tocar cualquier pantalla es que la música se pide con
+  `Audio.musica("<tema>")` en su `_ready` (y no pasa nada por pedir el que ya
+  suena), que un cartel modal se anuncia con `Audio.ventana(nodo)` —abre y
+  cierra con una sola llamada— y que **el clic de los botones NO hay que
+  ponerlo**: se engancha solo a cada `BaseButton` que entra en el árbol.
+- `scripts/sound_bank.gd` — `SoundBank`, la pieza de BAJO NIVEL: familias de
+  tomas con sorteo sin repetir la anterior, pool de voces y bucles. La estrenó
+  la pesca y ahora la usan los dos (`Audio` monta la suya con `bus =
+  "Efectos"`, y la pesca también, para que la barra de Opciones mande sobre
+  ella — era el único audio anterior al director y salía por Master, o sea sin
+  control).
 - **OJO con los HELPERS de verificación y el guardado**:
   `unlock_collectible`, `claim_achievement_rewards` y compañía GUARDAN A
   DISCO. Un helper que fuerce estado pisa `user://savegame.json` del usuario
@@ -2372,10 +2393,18 @@ primera vez que se entra en ellos (`logros_intro_done` /
   y con rutas que existan de verdad en las DOS herramientas (el `/tmp` de Git
   Bash no lo ve Python, y un `cp` con `|| true` falla en silencio).
 - `scripts/options_screen.gd` — Opciones (raíz **Node3D**, fondo `SceneBackdrop`)
-  en TRES pestañas (el Perfil se mudó a `profile_screen`, y con tres tablones
-  los rótulos recuperaron el cuerpo 26): **Gráficos** (bloques Alta / Media /
-  Baja / Personalizado, con "Aplicar cambios"), la **Guía** (ver
-  `guide_data.gd`) y **Progreso** (horas jugadas, MODO DEBUG y borrado). Los cambios
+  en CUATRO pestañas (el Perfil se mudó a `profile_screen`): **Gráficos**
+  (bloques Alta / Media / Baja / Personalizado, con "Aplicar cambios"),
+  **Sonido** (los tres volúmenes: música, efectos y voces), la **Guía** (ver
+  `guide_data.gd`) y **Progreso** (horas jugadas, MODO DEBUG y borrado).
+  El SONIDO entró como pestaña propia y no metido en Gráficos porque allí no
+  cabía —los cuatro bloques de calidad, las cuatro filas a medida y el botón de
+  aplicar ya llenan la hoja— y porque no es lo mismo. Sus barras **se aplican al
+  vuelo, sin botón de aplicar**, al revés que los gráficos: un volumen que hay
+  que confirmar para escucharlo se ajusta a ciegas; y cada barra suena al
+  moverla con algo de SU canal (la música con la música, los efectos con un
+  clic, las voces con David), que es la única forma de saber dónde la dejas.
+  Los rótulos siguen a cuerpo 26: los cuatro son cortos. Los cambios
   viven en `draft_*` y NO tocan `GameState` hasta pulsar aplicar: así se puede
   probar una combinación y arrepentirse. Tocar un ajuste suelto pasa el bloque
   a "Personalizado" (`current_preset()` lo deduce comparando, así que el cartel
@@ -2649,7 +2678,17 @@ primera vez que se entra en ellos (`logros_intro_done` /
     dentro del encuadre".
   Del resultado se quita el fondo por INUNDACIÓN desde los bordes (los blancos
   interiores —las rayas del grumete, la camisa del capitán— están encerrados
-  por la línea de entintado y sobreviven) y se componen a 544×704 con el sujeto
+  por la línea de entintado y sobreviven).
+  **Y HAY QUE MIRAR QUE EL FONDO SEA BLANCO ANTES DE INUNDAR**: si el generador
+  devuelve al personaje sobre una ESCENA (a `capitan_hablando` le puso un barco
+  entero, con cielo, velas y mar), la inundación no puede quitar nada y el
+  retrato entra en el juego con su decorado a cuestas. Se detecta contando el
+  ALFA OPACO de cada mood del personaje: los que están bien rondan todos la
+  misma cifra (el capitán, 38%) y el intruso se dispara (61%). Se arregla
+  regenerándolo con `editImage` **desde el PNG ya compuesto de su `serio`**
+  (subido a `tmp-rig` con el alfa aplastado sobre blanco): así conserva el
+  encuadre al píxel —comprobado, su caja de alfa quedó a 1 px de la del serio—
+  y solo hay que volver a inundar y pasarle `tools/portrait_fix.py` y se componen a 544×704 con el sujeto
   al 0,80 del alto y abajo, el encuadre de Pablo. **UNA SOLA escala y UN SOLO
   recorte por personaje**, sacados de su "serio": las expresiones vienen
   alineadas píxel a píxel, así que cambiar de mood no puede mover la cabeza.
@@ -3171,6 +3210,208 @@ fondo de prep_screen/tienda/inventario (`scene_backdrop`). El
     de cada isla.
   Cambiarlo es tocar dos líneas en `_setup_sea` (están comentadas ahí), así
   que el experimento se puede repetir sin rehacer nada.
+
+
+## EL SONIDO (`scripts/audio.gd`, autoload `Audio`) — montado el 20-8-2026
+
+Todo el audio del juego cuelga de UN autoload, `Audio`, para que ninguna
+pantalla tenga que saber por dónde suena nada. Antes solo sonaba la PESCA (con
+su `SoundBank` propio, que ahora es la pieza de bajo nivel que usan los dos).
+
+- **TRES BUSES**, creados por código en `Audio._crear_buses()` y no en un
+  `default_bus_layout.tres`: el layout es un recurso binario que no se lee ni
+  se versiona, y esto son nueve líneas que además documentan para qué es cada
+  bus. `Musica` / `Efectos` / `Voces` cuelgan de Master y los mueve el jugador
+  desde Opciones → Sonido. **El volumen se mapea por POTENCIA** (`pow(v, 1.6)`),
+  no lineal: al oído, media barra tiene que sonar a la mitad, y en lineal la
+  mitad de la barra ya suena casi igual de fuerte. A cero el bus se **silencia**
+  (`set_bus_mute`), porque -80 dB todavía deja pasar un hilo audible.
+- **EL AMBIENTE VA POR `Efectos`, NO POR `Musica`**: la portada no tiene música
+  —solo el mar—, así que colgándolo del bus de la música, bajarla a cero dejaba
+  la portada en silencio absoluto.
+- **EN HEADLESS EL AUDIO NO SE MONTA** (`Audio._mudo`). No es un ahorro
+  cualquiera: la comprobación de errores del proyecto es `--headless
+  --quit-after` y se da por buena "sin salida = OK", y con el audio puesto TODA
+  pasada terminaba escupiendo "8 ObjectDB instances were leaked" y "3 resources
+  still in use". No es un fallo de partida —pasa porque el proceso se mata
+  mientras algo suena y el servidor de audio, sin tarjeta detrás, no llega a
+  procesar el `stop()`— pero ensucia justo el sitio donde se miran los errores
+  de verdad, que es la peor clase de ruido: el que enseña a no mirar. **Por eso
+  las sondas de audio se corren SIN `--headless`.**
+
+**LA MÚSICA: OCHO TEMAS, uno por SITIO** (`Audio.TEMAS`). El menú y el mapa de
+aventura comparten el suyo (son la misma escena y el mismo momento: estar en
+casa preparando el viaje), y los niveles llevan uno por **TIPO de escenario**,
+no por escenario: una isla suena a isla aquí y en el mar 7.
+menú/aventura · tienda · arcade · pesca · isla · puerto · abordaje · cueva.
+- **LA PORTADA NO LLEVA MÚSICA** (decisión del usuario): solo el mar contra el
+  casco (`Audio.ambiente("mar")`). El tema entra al llegar al fondeadero, en
+  `_llegar_al_menu`, y ahí se va el ambiente.
+- **EL SELECTOR DE RECETAS YA SUENA AL SITIO AL QUE SE VA** (`prep_screen`):
+  elegir carta es parte del viaje, así que pone el tema del DESTINO. Con eso la
+  transición al nivel no corta la música y el jugador ya sabe si le espera una
+  playa o un abordaje antes de pulsar "¡Zarpar!".
+- Las pantallas de casa (inventario, opciones, logros, maestrías,
+  bonificadores, perfil) **siguen con el tema del menú**: se entra y se sale de
+  ellas todo el rato y cortar la música en cada una sería un tajo.
+- El TUTORIAL suena a **abordaje**: es una cubierta desbordada contra el reloj,
+  y el tema de la isla debajo de aquel desastre lo dejaba en broma.
+- **EL BUCLE SE HACE CRUZANDO EL TEMA CONSIGO MISMO** (`_bucle_musica`, dos
+  reproductores), no con el `loop` del recurso: el corte del final contra el
+  arranque se oye como un salto aunque el .ogg no deje hueco, y estos temas no
+  están compuestos para casar nota con nota. MEDIDO con sonda: a 2,1 s del
+  final entra la copia desde 0, se solapan ~2 s cruzando volumen y al terminar
+  queda una sola sonando; ni un hueco. Si la otra pista estuviera ocupada (se
+  acaba de cambiar de tema y justo toca la vuelta) se rebobina la que suena:
+  una costura suena mejor que quedarse en silencio.
+- **LOS FUNDIDOS SE HACEN A MANO EN `_process`, no con tweens**: la caja de
+  diálogo pone el árbol en pausa a cada rato y un tween a medias dejaría la
+  música congelada a mitad de volumen para siempre.
+
+**LOS EFECTOS: 54 FAMILIAS Y 151 TOMAS** (`Audio.FAMILIAS`). Una familia son varias tomas
+del MISMO sonido y `SoundBank` elige una **sin repetir la anterior**; encima,
+`Audio.sfx()` le mueve el TONO al azar (`VAIVEN` 6%, o 10% en las familias de
+una sola toma, que no tienen otra variedad). Con seis tomas de clic y ese
+vaivén no hay dos pulsaciones idénticas en toda la partida, que era lo que
+pedía el encargo.
+- **Volumen POR FAMILIA** en la tabla `VOL`, no en cada llamada: así un sonido
+  no suena a un volumen en una pantalla y a otro en la siguiente.
+- **`REPOSO` (35 ms) es un tope de ráfaga**, no un adorno: la cocina dispara
+  tres golpes de corte muy seguidos y tres copias solapadas del mismo golpe
+  suenan a distorsión, no a tres golpes.
+- **LAS RUTAS SE ESCRIBEN A MANO**, nunca `DirAccess`: los .ogg se importan a
+  `.godot/imported/*.oggvorbisstr` y en el EXPORT los originales no están, así
+  que un escaneo funcionaría en el editor y devolvería una lista VACÍA en el
+  juego publicado. (La misma regla que ya tenía la pesca.)
+
+**EL CLIC DE TODOS LOS BOTONES SE ENGANCHA SOLO** (`Audio._al_entrar_nodo`):
+en vez de tocar los cien sitios que crean botones, el autoload escucha
+`get_tree().node_added` y a cada `BaseButton` que entra le cuelga su sonido.
+Un botón nuevo suena sin que nadie se acuerde de nada.
+- **VA EN `pressed` Y NO EN `button_down`**, y esto no es un detalle: las listas
+  del juego se desplazan ARRASTRANDO EL DEDO por encima de las tarjetas, que
+  son botones, y `button_down` salta al apoyar el dedo — o sea que recorrer el
+  recetario sonaba a ametralladora. `pressed` solo se emite si el dedo se
+  levanta encima del botón, y `TouchScroll` ya se traga ese evento cuando ha
+  habido gesto: arrastrar no suena y pulsar sí.
+- Un botón pide otro sonido con `set_meta("snd", "familia")` o se calla con
+  `set_meta("snd", "")`. Lo usan los que ya tienen sonido propio: los botones
+  de RECETA de la tabla (su sonido lo pone el evento `select` de `craft_event`,
+  y con el clic genérico encima sonaban dos cosas por toque).
+
+**LAS VENTANAS, con una sola llamada**: `Audio.ventana(nodo)` suena al abrir y
+**vuelve a sonar sola** cuando ese nodo se va del árbol (`tree_exiting`). Va
+así porque el juego tiene una veintena de carteles modales y cada uno se cierra
+por dos o tres caminos distintos (su botón, la X, un toque fuera, el guion que
+lo mata): colgándose de la señal no hay forma de que a un camino se le olvide.
+
+**LA COCINA CUELGA DE LA SEÑAL QUE YA EXISTÍA**: `prep_board` conecta su propio
+`craft_event` a `_sonido_gesto`, y esa señal ya se emitía en los veinte sitios
+donde el jugador hace algo. No hay llamadas de audio repartidas por el archivo,
+y un gesto nuevo suena solo con emitir su evento.
+- **LOS BUCLES SOSTENIDOS SE DEDUCEN DEL ESTADO**, no se encienden y apagan a
+  mano (`_sonido_sostenido`, llamado desde `_process`): `holding`, `stirring` y
+  `frying` ya dicen lo que pasa, así que ningún camino de salida —cancelar,
+  fallar el corte, que se acabe el turno, salir del nivel— puede dejarse un
+  soplete encendido. Es el mismo motivo por el que `is_gesture_locked` los mira
+  a los tres. El aguante del **aburi** suena a soplete y no a manoseo de arroz
+  porque lo distingue el `prop` del paso, no el tipo de gesto.
+- `_exit_tree` de la tabla apaga el bucle: uno que sobreviva a la tabla se
+  queda sonando sobre el cartel de resultados, que es lo que más canta.
+
+**LAS VOCES: 189 CLIPS, 3 POR EXPRESIÓN** (`Audio.VOCES`, en
+`sounds/voces/<personaje>/<expresión>_1..3.ogg`).
+- **SON SONIDOS, NO FRASES** (pedido por el usuario, no re-litigar): gruñidos,
+  hums, jadeos, risas y bufidos. El personaje NO lee su línea, la acompaña,
+  como en una aventura clásica. Se empezó con interjecciones habladas ("¡Eso
+  es!", "Escucha") y **se rehízo entero**: si dice palabras, no es una voz de
+  personaje, es doblaje a medias.
+- Las rutas se COMPONEN por convención a partir de la tabla `VOCES` (que es la
+  que dice qué existe) y se comprueban con `ResourceLoader.exists`, que sí
+  funciona en el export — al revés que escanear la carpeta.
+- **LA VOZ SALE DE LA MISMA TABLA QUE EL RETRATO**: `DialogueBox._advance`
+  llama a `Audio.voz(who, mood)` con el hablante y la expresión de la línea, y
+  los clientes usan `DialogueBox.speaker_for(tipo, género)` — el mismo que
+  elige la cara. Así el retrato y la voz no pueden ser de dos personas
+  distintas. Una expresión sin voz cae a la primera del personaje en vez de
+  quedarse muda.
+- **CATÁLOGO DE VOCES DE PRESET, no diseñadas** (`createSpeechPreset` de Ludo):
+  lo que más importa en 63 tomas es que el personaje suene IGUAL en todas, y un
+  preset con nombre lo garantiza mientras que diseñar la voz en cada llamada la
+  cambia. Reparto: David *Deep voice man*, Saverio *Friendly man*, Pablo
+  *Determined man*, Cai *Young elegant man* (y en JAPONÉS, que es lo único que
+  habla), Alice *Calm teen girl*, grumete *Teen boy* / *Sweet girl*, pirata
+  *Patient man* / *Fast-paced woman*, capitana *Serious woman*.
+  · **Solo hay SEIS voces masculinas de catálogo y el reparto son siete
+    hombres**: el CAPITÁN comparte la de David y se le baja el tono a 0.86
+    (`VOZ_TONO`), que basta para que se lea como otra persona. El Kappa va a
+    0.92 para sonar grande y Gigi a 1.06.
+  · **GIGI Y EL KAPPA NO SON DE PRESET**: un loro y una criatura no salen de un
+    TTS. Los suyos son `createSoundEffect` — chillidos y graznidos para Gigi,
+    croares y rugidos para el Kappa.
+- **EL VAIVÉN DE TONO DE LAS VOCES VA CORTO** (2,5% contra el 6% de los
+  efectos): una voz humana estirada se nota enseguida, al revés que un golpe de
+  cuchillo.
+- Una voz nueva **corta a la anterior**: el personaje no puede hablarse encima
+  de sí mismo al pasar de línea a toques.
+- **LOS CLIENTES HABLAN POCO Y SORTEADO** (`client3d.VOZ_AL_SENTARSE` 0.35,
+  `VOZ_AL_COMER` 0.22): en la barra hay hasta ocho a la vez y un gruñido por
+  cada cosa que hacen convierte el nivel en un gallinero. Al LEVANTARSE sí
+  habla siempre, y con la cara que toca: contento si comió, seco si se va de
+  vacío — ese es el momento que el jugador tiene que oír.
+
+**CÓMO SE FABRICÓ TODO ESTO** (dos herramientas, las dos re-ejecutables):
+- **`tools/ludo_audio.py`** descarga de Ludo y deja el archivo en OGG dentro
+  del proyecto. **LUDO SOLO DEVUELVE MP3** (ninguno de sus endpoints de audio
+  tiene parámetro de formato) y a 192 kbps ESTÉREO —256 en las voces—, que para
+  un juego móvil es el triple de lo que hace falta. Convertir no es solo peso:
+  · PESO medido: música 1.290 → 720 KB (−44%), voz 143 → 26 KB (−82%), efecto
+    25,7 → 9,6 KB (−63%). Sobre el encargo entero, ~25 MB en MP3 contra ~10 en
+    OGG.
+  · **BUCLE LIMPIO**: el MP3 arrastra relleno del codificador en los dos
+    extremos, así que una música en bucle deja un hueco audible en cada vuelta.
+  · Y `SoundBank.loop_on` ya estaba escrito contra `AudioStreamOggVorbis`: con
+    MP3 habría que duplicar ese camino.
+  · **FFMPEG NO SE INSTALA**: el equipo ya tiene varios (CapCut, Twitch
+    Leecher, DownloadHelper). `_ffmpeg()` busca el primero que sepa codificar
+    Vorbis, así que si desaparece uno sigue funcionando con otro.
+  · **EL AMBIENTE NO SE RECORTA**: viene de `createAmbiance` con los extremos
+    ya casados para que el bucle no se note, y quitarle el silencio los
+    descuadra. Todo lo demás sí, que una cola de silencio en un efecto que se
+    dispara mil veces se oye como lag.
+- **`tools/voz_split.py`** parte UNA toma en las TRES que pide cada expresión.
+  63 expresiones × 3 son 189 clips: pidiéndolos de uno en uno son 189
+  generaciones, y pidiendo las tres interjecciones en la MISMA llamada y
+  partiendo por el silencio salen **63**. Y no es solo ahorro: las tres salen de
+  la misma generación, con la misma voz y la misma emoción, así que no pueden
+  desencajar entre ellas.
+  · **EL CORTE NO PUEDE SER "UN TROZO POR SILENCIO"**: el motor de voz mete
+    pausas DENTRO de una interjección —"jajaja" salen tres trozos—, así que de
+    tres frases pueden salir seis. Se corta por todos los silencios y después
+    se **FUNDEN LOS HUECOS MÁS CORTOS** hasta quedarse en tres: los de dentro
+    de una risa miden menos que los que separan una frase de la siguiente
+    (medido: 0,29-0,33 s por dentro contra 0,36-0,44 s entre frases).
+  · **ESCALERA DE UMBRALES** (−35 → −30 → −25 → −20 dB, el primero que dé tres
+    tramos): −35 sirve para 58 de las 63 tomas, pero una risa encadenada o un
+    gruñido de criatura no bajan tanto entre golpe y golpe y a −35 salen de una
+    pieza.
+  · Si NINGÚN umbral llega a tres, la toma es de verdad un sonido continuo
+    (le pasó a dos rugidos del Kappa, que salieron como un bramido seguido) y
+    **se marca como fallida sin escribir nada**: hay que regenerarla pidiendo
+    la separación, porque partir por partes iguales daría tres trozos cortados
+    a media vocal.
+
+**PESO FINAL DEL AUDIO: 9,36 MB** — música 6,28 · voces 1,34 · interfaz 0,86 ·
+cocina 0,51 · nivel 0,37. Los ocho temas duran de 48 a 76 s (el del menú es el
+más largo porque es el que más se oye).
+
+**NI UNA FAMILIA VACÍA NI UNA TOMA HUÉRFANA**, y las dos cosas se comprueban
+con una sonda que recorre el manifiesto contra el disco en los dos sentidos:
+una familia cuyas rutas no existan se salta EN SILENCIO (`SoundBank.cargar` no
+avisa) y un .ogg que no esté en ninguna familia viaja al `.pck` sin sonar
+jamás. En la primera pasada salieron 10 huérfanas —tomas copiadas de la
+librería a las que al final no se les encontró sitio— y se borraron con su
+familia. Al añadir sonidos, volver a pasar esa comprobación.
 
 
 ## Convenciones y decisiones ya tomadas (NO reintroducir bugs resueltos)

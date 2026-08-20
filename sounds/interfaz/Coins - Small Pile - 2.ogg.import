@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://ft3swvvtrv7p"
+path="res://.godot/imported/Coins - Small Pile - 2.ogg-c2637209616ee0ef8b989c9c4793a0af.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/interfaz/Coins - Small Pile - 2.ogg"
+dest_files=["res://.godot/imported/Coins - Small Pile - 2.ogg-c2637209616ee0ef8b989c9c4793a0af.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

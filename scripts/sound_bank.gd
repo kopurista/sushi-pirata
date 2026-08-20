@@ -23,6 +23,15 @@ extends Node
 ## Reproductores del pool para efectos puntuales.
 const VOCES := 6
 
+## Bus por el que sale todo lo de este banco. El juego tiene tres (`Musica`,
+## `Efectos`, `Voces`, creados por el autoload `Audio`) y lo que suene aquí es
+## siempre EFECTO. Se deja como variable, y no clavado, porque quien crea el
+## banco lo hace antes de meterlo en el árbol: se pone y ya está.
+##
+## Si el bus no existe todavía se queda en Master en vez de dar error: un
+## banco creado desde una sonda, sin autoloads, tiene que seguir sonando.
+var bus := "Master"
+
 var _familias: Dictionary = {}
 var _ultimo: Dictionary = {}
 var _pool: Array[AudioStreamPlayer] = []
@@ -37,8 +46,14 @@ func _ready() -> void:
 		# botín la ponen): un efecto cortado a medias se nota mucho más que
 		# uno que termina solo.
 		p.process_mode = Node.PROCESS_MODE_ALWAYS
+		p.bus = _bus()
 		add_child(p)
 		_pool.append(p)
+
+
+## El bus pedido, o Master si ese bus no existe en esta sesión.
+func _bus() -> String:
+	return bus if AudioServer.get_bus_index(bus) >= 0 else "Master"
 
 
 ## Registra una familia con sus tomas. Las rutas se comprueban al cargar: si
@@ -89,6 +104,7 @@ func loop_on(familia: String, volumen_db := 0.0, pitch := 1.0,
 	if p == null:
 		p = AudioStreamPlayer.new()
 		p.process_mode = Node.PROCESS_MODE_ALWAYS
+		p.bus = _bus()
 		add_child(p)
 		_bucles[familia] = p
 		# El recurso se DUPLICA antes de marcarle el bucle: `load()` devuelve
@@ -103,6 +119,20 @@ func loop_on(familia: String, volumen_db := 0.0, pitch := 1.0,
 	p.pitch_scale = pitch
 	if not p.playing:
 		p.play()
+
+
+## Corta TODO lo que suene de este banco y suelta los recursos. Se llama al
+## cerrar el juego: un efecto a medias en ese momento deja su reproducción
+## viva y Godot la cuenta como instancia filtrada al salir.
+func silencio_total() -> void:
+	todos_los_bucles_off()
+	for p in _pool:
+		p.stop()
+		p.stream = null
+	for f in _bucles:
+		var b: AudioStreamPlayer = _bucles[f]
+		b.stop()
+		b.stream = null
 
 
 func loop_off(familia: String) -> void:

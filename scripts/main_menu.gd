@@ -673,6 +673,10 @@ func _unhandled_input(event: InputEvent) -> void:
 func _show_start() -> void:
 	start_mode = true
 	in_menu = true
+	# LA PORTADA NO LLEVA MÚSICA (decisión de diseño): solo el mar contra el
+	# casco. El tema del menú entra al zarpar, en `_llegar_al_menu`.
+	Audio.musica_off(0.6)
+	Audio.ambiente("mar")
 	map_visible = false
 	_set_map_ui_visible(false)
 	_set_menu_ui_visible(false)
@@ -709,6 +713,8 @@ func _zarpar_de_la_portada() -> void:
 	if leaving:
 		return
 	leaving = true
+	# Zarpar de verdad: el barco se suelta del muelle y con él entra el juego.
+	Audio.sfx("zarpar")
 	GameState.booted = true
 	_stop_logo_idle()
 	var tw_ui := create_tween().set_parallel(true) \
@@ -745,6 +751,8 @@ func _zarpar_de_la_portada() -> void:
 func _llegar_al_menu() -> void:
 	start_mode = false
 	leaving = false
+	Audio.musica("menu", 2.2)
+	Audio.ambiente_off(1.6)
 	logo_holder.visible = false
 	start_hint.visible = false
 	for caja in [ingot_box, money_box, rice_box, rice_timer_label]:
@@ -761,6 +769,11 @@ func _llegar_al_menu() -> void:
 ## Modo MENÚ: barco en el fondeadero, mapa fuera de vista.
 func _show_menu(animate: bool) -> void:
 	in_menu = true
+	# EL MENÚ Y EL MAPA DE AVENTURA COMPARTEN TEMA, y por eso se pone aquí y
+	# no en `_enter_map`: son la misma escena y el mismo momento del juego, así
+	# que zarpar hacia el mapa no tiene que cortar la música.
+	Audio.musica("menu")
+	Audio.ambiente_off()
 	_place_resources(false, animate)
 	map_visible = false
 	sky_leaving = false
@@ -1189,7 +1202,30 @@ func _setup_clouds() -> void:
 		})
 
 
+## Cada cuánto se oye una gaviota o cruje la madera del barco, en segundos.
+## Va SORTEADO dentro de una horquilla ancha y no a intervalo fijo: un sonido
+## de fondo que cae siempre al mismo ritmo deja de ser fondo y se convierte en
+## un metrónomo.
+const AMB_ESPERA := Vector2(11.0, 26.0)
+var _amb_reloj := 6.0
+
+## Radianes de timón ya "crujidos" (ver `_bank_wheel_turns`).
+var _cruji_en := 0.0
+
+
+## El mar del menú no es solo música: de vez en cuando pasa una gaviota o
+## cruje una cuaderna. Suena en el menú, en la portada y en el mapa —los tres
+## son el mismo mar— y también con la pesca abierta, que sigue siendo cubierta.
+func _tick_ambiente(delta: float) -> void:
+	_amb_reloj -= delta
+	if _amb_reloj > 0.0:
+		return
+	_amb_reloj = randf_range(AMB_ESPERA.x, AMB_ESPERA.y)
+	Audio.sfx("gaviota" if randf() < 0.65 else "cruje")
+
+
 func _process(delta: float) -> void:
+	_tick_ambiente(delta)
 	super._process(delta)
 	# La cuenta atrás del arroz corre SIEMPRE (también en el mapa) y una vez por
 	# segundo: repintarla a 30 fps no aporta nada y el texto es el mismo.
@@ -2025,6 +2061,7 @@ func _open_pack_panel(titulo: String, packs: Array, real: bool,
 	var overlay := ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.55)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	Audio.ventana(overlay, "bolsa", "ventana_off")
 	overlay.z_index = 160
 	ui_layer.add_child(overlay)
 
@@ -2232,6 +2269,7 @@ Solo te caben %d de los %d, así que se cobra la parte." % [
 	si.add_theme_font_size_override("font_size", 26)
 	si.pressed.connect(func() -> void:
 		GameState.buy_rice(sacos, coste)
+		Audio.sfx("saco")
 		_refresh_resources()
 		velo.queue_free()
 		overlay.queue_free())
@@ -2303,8 +2341,14 @@ func _on_wheel_input(e: InputEvent) -> void:
 ## `GameState._run_achievement_check` suelta el coleccionable "timón".
 func _bank_wheel_turns(rad: float) -> void:
 	wheel_turn_acc += rad
+	# El timón CRUJE cada cuarto de vuelta, no cada vuelta entera: girándolo
+	# despacio se pasaban segundos sin que la madera dijera nada.
+	while wheel_turn_acc - _cruji_en >= TAU * 0.25:
+		_cruji_en += TAU * 0.25
+		Audio.sfx("madera", -6.0)
 	while wheel_turn_acc >= TAU:
 		wheel_turn_acc -= TAU
+		_cruji_en -= TAU
 		GameState.bump_stat("helm_turns")
 
 
@@ -2565,6 +2609,7 @@ func _go_tutorial() -> void:
 ## AVENTURA: sin cambiar de escena. El barco leva anclas y navega hasta el
 ## último nivel abierto mientras la interfaz del menú se retira.
 func _go_adventure() -> void:
+	Audio.sfx("pantalla")
 	if leaving:
 		return
 	leaving = true
@@ -2696,6 +2741,7 @@ func _go_fishing() -> void:
 func _montar_pesca() -> void:
 	if fishing_ui != null:
 		return
+	Audio.musica("pesca")
 	# (`_ui_out` ya ha escondido el tablón y el submenú al acabar de bajarlos.)
 	fishing_ui = preload("res://scripts/fishing_game.gd").new()
 	ui_layer.add_child(fishing_ui)
@@ -2806,6 +2852,7 @@ const PESCA_FADE := 0.34
 
 
 func _on_fishing_closed() -> void:
+	Audio.musica("menu")
 	if fishing_ui == null:
 		return
 	# LA PESCA SE FUNDE, no se borra de golpe. El "Atrás", el álbum y el "?"
@@ -2873,6 +2920,7 @@ func _barra_nivel_a_casa() -> void:
 
 func _show_locked_notice(text: String) -> void:
 	var panel := Control.new()
+	Audio.ventana(panel, "error", "ventana_off")
 	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.offset_left = -280.0
 	panel.offset_top = -110.0
@@ -3014,6 +3062,7 @@ func _show_daily() -> void:
 	var velo := ColorRect.new()
 	velo.color = Color(0, 0, 0, 0.55)
 	velo.size = GameState.canvas_size()
+	Audio.ventana(velo, "pantalla", "ventana_off")
 	velo.mouse_filter = Control.MOUSE_FILTER_STOP
 	ui_layer.add_child(velo)
 
@@ -3143,6 +3192,10 @@ func _open_daily_chest(velo: Control, panel: Control, caja: Control,
 	tw.parallel().tween_property(caja, "scale", Vector2(1.28, 1.28), 0.16) \
 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_callback(func() -> void:
+		# La tapa suena JUSTO cuando se abre, que es donde también se cobra el
+		# premio (ver el comentario de arriba): las dos cosas en el mismo
+		# instante o el oro llega antes que el cofre.
+		Audio.sfx("cofre")
 		cofre.texture = load(DAILY_CHEST_TEX["abierto"])
 		botin["dado"] = GameState.claim_daily()
 		_refresh_resources()
@@ -3320,6 +3373,7 @@ func _daily_chip(tex: Texture2D, texto: String) -> Control:
 ## con un pergamino en el que cada plato entra dando un bote, uno detrás de
 ## otro. Se cierra tocando la pantalla.
 func _show_reveal(ids: Array) -> void:
+	Audio.sfx("premio")
 	if ids.is_empty():
 		return
 	var panel := Control.new()

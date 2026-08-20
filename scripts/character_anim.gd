@@ -417,6 +417,15 @@ func sit_offset(model_scale: float) -> float:
 
 ## Un bocado completo, en las cuatro fases: coger del plato, subir a la boca,
 ## masticar y bajar el brazo. Se repite solo mientras el cliente coma.
+## CUÁNTOS MORDISCOS lleva dados la animación en el instante `t`. Lo usa el
+## cliente para soltar UN sonido de masticar por bocado: el ciclo es
+## procedural y no tiene fotogramas clave de los que colgarse, así que el
+## único sitio que sabe cuándo muerde es aquí.
+func bite_chews(t: float) -> int:
+	var total := BITE_REACH + BITE_LIFT + BITE_CHEW + BITE_LOWER
+	return int(floor((t + BITE_CHEW * 0.5) / total))
+
+
 func bite(t: float) -> void:
 	sit()
 	var total := BITE_REACH + BITE_LIFT + BITE_CHEW + BITE_LOWER

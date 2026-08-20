@@ -117,6 +117,9 @@ func is_busy() -> bool:
 # ------------------------------------------------------------------- toast
 
 func _show_toast(item: Dictionary) -> void:
+	# La medalla de un logro. Va aquí y no en quien la consigue porque los
+	# logros saltan desde media docena de sitios y todos acaban en esta banda.
+	Audio.sfx("logro")
 	var cw := GameState.canvas_size().x
 	var box := Control.new()
 	box.position = Vector2((cw - TOAST_W) * 0.5,
@@ -175,6 +178,8 @@ func _show_toast(item: Dictionary) -> void:
 # ------------------------------------------------- ventana de coleccionable
 
 func _show_collectible(item: Dictionary) -> void:
+	# Una pieza de la vitrina: suena a tesoro, no a logro.
+	Audio.sfx("premio")
 	var id := str(item["id"])
 	var cs := GameState.canvas_size()
 	var root := Control.new()
@@ -297,6 +302,7 @@ const LVL_ROW_H := 52.0
 
 
 func _show_level_up(data: Dictionary) -> void:
+	Audio.sfx("trofeo")
 	var desde := int(data.get("desde", 0))
 	var hasta := int(data.get("hasta", 0))
 	var premios: Dictionary = data.get("premios", {})

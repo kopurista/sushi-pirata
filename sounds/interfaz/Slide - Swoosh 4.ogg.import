@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://m57p1iu5fvhb"
+path="res://.godot/imported/Slide - Swoosh 4.ogg-d45edf4fd1f0b121b97ca4408546b34e.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/interfaz/Slide - Swoosh 4.ogg"
+dest_files=["res://.godot/imported/Slide - Swoosh 4.ogg-d45edf4fd1f0b121b97ca4408546b34e.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

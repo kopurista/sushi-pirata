@@ -59,6 +59,10 @@ var _t := 0.0
 
 
 func _ready() -> void:
+	# Las pantallas de casa (inventario, opciones, logros, maestrías,
+	# bonificadores y perfil) siguen con el tema del menú: se entra y se sale
+	# de ellas todo el rato y cortar la música en cada una sería un tajo.
+	Audio.musica("menu")
 	# Las pantallas de menu van a la mitad de fotogramas que el juego
 	# (GameState.fps_for): aqui no se juega y renderizar mas gasta bateria.
 	Engine.max_fps = GameState.fps_for(false)
@@ -760,6 +764,7 @@ Para llevártelo, %s." % [donde, como]
 ## consiguió. Se cierra con su botón o tocando el velo.
 func _open_collectible_sheet(id: String) -> void:
 	var overlay := Control.new()
+	Audio.ventana(overlay)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	overlay.z_index = 150
 	ui.add_child(overlay)
@@ -845,6 +850,7 @@ func _open_recipe_sheet(id: String) -> void:
 	var known := GameState.is_recipe_unlocked(id)
 
 	var overlay := ColorRect.new()
+	Audio.ventana(overlay)
 	overlay.color = Color(0, 0, 0, 0.6)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(overlay)
