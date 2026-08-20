@@ -1498,6 +1498,9 @@ const LVL_BAR_Y := 96.0
 const LVL_BAR_PESCA := 76.0
 
 var level_bar: Button = null
+## Tween del viaje de la barra al entrar en la Pesca. Se guarda para poder
+## matarlo: entrar y salir deprisa dejaba dos tweens peleando por su `y`.
+var lvl_tween: Tween = null
 var level_bar_fill: ProgressBar = null
 var level_bar_label: Label = null
 var level_bar_badge_host: Control = null
@@ -2656,7 +2659,19 @@ func _go_fishing() -> void:
 		# UNA FILA MÁS ABAJO que en el menú: arriba están el "Atrás" de la
 		# pesca y el botón del álbum, uno en cada esquina, y la barra les caía
 		# justo encima. Al cerrar, `_ui_in` la devuelve a su altura de siempre.
-		level_bar.position.y = home_lvl_y + LVL_BAR_PESCA
+		#
+		# BAJA CON UN TWEEN, no de una asignación: la barra es lo ÚNICO que se
+		# queda en pantalla mientras el resto del menú se va, así que un salto
+		# seco ahí es lo único que se ve moverse mal. Va en su propio tween
+		# porque `_ui_out` se llama con `con_nivel` en false —no la toca— y
+		# porque aquí no se va: se ASIENTA, y por eso remata con EASE_OUT
+		# mientras lo demás sale con EASE_IN.
+		if lvl_tween != null and lvl_tween.is_valid():
+			lvl_tween.kill()
+		lvl_tween = create_tween()
+		lvl_tween.tween_property(level_bar, "position:y",
+				home_lvl_y + LVL_BAR_PESCA, OUT_TIME) \
+				.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	var tw := create_tween()
 	tw.tween_interval(OUT_TIME + 0.05)
 	tw.tween_callback(func() -> void:
@@ -2731,7 +2746,7 @@ func _xp_en_la_barra(cantidad: int) -> void:
 ## cambia `cam.size` en sus transiciones (el atraque de la tienda), y clavar
 ## aqui la constante dejaria el encuadre torcido si algo se solapa.
 const RUSH_SHAKE := 5.0
-const RUSH_ZOOM_IN := 0.965
+const RUSH_ZOOM_IN := 0.925
 
 
 func _on_pesca_rush(on: bool) -> void:
@@ -2756,6 +2771,10 @@ func _on_fishing_closed() -> void:
 	fishing_ui = null
 	if level_bar != null:
 		level_bar.mouse_filter = Control.MOUSE_FILTER_STOP
+	# El viaje de bajada puede seguir vivo si se entra y se sale deprisa:
+	# sin matarlo pelearía con el `_ui_in` de abajo por la misma `y`.
+	if lvl_tween != null and lvl_tween.is_valid():
+		lvl_tween.kill()
 	_set_plus_enabled(false)
 	_refresh_resources()
 	# (`_ui_in` vuelve a encender el tablón y el submenú, y de paso anima la

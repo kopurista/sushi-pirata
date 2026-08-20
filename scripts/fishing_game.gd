@@ -270,12 +270,10 @@ var tutor_falta_tiron := false
 var tutor_card: Control = null
 var tutor_label: Label = null
 var ayuda_btn: Button = null
-## Cuánto se acerca la escena durante el tirón. MUY leve a propósito: el mar
-## que hay detrás es 3D y no se escala con esto, así que un zoom grande
-## delataría que solo se agranda lo dibujado.
-## Opacidad MAXIMA de las lineas. No llega a 1: es un efecto que enmarca,
-## no un telon — a plena opacidad tapaba el barco y las dos barras.
-const RUSH_FADE := 0.55
+## Opacidad MAXIMA de las lineas. Casi opaca: con los parametros suaves
+## (lineas largas y difusas) el velo no tapa nada, y a media opacidad el
+## tiron apenas se notaba.
+const RUSH_FADE := 0.95
 ## Vaivén de la caña durante el tirón (píxeles y velocidad).
 const RUSH_ROD_SWAY := 16.0
 const RUSH_ROD_HZ := 11.0
@@ -900,8 +898,21 @@ func _tick_precast(delta: float) -> void:
 
 ## Radio de la silueta del pez: la rareza pone la base y el TAMAÑO sorteado
 ## la escala (la sombra ya chiva si es un ejemplar grande).
+## Cuanto se agranda la sombra del pez en el tiron. Va sobre el DIBUJO y
+## no escalando `zone` a proposito: el sedal se dibuja ahi dentro y al
+## escalarlo se despegaba del barco (ver `_set_rush`).
+const RUSH_FISH_ZOOM := 0.18
+
+
+## 0 en calma y 1 con el tiron a pleno: sale del fundido de las lineas,
+## asi que todo el efecto entra y sale acompasado.
+func _rush_k() -> float:
+	return clampf(_rush_fade() / RUSH_FADE, 0.0, 1.0)
+
+
 func _fish_r() -> float:
-	return (26.0 + 7.0 * tier) * (0.75 + 0.5 * catch_size)
+	return (26.0 + 7.0 * tier) * (0.75 + 0.5 * catch_size) \
+		* (1.0 + RUSH_FISH_ZOOM * _rush_k())
 
 
 ## El puesto del pez frente al anzuelo: el CENTRO del cuerpo queda de forma

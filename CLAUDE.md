@@ -1596,7 +1596,13 @@ primera vez que se entra en ellos (`logros_intro_done` /
       DIFUSOS que solo asoman por los bordes: suave, no un latigazo.
     · El ruido baja de **6 octavas a 4**: esto se dibuja a pantalla completa
       y corre justo cuando hay que pulsar rápido.
-    · **EL ZOOM ES SOLO DE CÁMARA** (`RUSH_ZOOM_IN`, en `main_menu`).
+    · **EL ZOOM VA POR DOS SITIOS**: la CÁMARA se acerca (`RUSH_ZOOM_IN`
+      0.925, un 7,5%) y la SOMBRA DEL PEZ se agranda (`RUSH_FISH_ZOOM`, un
+      18%) — el pez es un dibujo 2D en coordenadas de lienzo, así que el
+      zoom de cámara solo no lo tocaría. Las dos cosas van con `_rush_k()`,
+      que sale del propio fundido de las líneas, así que entran y salen
+      acompasadas.
+    · **NO SE ESCALA `zone`** (`RUSH_ZOOM_IN`, en `main_menu`).
       Estuvo escalando además `zone` con el pivote en el pez y NO VALE: el
       SEDAL se dibuja dentro de `zone`, así que al escalarlo su nacimiento
       se despegaba del barco y la línea quedaba flotando. El temblor lo
