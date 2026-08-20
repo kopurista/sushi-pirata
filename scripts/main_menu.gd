@@ -566,6 +566,9 @@ func _pagar_pablo() -> void:
 ##
 ## La cola se vacía SIEMPRE, incluso si el id no trae guion: así una pieza que
 ## se apunte por error no deja el bucle de `_on_fishing_closed` girando.
+var _en_escena := false
+
+
 func _escena_coleccionable(id: String) -> void:
 	GameState.pending_col_scenes.erase(id)
 	GameState.save_game()
@@ -2701,6 +2704,7 @@ func _montar_pesca() -> void:
 	fishing_ui.busy_changed.connect(_set_plus_enabled)
 	fishing_ui.xp_gained.connect(_xp_en_la_barra)
 	fishing_ui.rush_changed.connect(_on_pesca_rush)
+	fishing_ui.escena_coleccionable.connect(_escenas_pendientes)
 	# CON EL ÁLBUM ABIERTO, LA BARRA SE QUITA DE EN MEDIO: va por encima de
 	# la pesca (para que no se la trague su panel táctil) y por eso se
 	# dibujaba sobre las fichas de los peces.
@@ -2833,8 +2837,21 @@ func _on_fishing_closed() -> void:
 	# LAS ESCENAS DE COLECCIONABLE que hayan caído en esta visita (el corazón
 	# con el apellido de David, el tenedor...). Se cuentan al SALIR de la
 	# pesca, no al sacarlos: allí el jugador está peleando con la caña.
+	await _escenas_pendientes()
+
+
+## Representa las escenas de coleccionable que haya en la cola, de una en una.
+## La llama LA PROPIA PESCA al sacar la pieza (que es cuando tiene gracia) y
+## el cierre de la pesca como red de seguridad, por si el jugador se sale
+## antes de que le dé tiempo a hablar. `_en_escena` evita que las dos vías se
+## solapen y saquen dos cajas de diálogo a la vez.
+func _escenas_pendientes() -> void:
+	if _en_escena:
+		return
+	_en_escena = true
 	while not GameState.pending_col_scenes.is_empty():
 		await _escena_coleccionable(GameState.pending_col_scenes[0])
+	_en_escena = false
 
 
 ## La barra de nivel vuelve a su altura del menú DESDE DONDE ESTÁ, y solo

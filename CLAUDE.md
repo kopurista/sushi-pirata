@@ -1707,12 +1707,21 @@ primera vez que se entra en ellos (`logros_intro_done` /
         pasando gran cosa.
     · **Y CUANDO TIRA EL PEZ SUENA OTRO CARRETE, NO EL MISMO PROCESADO**: son
       DOS bucles ("Moving Line Closer - 1" recogiendo y "Reeling in Fishing
-      Rod - 2" cuando el pez se lleva línea) que **suenan siempre a la vez** y
-      lo que se cruza es su VOLUMEN (`mezcla_pez`, `MEZCLA_VEL` 9/s). Así el
-      timbre cambia de verdad, ninguno se para ni se reinicia al levantar el
-      dedo, y no hay DSP que pueda chasquear. El cruce va por volumen LINEAL
-      (`_mezcla_db` con `linear_to_db`), no interpolando decibelios: en dB se
-      oye un bache en mitad del cruce, porque -6 dB ya es media señal.
+      Rod - 2" cuando el pez se lleva línea) y el timbre cambia de verdad, sin
+      DSP que pueda chasquear.
+    · **NINGÚN BUCLE DE LA PELEA SE PARA NI SE ARRANCA A MITAD**: los TRES
+      —los dos de arriba y el carrete del TIRÓN— suenan de principio a fin del
+      combate y lo único que se mueve es su VOLUMEN (`mezcla_pez` y
+      `mezcla_tiron`, a `MEZCLA_VEL` 9/s). Pararlos y volver a lanzarlos es lo
+      que se oía como **un corte al pasar de un sonido a otro**: un `play()`
+      empieza el archivo desde cero, y el tirón entra y sale varias veces por
+      pelea. El cruce va por volumen LINEAL (`_mezcla_db` con `linear_to_db`),
+      no interpolando decibelios: en dB se oye un bache en mitad del cruce,
+      porque -6 dB ya es media señal.
+    · **`_pitch_sano` es una red de seguridad, no un adorno**: un `pitch_scale`
+      que no sea un número reviente el mezclador y puede llevarse por delante
+      TODO el audio del juego, no solo ese sonido. Cuesta una comparación por
+      fotograma y ahorra un fallo imposible de encontrar.
       · **NO USAR UN `AudioEffectPitchShift` PARA ESTO** (se probó, y era lo
         que "sonaba mal" cuando tiraba el pez). Dos motivos que se suman:
         un desplazador de tono trabaja por FFT y el carrete es RUIDO de banda
@@ -2214,12 +2223,20 @@ primera vez que se entra en ellos (`logros_intro_done` /
   y con su ventana.
   **LOS COLECCIONABLES CON ESCENA** (`CollectibleData.SCENE_ITEMS`) apuntan su
   id en `GameState.pending_col_scenes` (una COLA persistente) y la representa
-  `main_menu._escena_coleccionable` al cerrar la pesca, con un guion por id en
-  `_guion_coleccionable`. Se cuentan ALLÍ y no en el desbloqueo porque la
-  ventana del coleccionable la saca NoticeLayer en su capa global, donde no
-  cabe un diálogo con retrato; la escena ESPERA a `GameState.notices_busy()`
-  para no salir por detrás de ese cartel, y la cola se vacía aunque el id no
-  traiga guion (si no, el bucle de `_on_fishing_closed` giraría para siempre).
+  `main_menu._escena_coleccionable`, con un guion por id en
+  `_guion_coleccionable`. **La escena sale AL SACAR LA PIEZA, con la pesca
+  todavía en pantalla** (la pesca avisa con su señal `escena_coleccionable`,
+  que emite `_set_state` al volver a READY con algo en la cola): contarlas al
+  volver al menú dejaba a David bromeando sobre un tenedor que el jugador
+  había pescado tres pantallas atrás, y la broma llegaba fuera de sitio. El
+  cierre de la pesca conserva su pasada como RED DE SEGURIDAD, por si el
+  jugador se sale antes de que dé tiempo a hablar; `main_menu._en_escena`
+  impide que las dos vías saquen dos cajas a la vez.
+  No se hablan desde el desbloqueo porque la ventana del coleccionable la saca
+  NoticeLayer en su capa global, donde no cabe un diálogo con retrato; la
+  escena ESPERA a `GameState.notices_busy()` para no salir por detrás de ese
+  cartel, y la cola se vacía aunque el id no traiga guion (si no, el bucle
+  giraría para siempre).
   Hoy son dos: el **corazón en un cofrecito** (David reconoce su propio
   apellido en la historia del cofre y Gigi le pregunta si no será él) y el
   **tenedor** (el peine de la sirenita: "yo en todo caso lo usaría en la
@@ -3316,6 +3333,23 @@ fondo de prep_screen/tienda/inventario (`scene_backdrop`). El
   línea del presupuesto en `import_hooks/decimate_import.gd`.
   `import_hooks/` (el post-import de decimado) va en `exclude_filter` del preset
   de export: extiende `EditorScenePostImport`, que no existe fuera del editor.
+
+## Probar en el móvil: el SERVICE WORKER se queda con la versión vieja
+
+El juego se prueba en el iPhone como **build web** (GitHub Pages), y la
+exportación web es una **PWA con service worker**. Su `CACHE_VERSION` cambia en
+cada exportación, así que la actualización llega — **pero no de inmediato**: el
+service worker nuevo se queda ESPERANDO mientras haya una pestaña del juego
+abierta, y hasta que no se cierran todas se sigue sirviendo el `index.pck` de
+la caché anterior. En un móvil, donde las pestañas no se cierran nunca (y
+menos si está añadido a la pantalla de inicio), es facilísimo estar jugando a
+un build de hace tres publicaciones.
+
+**Antes de dar por bueno un "en el móvil pasa X", forzar la actualización**:
+cerrar TODAS las pestañas del juego (o la app de la pantalla de inicio) y
+volver a abrir, o entrar con un parámetro nuevo (`?v=2`). Si no, se persigue
+un fallo que ya está arreglado — o al revés, se da por arreglado uno que el
+jugador sigue sufriendo.
 
 ## Exportar a Android (montado el 9-8-2026)
 

@@ -57,6 +57,12 @@ signal album_abierto(on: bool)
 ## acercarla un pelín. Se apaga al terminar el tirón (o la pelea).
 signal rush_changed(on: bool)
 
+## Una pieza de coleccionable CON ESCENA acaba de salir del agua. Se representa
+## aquí mismo, con la pesca todavía en pantalla: contarla al volver al menú
+## dejaba a David bromeando sobre un tenedor que el jugador había pescado tres
+## pantallas atrás.
+signal escena_coleccionable
+
 enum State { READY, SHADOW, APPROACH, FEINT, BITE, FIGHT, REVEAL, ESCAPED }
 
 ## Punta de la caña (borde derecho del barco DEL MENÚ, medido sobre captura)
@@ -280,6 +286,8 @@ var tension_prev := 0.0
 ## Cruce entre los dos bucles de la pelea: 0 es el arrastre del jugador
 ## recogiendo y 1 el carrete que se lleva el pez (ver `MEZCLA_VEL`).
 var mezcla_pez := 0.0
+## Cruce con el carrete del TIRÓN: 0 pelea normal, 1 el pez llevándose todo.
+var mezcla_tiron := 0.0
 ## Opacidad MAXIMA de las lineas. Casi opaca: con los parametros suaves
 ## (lineas largas y difusas) el velo no tapa nada, y a media opacidad el
 ## tiron apenas se notaba.
@@ -784,6 +792,11 @@ func _set_state(s: int) -> void:
 		if falta:
 			instruction.text = "Sin doblones para el cebo..."
 	zone.queue_redraw()
+	# LA ESCENA DE LA PIEZA, en cuanto se cierra el cartel del botín y antes
+	# de volver a lanzar. En diferido porque quien llama a `_set_state` suele
+	# estar dentro de la lambda de un botón que se está liberando.
+	if s == State.READY and not clase and not tutor 			and not GameState.pending_col_scenes.is_empty():
+		escena_coleccionable.emit.call_deferred()
 
 
 func _start_attempt() -> void:
@@ -1007,6 +1020,7 @@ func _start_fight() -> void:
 	tension_prev = tension
 	vel_barra = 0.0
 	mezcla_pez = 0.0
+	mezcla_tiron = 0.0
 	# La distancia SALE de la energía (ver `_tick_fight`): con la barra casi
 	# llena, el pez arranca la pelea lejos del casco.
 	line_t = lerpf(LINE_T_NEAR, LINE_T_FAR, energy)
@@ -2468,28 +2482,39 @@ func _setup_audio() -> void:
 func _audio_pelea(delta: float, en_velocidad: bool) -> void:
 	if snd == null:
 		return
-	if en_velocidad:
-		snd.loop_off("recoger")
-		snd.loop_off("arrastre")
-		snd.loop_off("sedal_pez")
-		snd.loop_on("carrete", SND_BUCLE + 2.0, lerpf(PITCH_TIRON_MIN,
-			PITCH_TIRON_MAX, clampf(vel_barra / VEL_REF_TIRON, 0.0, 1.0)))
-		return
-	snd.loop_off("carrete")
-	# El arrastre no se corta al soltar: se cruza. El hueco de silencio que
-	# hubo aquí caía justo cuando la barra de la presa sube, o sea lo único
-	# que no se puede dejar de oír.
+	snd.loop_off("recoger")
+	# NINGÚN bucle de la pelea se para ni se arranca a mitad: los TRES suenan
+	# de principio a fin y lo único que se mueve es su volumen. Pararlos y
+	# volver a lanzarlos es lo que se oía como un corte al pasar de un sonido
+	# a otro —un `play()` empieza el archivo desde cero, y encima el tirón
+	# entra y sale varias veces por pelea.
 	var paso := minf(delta * MEZCLA_VEL, 1.0)
 	mezcla_pez = lerpf(mezcla_pez, 0.0 if holding else 1.0, paso)
-	var pitch := lerpf(PITCH_MIN, PITCH_MAX,
-		clampf(vel_barra / VEL_REF, 0.0, 1.0))
-	snd.loop_on("arrastre", SND_BUCLE + _mezcla_db(1.0 - mezcla_pez), pitch)
-	snd.loop_on("sedal_pez", SND_BUCLE + _mezcla_db(mezcla_pez), pitch,
-		SEDAL_PEZ_DESDE)
+	mezcla_tiron = lerpf(mezcla_tiron, 1.0 if en_velocidad else 0.0, paso)
+	var pitch := _pitch_sano(lerpf(PITCH_MIN, PITCH_MAX,
+		clampf(vel_barra / VEL_REF, 0.0, 1.0)))
+	var pitch_tiron := _pitch_sano(lerpf(PITCH_TIRON_MIN, PITCH_TIRON_MAX,
+		clampf(vel_barra / VEL_REF_TIRON, 0.0, 1.0)))
+	var normal := 1.0 - mezcla_tiron
+	snd.loop_on("arrastre",
+		SND_BUCLE + _mezcla_db(normal * (1.0 - mezcla_pez)), pitch)
+	snd.loop_on("sedal_pez", SND_BUCLE + _mezcla_db(normal * mezcla_pez),
+		pitch, SEDAL_PEZ_DESDE)
+	snd.loop_on("carrete", SND_BUCLE + 2.0 + _mezcla_db(mezcla_tiron),
+		pitch_tiron)
+
+
+## Red de seguridad: un `pitch_scale` que no sea un número REVIENTA el mezclador
+## y puede llevarse por delante TODO el audio, no solo ese sonido. Cuesta una
+## comparación por fotograma y ahorra un fallo imposible de encontrar.
+func _pitch_sano(p: float) -> float:
+	return 1.0 if not is_finite(p) else clampf(p, 0.25, 4.0)
 
 
 ## Cuánto se baja un lado de la mezcla, en dB. Va por VOLUMEN LINEAL y no
 ## interpolando decibelios: en dB el cruce se oye como un bache en el medio,
 ## porque -6 dB ya es la mitad de señal.
 func _mezcla_db(k: float) -> float:
+	if not is_finite(k):
+		return -80.0
 	return linear_to_db(clampf(k, 0.0005, 1.0))
