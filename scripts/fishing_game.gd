@@ -277,10 +277,9 @@ var snd: SoundBank = null
 var vel_barra := 0.0
 var energy_prev := 0.0
 var tension_prev := 0.0
-## El bus con el cambiador de tono del sedal (ver `BUS_SEDAL`).
-var sedal_bus := -1
-var sedal_fx: AudioEffectPitchShift = null
-var sedal_tono := 1.0
+## Cruce entre los dos bucles de la pelea: 0 es el arrastre del jugador
+## recogiendo y 1 el carrete que se lleva el pez (ver `MEZCLA_VEL`).
+var mezcla_pez := 0.0
 ## Opacidad MAXIMA de las lineas. Casi opaca: con los parametros suaves
 ## (lineas largas y difusas) el velo no tapa nada, y a media opacidad el
 ## tiron apenas se notaba.
@@ -1007,6 +1006,7 @@ func _start_fight() -> void:
 	energy_prev = energy
 	tension_prev = tension
 	vel_barra = 0.0
+	mezcla_pez = 0.0
 	# La distancia SALE de la energía (ver `_tick_fight`): con la barra casi
 	# llena, el pez arranca la pelea lejos del casco.
 	line_t = lerpf(LINE_T_NEAR, LINE_T_FAR, energy)
@@ -1113,7 +1113,7 @@ func _tick_fight(delta: float) -> void:
 	line_t = move_toward(line_t, destino_t, LINE_FOLLOW * delta)
 	bobber = rod_tip + (fight_far - rod_tip) * line_t
 	bobber.y = maxf(bobber.y, WATER.position.y + 14.0)
-	_audio_pelea(en_velocidad)
+	_audio_pelea(delta, en_velocidad)
 	_animate_rod(delta, en_velocidad)
 	tension_bar.value = tension
 	energy_bar.value = energy
@@ -2368,11 +2368,14 @@ const SND := {
 	"carrete": [
 		"res://sounds/pesca/Reeling in Fishing Rod - 1.ogg",
 	],
-	# TODA la pelea es este arrastre, y lo que cambia es la VELOCIDAD (ver
-	# `PITCH_MANTENIENDO` y `PITCH_SUELTO`): el sedal se mueve siempre, más
-	# deprisa cuando el jugador recoge y más despacio cuando lo deja correr.
+	# LA PELEA SON DOS BUCLES QUE SUENAN A LA VEZ y se cruzan con el dedo:
+	# el arrastre cuando el jugador recoge y el carrete del pez cuando lo
+	# deja correr. Los dos van a la velocidad de las barras (ver `VEL_REF`).
 	"arrastre": [
 		"res://sounds/pesca/Moving Line Closer - 1.ogg",
+	],
+	"sedal_pez": [
+		"res://sounds/pesca/Reeling in Fishing Rod - 2 (bucle).ogg",
 	],
 	# El golpe que anuncia el TIRÓN, encima del carrete acelerado.
 	"tiron": [
@@ -2429,14 +2432,23 @@ const PITCH_MAX := 1.5
 const PITCH_TIRON_MIN := 1.6
 const PITCH_TIRON_MAX := 2.05
 
-## Y CUANDO TIRA EL PEZ, EL TONO CAMBIA APARTE DE LA VELOCIDAD: el carrete
-## suena más grave, como un freno que patina. Va por un BUS propio con un
-## `AudioEffectPitchShift`, que es lo único que mueve el tono SIN tocar la
-## velocidad — el `pitch_scale` del reproductor las cambia las dos a la vez,
-## así que con él no se pueden separar. El efecto se apaga cuando no hace
-## falta (recogiendo y en el tirón), que para eso está `set_bus_effect_enabled`.
-const BUS_SEDAL := "SedalPesca"
-const TONO_PEZ := 0.95
+## Y CUANDO TIRA EL PEZ SUENA OTRO CARRETE, no el mismo procesado. Hubo un
+## `AudioEffectPitchShift` en un bus propio para bajarle el tono sin tocar la
+## velocidad, Y NO VALE — es lo que sonaba mal en ese estado, por dos motivos
+## que se suman: (1) un desplazador de tono trabaja por FFT y el carrete es
+## RUIDO de banda ancha, justo lo que peor lleva (sale emborronado, con ese
+## punto metálico de flanger), y (2) el efecto se encendía y se apagaba con
+## `set_bus_effect_enabled` en CADA toque —`holding` cambia con cada dedo que
+## sube o baja, varias veces por segundo— y meter y sacar una FFT con
+## latencia propia de la cadena en caliente da saltos y chasquidos. Encima a
+## 0.95 el tono casi no se notaba: todo el defecto y nada del efecto.
+## Lo que sí distingue los dos estados sin procesar nada es que sean DOS
+## GRABACIONES distintas, cruzadas por volumen (`MEZCLA_VEL`): el timbre
+## cambia de verdad, no se reinicia nada y no hay DSP que pueda chasquear.
+const MEZCLA_VEL := 9.0
+## El carrete del pez arranca despacio y coge ritmo: su primer tramo suena
+## una vez y el bucle vuelve aquí (ver `SoundBank.loop_on`).
+const SEDAL_PEZ_DESDE := 0.845
 
 
 func _setup_audio() -> void:
@@ -2446,56 +2458,38 @@ func _setup_audio() -> void:
 	add_child(snd)
 	for familia in SND:
 		snd.cargar(str(familia), SND[familia])
-	_montar_bus_sedal()
-	snd.set_bus("arrastre", BUS_SEDAL)
 
 
-## El bus del sedal se monta UNA vez por sesión y no se desmonta al salir de
-## la pesca: quitar un bus con reproductores encima es un lío por nada, y
-## apagado no cuesta.
-func _montar_bus_sedal() -> void:
-	var i := AudioServer.get_bus_index(BUS_SEDAL)
-	if i < 0:
-		i = AudioServer.bus_count
-		AudioServer.add_bus(i)
-		AudioServer.set_bus_name(i, BUS_SEDAL)
-		AudioServer.set_bus_send(i, "Master")
-		AudioServer.add_bus_effect(i, AudioEffectPitchShift.new())
-	sedal_bus = i
-	sedal_fx = AudioServer.get_bus_effect(i, 0)
-	sedal_tono = 1.0
-	AudioServer.set_bus_effect_enabled(i, 0, false)
-
-
-## Cambia el TONO del carrete sin tocar su velocidad. `1.0` es el sonido tal
-## cual, y con él el efecto se apaga (una FFT por búfer no se paga por nada).
-func _tono_sedal(tono: float) -> void:
-	if sedal_fx == null or is_equal_approx(tono, sedal_tono):
-		return
-	sedal_tono = tono
-	var activo := not is_equal_approx(tono, 1.0)
-	if activo:
-		sedal_fx.pitch_scale = tono
-	AudioServer.set_bus_effect_enabled(sedal_bus, 0, activo)
-
-
-## El carrete de la PELEA: suena mientras se recoge, y en el TIRÓN va más
-## rápido y agudo porque es el pez quien se lleva el sedal. Se llama por
-## fotograma desde `_tick_fight`, y `loop_on` solo arranca si no sonaba ya.
-func _audio_pelea(en_velocidad: bool) -> void:
+## El carrete de la PELEA. Los DOS bucles de la pelea suenan siempre a la vez
+## y lo que se cruza es su VOLUMEN (`mezcla_pez`), así que ninguno se para ni
+## se reinicia al levantar el dedo: solo se pasa de un timbre al otro. Los dos
+## corren a la velocidad de las barras. En el TIRÓN mandan callar a los dos y
+## entra el carrete acelerado. Se llama por fotograma desde `_tick_fight`.
+func _audio_pelea(delta: float, en_velocidad: bool) -> void:
 	if snd == null:
 		return
 	if en_velocidad:
 		snd.loop_off("recoger")
 		snd.loop_off("arrastre")
-		_tono_sedal(1.0)
+		snd.loop_off("sedal_pez")
 		snd.loop_on("carrete", SND_BUCLE + 2.0, lerpf(PITCH_TIRON_MIN,
 			PITCH_TIRON_MAX, clampf(vel_barra / VEL_REF_TIRON, 0.0, 1.0)))
-	else:
-		# El arrastre no se corta al soltar: solo cambia de velocidad y de
-		# tono. El hueco de silencio que hubo aquí caía justo cuando la barra
-		# de la presa sube, o sea lo único que no se puede dejar de oír.
-		snd.loop_off("carrete")
-		_tono_sedal(1.0 if holding else TONO_PEZ)
-		snd.loop_on("arrastre", SND_BUCLE, lerpf(PITCH_MIN, PITCH_MAX,
-			clampf(vel_barra / VEL_REF, 0.0, 1.0)))
+		return
+	snd.loop_off("carrete")
+	# El arrastre no se corta al soltar: se cruza. El hueco de silencio que
+	# hubo aquí caía justo cuando la barra de la presa sube, o sea lo único
+	# que no se puede dejar de oír.
+	var paso := minf(delta * MEZCLA_VEL, 1.0)
+	mezcla_pez = lerpf(mezcla_pez, 0.0 if holding else 1.0, paso)
+	var pitch := lerpf(PITCH_MIN, PITCH_MAX,
+		clampf(vel_barra / VEL_REF, 0.0, 1.0))
+	snd.loop_on("arrastre", SND_BUCLE + _mezcla_db(1.0 - mezcla_pez), pitch)
+	snd.loop_on("sedal_pez", SND_BUCLE + _mezcla_db(mezcla_pez), pitch,
+		SEDAL_PEZ_DESDE)
+
+
+## Cuánto se baja un lado de la mezcla, en dB. Va por VOLUMEN LINEAL y no
+## interpolando decibelios: en dB el cruce se oye como un bache en el medio,
+## porque -6 dB ya es la mitad de señal.
+func _mezcla_db(k: float) -> float:
+	return linear_to_db(clampf(k, 0.0005, 1.0))

@@ -1705,20 +1705,29 @@ primera vez que se entra en ellos (`logros_intro_done` /
         soltar suena más calmado que recoger es con el sedal YA flojo (1.17):
         ahí solo se mueve la barra de la presa, y es verdad que no está
         pasando gran cosa.
-    · **Y CUANDO TIRA EL PEZ CAMBIA EL TONO, APARTE DE LA VELOCIDAD**: el
-      carrete suena un punto más grave (`TONO_PEZ` 0.95), como un freno que
-      patina. Bajó DOS veces por el mismo motivo (0.72 → 0.88 → 0.95): aquí
-      se busca **reconocer el estado, no oír un efecto**, y cuanto más se
-      aleja de 1.0 más suena a truco y más lo pastosea el desplazador. Si
-      algún día hay que retocarlo, el camino es hacia arriba.
-      Eso NO se puede hacer con el `pitch_scale` del reproductor, que mueve
-      tono y velocidad a la vez; va por un bus propio (`BUS_SEDAL`) con un
-      `AudioEffectPitchShift`, que es lo único que mueve el tono SIN tocar la
-      velocidad. El bus se monta una vez por sesión y no se desmonta —quitar
-      un bus con reproductores encima es un lío por nada—, y el efecto se
-      APAGA (`set_bus_effect_enabled`) cuando el tono es 1.0, que es una FFT
-      por búfer que no se paga recogiendo ni en el tirón. `SoundBank.set_bus`
-      encamina el bucle de una familia y se puede llamar antes de que exista.
+    · **Y CUANDO TIRA EL PEZ SUENA OTRO CARRETE, NO EL MISMO PROCESADO**: son
+      DOS bucles ("Moving Line Closer - 1" recogiendo y "Reeling in Fishing
+      Rod - 2" cuando el pez se lleva línea) que **suenan siempre a la vez** y
+      lo que se cruza es su VOLUMEN (`mezcla_pez`, `MEZCLA_VEL` 9/s). Así el
+      timbre cambia de verdad, ninguno se para ni se reinicia al levantar el
+      dedo, y no hay DSP que pueda chasquear. El cruce va por volumen LINEAL
+      (`_mezcla_db` con `linear_to_db`), no interpolando decibelios: en dB se
+      oye un bache en mitad del cruce, porque -6 dB ya es media señal.
+      · **NO USAR UN `AudioEffectPitchShift` PARA ESTO** (se probó, y era lo
+        que "sonaba mal" cuando tiraba el pez). Dos motivos que se suman:
+        un desplazador de tono trabaja por FFT y el carrete es RUIDO de banda
+        ancha, justo lo que peor lleva —sale emborronado, con un punto
+        metálico de flanger—; y el efecto se encendía y se apagaba en CADA
+        toque (`holding` cambia con cada dedo que sube o baja, varias veces
+        por segundo), y meter y sacar en caliente una FFT con su latencia da
+        saltos y chasquidos. Encima, bajando el tono de 0.72 a 0.95 para que
+        no sonara raro, ya casi no se notaba el cambio: todo el defecto y
+        nada del efecto. **La diferencia de timbre se consigue con OTRA
+        GRABACIÓN, no procesando la misma.**
+      · `_audio_pelea` recibe el `delta` en vez de pedir
+        `get_process_delta_time()`: el cruce se mide con el mismo reloj que la
+        pelea, y así una sonda que llame a `_tick_fight` a mano mide de verdad
+        lo que pasa (con el reloj del motor, el cruce se completaba de golpe).
     · **EL TIRÓN ENTRA CON UN GOLPE** ("Frog Death - 1", `SND_TIRON` -14 dB,
       muy por debajo del resto): las líneas de acción entran con un fundido de
       0.18 s, así que sin él el instante exacto del cambio de fase —que es
