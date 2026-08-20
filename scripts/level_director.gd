@@ -1492,13 +1492,38 @@ var _prop_fase := 0
 var _hambre := false
 ## Hambrunas encajadas, para la escalera de recuperaciones.
 var _hambres := 0
+## SEGUNDA VUELTA: el escenario ya está superado, así que el Kappa no es una
+## amenaza que se estrena — es un vecino que vuelve a comer a su cueva. Sigue
+## siendo un JEFE con sus tres fases y sus cinco calaveras, pero pide las cosas
+## POR FAVOR en vez de exigirlas a gritos (pedido por el usuario). El duelo NO
+## se juega en mudo: en las repeticiones habla igual, solo que con educación.
+var _cortes := false
+
+
+## El mood del Kappa para un fallo de la fase `n` (1, 2 o 3). Enfadándose más
+## con cada fase la primera vez; sin perder las formas en la segunda vuelta.
+func _ira_kappa(n: int) -> String:
+	if _cortes:
+		return "hablando" if n < 3 else "serio"
+	return ["enfadado", "furioso", "colerico"][clampi(n - 1, 0, 2)]
 
 
 func _nivel_15() -> void:
-	await _decir([
-		{ "text": "Estas aguas están demasiado tranquilas... Sirve y mantén los ojos abiertos.", "mood": "serio" },
-		{ "text": "¡GLUB, GLUB! ¡ALGO BURBUJEA! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
-	])
+	# EL JEFE HABLA SIEMPRE, también al repetir: lo que cambia con `_cortes` no
+	# es si habla, sino CÓMO pide las cosas.
+	_cortes = _mudo
+	_mudo = false
+	if _cortes:
+		await _say([
+			{ "text": "Otra vez la cueva... Y esta vez sabemos quién vive dentro.", "mood": "hablando" },
+			{ "text": "¡EL BICHO! ¡RAAAK! ¡QUE VIENE EL BICHO!", "who": "gigi", "mood": "loro_sorpresa" },
+			{ "text": "Que venga. Hoy le tenemos la mesa puesta.", "mood": "feliz" },
+		])
+	else:
+		await _say([
+			{ "text": "Estas aguas están demasiado tranquilas... Sirve y mantén los ojos abiertos.", "mood": "serio" },
+			{ "text": "¡GLUB, GLUB! ¡ALGO BURBUJEA! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+		])
 	_play()
 	await _tras_la_preparacion()
 
@@ -1518,10 +1543,16 @@ func _nivel_15() -> void:
 	lv.arrival_queue.clear()
 	lv.type_queue.clear()
 	lv.forced_types.clear()
-	await _decir([
-		{ "text": "¡EL MAR! ¡EL MAR SE ABRE! ¡RAAAAAK!", "who": "gigi", "mood": "loro_grito" },
-		{ "text": "Lo sabía... ¡el **KAPPA**! ¡Todo el mundo fuera de la barra!", "mood": "gritando" },
-	])
+	if _cortes:
+		await _say([
+			{ "text": "Ahí está. Puntual como el hambre.", "mood": "hablando" },
+			{ "text": "Dejadle sitio, que este ya es de la casa.", "mood": "feliz" },
+		])
+	else:
+		await _say([
+			{ "text": "¡EL MAR! ¡EL MAR SE ABRE! ¡RAAAAAK!", "who": "gigi", "mood": "loro_grito" },
+			{ "text": "Lo sabía... ¡el **KAPPA**! ¡Todo el mundo fuera de la barra!", "mood": "gritando" },
+		])
 	for c in lv.seat_clients:
 		if c is Node3D and is_instance_valid(c):
 			c.force_leave(false)
@@ -1551,42 +1582,64 @@ func _nivel_15() -> void:
 	kappa.boss_starved.connect(_on_kappa_hambre)
 	await _pausa(1.2)
 	_focus_client(kappa)
-	await _decir([
-		{ "text": "HAMBRE.", "who": "kappa", "mood": "enfadado" },
-		{ "text": "Escúchame rápido: el Kappa come de TODO, a una velocidad de escándalo... y se **impacienta** igual de rápido.", "mood": "serio" },
-		{ "text": "**%d platos**, cocinero. Y que no se me vacíe la barriga... o nos enfadamos." % BOSS_PLATES, "who": "kappa", "mood": "hablando" },
-		{ "text": "Su cara está en la barra de arriba: ¡esa es hoy tu **tercera estrella**! Y ojo a las **cinco calaveras**: cada fallo enciende una, y a la quinta nos vamos a pique.", "mood": "hablando" },
-	])
+	if _cortes:
+		# LO PRIMERO QUE DICE AL VOLVER (pedido por el usuario): entra pidiendo
+		# permiso, porque esta es SU cueva y nosotros somos los invitados.
+		await _say([
+			{ "text": "Hola. Con permiso... Vengo a mi cueva, a comer. Gracias.", "who": "kappa", "mood": "hablando" },
+			{ "text": "Adelante, grandullón. La cocina es tuya.", "mood": "feliz" },
+			{ "text": "**%d platos**, por favor. Tengo mucha hambre... y se me pasa deprisa." % BOSS_PLATES, "who": "kappa", "mood": "hablando" },
+			{ "text": "Ya sabes cómo va: su cara es la **tercera estrella**, y cinco fallos nos mandan a pique.", "mood": "hablando" },
+		])
+	else:
+		await _say([
+			{ "text": "HAMBRE.", "who": "kappa", "mood": "enfadado" },
+			{ "text": "Escúchame rápido: el Kappa come de TODO, a una velocidad de escándalo... y se **impacienta** igual de rápido.", "mood": "serio" },
+			{ "text": "**%d platos**, cocinero. Y que no se me vacíe la barriga... o nos enfadamos." % BOSS_PLATES, "who": "kappa", "mood": "hablando" },
+			{ "text": "Su cara está en la barra de arriba: ¡esa es hoy tu **tercera estrella**! Y ojo a las **cinco calaveras**: cada fallo enciende una, y a la quinta nos vamos a pique.", "mood": "hablando" },
+		])
 	_play("¡**%d platos** para el Kappa, sin dejar que su barra toque fondo!" % BOSS_PLATES)
 
 	# --- FASE 1: los platos ---
-	if not await _fase_kappa(kappa, BOSS_PLATES, "platos", "", "enfadado",
+	if not await _fase_kappa(kappa, BOSS_PLATES, "platos", "", _ira_kappa(1),
 			"¡**%d platos** para el Kappa, sin dejar que su barra toque fondo!" % BOSS_PLATES):
 		return
 	kappa.boss_patience_add(KAPPA_PREMIO_F1)
 	_focus_client(kappa)
-	await _decir([
-		{ "text": "Mmm. Bueno. MÁS.", "who": "kappa", "mood": "hablando" },
-		{ "text": "Ahora, **%d platos DISTINTOS**. Si me repites plato... calavera." % KAPPA_DISTINTOS, "who": "kappa", "mood": "serio" },
-	])
+	if _cortes:
+		await _say([
+			{ "text": "Mmm... qué rico. Muchas gracias.", "who": "kappa", "mood": "feliz" },
+			{ "text": "¿Podrías traerme **%d platos DISTINTOS** ahora? Repetidos no, por favor: me llenan y no me alimentan." % KAPPA_DISTINTOS, "who": "kappa", "mood": "hablando" },
+		])
+	else:
+		await _say([
+			{ "text": "Mmm. Bueno. MÁS.", "who": "kappa", "mood": "hablando" },
+			{ "text": "Ahora, **%d platos DISTINTOS**. Si me repites plato... calavera." % KAPPA_DISTINTOS, "who": "kappa", "mood": "serio" },
+		])
 	_play("Fase 2: ¡**%d platos DISTINTOS**, sin repetir ninguno!" % KAPPA_DISTINTOS)
 
 	# --- FASE 2: la variedad ---
-	if not await _fase_kappa(kappa, KAPPA_DISTINTOS, "distintos", "", "furioso",
+	if not await _fase_kappa(kappa, KAPPA_DISTINTOS, "distintos", "", _ira_kappa(2),
 			"Fase 2: ¡**%d platos DISTINTOS**, sin repetir ninguno!" % KAPPA_DISTINTOS):
 		return
 	kappa.boss_patience_add(KAPPA_PREMIO_F2)
 	var plato := _plato_mas_caro()
 	var nombre := str(RecipeData.get_recipe(plato).get("name", plato))
 	_focus_client(kappa)
-	await _decir([
-		{ "text": "Último antojo. Lo MEJOR de tu carta: **%s**." % nombre, "who": "kappa", "mood": "serio" },
-		{ "text": "**%d veces**. Ni una más, ni una menos... ni OTRA COSA." % KAPPA_MISMO, "who": "kappa", "mood": "furioso" },
-	])
+	if _cortes:
+		await _say([
+			{ "text": "Un último capricho, si no es molestia: lo mejor que lleves. El **%s**." % nombre, "who": "kappa", "mood": "hablando" },
+			{ "text": "**%d veces** el mismo, por favor. Cuando algo me gusta, me gusta mucho." % KAPPA_MISMO, "who": "kappa", "mood": "feliz" },
+		])
+	else:
+		await _say([
+			{ "text": "Último antojo. Lo MEJOR de tu carta: **%s**." % nombre, "who": "kappa", "mood": "serio" },
+			{ "text": "**%d veces**. Ni una más, ni una menos... ni OTRA COSA." % KAPPA_MISMO, "who": "kappa", "mood": "furioso" },
+		])
 	_play("Fase 3: ¡**%d veces** el **%s** y nada más!" % [KAPPA_MISMO, nombre])
 
 	# --- FASE 3: el antojo ---
-	if not await _fase_kappa(kappa, KAPPA_MISMO, "mismo", plato, "colerico",
+	if not await _fase_kappa(kappa, KAPPA_MISMO, "mismo", plato, _ira_kappa(3),
 			"Fase 3: ¡**%d veces** el **%s** y nada más!" % [KAPPA_MISMO, nombre]):
 		return
 
@@ -1596,8 +1649,9 @@ func _nivel_15() -> void:
 	lv.boss_star_win()
 	lv.boss_chip_set(0)
 	await _kappa_duerme(kappa)
-	await _decir([
-		{ "text": "Kappa... lleno. Kappa... contento...", "who": "kappa", "mood": "feliz" },
+	await _say([
+		{ "text": ("Gracias, cocinero. De verdad. Kappa... lleno."
+			if _cortes else "Kappa... lleno. Kappa... contento..."), "who": "kappa", "mood": "feliz" },
 		{ "text": "Ahora... dormir...", "who": "kappa", "mood": "dormido" },
 		{ "text": "¡Se rinde! ¡Mirad cómo ronca! ¡Eres el cocinero que las leyendas pedían, %s!" % GameState.player_title(), "mood": "riendo" },
 		{ "text": "¡QUE ALGUIEN LO SAQUE DE LA BARRA! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
@@ -1642,8 +1696,8 @@ func _fase_kappa(kappa: Node3D, objetivo: int, modo: String,
 		vistos += 1
 		var id := str(kappa.eaten_ids[vistos - 1])
 		if modo == "distintos" and distintos.has(id):
-			if not await _fallo_kappa(kappa,
-					"Eso... YA LO HE COMIDO. ¡DISTINTOS he dicho! ¡Empezamos de nuevo!", ira, aviso):
+			if not await _fallo_kappa(kappa, ("Perdona... eso ya me lo he comido. Te dije distintos. ¿Empezamos otra vez?"
+					if _cortes else "Eso... YA LO HE COMIDO. ¡DISTINTOS he dicho! ¡Empezamos de nuevo!"), ira, aviso):
 				return false
 			distintos.clear()
 			progreso = 0
@@ -1655,8 +1709,8 @@ func _fase_kappa(kappa: Node3D, objetivo: int, modo: String,
 			continue
 		if modo == "mismo" and id != target:
 			var nombre := str(RecipeData.get_recipe(target).get("name", target))
-			if not await _fallo_kappa(kappa,
-					"¡ESO NO! ¡He dicho **%s**! ¡La cuenta A CERO!" % nombre, ira, aviso):
+			if not await _fallo_kappa(kappa, (("Uy... yo pedí **%s**. No pasa nada, pero vuelvo a empezar la cuenta." % nombre)
+					if _cortes else ("¡ESO NO! ¡He dicho **%s**! ¡La cuenta A CERO!" % nombre)), ira, aviso):
 				return false
 			progreso = 0
 			lv.boss_chip_set(objetivo)
@@ -1687,9 +1741,9 @@ func _hambruna_kappa(kappa: Node3D, ira := "enfadado", aviso := "") -> bool:
 	var frac: float = KAPPA_RECUPERA[mini(_hambres - 1, KAPPA_RECUPERA.size() - 1)]
 	kappa.boss_patience_set(frac)
 	_focus_client(kappa)
-	await _decir([
-		{ "text": "¡KAPPA TIENE **HAMBRE**! ¡Más deprisa, cocinero, o me como la cueva!", "who": "kappa", "mood": ira },
-	])
+	await _say([{ "text": ("Disculpa... me he quedado con **hambre** otra vez. ¿Un poco más rápido, por favor?"
+			if _cortes else "¡KAPPA TIENE **HAMBRE**! ¡Más deprisa, cocinero, o me como la cueva!"),
+		"who": "kappa", "mood": ira }])
 	# LA CAJA SOLO LA CIERRA `_play`: sin esta llamada el diálogo del hambre se
 	# quedaba clavado en pantalla con todo el input tragado (softlock).
 	_play(aviso)
@@ -1708,17 +1762,23 @@ func _fallo_kappa(kappa: Node3D, frase: String, ira := "enfadado",
 		await _derrota_kappa()
 		return false
 	_focus_client(kappa)
-	await _decir([{ "text": frase, "who": "kappa", "mood": ira }])
+	await _say([{ "text": frase, "who": "kappa", "mood": ira }])
 	_play(aviso)
 	return true
 
 
 ## La quinta calavera: jornada perdida (0 estrellas, `boss_lost` ya puesto).
 func _derrota_kappa() -> void:
-	await _decir([
-		{ "text": "¡¡BASTA!! Kappa se harta. ¡KAPPA SE VA!", "who": "kappa", "mood": "colerico" },
-		{ "text": "Se acabó la jornada... Un Kappa enfadado no perdona. ¡Volveremos: ahora ya sabes cómo mastica!", "mood": "triste" },
-	])
+	if _cortes:
+		await _say([
+			{ "text": "Lo siento... Me voy con hambre. Otro día será, cocinero.", "who": "kappa", "mood": "serio" },
+			{ "text": "Se nos ha ido de vacío... y eso, con un Kappa, se paga. Volvemos mañana.", "mood": "triste" },
+		])
+	else:
+		await _say([
+			{ "text": "¡¡BASTA!! Kappa se harta. ¡KAPPA SE VA!", "who": "kappa", "mood": "colerico" },
+			{ "text": "Se acabó la jornada... Un Kappa enfadado no perdona. ¡Volveremos: ahora ya sabes cómo mastica!", "mood": "triste" },
+		])
 	# Cerrar la caja ANTES de cerrar el turno: se quedaba abierta encima del
 	# cartel de resultados tragándose los toques — el jugador no podía salir,
 	# y sin llegar al cartel el oro de la jornada ni se cobraba.

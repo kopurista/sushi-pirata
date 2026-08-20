@@ -264,15 +264,41 @@ que cada tipo tenga SU dificultad como la isla tiene su carta cerrada):
     queda limpia) y seis **JIRONES** en cartel orbitando bajos, la mitad de
     ellos POR DELANTE de la roca (`NIEBLA_DENTRO`, hacia la cámara), que es lo
     único que de verdad la difumina. Tres cosas medidas:
-    · El dibujo va HORNEADO (`tools/niebla_tex.py`), no por shader: no cambia,
-      solo se mueve.
+    · **EL DIBUJO LO PONE UN SHADER DE PERLIN**
+      (`shaders/niebla_perlin.gdshader`, portado del "Customizable Perlin Fog"
+      de cookiemonster_nz en godotshaders, CC0). **El original es
+      `shader_type fog` y AQUÍ NO PUEDE CORRER**: los FogVolume son niebla
+      volumétrica, que solo existe en Forward+, y este juego va en
+      COMPATIBILITY. Lo que se porta es su NÚCLEO —el ruido de Perlin 3D
+      muestreado en `WORLD_POSITION` y arrastrado por `movement_dir`— dibujado
+      sobre carteles en vez de sobre froxels. Sale ganando: cada plano es una
+      VENTANA a un campo de niebla que existe en el mundo, así que la bruma se
+      desliza POR DENTRO del cartel mientras este orbita, en vez de viajar
+      pegada a él como haría un sprite (que fue el primer intento, con una
+      textura horneada, y se leía como una calcomanía dando vueltas). Del
+      original se caen dos cosas: el `gradient` (una textura solo para remapear
+      la densidad, sustituida por un smoothstep entre dos umbrales) y el
+      `colorRand`, que pedía TRES muestreos de ruido más por píxel para unas
+      vetas de color que esta niebla blanca no necesita. MEDIDO: **0,211
+      ms/fotograma** en el mapa, en la línea del mar (0,29).
+    · **LA ESCALA DEL RUIDO LA MANDA EL TAMAÑO DE LO QUE SE ENVUELVE**: la
+      cueva mide 2.7 u de huella, y con `noise_scale` a 1 (el del original,
+      pensado para volúmenes grandes) toda la niebla cabía dentro de una celda
+      y salía de un gris plano. Va a 0.55.
+    · **Y LOS JIRONES VAN APLANADOS Y SUBIDOS**: son cartas de pie, y con la
+      proporción 0.58 medían 2.4-3.6 u de alto — con el centro casi en la
+      línea de flotación, su mitad inferior quedaba DEBAJO DEL MAR y el plano
+      opaco del agua las cortaba en una raya horizontal perfecta que cruzaba
+      la pantalla. A 0.36 de proporción y con el centro a 0.42 de su alto, el
+      corte cae donde la densidad ya se está muriendo y no se ve.
     · **Los nodos van en el grupo `no_batch`**: `GeometryBatch.bake` funde la
       geometría estática del mapa y LIBERA los originales — los jirones salían
       como "previously freed" y no se movían nunca.
-    · **La opacidad se MULTIPLICA por el alfa del dibujo** (medio 53/255), así
-      que el 0.42 del primer intento daba un 9% efectivo: invisible. Y los
-      radios van CORTOS (0.5-0.95 de la huella): a 1.55 salía un anillo de
-      manchas sueltas lejos de la roca que parecía suciedad en el mar.
+    · Los radios van CORTOS (0.5-0.95 de la huella) y el manto MIDE POCO
+      (2.4 de la huella): a 1.55 de radio salía un anillo de manchas sueltas
+      lejos de la roca que parecía suciedad en el mar, y con el manto a 3.6
+      sus planos medían 9.7 u —830 px, la pantalla entera— y la niebla era una
+      sábana blanca que se tragaba el mar y la isla.
   · **EN EL MAPA VA MUY APARTE**: sola, centrada y POR ENCIMA del lienzo
     (`MAP_POS` con y **negativa**, −700), a 1.068 px del escenario 19 — casi
     siete veces el paso normal. La distancia no es estética: es la que hace
@@ -847,9 +873,17 @@ primera vez que se entra en ellos (`logros_intro_done` /
     esperan a `kappa_outro_done`; un guardado viejo que ya tuviera el diente
     da la escena por hecha al cargar.
   · **El nivel del jefe monta su director SIEMPRE** (level3d: `boss_id != ""`
-    salta el filtro de `narrated_ports`); en las repeticiones corre EN MUDO
-    (`_mudo`) y el duelo se comunica solo con la chapa, las calaveras y los
-    avisos de `_play`.
+    salta el filtro de `narrated_ports`).
+  · **EN LA SEGUNDA VUELTA EL KAPPA PIDE POR FAVOR** (`_cortes`, pedido por el
+    usuario): repetir el escenario NO lo deja mudo — sigue siendo un jefe con
+    sus tres fases y sus cinco calaveras, y sigue cantando lo que quiere, pero
+    ya no lo exige a gritos. Entra pidiendo permiso ("Hola. Con permiso...
+    Vengo a mi cueva, a comer. Gracias."), porque esta es SU cueva y los
+    invitados somos nosotros, y sus fallos los dice sin perder las formas
+    (`_ira_kappa` devuelve `hablando`/`serio` en vez de la escalera
+    enfadado → furioso → colérico). David y Gigi también cambian: ya saben
+    quién vive dentro. **`_nivel_15` apaga `_mudo` a mano** después de leerlo:
+    lo que decide `_cortes` no es SI habla, sino CÓMO.
   · **SU PELO LLEVA LAS PUNTAS RECORTADAS** (`tools/kappa_pelo_fix.py`): el
     modelo viene de imagen→3D y el pelo son plaquitas finas disparadas desde
     el cráneo, que a tamaño de juego se leían como LÍNEAS sueltas fuera de la

@@ -340,22 +340,33 @@ func _setup_nodes() -> void:
 ##  · Los nodos van en el grupo `no_batch`: `GeometryBatch.bake` funde la
 ##    geometría estática del mapa y LIBERA los originales — los diez jirones
 ##    salían como "previously freed" y no se movían nunca.
-##  · La opacidad se MULTIPLICA por el alfa del dibujo horneado (medio 53/255),
-##    así que un 0.42 daba un 9% efectivo: invisible.
 ##  · Sin escritura de profundidad, o dos jirones que se cruzan se recortan
 ##    entre ellos con un canto duro.
 ##  · Suben con la MAREA, como todo lo que se pinta a ras de agua.
-const NIEBLA_TEX := "res://assets/map/niebla.webp"
+##
+## EL DIBUJO LO PONE UN SHADER DE PERLIN (`shaders/niebla_perlin.gdshader`,
+## portado del "Customizable Perlin Fog" de cookiemonster_nz), no una textura:
+## cada plano es una VENTANA a un campo de niebla 3D que existe en el mundo, así
+## que la bruma se desliza POR DENTRO del cartel mientras este orbita, en vez de
+## viajar pegada a él como haría un sprite. Eso es lo que la hace parecer niebla
+## de verdad y no una calcomanía dando vueltas.
+const NIEBLA_SHADER := "res://shaders/niebla_perlin.gdshader"
 
 ## --- El manto tumbado sobre el agua ---
 ## Planos del manto (giran en sentidos contrarios) y su lado, en fracciones de
 ## la huella del nodo.
-const MANTO_LADO := [3.6, 2.7]
+## OJO CON EL TAMAÑO DEL MANTO: la huella de la cueva son 2.7 u, así que un
+## lado de 3.6 daba planos de 9.7 u — 830 px, la pantalla entera — y la niebla
+## salía como una sábana blanca que se tragaba el mar y la isla.
+const MANTO_LADO := [2.4, 1.8]
 ## El manto es el VELO DE BASE: tiene que aguantar solo. Los jirones que
 ## orbitan van y vienen, así que si el manto es flojo hay instantes en los que
 ## la cueva se queda a la vista y limpia (medido comparando dos capturas con
 ## 7 s de diferencia: de niebla espesa a casi nada).
-const MANTO_ALFA := [0.75, 0.6]
+## El manto sale MÁS DENSO que los jirones: es una loncha horizontal del campo
+## de ruido vista casi de canto (la cámara pica 35°), así que aporta mucho menos
+## de lo que su número sugiere.
+const MANTO_ALFA := [0.7, 0.55]
 const MANTO_Y := [0.05, 0.12]
 ## Segundos que tarda cada plano en dar una vuelta sobre sí mismo.
 const MANTO_VUELTA := 90.0
@@ -367,9 +378,17 @@ const NIEBLA_VUELTA := 52.0
 ## Radio de la órbita y lado del cartel, en fracciones de la huella.
 const NIEBLA_R := 0.72
 const NIEBLA_LADO := 1.9
-const NIEBLA_ALFA := 0.55
-## Altura sobre el agua y cuánto se adelanta hacia la cámara (los pares).
-const NIEBLA_Y := 0.10
+const NIEBLA_ALFA := 0.45
+## Proporción alto/ancho del jirón. BAJO a propósito: son cartas de pie, y a
+## 0.58 medían 2.4-3.6 u de alto — con su centro casi en la línea de flotación,
+## eso dejaba su mitad inferior DEBAJO DEL MAR, y el plano opaco del agua las
+## cortaba en una raya horizontal perfecta que cruzaba la pantalla. Aplanados
+## y subidos (ver `y0`), la niebla se apoya en el agua en vez de hundirse.
+const NIEBLA_APLANE := 0.36
+## Fracción de su propio alto a la que flota el centro del jirón: con 0.42 su
+## canto de abajo queda justo bajo el agua, así que el corte cae donde la
+## densidad ya se está muriendo y no se ve.
+const NIEBLA_Y := 0.42
 const NIEBLA_DENTRO := 0.45
 ## Tinte de toda la niebla: blanco FRÍO, que es lo que la separa del blanco
 ## cálido de la espuma del mar.
@@ -377,8 +396,8 @@ const NIEBLA_TINTE := Color(0.84, 0.89, 0.98)
 
 
 func _niebla_cueva(pos: Vector3, foot: float) -> void:
-	var tex := load(NIEBLA_TEX)
-	if tex == null:
+	var sh := load(NIEBLA_SHADER)
+	if sh == null:
 		return
 	var quad := QuadMesh.new()
 
@@ -386,7 +405,7 @@ func _niebla_cueva(pos: Vector3, foot: float) -> void:
 	for i in MANTO_LADO.size():
 		var mi := MeshInstance3D.new()
 		mi.mesh = quad
-		mi.material_override = _mat_niebla(tex, float(MANTO_ALFA[i]))
+		mi.material_override = _mat_niebla(sh, float(MANTO_ALFA[i]))
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.add_to_group("no_batch")
 		var lado: float = foot * float(MANTO_LADO[i])
@@ -405,18 +424,19 @@ func _niebla_cueva(pos: Vector3, foot: float) -> void:
 	for i in NIEBLA_N:
 		var mi := MeshInstance3D.new()
 		mi.mesh = quad
-		mi.material_override = _mat_niebla(tex, NIEBLA_ALFA, true)
+		mi.material_override = _mat_niebla(sh, NIEBLA_ALFA, true)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.add_to_group("no_batch")
 		# Cada jirón, de su tamaño: todos iguales se leen como una rueda.
 		var escala: float = foot * NIEBLA_LADO * (0.8 + 0.2 * float(i % 3))
-		mi.scale = Vector3(escala, escala * 0.58, 1.0)
+		var alto: float = escala * NIEBLA_APLANE
+		mi.scale = Vector3(escala, alto, 1.0)
 		add_child(mi)
 		mi.set_meta("centro", pos)
 		mi.set_meta("radio", foot * NIEBLA_R)
 		mi.set_meta("fase", TAU * float(i) / float(NIEBLA_N))
 		mi.set_meta("giro", TAU / NIEBLA_VUELTA)
-		mi.set_meta("y0", NIEBLA_Y * foot)
+		mi.set_meta("y0", alto * NIEBLA_Y)
 		# Los pares pasan POR DELANTE de la roca; los impares, por detrás.
 		mi.set_meta("dentro", (NIEBLA_DENTRO * foot) if i % 2 == 0 else 0.0)
 		# Balanceo vertical propio, para que no suban y bajen a la vez.
@@ -427,17 +447,42 @@ func _niebla_cueva(pos: Vector3, foot: float) -> void:
 	_mover_niebla()
 
 
-func _mat_niebla(tex: Texture2D, alfa: float, cartel := false) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_texture = tex
-	mat.albedo_color = Color(NIEBLA_TINTE.r, NIEBLA_TINTE.g, NIEBLA_TINTE.b,
-		alfa)
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-	if cartel:
-		mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+## LA ESCALA DEL RUIDO VA EN VUELTAS POR UNIDAD DE MUNDO, así que la manda el
+## tamaño de lo que se quiere ver: la cueva mide 2.7 u de huella, y con la
+## escala a 1 (la del original, pensada para volúmenes grandes) toda la niebla
+## de aquí cabría dentro de una sola celda de ruido y saldría de un gris plano.
+const NIEBLA_ESCALA := 0.55
+## Deriva del campo de niebla, en unidades por segundo. Muy lenta: es bruma,
+## no humo de una chimenea.
+const NIEBLA_DERIVA := Vector3(0.035, 0.012, 0.028)
+
+
+func _mat_niebla(sh: Shader, alfa: float, cartel := false) -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = sh
+	mat.set_shader_parameter("noise_scale", NIEBLA_ESCALA)
+	mat.set_shader_parameter("movement_dir", NIEBLA_DERIVA)
+	mat.set_shader_parameter("density_mult", alfa)
+	mat.set_shader_parameter("albedo_color", NIEBLA_TINTE)
+	mat.set_shader_parameter("cartel", cartel)
+	# Los jirones de pie se deshilachan por arriba; los planos tumbados no
+	# (todos sus píxeles están a la misma altura y la caída no haría nada).
+	# Umbrales de densidad: solo los GRUMOS del ruido pintan. Con el umbral
+	# bajo en 0.30 (el del original) pintaba más de media pasada de ruido y
+	# la niebla salía de un blanco plano en vez de en jirones.
+	mat.set_shader_parameter("umbral_bajo", 0.45)
+	mat.set_shader_parameter("umbral_alto", 0.95)
+	# La muerte hacia el canto empieza pronto: el plano es grande y si el
+	# núcleo a plena densidad ocupa medio cartel, se ve el rectángulo.
+	mat.set_shader_parameter("borde", 0.22)
+	mat.set_shader_parameter("fade_alto", foot_fade(cartel))
+	mat.set_shader_parameter("fade_dist", 1.2)
 	return mat
+
+
+## Altura a la que empieza a deshilacharse un jirón de pie (0 = sin caída).
+func foot_fade(cartel: bool) -> float:
+	return 0.35 if cartel else 0.0
 
 
 
