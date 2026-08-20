@@ -2282,13 +2282,17 @@ func _borrar_anillo(c: Control) -> void:
 ## El reparto sale de lo que hace cada sonido, no de su nombre:
 ## · "Open Bait Box" abre el intento (se saca el cebo) y ABRE EL COFRE, que
 ##   es literalmente abrir una caja.
-## · EL LANZAMIENTO VA RECORTADO: "Casting Line - 4" trae su PROPIO chapoteo
-##   al final (medible en su curva de bitrate: un estallido de 365 kbps a
-##   partir de 1.335 s, y detrás la cola de las ondas), así que sonaban dos
-##   plofs seguidos — el suyo y el de la boya. `tools/ogg_trim.py` deja el
-##   archivo en 1.335 s SIN RECODIFICAR (corta en un límite de página, marca
-##   fin de flujo y recalcula el CRC), y quien pone el plof es la BOYA al
-##   tocar el agua, que además cae donde de verdad cae en pantalla.
+## · EL LANZAMIENTO VA RECORTADO A **0.594 s**, que es su LATIGAZO y nada
+##   más. `tools/ogg_trim.py` lo deja ahí SIN RECODIFICAR (corta en un límite
+##   de página, marca fin de flujo y recalcula el CRC), y el plof lo pone la
+##   BOYA al tocar el agua, que además cae donde de verdad cae en pantalla
+##   (`CAST_TIME` 0.38). "Casting Line - 4" entero dura 2.143 s y trae DOS
+##   cosas de sobra, las dos localizadas en su curva de bitrate: su PROPIO
+##   chapoteo (un estallido de 365 kbps desde 1.335 s, con la cola de las
+##   ondas detrás a 33), que sonaba doble con el de la boya, y antes de él un
+##   tramo flojo de línea saliendo del carrete (0.594-1.335 s, 45 kbps) que
+##   seguía sonando casi un segundo DESPUÉS del plof y se oía como un sonido
+##   aparte. Se probó cortando solo el chapoteo y por eso se sabe.
 ## · "Fish Biting" tiene DOS papeles con tomas distintas: las 2 y 3 para los
 ##   AMAGOS (flojito: es un mordisqueo) y las 1 y 2 para la PICADA de verdad,
 ##   a plena voz. Comparten la 2 a propósito: es la misma boca.

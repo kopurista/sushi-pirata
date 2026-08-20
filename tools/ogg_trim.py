@@ -5,8 +5,9 @@
 #
 #   python tools/ogg_trim.py <origen.ogg> <destino.ogg> <segundos>
 #
-# Se usó para el lanzamiento de la PESCA: "Casting Line - 4" traía su propio
-# chapoteo al final y sonaba doble con el de la boya. El instante del corte NO
+# Se usó para el lanzamiento de la PESCA: "Casting Line - 4" seguía sonando
+# casi un segundo después del plof de la boya (y traía su propio chapoteo al
+# final, que sonaba doble). Se dejó en 0.594 s. El instante del corte NO
 # se elige a ojo — se saca de la CURVA DE BITRATE por páginas (el chapoteo es
 # un estallido de 365 kbps contra los 45 del tramo anterior), que se puede
 # leer sin decodificar nada.

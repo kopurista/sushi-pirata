@@ -1687,19 +1687,28 @@ primera vez que se entra en ellos (`logros_intro_done` /
       era el peor sitio posible para uno; "Line Break (With Throw)" para el
       sedal roto, y el chapoteo de la boya para la presa que se suelta y para
       el pez que sale del agua.
-    · **EL LANZAMIENTO VA RECORTADO** ("Casting Line - 4", la única toma que
-      se usa): traía su PROPIO chapoteo al final, así que sonaban dos plofs
-      seguidos —el suyo y el de la boya— y encima el suyo caía cuando le daba
-      la gana, no cuando la boya toca el agua en pantalla (`CAST_TIME` 0.38).
-      Lo recorta `tools/ogg_trim.py` a 1.335 s **SIN RECODIFICAR**: se queda
-      con las páginas Ogg completas hasta ahí, marca la última con el flag de
-      fin de flujo y le recalcula el CRC, así que no se toca ni un bit de
-      audio y el corte cae en un límite de página (sin chasquido). **El
-      instante NO se elige a ojo**: sale de la CURVA DE BITRATE por páginas,
-      que se lee sin decodificar nada — el chapoteo es un estallido de 365
-      kbps contra los 45 del tramo anterior, y detrás va la cola de las ondas
-      a 33. La misma firma que tiene "Bobber Lands in Water" en sus primeras
+    · **EL LANZAMIENTO VA RECORTADO A SU LATIGAZO** ("Casting Line - 4", la
+      única toma que se usa): dura 2.143 s y trae DOS cosas de sobra. La
+      primera es su PROPIO chapoteo, así que sonaban dos plofs seguidos —el
+      suyo y el de la boya— y encima el suyo caía cuando le daba la gana, no
+      cuando la boya toca el agua en pantalla (`CAST_TIME` 0.38). La segunda,
+      **y esta se descubrió jugando**, es el tramo flojo de línea saliendo
+      del carrete que va justo antes: cortando solo el chapoteo, ese tramo
+      seguía sonando **0.95 s DESPUÉS** del plof y se oía como un sonido
+      aparte, sin que nada en pantalla lo justificara. Por eso el corte va en
+      **0.594 s**: el latigazo y se acabó.
+      Lo recorta `tools/ogg_trim.py` **SIN RECODIFICAR**: se queda con las
+      páginas Ogg completas hasta ahí, marca la última con el flag de fin de
+      flujo y le recalcula el CRC, así que no se toca ni un bit de audio y el
+      corte cae en un límite de página. **El instante NO se elige a ojo**:
+      sale de la CURVA DE BITRATE por páginas, que se lee sin decodificar
+      nada — el latigazo va a 160-188 kbps, la línea del carrete cae a 45 y
+      el chapoteo es un estallido de 365 con la cola de las ondas detrás a
+      33. La misma firma que tiene "Bobber Lands in Water" en sus primeras
       décimas, que es como se confirmó qué era ese pico.
+      **Y el .ogg recortado hay que REIMPORTARLO** (`--headless --import`) o
+      el juego sigue sirviendo el `.oggvorbisstr` viejo y parece que el
+      cambio no ha hecho nada, la misma trampa que las texturas de un `.glb`.
     · **El plof lo pone ahora la BOYA** ("Bobber Lands in Water - 2", familia
       `boya`, una sola toma) al terminar el vuelo del sedal; los chapoteos de
       la presa que se suelta y del pez que sale del agua viven en su propia
