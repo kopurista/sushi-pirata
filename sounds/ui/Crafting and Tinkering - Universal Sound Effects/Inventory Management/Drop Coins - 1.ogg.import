@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://b6eetqcq5jssv"
+path="res://.godot/imported/Drop Coins - 1.ogg-fd5470beae7d4018261af7cd8975f4ce.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/Crafting and Tinkering - Universal Sound Effects/Inventory Management/Drop Coins - 1.ogg"
+dest_files=["res://.godot/imported/Drop Coins - 1.ogg-fd5470beae7d4018261af7cd8975f4ce.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

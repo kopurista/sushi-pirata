@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://ckdl1o0h0lya8"
+path="res://.godot/imported/UI2_Window_Close_1.ogg-47aa3affc179750c5e256855e9f71574.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 2 - Universal Sound Effects/OGG/UI2_Window_Close_1.ogg"
+dest_files=["res://.godot/imported/UI2_Window_Close_1.ogg-47aa3affc179750c5e256855e9f71574.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

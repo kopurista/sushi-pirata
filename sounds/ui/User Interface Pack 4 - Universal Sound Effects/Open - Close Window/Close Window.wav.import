@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://kykmgcnystts"
+path="res://.godot/imported/Close Window.wav-88f9a42b4ee8812411ec33b98c28f246.sample"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 4 - Universal Sound Effects/Open - Close Window/Close Window.wav"
+dest_files=["res://.godot/imported/Close Window.wav-88f9a42b4ee8812411ec33b98c28f246.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

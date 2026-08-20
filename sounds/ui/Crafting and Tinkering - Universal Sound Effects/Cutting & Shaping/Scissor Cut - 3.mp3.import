@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://dw1wi5xa1du7f"
+path="res://.godot/imported/Scissor Cut - 3.mp3-c95a3c2e0b017b30bf90a46c13a7c76d.mp3str"
+
+[deps]
+
+source_file="res://sounds/ui/Crafting and Tinkering - Universal Sound Effects/Cutting & Shaping/Scissor Cut - 3.mp3"
+dest_files=["res://.godot/imported/Scissor Cut - 3.mp3-c95a3c2e0b017b30bf90a46c13a7c76d.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

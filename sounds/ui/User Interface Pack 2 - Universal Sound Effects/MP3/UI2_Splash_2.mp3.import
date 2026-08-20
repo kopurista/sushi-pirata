@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://dsk4dd8wi61vf"
+path="res://.godot/imported/UI2_Splash_2.mp3-86e610f8e408d001698f808b02f1eef0.mp3str"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 2 - Universal Sound Effects/MP3/UI2_Splash_2.mp3"
+dest_files=["res://.godot/imported/UI2_Splash_2.mp3-86e610f8e408d001698f808b02f1eef0.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

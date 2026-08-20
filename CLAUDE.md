@@ -1674,19 +1674,33 @@ primera vez que se entra en ellos (`logros_intro_done` /
     · Reparto por lo que HACE cada sonido, no por su nombre (**las tomas
       concretas las eligió el usuario a oído, no re-barajarlas**): "Open Bait
       Box" abre el intento (se saca el cebo) y ABRE EL COFRE —es literalmente
-      abrir una caja—; "Fish Biting" tiene DOS papeles con tomas distintas
-      (las **2 y 3** para los AMAGOS, flojitas porque es un mordisqueo, y las
-      **1 y 2** a plena voz para la PICADA: comparten la 2 a propósito,
-      porque es la misma boca); "Reeling in Fishing Rod" es el carrete en sus
-      dos usos —la **1** para recoger el sedal ANTES de que pique y la **2**
-      en bucle para la pelea, esa misma a pitch **1.45** en el TIRÓN (en
-      Godot el pitch corre además más rápido, que es lo que se busca)—;
-      **"Moving Line Closer - 1" es el SEDAL SUELTO en plena pelea**, con el
-      dedo levantado: ahí no se recoge nada, es el pez quien se lleva línea y
-      es justo cuando su barra sube, así que el hueco de silencio que había
-      era el peor sitio posible para uno; "Line Break (With Throw)" para el
-      sedal roto, y el chapoteo de la boya para la presa que se suelta y para
-      el pez que sale del agua.
+      abrir una caja—; "Fish Biting" (**2 y 3**) son los AMAGOS y nada más,
+      flojitas porque es un mordisqueo; "Line Break (With Throw)" el sedal
+      roto.
+    · **EL CARRETE SE PARTE POR QUIÉN LO MUEVE**, que es lo que de verdad
+      distingue los dos momentos de la pelea: "Reeling in Fishing Rod - **1**"
+      es el carrete que maneja EL JUGADOR (recoger el sedal antes de la
+      picada, y la pelea mientras mantiene el dedo; en el TIRÓN esa misma a
+      pitch **1.45**, que en Godot corre además más rápido) y la "**2**" es el
+      carrete que se lleva EL PEZ, con el sedal suelto: ahí no se recoge nada
+      y es justo cuando la barra de la presa sube.
+    · **Y LA DEL PEZ LLEVA ARRANQUE**: empieza floja y coge ritmo, así que su
+      primer tramo suena UNA vez y el bucle vuelve a **0.845 s**, que es
+      donde ya va a ritmo constante. Lo hace el motor con `loop_offset` (el
+      `desde` de `SoundBank.loop_on`), sin partir el .ogg en dos ni encadenar
+      reproductores. Va además **recortada a 1.779 s** con `ogg_trim.py`: su
+      cola vuelve a frenar y en un bucle sonaría como un carrete que se para
+      y arranca en cada vuelta. Los dos instantes salen de la **densidad de
+      PAQUETES** del .ogg —en Vorbis un transitorio fuerza bloques cortos, así
+      que los paquetes por segundo son el ritmo del carrete— y se leen sin
+      decodificar nada: 155 paq/s al arrancar, 220-255 en el tramo bueno y de
+      vuelta a 155 en la cola.
+    · **LA PICADA NO ES UNA BOCA, ES AGUA** (decidido por el usuario): suena
+      el MISMO chapoteo que cuando el pez se suelta, y lo único que los separa
+      es el TONO — `PITCH_PICADA` 0.85, `PITCH_SUELTA` **0.65** (el mismo
+      golpe más grave, que es lo que lo hace sonar a derrota) y
+      `PITCH_COBRADO` 0.8 para el pez que sale del agua. Los tres salen de la
+      familia `chapoteo` (las dos tomas de la boya).
     · **EL LANZAMIENTO VA RECORTADO A SU LATIGAZO** ("Casting Line - 4", la
       única toma que se usa): dura 2.143 s y trae DOS cosas de sobra. La
       primera es su PROPIO chapoteo, así que sonaban dos plofs seguidos —el

@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://cpd0dkwbu0hde"
+path="res://.godot/imported/Open Rusty Box - 2.wav-61b9d0370e38d598f7fcd8f731a573e0.sample"
+
+[deps]
+
+source_file="res://sounds/ui/Loot & Inventory SFX Pack 1/WAV/Open Rusty Box - 2.wav"
+dest_files=["res://.godot/imported/Open Rusty Box - 2.wav-61b9d0370e38d598f7fcd8f731a573e0.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://clle2na10cmbk"
+path="res://.godot/imported/Click - Activate 1.ogg-c0004b26bde5177f45217439ba9a0b5c.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 4 - Universal Sound Effects/Click - Activate/Click - Activate 1.ogg"
+dest_files=["res://.godot/imported/Click - Activate 1.ogg-c0004b26bde5177f45217439ba9a0b5c.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

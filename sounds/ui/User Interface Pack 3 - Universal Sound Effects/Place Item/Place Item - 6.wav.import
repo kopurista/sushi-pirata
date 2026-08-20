@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://bbii2783am7uw"
+path="res://.godot/imported/Place Item - 6.wav-35d34b7584430e4a4ef40c53afaeae67.sample"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 3 - Universal Sound Effects/Place Item/Place Item - 6.wav"
+dest_files=["res://.godot/imported/Place Item - 6.wav-35d34b7584430e4a4ef40c53afaeae67.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://cqy2l7etp7k4n"
+path="res://.godot/imported/Achievement - Trophy 1.wav-01c612cc3609b4fb977ed370a49eeba6.sample"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 4 - Universal Sound Effects/Achievement - Trophy/Achievement - Trophy 1.wav"
+dest_files=["res://.godot/imported/Achievement - Trophy 1.wav-01c612cc3609b4fb977ed370a49eeba6.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

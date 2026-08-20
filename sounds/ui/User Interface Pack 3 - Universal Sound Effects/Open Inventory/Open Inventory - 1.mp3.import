@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://td1us6nuiimw"
+path="res://.godot/imported/Open Inventory - 1.mp3-4dcf1276714b638c4bd42c96a21d9a9c.mp3str"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 3 - Universal Sound Effects/Open Inventory/Open Inventory - 1.mp3"
+dest_files=["res://.godot/imported/Open Inventory - 1.mp3-4dcf1276714b638c4bd42c96a21d9a9c.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -963,7 +963,7 @@ func _start_approach() -> void:
 
 
 func _enter_bite() -> void:
-	snd.play("picada", SND_EFECTO)
+	snd.play("chapoteo", SND_EFECTO, PITCH_PICADA)
 	bite_t = BITE_WINDOW
 	bite_sink = 0.0
 	# La picada de verdad: el pez se queda ADELANTADO, con la boca en el
@@ -1133,7 +1133,7 @@ func _escaped(motivo: String) -> void:
 		if motivo.contains("sedal"):
 			snd.play("rotura", SND_EFECTO)
 		else:
-			snd.play("chapoteo", SND_EFECTO, 0.85)
+			snd.play("chapoteo", SND_EFECTO, PITCH_SUELTA)
 	holding = false
 	_set_rush(false)
 	instruction.text = motivo
@@ -1150,7 +1150,7 @@ func _land_catch() -> void:
 	# El pez sale del agua: chapoteo grave y ancho.
 	if snd != null:
 		snd.todos_los_bucles_off()
-		snd.play("chapoteo", SND_EFECTO + 2.0, 0.8)
+		snd.play("chapoteo", SND_EFECTO + 2.0, PITCH_COBRADO)
 	holding = false
 	_set_rush(false)
 	instruction.text = ""
@@ -2293,15 +2293,18 @@ func _borrar_anillo(c: Control) -> void:
 ##   tramo flojo de línea saliendo del carrete (0.594-1.335 s, 45 kbps) que
 ##   seguía sonando casi un segundo DESPUÉS del plof y se oía como un sonido
 ##   aparte. Se probó cortando solo el chapoteo y por eso se sabe.
-## · "Fish Biting" tiene DOS papeles con tomas distintas: las 2 y 3 para los
-##   AMAGOS (flojito: es un mordisqueo) y las 1 y 2 para la PICADA de verdad,
-##   a plena voz. Comparten la 2 a propósito: es la misma boca.
-## · "Reeling in Fishing Rod" es el carrete en sus dos usos: la toma 1 para
-##   RECOGER el sedal antes de que pique, y la 2 en bucle para la PELEA (y en
+## · "Fish Biting" (tomas 2 y 3) son los AMAGOS y nada más: mordisqueos, y por
+##   eso van flojitos. La PICADA de verdad NO es una boca, es AGUA: el mismo
+##   chapoteo del pez que se suelta, que es lo que hace que los dos momentos
+##   se reconozcan como la misma cosa vista al derecho y al revés.
+## · "Reeling in Fishing Rod - 1" es el carrete que MANEJA EL JUGADOR: recoger
+##   el sedal antes de que pique y la PELEA mientras se mantiene el dedo (y en
 ##   el TIRÓN, esa misma a más pitch, que en Godot corre además más rápido).
-## · "Moving Line Closer - 1" es el SEDAL SUELTO en plena pelea: con el dedo
-##   levantado no se recoge nada y es el pez quien se lleva línea, que es
-##   justo cuando su barra sube. Antes ahí no sonaba nada.
+## · "Reeling in Fishing Rod - 2" es el carrete que se lleva EL PEZ, con el
+##   sedal suelto en plena pelea: ahí no se recoge nada, es el pez quien tira
+##   y es justo cuando su barra sube. Va con ARRANQUE (`SUELTO_DESDE`) y
+##   recortado a 1.779 s: su cola vuelve a frenar y en un bucle sonaría como
+##   un carrete que se para y arranca en cada vuelta.
 ## · "Line Break (With Throw)" para el sedal roto —la toma con el latigazo—
 ##   y el chapoteo de la boya para cuando la presa se suelta y para el pez
 ##   que sale del agua.
@@ -2317,7 +2320,10 @@ const SND := {
 	"boya": [
 		"res://sounds/pesca/Bobber Lands in Water - 2.ogg",
 	],
-	# Chapoteos de la presa que se suelta y del pez que sale del agua.
+	# EL MISMO chapoteo para los tres momentos de agua removida, y lo que los
+	# distingue es el TONO (ver `PITCH_*`): la PICADA, el pez que se SUELTA
+	# —el mismo golpe pero más grave, que es lo que lo hace sonar a derrota— y
+	# el pez que sale del agua al cobrarlo.
 	"chapoteo": [
 		"res://sounds/pesca/Bobber Lands in Water - 1.ogg",
 		"res://sounds/pesca/Bobber Lands in Water - 2.ogg",
@@ -2326,19 +2332,16 @@ const SND := {
 		"res://sounds/pesca/Fish Biting - 2.ogg",
 		"res://sounds/pesca/Fish Biting - 3.ogg",
 	],
-	"picada": [
-		"res://sounds/pesca/Fish Biting - 1.ogg",
-		"res://sounds/pesca/Fish Biting - 2.ogg",
-	],
 	"recoger": [
 		"res://sounds/pesca/Reeling in Fishing Rod - 1.ogg",
 	],
 	"carrete": [
-		"res://sounds/pesca/Reeling in Fishing Rod - 2.ogg",
+		"res://sounds/pesca/Reeling in Fishing Rod - 1.ogg",
 	],
-	# El sedal SUELTO con el pez tirando: se lleva línea, no se recoge.
+	# El sedal SUELTO con el pez tirando: se lleva línea, no se recoge. Va
+	# recortado y con ARRANQUE (ver `SUELTO_DESDE`).
 	"suelto": [
-		"res://sounds/pesca/Moving Line Closer - 1.ogg",
+		"res://sounds/pesca/Reeling in Fishing Rod - 2 (bucle).ogg",
 	],
 	"rotura": [
 		"res://sounds/pesca/Line Break - 1 (With Throw).ogg",
@@ -2352,6 +2355,21 @@ const SND := {
 const SND_EFECTO := -4.0
 const SND_BUCLE := -11.0
 const SND_AMAGO := -13.0
+
+## Los tres chapoteos, por tono. La PICADA es la referencia; la presa que se
+## SUELTA es el mismo golpe más grave (un plof pesado, de derrota) y el pez
+## cobrado va entre medias y con más cuerpo.
+const PITCH_PICADA := 0.85
+const PITCH_SUELTA := 0.65
+const PITCH_COBRADO := 0.8
+
+## El carrete del sedal suelto ARRANCA DESPACIO: "Reeling in Fishing Rod - 2"
+## empieza flojo y coge ritmo, así que su primer tramo suena UNA vez y el
+## bucle vuelve solo a este segundo, que es el que va a ritmo constante. El
+## punto NO se elige a ojo: sale de la densidad de PAQUETES del .ogg, que
+## delata los transitorios sin decodificar nada (155 paquetes/s al principio
+## contra 220-255 a partir de aquí).
+const SUELTO_DESDE := 0.845
 
 
 func _setup_audio() -> void:
@@ -2381,4 +2399,4 @@ func _audio_pelea(en_velocidad: bool) -> void:
 		# aquí era justo el momento en que la barra de la presa sube, o sea
 		# lo único que no se puede dejar de oír.
 		snd.loop_off("carrete")
-		snd.loop_on("suelto", SND_BUCLE)
+		snd.loop_on("suelto", SND_BUCLE, 1.0, SUELTO_DESDE)

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dqv2elivem4bl"
+path="res://.godot/imported/Hammering Metal - 2.ogg-810389f2414a3cfbf8c7b70f55a885fb.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/Crafting and Tinkering - Universal Sound Effects/Metal Work/Hammering Metal - 2.ogg"
+dest_files=["res://.godot/imported/Hammering Metal - 2.ogg-810389f2414a3cfbf8c7b70f55a885fb.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

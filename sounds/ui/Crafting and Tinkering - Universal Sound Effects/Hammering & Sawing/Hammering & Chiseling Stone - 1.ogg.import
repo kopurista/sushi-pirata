@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://f65tlt6pn4ik"
+path="res://.godot/imported/Hammering & Chiseling Stone - 1.ogg-9bc7e204ee5802db33c34b3692163b0c.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/Crafting and Tinkering - Universal Sound Effects/Hammering & Sawing/Hammering & Chiseling Stone - 1.ogg"
+dest_files=["res://.godot/imported/Hammering & Chiseling Stone - 1.ogg-9bc7e204ee5802db33c34b3692163b0c.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

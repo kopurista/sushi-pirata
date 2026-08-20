@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://dsphocy5gpsqr"
+path="res://.godot/imported/UI2_Error_1.wav-f31e62a6ed462d4079f70442e4cbaa8c.sample"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 2 - Universal Sound Effects/WAV/UI2_Error_1.wav"
+dest_files=["res://.godot/imported/UI2_Error_1.wav-f31e62a6ed462d4079f70442e4cbaa8c.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

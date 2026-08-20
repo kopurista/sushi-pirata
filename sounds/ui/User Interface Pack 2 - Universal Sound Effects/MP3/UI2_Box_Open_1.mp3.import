@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://ctolmcsi6b8x3"
+path="res://.godot/imported/UI2_Box_Open_1.mp3-d2bbf3ef8600351155d4363eb288564b.mp3str"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 2 - Universal Sound Effects/MP3/UI2_Box_Open_1.mp3"
+dest_files=["res://.godot/imported/UI2_Box_Open_1.mp3-d2bbf3ef8600351155d4363eb288564b.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

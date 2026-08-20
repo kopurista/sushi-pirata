@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://dw1sij01hmsps"
+path="res://.godot/imported/Hammering Metal - 1.mp3-bf6c27a73d133b1f3a2824af7bf6deea.mp3str"
+
+[deps]
+
+source_file="res://sounds/ui/Crafting and Tinkering - Universal Sound Effects/Metal Work/Hammering Metal - 1.mp3"
+dest_files=["res://.godot/imported/Hammering Metal - 1.mp3-bf6c27a73d133b1f3a2824af7bf6deea.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

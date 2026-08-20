@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://cfdnvrw23aqs6"
+path="res://.godot/imported/Item Pickup (Alternate) - 3.wav-9e1138f1659c6c121ed22c245450a664.sample"
+
+[deps]
+
+source_file="res://sounds/ui/Loot & Inventory SFX Pack 1/WAV/Item Pickup (Alternate) - 3.wav"
+dest_files=["res://.godot/imported/Item Pickup (Alternate) - 3.wav-9e1138f1659c6c121ed22c245450a664.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://dx47vhs0cud2"
+path="res://.godot/imported/Coins - Small Pile - 5.mp3-c492b3782bce91cdf312637c4d15f83a.mp3str"
+
+[deps]
+
+source_file="res://sounds/ui/Loot & Inventory SFX Pack 1/MP3/Coins - Small Pile - 5.mp3"
+dest_files=["res://.godot/imported/Coins - Small Pile - 5.mp3-c492b3782bce91cdf312637c4d15f83a.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

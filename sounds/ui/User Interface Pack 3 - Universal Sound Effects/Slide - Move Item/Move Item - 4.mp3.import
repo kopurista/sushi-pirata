@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://dljbb0xd1ucb6"
+path="res://.godot/imported/Move Item - 4.mp3-1420ec2770091a613fee3a899087259a.mp3str"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 3 - Universal Sound Effects/Slide - Move Item/Move Item - 4.mp3"
+dest_files=["res://.godot/imported/Move Item - 4.mp3-1420ec2770091a613fee3a899087259a.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

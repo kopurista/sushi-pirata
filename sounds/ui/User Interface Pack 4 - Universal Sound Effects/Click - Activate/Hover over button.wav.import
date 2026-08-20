@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://kcprbw3blky2"
+path="res://.godot/imported/Hover over button.wav-e7ec97ea15595bbcfbb8cbf9f7288bca.sample"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 4 - Universal Sound Effects/Click - Activate/Hover over button.wav"
+dest_files=["res://.godot/imported/Hover over button.wav-e7ec97ea15595bbcfbb8cbf9f7288bca.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

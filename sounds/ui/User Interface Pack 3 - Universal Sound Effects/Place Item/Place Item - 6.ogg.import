@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://blyvr64r2ud55"
+path="res://.godot/imported/Place Item - 6.ogg-3eff8b40f0e5f78b92ff81fd0efaae3c.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 3 - Universal Sound Effects/Place Item/Place Item - 6.ogg"
+dest_files=["res://.godot/imported/Place Item - 6.ogg-3eff8b40f0e5f78b92ff81fd0efaae3c.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

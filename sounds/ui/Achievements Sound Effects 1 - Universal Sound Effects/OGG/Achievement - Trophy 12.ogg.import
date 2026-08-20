@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://ic5gf84qkhh2"
+path="res://.godot/imported/Achievement - Trophy 12.ogg-884228a74a88729fed5cdf016e590b89.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/Achievements Sound Effects 1 - Universal Sound Effects/OGG/Achievement - Trophy 12.ogg"
+dest_files=["res://.godot/imported/Achievement - Trophy 12.ogg-884228a74a88729fed5cdf016e590b89.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

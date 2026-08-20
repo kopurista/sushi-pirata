@@ -73,7 +73,15 @@ func play(familia: String, volumen_db := 0.0, pitch := 1.0) -> void:
 
 ## Enciende un BUCLE (o le cambia el tono si ya sonaba). Cada bucle tiene su
 ## reproductor, así que el carrete y la recogida no se pisan.
-func loop_on(familia: String, volumen_db := 0.0, pitch := 1.0) -> void:
+##
+## `desde` es el punto (en segundos) AL QUE VUELVE el sonido al llegar al
+## final, no por donde empieza: con él, la cabeza del archivo suena UNA sola
+## vez y a partir de ahí se repite solo la cola. Es lo que necesita un sonido
+## con ARRANQUE —el carrete de la pesca empieza despacio y va cogiendo
+## ritmo—, y lo resuelve el propio motor (`loop_offset`), así que no hay que
+## partir el .ogg en dos ni encadenar reproductores.
+func loop_on(familia: String, volumen_db := 0.0, pitch := 1.0,
+		desde := 0.0) -> void:
 	if not _familias.has(familia):
 		return
 	var p: AudioStreamPlayer = _bucles.get(familia)
@@ -88,6 +96,7 @@ func loop_on(familia: String, volumen_db := 0.0, pitch := 1.0) -> void:
 		var s: AudioStream = _familias[familia][0].duplicate()
 		if s is AudioStreamOggVorbis:
 			s.loop = true
+			s.loop_offset = desde
 		p.stream = s
 	p.volume_db = volumen_db
 	p.pitch_scale = pitch

@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://d4d8qk43budc8"
+path="res://.godot/imported/Coins - Small Pile - 5.wav-60fcaedb14629d670df0c9f68432a25b.sample"
+
+[deps]
+
+source_file="res://sounds/ui/Loot & Inventory SFX Pack 1/WAV/Coins - Small Pile - 5.wav"
+dest_files=["res://.godot/imported/Coins - Small Pile - 5.wav-60fcaedb14629d670df0c9f68432a25b.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

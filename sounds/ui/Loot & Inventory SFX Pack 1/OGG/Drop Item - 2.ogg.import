@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://clk40g38q5ghq"
+path="res://.godot/imported/Drop Item - 2.ogg-605def6c7ce80de5070db63c7085d78b.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/Loot & Inventory SFX Pack 1/OGG/Drop Item - 2.ogg"
+dest_files=["res://.godot/imported/Drop Item - 2.ogg-605def6c7ce80de5070db63c7085d78b.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

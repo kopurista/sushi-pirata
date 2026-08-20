@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://cfkgsiv6y3a73"
+path="res://.godot/imported/Typing Sound - 6.mp3-c29c22b2dd16b2f6a458a808f17e40bf.mp3str"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 3 - Universal Sound Effects/Typing/Typing Sound - 6.mp3"
+dest_files=["res://.godot/imported/Typing Sound - 6.mp3-c29c22b2dd16b2f6a458a808f17e40bf.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dq3llifkccx0k"
+path="res://.godot/imported/Equip Armour - 1.ogg-d07ffb00d2151b38f9506c46e4048e0f.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/Loot & Inventory SFX Pack 1/OGG/Equip Armour - 1.ogg"
+dest_files=["res://.godot/imported/Equip Armour - 1.ogg-d07ffb00d2151b38f9506c46e4048e0f.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

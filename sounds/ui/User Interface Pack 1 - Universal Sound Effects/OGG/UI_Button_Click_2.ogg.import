@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://pbfenysflvo2"
+path="res://.godot/imported/UI_Button_Click_2.ogg-fc0075b2c70a46f74646b548de89f6c2.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 1 - Universal Sound Effects/OGG/UI_Button_Click_2.ogg"
+dest_files=["res://.godot/imported/UI_Button_Click_2.ogg-fc0075b2c70a46f74646b548de89f6c2.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

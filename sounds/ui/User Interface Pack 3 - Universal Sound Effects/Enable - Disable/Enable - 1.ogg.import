@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://clayifs20xbvp"
+path="res://.godot/imported/Enable - 1.ogg-da9a133cf1a5b1cfa8c62590f286448a.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 3 - Universal Sound Effects/Enable - Disable/Enable - 1.ogg"
+dest_files=["res://.godot/imported/Enable - 1.ogg-da9a133cf1a5b1cfa8c62590f286448a.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://csbvjs4ske4jp"
+path="res://.godot/imported/Scissor Cut - 4.ogg-c2fd2e4f337a6d47a0eccc8aa5f00114.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/Crafting and Tinkering - Universal Sound Effects/Cutting & Shaping/Scissor Cut - 4.ogg"
+dest_files=["res://.godot/imported/Scissor Cut - 4.ogg-c2fd2e4f337a6d47a0eccc8aa5f00114.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

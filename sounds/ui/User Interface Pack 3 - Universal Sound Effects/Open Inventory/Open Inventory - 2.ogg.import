@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://b3ofxp3lyy7n3"
+path="res://.godot/imported/Open Inventory - 2.ogg-8e9b3759322ab59e5e6aab61e8186396.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 3 - Universal Sound Effects/Open Inventory/Open Inventory - 2.ogg"
+dest_files=["res://.godot/imported/Open Inventory - 2.ogg-8e9b3759322ab59e5e6aab61e8186396.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

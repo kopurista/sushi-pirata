@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://bdbugwshgmey8"
+path="res://.godot/imported/Typing Sound - 3.ogg-4531c1d6da009ce05a56990e428b15f4.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 3 - Universal Sound Effects/Typing/Typing Sound - 3.ogg"
+dest_files=["res://.godot/imported/Typing Sound - 3.ogg-4531c1d6da009ce05a56990e428b15f4.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

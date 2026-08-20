@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://cu33xej35p188"
+path="res://.godot/imported/Start - Confirm 2 Alternate.wav-6d0ac34b68421524945d131b9f0e7f0f.sample"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 4 - Universal Sound Effects/Start - Confirm/Start - Confirm 2 Alternate.wav"
+dest_files=["res://.godot/imported/Start - Confirm 2 Alternate.wav-6d0ac34b68421524945d131b9f0e7f0f.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://b6s5lo8twfdi1"
+path="res://.godot/imported/Pick Up Coins - 1.ogg-717565456f3b6a28b12d59436e2dc25c.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/Crafting and Tinkering - Universal Sound Effects/Inventory Management/Pick Up Coins - 1.ogg"
+dest_files=["res://.godot/imported/Pick Up Coins - 1.ogg-717565456f3b6a28b12d59436e2dc25c.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

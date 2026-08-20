@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://ciausddt2qc67"
+path="res://.godot/imported/Pick Up Coins - 1.wav-e18d68651f520da7fd443953ea4c5284.sample"
+
+[deps]
+
+source_file="res://sounds/ui/Crafting and Tinkering - Universal Sound Effects/Inventory Management/Pick Up Coins - 1.wav"
+dest_files=["res://.godot/imported/Pick Up Coins - 1.wav-e18d68651f520da7fd443953ea4c5284.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

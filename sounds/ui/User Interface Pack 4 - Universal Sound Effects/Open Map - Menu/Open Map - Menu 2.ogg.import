@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://bj8f3yhru05t6"
+path="res://.godot/imported/Open Map - Menu 2.ogg-90d5a81190ab7e76130f31d42a65b438.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 4 - Universal Sound Effects/Open Map - Menu/Open Map - Menu 2.ogg"
+dest_files=["res://.godot/imported/Open Map - Menu 2.ogg-90d5a81190ab7e76130f31d42a65b438.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

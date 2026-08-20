@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://b6dsc7gkrbo7h"
+path="res://.godot/imported/Start - Confirm 2 Alternate.ogg-56f37b10b3c0f7675e061f2db991e4fb.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 4 - Universal Sound Effects/Start - Confirm/Start - Confirm 2 Alternate.ogg"
+dest_files=["res://.godot/imported/Start - Confirm 2 Alternate.ogg-56f37b10b3c0f7675e061f2db991e4fb.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

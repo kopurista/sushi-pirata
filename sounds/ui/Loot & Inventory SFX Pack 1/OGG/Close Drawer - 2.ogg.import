@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://7b00nstiwbq3"
+path="res://.godot/imported/Close Drawer - 2.ogg-f961b2352391115b82e687f2b164fffc.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/Loot & Inventory SFX Pack 1/OGG/Close Drawer - 2.ogg"
+dest_files=["res://.godot/imported/Close Drawer - 2.ogg-f961b2352391115b82e687f2b164fffc.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://b5gp467ki8wll"
+path="res://.godot/imported/Error 3.ogg-c67aaf1370fe47ceaed7c84b4f9024e7.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 4 - Universal Sound Effects/Error/Error 3.ogg"
+dest_files=["res://.godot/imported/Error 3.ogg-c67aaf1370fe47ceaed7c84b4f9024e7.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

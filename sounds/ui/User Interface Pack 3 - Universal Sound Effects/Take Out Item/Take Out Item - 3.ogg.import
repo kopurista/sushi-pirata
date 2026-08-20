@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://cnrp8sx7sbf6l"
+path="res://.godot/imported/Take Out Item - 3.ogg-e9a12b923d27d79802457a3c01658945.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 3 - Universal Sound Effects/Take Out Item/Take Out Item - 3.ogg"
+dest_files=["res://.godot/imported/Take Out Item - 3.ogg-e9a12b923d27d79802457a3c01658945.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

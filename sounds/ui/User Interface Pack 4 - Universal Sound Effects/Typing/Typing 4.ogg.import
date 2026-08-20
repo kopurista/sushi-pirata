@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://cj384pmulge1r"
+path="res://.godot/imported/Typing 4.ogg-49fea2091db10e9afbb7c926ff07fd04.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 4 - Universal Sound Effects/Typing/Typing 4.ogg"
+dest_files=["res://.godot/imported/Typing 4.ogg-49fea2091db10e9afbb7c926ff07fd04.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://b265c355e80n7"
+path="res://.godot/imported/UI_Puzzle_Game_10.ogg-645f6203c2f5ac2b8c826b60346b12c1.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 1 - Universal Sound Effects/OGG/UI_Puzzle_Game_10.ogg"
+dest_files=["res://.godot/imported/UI_Puzzle_Game_10.ogg-645f6203c2f5ac2b8c826b60346b12c1.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

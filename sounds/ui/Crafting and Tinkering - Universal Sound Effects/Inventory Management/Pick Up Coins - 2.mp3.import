@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://b0g52b8j33nm2"
+path="res://.godot/imported/Pick Up Coins - 2.mp3-a87fc0fafde71854e014d04c0b23ea3c.mp3str"
+
+[deps]
+
+source_file="res://sounds/ui/Crafting and Tinkering - Universal Sound Effects/Inventory Management/Pick Up Coins - 2.mp3"
+dest_files=["res://.godot/imported/Pick Up Coins - 2.mp3-a87fc0fafde71854e014d04c0b23ea3c.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

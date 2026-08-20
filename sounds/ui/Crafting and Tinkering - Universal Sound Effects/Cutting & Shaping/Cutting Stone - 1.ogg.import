@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dxbwa57va5wy"
+path="res://.godot/imported/Cutting Stone - 1.ogg-da8a9da707604491025bf508f5bca63d.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/Crafting and Tinkering - Universal Sound Effects/Cutting & Shaping/Cutting Stone - 1.ogg"
+dest_files=["res://.godot/imported/Cutting Stone - 1.ogg-da8a9da707604491025bf508f5bca63d.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

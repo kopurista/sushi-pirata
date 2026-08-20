@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://c6nvg5ge2b14k"
+path="res://.godot/imported/Error 2.mp3-eadb119407407c1d44536d6a16f8b864.mp3str"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 4 - Universal Sound Effects/Error/Error 2.mp3"
+dest_files=["res://.godot/imported/Error 2.mp3-eadb119407407c1d44536d6a16f8b864.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

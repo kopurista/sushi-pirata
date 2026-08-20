@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://c8uy0ks46x1xc"
+path="res://.godot/imported/Cutting Cloth & Paper - 1.mp3-6d4803dc0f9687ff64a2cb18c679f46d.mp3str"
+
+[deps]
+
+source_file="res://sounds/ui/Crafting and Tinkering - Universal Sound Effects/Cutting & Shaping/Cutting Cloth & Paper - 1.mp3"
+dest_files=["res://.godot/imported/Cutting Cloth & Paper - 1.mp3-6d4803dc0f9687ff64a2cb18c679f46d.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

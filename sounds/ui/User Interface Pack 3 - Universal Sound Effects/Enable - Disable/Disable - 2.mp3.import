@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://ct657b4lu7ica"
+path="res://.godot/imported/Disable - 2.mp3-409cc8c4030714135b7aed5d2a3492e8.mp3str"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 3 - Universal Sound Effects/Enable - Disable/Disable - 2.mp3"
+dest_files=["res://.godot/imported/Disable - 2.mp3-409cc8c4030714135b7aed5d2a3492e8.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

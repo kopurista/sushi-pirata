@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://cj4hi8pi3jdge"
+path="res://.godot/imported/Enable Sound.mp3-42c3bdf8b56866aa013863eff959a153.mp3str"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 4 - Universal Sound Effects/Enable - Disable/Enable Sound.mp3"
+dest_files=["res://.godot/imported/Enable Sound.mp3-42c3bdf8b56866aa013863eff959a153.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

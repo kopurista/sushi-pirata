@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://toh73tkw6lej"
+path="res://.godot/imported/Pick Up Nails - 1.mp3-74d95d54510c1ad981ca9b4c6e4325d5.mp3str"
+
+[deps]
+
+source_file="res://sounds/ui/Crafting and Tinkering - Universal Sound Effects/Inventory Management/Pick Up Nails - 1.mp3"
+dest_files=["res://.godot/imported/Pick Up Nails - 1.mp3-74d95d54510c1ad981ca9b4c6e4325d5.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://xi0rsintomkn"
+path="res://.godot/imported/Hammering Metal - 4.wav-7bbc74b8d1974f1f4d08cc1c6257a141.sample"
+
+[deps]
+
+source_file="res://sounds/ui/Crafting and Tinkering - Universal Sound Effects/Metal Work/Hammering Metal - 4.wav"
+dest_files=["res://.godot/imported/Hammering Metal - 4.wav-7bbc74b8d1974f1f4d08cc1c6257a141.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

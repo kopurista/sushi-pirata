@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dwjrmq7ry1wyb"
+path="res://.godot/imported/Open Drawer - 1.ogg-80ae5af36d4090a84c8bb22dabba7586.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/Loot & Inventory SFX Pack 1/OGG/Open Drawer - 1.ogg"
+dest_files=["res://.godot/imported/Open Drawer - 1.ogg-80ae5af36d4090a84c8bb22dabba7586.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

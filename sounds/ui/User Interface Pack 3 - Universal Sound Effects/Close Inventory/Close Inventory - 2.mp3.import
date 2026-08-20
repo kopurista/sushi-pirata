@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://cvr7eudy53u0a"
+path="res://.godot/imported/Close Inventory - 2.mp3-957c0787fde3d125ccfe3d8e3b4efbd8.mp3str"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 3 - Universal Sound Effects/Close Inventory/Close Inventory - 2.mp3"
+dest_files=["res://.godot/imported/Close Inventory - 2.mp3-957c0787fde3d125ccfe3d8e3b4efbd8.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

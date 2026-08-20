@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://bciuxesrmf404"
+path="res://.godot/imported/Coins - Single Coin - 3.wav-b28fe7d82d9a066f4c40d8bfef5a8a7b.sample"
+
+[deps]
+
+source_file="res://sounds/ui/Loot & Inventory SFX Pack 1/WAV/Coins - Single Coin - 3.wav"
+dest_files=["res://.godot/imported/Coins - Single Coin - 3.wav-b28fe7d82d9a066f4c40d8bfef5a8a7b.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

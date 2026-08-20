@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://lohacva02fjb"
+path="res://.godot/imported/Move Item - 2.ogg-eb7a235ea3eb7fc2a52057b674a2c34d.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 3 - Universal Sound Effects/Slide - Move Item/Move Item - 2.ogg"
+dest_files=["res://.godot/imported/Move Item - 2.ogg-eb7a235ea3eb7fc2a52057b674a2c34d.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

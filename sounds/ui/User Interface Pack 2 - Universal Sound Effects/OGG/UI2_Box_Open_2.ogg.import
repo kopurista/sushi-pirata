@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://0sbpbmw07v3g"
+path="res://.godot/imported/UI2_Box_Open_2.ogg-daecd43a47109ae3d4ee377d65520c59.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 2 - Universal Sound Effects/OGG/UI2_Box_Open_2.ogg"
+dest_files=["res://.godot/imported/UI2_Box_Open_2.ogg-daecd43a47109ae3d4ee377d65520c59.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

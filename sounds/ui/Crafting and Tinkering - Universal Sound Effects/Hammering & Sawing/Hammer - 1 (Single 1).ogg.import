@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://losa8pnwmomo"
+path="res://.godot/imported/Hammer - 1 (Single 1).ogg-fea6ddf6987be2cdf767df6b45c09494.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/Crafting and Tinkering - Universal Sound Effects/Hammering & Sawing/Hammer - 1 (Single 1).ogg"
+dest_files=["res://.godot/imported/Hammer - 1 (Single 1).ogg-fea6ddf6987be2cdf767df6b45c09494.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

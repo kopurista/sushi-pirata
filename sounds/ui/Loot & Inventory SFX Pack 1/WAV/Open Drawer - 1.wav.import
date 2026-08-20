@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://b4br66y6yyumf"
+path="res://.godot/imported/Open Drawer - 1.wav-e812f1e621d01dc348e8ffd0a9d0a71c.sample"
+
+[deps]
+
+source_file="res://sounds/ui/Loot & Inventory SFX Pack 1/WAV/Open Drawer - 1.wav"
+dest_files=["res://.godot/imported/Open Drawer - 1.wav-e812f1e621d01dc348e8ffd0a9d0a71c.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

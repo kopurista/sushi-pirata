@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://ci78uxo8gqnd5"
+path="res://.godot/imported/Sawing Wood - 3.ogg-fc92b3f5f278a7abd1c553449695f3f5.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/Crafting and Tinkering - Universal Sound Effects/Hammering & Sawing/Sawing Wood - 3.ogg"
+dest_files=["res://.godot/imported/Sawing Wood - 3.ogg-fc92b3f5f278a7abd1c553449695f3f5.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

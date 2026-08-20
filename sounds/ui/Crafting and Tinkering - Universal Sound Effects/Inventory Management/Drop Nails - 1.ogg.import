@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://cdy3gad5ud70s"
+path="res://.godot/imported/Drop Nails - 1.ogg-1cc039c0797f9c8ef43316cc5f23fbc7.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/ui/Crafting and Tinkering - Universal Sound Effects/Inventory Management/Drop Nails - 1.ogg"
+dest_files=["res://.godot/imported/Drop Nails - 1.ogg-1cc039c0797f9c8ef43316cc5f23fbc7.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://dqu0hnicrppdp"
+path="res://.godot/imported/UI2_Button_8.wav-6f369569105f9c3e3d4d1cdcf0a27ce9.sample"
+
+[deps]
+
+source_file="res://sounds/ui/User Interface Pack 2 - Universal Sound Effects/WAV/UI2_Button_8.wav"
+dest_files=["res://.godot/imported/UI2_Button_8.wav-6f369569105f9c3e3d4d1cdcf0a27ce9.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2
