@@ -27,6 +27,7 @@ var _familias: Dictionary = {}
 var _ultimo: Dictionary = {}
 var _pool: Array[AudioStreamPlayer] = []
 var _bucles: Dictionary = {}
+var _buses: Dictionary = {}
 var _siguiente := 0
 
 
@@ -90,6 +91,7 @@ func loop_on(familia: String, volumen_db := 0.0, pitch := 1.0,
 	if p == null:
 		p = AudioStreamPlayer.new()
 		p.process_mode = Node.PROCESS_MODE_ALWAYS
+		p.bus = str(_buses.get(familia, "Master"))
 		add_child(p)
 		_bucles[familia] = p
 		# El recurso se DUPLICA antes de marcarle el bucle: `load()` devuelve
@@ -104,6 +106,16 @@ func loop_on(familia: String, volumen_db := 0.0, pitch := 1.0,
 	p.pitch_scale = pitch
 	if not p.playing:
 		p.play()
+
+
+## Encamina el BUCLE de una familia a un bus propio, para poder colgarle un
+## efecto (la pesca le pone un cambiador de tono al carrete). Se puede llamar
+## antes de que el bucle exista: el bus se guarda y se aplica al crearlo.
+func set_bus(familia: String, bus: String) -> void:
+	_buses[familia] = bus
+	var p: AudioStreamPlayer = _bucles.get(familia)
+	if p != null:
+		p.bus = bus
 
 
 func loop_off(familia: String) -> void:

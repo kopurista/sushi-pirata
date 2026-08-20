@@ -1678,13 +1678,35 @@ primera vez que se entra en ellos (`logros_intro_done` /
       flojitas porque es un mordisqueo; "Line Break (With Throw)" el sedal
       roto.
     · **TODA LA PELEA ES UN SOLO BUCLE QUE NUNCA SE CORTA** ("Moving Line
-      Closer - 1"), y lo que cambia es la VELOCIDAD: `PITCH_MANTENIENDO`
-      (1.35) mientras el jugador recoge y `PITCH_SUELTO` (1.1) con el dedo
-      levantado. Comparten reproductor, así que pasar de una a otra no
-      reinicia nada — se oye acelerar y frenar, que es lo que hace el sedal.
-      "Reeling in Fishing Rod - 1" se queda para recoger el sedal ANTES de la
-      picada y para el TIRÓN, ahí a pitch **1.45** (en Godot el pitch corre
-      además más rápido), porque en el tirón es el pez quien se lleva línea.
+      Closer - 1"), en el mismo reproductor, así que pasar de recoger a soltar
+      no reinicia nada: se oye acelerar y frenar. "Reeling in Fishing Rod - 1"
+      se queda para recoger el sedal ANTES de la picada y para el TIRÓN.
+    · **EL CARRETE CORRE A LA VELOCIDAD DE LA BARRA, no a una velocidad por
+      estado**: se mide lo que se MUEVE la barra de la presa (`vel_barra`, en
+      barra/s, suavizada) y de ahí sale el tono. Da igual quién tire — lo que
+      se oye es cuánto se mueve, así que el carrete se acelera cuando el
+      jugador gana terreno deprisa y se arrastra cuando la cosa está parada.
+      **Se mide DESPUÉS del tope de la barra**, no de las fórmulas: a cero o a
+      tope el pez sigue tirando igual pero la barra ya no se mueve, y el
+      carrete tiene que callarse con ella.
+      · **El TIRÓN es SIEMPRE el más rápido**, pase lo que pase: su suelo
+        (`PITCH_TIRON_MIN` 1.45) va por encima del techo de los otros dos
+        (`PITCH_MAX` 1.3), así que ni el mejor tramo de recogida puede sonar
+        tan acelerado como el pez llevándose el sedal.
+      · MEDIDO simulando la pelea con el bucle real: recogiendo 0.200 barra/s
+        → pitch 1.17; el pez tirando de 0.074 (común recién soltado) a 0.274
+        (legendario con la rampa del descanso) → 1.00 a 1.27; y el tirón de
+        0.28 a 0.90 barra/s → 1.61 a 1.95.
+    · **Y CUANDO TIRA EL PEZ CAMBIA EL TONO, APARTE DE LA VELOCIDAD**: el
+      carrete suena más grave (`TONO_PEZ` 0.72), como un freno que patina.
+      Eso NO se puede hacer con el `pitch_scale` del reproductor, que mueve
+      tono y velocidad a la vez; va por un bus propio (`BUS_SEDAL`) con un
+      `AudioEffectPitchShift`, que es lo único que mueve el tono SIN tocar la
+      velocidad. El bus se monta una vez por sesión y no se desmonta —quitar
+      un bus con reproductores encima es un lío por nada—, y el efecto se
+      APAGA (`set_bus_effect_enabled`) cuando el tono es 1.0, que es una FFT
+      por búfer que no se paga recogiendo ni en el tirón. `SoundBank.set_bus`
+      encamina el bucle de una familia y se puede llamar antes de que exista.
     · **EL TIRÓN ENTRA CON UN GOLPE** ("Frog Death - 1", `SND_TIRON` -14 dB,
       muy por debajo del resto): las líneas de acción entran con un fundido de
       0.18 s, así que sin él el instante exacto del cambio de fase —que es
