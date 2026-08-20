@@ -4457,7 +4457,23 @@ func _star_sprite(ruta: String) -> TextureRect:
 	return ic
 
 
+## NINGÚN GUION HABLA YA CON EL CARTEL DE RESULTADOS PUESTO. La caja del
+## director solo la cierra su `_play`, y un guion que termine su última tanda
+## sin llamarlo deja el pergamino encima del cartel tragándose TODOS los toques:
+## el jugador no puede pulsar "Continuar" ni cerrar las ventanas de subida de
+## nivel o de receta nueva. Pasó dos veces con el duelo del Kappa (la derrota y
+## la victoria), así que se cierra aquí también: a estas alturas del turno no
+## queda nada que decir, y esto cubre cualquier guion que se escriba mañana.
+func _cerrar_cajas_de_guion() -> void:
+	for hijo in get_children():
+		if not (hijo is StoryDirector):
+			continue
+		if hijo.dialog != null and is_instance_valid(hijo.dialog):
+			hijo.dialog.close()
+
+
 func _show_results(stars: int, total_money: int, new_recipes: Array) -> void:
+	_cerrar_cajas_de_guion()
 	# El juego se dirige al jugador por su nombre (Opciones); sin nombre usa el
 	# tratamiento que toque por el género elegido.
 	for c in stars_row.get_children():

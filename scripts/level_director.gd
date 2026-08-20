@@ -1602,6 +1602,11 @@ func _nivel_15() -> void:
 		{ "text": "¡Se rinde! ¡Mirad cómo ronca! ¡Eres el cocinero que las leyendas pedían, %s!" % GameState.player_title(), "mood": "riendo" },
 		{ "text": "¡QUE ALGUIEN LO SAQUE DE LA BARRA! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
 	])
+	# Y LA VICTORIA CIERRA IGUAL QUE LA DERROTA: sin esto la última frase de
+	# Gigi se quedaba clavada encima del cartel de resultados tragándose los
+	# toques — ni "Continuar", ni la ventana de subida de nivel, ni la de
+	# receta nueva.
+	_play()
 	lv._end_level()
 
 

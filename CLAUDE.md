@@ -256,6 +256,23 @@ que cada tipo tenga SU dificultad como la isla tiene su carta cerrada):
     hacia abajo por unidad en `w` y 69.7 hacia arriba por unidad en `y`, que la
     sonda imprime con `cam.unproject_position`). **Y las plataformas van BAJAS** (sus
     cimas rondan y=0): subidas, le tapaban la boca al peñasco.
+  · **EN EL MAPA LA RODEA LA NIEBLA** (`level_select3d._niebla_cueva`,
+    pedido por el usuario): la guarida del jefe tiene que dar respeto desde el
+    mapa. Va en DOS piezas y hacen falta las dos — un **MANTO** de dos planos
+    TUMBADOS sobre el agua girando despacio en sentidos contrarios (el velo de
+    base: los jirones van y vienen, y sin él hay instantes en que la cueva se
+    queda limpia) y seis **JIRONES** en cartel orbitando bajos, la mitad de
+    ellos POR DELANTE de la roca (`NIEBLA_DENTRO`, hacia la cámara), que es lo
+    único que de verdad la difumina. Tres cosas medidas:
+    · El dibujo va HORNEADO (`tools/niebla_tex.py`), no por shader: no cambia,
+      solo se mueve.
+    · **Los nodos van en el grupo `no_batch`**: `GeometryBatch.bake` funde la
+      geometría estática del mapa y LIBERA los originales — los jirones salían
+      como "previously freed" y no se movían nunca.
+    · **La opacidad se MULTIPLICA por el alfa del dibujo** (medio 53/255), así
+      que el 0.42 del primer intento daba un 9% efectivo: invisible. Y los
+      radios van CORTOS (0.5-0.95 de la huella): a 1.55 salía un anillo de
+      manchas sueltas lejos de la roca que parecía suciedad en el mar.
   · **EN EL MAPA VA MUY APARTE**: sola, centrada y POR ENCIMA del lienzo
     (`MAP_POS` con y **negativa**, −700), a 1.068 px del escenario 19 — casi
     siete veces el paso normal. La distancia no es estética: es la que hace
@@ -795,6 +812,12 @@ primera vez que se entra en ellos (`logros_intro_done` /
     dado— ni picoteos). Cualquier otro plato = calavera + decomiso + cuenta a
     cero. Ojo: repetirle 5 veces el mismo plato carga su hastío — los EXTRAS
     (que hacen "nuevo" a un repetido) son la herramienta pensada para esta fase.
+  · **Y LA VICTORIA TAMBIÉN CIERRA**: la última frase de Gigi se quedaba
+    encima del cartel de resultados y el jugador no podía pulsar "Continuar"
+    ni cerrar las ventanas de subida de nivel o de receta nueva. Como red de
+    seguridad, `level3d._show_results` cierra ahora las cajas de cualquier
+    guion (`_cerrar_cajas_de_guion`): a esas alturas del turno no queda nada
+    que decir, y así ningún guion futuro puede volver a tapar el cartel.
   · **TODO DIÁLOGO DE FALLO TERMINA EN `_play(aviso)`**: la caja del director
     solo la cierra `_play`, así que un `_decir` suelto dejaba el "¡KAPPA TIENE
     HAMBRE!" clavado en pantalla con el input tragado — y en la derrota, la
@@ -827,6 +850,17 @@ primera vez que se entra en ellos (`logros_intro_done` /
     salta el filtro de `narrated_ports`); en las repeticiones corre EN MUDO
     (`_mudo`) y el duelo se comunica solo con la chapa, las calaveras y los
     avisos de `_play`.
+  · **SU PELO LLEVA LAS PUNTAS RECORTADAS** (`tools/kappa_pelo_fix.py`): el
+    modelo viene de imagen→3D y el pelo son plaquitas finas disparadas desde
+    el cráneo, que a tamaño de juego se leían como LÍNEAS sueltas fuera de la
+    silueta. No se borran triángulos (eso deja agujeros): se ACOTA el radio de
+    la banda del pelo (y 0.355..0.468) al percentil 93 de cada franja,
+    empujando hacia el eje solo lo que sobresale — 581 vértices, la peor punta
+    sobresalía 0.020. Los límites NO son libres: por debajo está el PICO (que
+    llega a un radio de 0.168 y se limaría) y por encima el PLATO, que es
+    ancho por definición. Al reescribir el `.glb` hay que copiar el chunk de
+    JSON **entero** (longitud + tipo + datos): cortando en el tipo se pierden
+    4 bytes y el archivo queda corrido.
   · El modelo es `kappa_rig.glb` — **REHECHO con el rediseño**: el antiguo era
     un cabezón rechoncho con las piernas al 27% del alto y el andar/sentado lo
     DESFIGURABAN (una cuña verde enorme de carne arrastrada). El nuevo sale del
