@@ -276,6 +276,7 @@ var snd: SoundBank = null
 ## marca la velocidad del carrete (ver `VEL_REF`).
 var vel_barra := 0.0
 var energy_prev := 0.0
+var tension_prev := 0.0
 ## El bus con el cambiador de tono del sedal (ver `BUS_SEDAL`).
 var sedal_bus := -1
 var sedal_fx: AudioEffectPitchShift = null
@@ -1004,6 +1005,7 @@ func _start_fight() -> void:
 	# El carrete arranca callado: sin esto, el primer fotograma mide el salto
 	# desde la energía de la pelea ANTERIOR y suena un acelerón de la nada.
 	energy_prev = energy
+	tension_prev = tension
 	vel_barra = 0.0
 	# La distancia SALE de la energía (ver `_tick_fight`): con la barra casi
 	# llena, el pez arranca la pelea lejos del casco.
@@ -1095,13 +1097,15 @@ func _tick_fight(delta: float) -> void:
 			tension -= TENSION_RELIEF * delta
 	energy = clampf(energy, 0.0, 1.0)
 	tension = clampf(tension, 0.0, 1.0)
-	# LO QUE SE MUEVE LA BARRA es lo que manda en el sonido del carrete. Se
-	# mide DESPUÉS del tope, no de las fórmulas: con la barra a cero o a tope
-	# el pez tira igual pero la barra ya no se mueve, y el carrete tiene que
-	# callarse con ella.
-	vel_barra = lerpf(vel_barra, absf(energy - energy_prev) / maxf(delta, 0.001),
+	# LO QUE SE MUEVEN LAS DOS BARRAS es lo que manda en el sonido del
+	# carrete. Se mide DESPUÉS de los topes, no de las fórmulas: con una
+	# barra a cero o a tope el pez tira igual pero ESA barra ya no se mueve,
+	# y el carrete tiene que enterarse.
+	var mov := absf(energy - energy_prev) + absf(tension - tension_prev)
+	vel_barra = lerpf(vel_barra, mov / maxf(delta, 0.001),
 		minf(delta * VEL_SUAVIZADO, 1.0))
 	energy_prev = energy
+	tension_prev = tension
 	# EL TIRA Y AFLOJA: la DISTANCIA del pez al barco la manda su ENERGÍA —
 	# cuanta menos le queda, más cerca lo tenemos; si la recupera, se aleja.
 	# `line_t` persigue ese destino con retardo para que el viaje se vea.
@@ -2399,25 +2403,31 @@ const PITCH_COBRADO := 0.8
 ## dicen bastante alto).
 const SND_TIRON := -14.0
 
-## EL SONIDO DEL SEDAL CORRE A LA VELOCIDAD DE LA BARRA. No hay una velocidad
-## "de recoger" y otra "de soltar": se mide lo que se MUEVE la barra de la
-## presa (`vel_barra`, en barra por segundo) y de ahí sale el tono, así que el
-## carrete acelera cuando el jugador gana terreno deprisa y se arrastra cuando
-## la cosa está parada. Da igual quién tire: lo que se oye es cuánto se mueve.
-## `VEL_REF` es la velocidad que ya suena a tope en la pelea normal (recoger
-## drena 0.20/s y el pez recupera hasta ~0.30/s con la rampa del descanso).
-const VEL_REF := 0.30
-## En el TIRÓN la barra vuela (0.22 a 1.0/s según rareza y tamaño).
-const VEL_REF_TIRON := 0.85
+## EL SONIDO DEL SEDAL CORRE A LA VELOCIDAD DE LAS BARRAS. No hay una
+## velocidad "de recoger" y otra "de soltar": se suma lo que se MUEVEN LAS DOS
+## —la de la presa y la del SEDAL— y de ahí sale el tono, así que el carrete
+## acelera cuando pasan cosas y se arrastra cuando no pasa ninguna.
+##
+## **QUE SOLTAR SUENE MÁS RÁPIDO QUE RECOGER SALE SOLO DE AHÍ**, y es la
+## razón de contar las dos barras: el sedal SE DESTENSA (0.85/s) mucho más
+## deprisa de lo que se tensa (0.30 a 0.55/s según rareza). Sumando:
+## recogiendo se mueven 0.50-0.75 barra/s y soltando 0.89-1.15. No hay ningún
+## número puesto a mano para conseguirlo — es lo que hacen las barras.
+const VEL_REF := 1.1
+## En el TIRÓN la barra de la presa vuela ella sola (0.22 a 1.0/s según
+## rareza y tamaño) y encima el sedal se destensa.
+const VEL_REF_TIRON := 1.3
 ## Suavizado de la medida: sin él, cada cambio de dedo daba un salto de tono.
 const VEL_SUAVIZADO := 8.0
-const PITCH_MIN := 0.9
-const PITCH_MAX := 1.3
+## El carrete va SIEMPRE por encima de su velocidad natural: a 1.0 se
+## arrastraba y la pelea sonaba parada aunque no lo estuviera.
+const PITCH_MIN := 1.15
+const PITCH_MAX := 1.5
 ## EL TIRÓN ES SIEMPRE EL MÁS RÁPIDO, pase lo que pase: su suelo va por
 ## encima del techo de los otros dos, así que ni el mejor tramo de recogida
 ## puede sonar tan acelerado como el pez llevándose el sedal.
-const PITCH_TIRON_MIN := 1.45
-const PITCH_TIRON_MAX := 1.95
+const PITCH_TIRON_MIN := 1.6
+const PITCH_TIRON_MAX := 2.05
 
 ## Y CUANDO TIRA EL PEZ, EL TONO CAMBIA APARTE DE LA VELOCIDAD: el carrete
 ## suena más grave, como un freno que patina. Va por un BUS propio con un
@@ -2426,7 +2436,7 @@ const PITCH_TIRON_MAX := 1.95
 ## así que con él no se pueden separar. El efecto se apaga cuando no hace
 ## falta (recogiendo y en el tirón), que para eso está `set_bus_effect_enabled`.
 const BUS_SEDAL := "SedalPesca"
-const TONO_PEZ := 0.72
+const TONO_PEZ := 0.88
 
 
 func _setup_audio() -> void:

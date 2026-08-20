@@ -1681,24 +1681,34 @@ primera vez que se entra en ellos (`logros_intro_done` /
       Closer - 1"), en el mismo reproductor, así que pasar de recoger a soltar
       no reinicia nada: se oye acelerar y frenar. "Reeling in Fishing Rod - 1"
       se queda para recoger el sedal ANTES de la picada y para el TIRÓN.
-    · **EL CARRETE CORRE A LA VELOCIDAD DE LA BARRA, no a una velocidad por
-      estado**: se mide lo que se MUEVE la barra de la presa (`vel_barra`, en
-      barra/s, suavizada) y de ahí sale el tono. Da igual quién tire — lo que
-      se oye es cuánto se mueve, así que el carrete se acelera cuando el
-      jugador gana terreno deprisa y se arrastra cuando la cosa está parada.
-      **Se mide DESPUÉS del tope de la barra**, no de las fórmulas: a cero o a
-      tope el pez sigue tirando igual pero la barra ya no se mueve, y el
-      carrete tiene que callarse con ella.
+    · **EL CARRETE CORRE A LA VELOCIDAD DE LAS BARRAS, no a una velocidad por
+      estado**: se suma lo que se mueven LAS DOS —la de la presa y la del
+      SEDAL— (`vel_barra`, en barra/s, suavizada) y de ahí sale el tono. Da
+      igual quién tire: lo que se oye es cuánto se mueve.
+      **Se mide DESPUÉS de los topes**, no de las fórmulas: con una barra a
+      cero o a tope el pez sigue tirando igual pero ESA barra ya no se mueve.
+      · **QUE SOLTAR SUENE MÁS RÁPIDO QUE RECOGER SALE SOLO DE AHÍ**, y es la
+        razón de contar las dos barras (lo pidió el usuario y así se cumple
+        sin trampas): el sedal SE DESTENSA a 0.85/s y solo se tensa a
+        0.30-0.55/s, así que recogiendo se mueven 0.50-0.75 barra/s y soltando
+        0.89-1.15. No hay ni un número puesto a mano para conseguirlo.
       · **El TIRÓN es SIEMPRE el más rápido**, pase lo que pase: su suelo
-        (`PITCH_TIRON_MIN` 1.45) va por encima del techo de los otros dos
-        (`PITCH_MAX` 1.3), así que ni el mejor tramo de recogida puede sonar
+        (`PITCH_TIRON_MIN` 1.6) va por encima del techo de los otros dos
+        (`PITCH_MAX` 1.5), así que ni el mejor tramo de recogida puede sonar
         tan acelerado como el pez llevándose el sedal.
-      · MEDIDO simulando la pelea con el bucle real: recogiendo 0.200 barra/s
-        → pitch 1.17; el pez tirando de 0.074 (común recién soltado) a 0.274
-        (legendario con la rampa del descanso) → 1.00 a 1.27; y el tirón de
-        0.28 a 0.90 barra/s → 1.61 a 1.95.
+      · **El suelo (`PITCH_MIN` 1.15) va por encima de la velocidad natural
+        del sonido**: a 1.0 el carrete se arrastraba y la pelea sonaba parada
+        aunque no lo estuviera.
+      · MEDIDO simulando la pelea con el bucle real del juego: recogiendo
+        0.50-0.75 barra/s → pitch 1.31-1.39; el pez tirando 0.91-0.99 → 1.44
+        a 1.47; el tirón 0.55-1.05 → 1.79 a 1.96. La única situación en que
+        soltar suena más calmado que recoger es con el sedal YA flojo (1.17):
+        ahí solo se mueve la barra de la presa, y es verdad que no está
+        pasando gran cosa.
     · **Y CUANDO TIRA EL PEZ CAMBIA EL TONO, APARTE DE LA VELOCIDAD**: el
-      carrete suena más grave (`TONO_PEZ` 0.72), como un freno que patina.
+      carrete suena algo más grave (`TONO_PEZ` 0.88), como un freno que
+      patina. **A 0.72 quedaba raro** —demasiado grave para lo que es— y el
+      usuario lo subió: aquí se busca reconocer el estado, no un efecto.
       Eso NO se puede hacer con el `pitch_scale` del reproductor, que mueve
       tono y velocidad a la vez; va por un bus propio (`BUS_SEDAL`) con un
       `AudioEffectPitchShift`, que es lo único que mueve el tono SIN tocar la
