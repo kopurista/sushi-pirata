@@ -141,6 +141,13 @@ var cai_intro_done := false
 ## y cerrase el turno por objetivo llegaría al mapa y ella hablaría de una
 ## comida que nadie recuerda.
 var alice_saciada := false
+## El KAPPA rendido debe su escena del mapa (2 lingotes + su diente, medio
+## dormido). Persistente: se apunta al cerrar el nivel y se representa al
+## volver, y sin guardarla quien cerrara el juego entre medias la perdería.
+var pending_kappa := false
+## La escena ya se representó: el trofeo del Kappa deja de esperar por ella
+## (ver el filtro de BOSS_ITEMS en `_run_achievement_check`).
+var kappa_outro_done := false
 ## Alice ya se ha enrolado, y con ella se abrieron los BONIFICADORES (la escena
 ## del mapa al superar su escenario).
 var alice_intro_done := false
@@ -1870,8 +1877,8 @@ func _run_achievement_check() -> void:
 		unlock_collectible("delantal_chamuscado")
 	if get_stat("best_tips_run") >= CollectibleData.CAMPANA_PROPINA:
 		unlock_collectible("campana_servicio")
-	if get_stat("bosses_beaten") > 0:
-		unlock_collectible("diente_kappa")
+	# (El diente del Kappa ya NO cae por aquí: lo entrega ÉL en su escena del
+	# mapa. La vía general de los jefes, abajo, lleva el mismo filtro.)
 	if get_stat("slices_ok") >= CollectibleData.PIEDRA_CORTES:
 		unlock_collectible("piedra_afilar")
 	# El PLATO QUEMADO es el recuerdo del PRIMERO que se fue al cubo.
@@ -1899,6 +1906,11 @@ func _run_achievement_check() -> void:
 	# UN TROFEO POR JEFE DE MAR: cada uno cuelga de su propia stat, que sube
 	# `level3d` al rendirlo. Los jefes que aun no existen no molestan.
 	for boss_id in CollectibleData.BOSS_ITEMS:
+		# EL DIENTE DEL KAPPA NO CAE POR AQUÍ: lo entrega ÉL, medio dormido, en
+		# su escena del mapa (`main_menu._presentar_kappa`). Hasta que esa
+		# escena corre, la vía de la stat se aguanta las ganas.
+		if boss_id == "kappa" and not kappa_outro_done:
+			continue
 		if get_stat("boss_%s" % boss_id) > 0:
 			unlock_collectible(str(CollectibleData.BOSS_ITEMS[boss_id]))
 	# LOS PALILLOS suben de material con los platos servidos. Se comprueban los
@@ -2168,6 +2180,8 @@ func save_game() -> void:
 		"cai_intro_done": cai_intro_done,
 		"cai_saciado": cai_saciado,
 		"alice_saciada": alice_saciada,
+		"pending_kappa": pending_kappa,
+		"kappa_outro_done": kappa_outro_done,
 		"alice_intro_done": alice_intro_done,
 		"skill_counters_intro_done": skill_counters_intro_done,
 		"puerto_handicap_done": puerto_handicap_done,
@@ -2373,6 +2387,11 @@ func load_game() -> void:
 	cai_intro_done = bool(parsed.get("cai_intro_done", tutorial_done))
 	cai_saciado = bool(parsed.get("cai_saciado", tutorial_done))
 	alice_saciada = bool(parsed.get("alice_saciada", false))
+	pending_kappa = bool(parsed.get("pending_kappa", false))
+	# Un guardado de ANTES de la escena que ya tenga el diente la da por hecha:
+	# su Kappa se rindió cuando el trofeo caía solo al cerrar el nivel.
+	kappa_outro_done = bool(parsed.get("kappa_outro_done",
+		"diente_kappa" in collectibles))
 	alice_intro_done = bool(parsed.get("alice_intro_done", false))
 	skill_counters_intro_done = bool(parsed.get("skill_counters_intro_done", false))
 	puerto_handicap_done = bool(parsed.get("puerto_handicap_done", false))
@@ -2482,6 +2501,8 @@ func _new_game() -> void:
 	cai_intro_done = false
 	cai_saciado = false
 	alice_saciada = false
+	pending_kappa = false
+	kappa_outro_done = false
 	alice_intro_done = false
 	skill_counters_intro_done = false
 	puerto_handicap_done = false

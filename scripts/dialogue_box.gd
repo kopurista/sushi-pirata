@@ -114,6 +114,12 @@ const SPEAKERS := {
 		"dir": "res://assets/characters/capitan_f", "file": "capitan_f",
 		"name": "Capitana", "side": "right", "plate": "left", "mood": "serio",
 	},
+	# EL JEFE del mar 1. Entrañable pero con un hambre terrible: serio,
+	# hablando, enfadado, feliz y dormido (le encanta dormir después de comer).
+	"kappa": {
+		"dir": "res://assets/characters/kappa", "file": "kappa",
+		"name": "Kappa", "side": "right", "plate": "left", "mood": "serio",
+	},
 }
 
 ## Hablante de un CLIENTE por tipo y género: "pirata" o "pirata_f". Se pasa el

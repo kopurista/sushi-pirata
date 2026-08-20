@@ -44,6 +44,15 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   cierra sin mensaje, buscar `get_tree().quit()` y `save_png` antes que nada.
 - `--script` NO carga autoloads (`GameState`), así que no sirve para probar
   escenas que dependan de ellos; usa el helper inyectado en su lugar.
+- **SI UNA SONDA "SE CUELGA" SIN ERROR Y CON LA CPU EN REPOSO, mirar la
+  DESPENSA del guardado antes que nada.** Un nivel cuyas recetas no tienen
+  usos REBOTA a prep_screen con `change_scene_to_file.call_deferred` — y ese
+  cambio de escena LIBERA a la sonda (que es la escena actual): su log se
+  calla, nadie llama a `quit()` y el proceso se queda idle para siempre. Se
+  perdió una noche persiguiendo un "deadlock" (¡con reinicio del ordenador
+  incluido!) que era el aguacate a 0: cada pasada de la sonda consume 1 uso,
+  así que la N-ésima repetición "congela" lo que la primera pasó. Las sondas
+  de nivel rellenan `GameState.ingredients` de sus recetas al arrancar.
 - **Lanzar el juego** para el usuario: `"…/Godot_v4.7.1-stable_win64.exe" .` en background.
 - Existe el MCP **GodotIQ** (`godotiq_*`) pero se desconecta a ratos; cuando no
   esté, se editan `.tscn`/`.gd` con las herramientas nativas (el `.tscn` ya se
@@ -310,13 +319,13 @@ y cada cliente que se larga sin probar bocado enciende la suya con un SPLASH
 (entra al 260%, se aplasta y rebota). A la tercera se pierde la jornada, y eso
 se lee de un vistazo mucho mejor que una cifra.
 
-**LOS CONTADORES DE MAESTRÍA VIVEN ABAJO, JUSTO ENCIMA DE LA CINTA** de la
-tabla de elaboración y pegados al canto izquierdo
-(`level3d._place_skill_counters`; estuvieron bajo el número de clientes, arriba
-del todo, y allí quedaban en la otra punta de la pantalla justo cuando hacen
-falta). Comparten banda con el CARTEL DE FASE, que va centrado y mide 430 de
-ancho: por eso su altura se calcula (`_phase_sign_y`) y sube un renglón cuando
-hay contadores, en vez de ir clavada.: las tres habilidades deterministas del
+**LOS CONTADORES DE MAESTRÍA VIVEN ABAJO A LA DERECHA, PEGADOS A LA CINTA**
+de la tabla de elaboración (`level3d._place_skill_counters`; el usuario los
+bajó dos veces — del HUD de arriba a la banda del cartel de fase, y de ahí un
+renglón más). Van a la MISMA altura que la fila de cabezas — la banda
+inmediatamente encima de la cinta — y por la derecha, donde las cabezas
+(centradas) no llegan; su ancho se calcula del número de chips. El cartel de
+fase recuperó su altura fija (`_phase_sign_y`).: las tres habilidades deterministas del
 cocinero —golpe de vista, cocina abundante y golpe de suerte— son CONTADOR y no
 dado justamente para poder planearlas, y planear con un número escondido no se
 puede. Un chip por habilidad: una CHAPA con el pergamino del juego de fondo y su
@@ -744,40 +753,102 @@ primera vez que se entra en ellos (`logros_intro_done` /
   pasada** — regenerar los demás es jugar a la lotería de render; la lista
   completa queda comentada. Y si un especial se queda sin icono,
   `CharacterData._pick` cae al del grumete en vez de dejar el hueco vacío.
-- **EL JEFE DEL NIVEL 10: EL KAPPA** (`boss: "kappa"` en el puerto,
-  coreografía en `level_director._nivel_10`, comportamiento en
-  `client3d.make_boss`):
-  · El nivel arranca como abordaje normal; con **3 clientes alimentados** (o a
-    los 60 s) el guion PARA el reloj (`lv.timed = false` + `_apply_hud_layout`,
-    desde ahí manda la paciencia del jefe), vacía la barra sin castigos
-    (`force_leave(false)`), corta las llegadas y trae al Kappa por el
-    mecanismo del cliente especial.
-  · `make_boss(eat=0.32, drain=1.55, max=55)`: bocado al TRIPLE de velocidad
-    (los platos gordos siguen durando más, solo que todo corre), paciencia que
-    drena ×1.55 esperando, barra más gorda en pantalla. En `_scan_belt` el
-    jefe come de TODO (piso `BOSS_TAKE` 0.95 en cualquier nivel) pero **los
-    postres se descartan antes del dado**: un postre lo despediría y el duelo
-    consiste en retenerlo.
-  · CONDICIÓN: **10 platos** (`BOSS_PLATES`) antes de que su paciencia toque
-    fondo. El marcador vive en la tablilla de fase ("Kappa: N/10"). Victoria →
-    `lv.boss_done = true` y el nivel se cierra; derrota (se va con menos) → el
-    nivel se cierra igual. En `_finalize_results`, con jefe SIN rendir las
-    estrellas se capan a 1 (no se aprueba por dinero) y con él rendido caen
-    al menos las 2 del aprobado; `_check_goal_reached` tampoco cierra por oro
-    con un jefe pendiente. Superarlo abre el **Arcade** (`ARCADE_PORT`).
+- **EL JEFE: EL KAPPA, EN TRES FASES** (rediseño del 20-8-2026, pedido por el
+  usuario — no re-litigar; `boss: "kappa"` en el puerto, coreografía en
+  `level_director._nivel_15`, comportamiento en `client3d.make_boss`):
+  · **SALE AL GANARSE LA 2ª ESTRELLA** (`lv._score_money() >= star_money[1]`),
+    no por barrigas llenas ni por reloj: la señal está en la propia barra del
+    oro. Al salir, el reloj se para, la barra se vacía sin castigos y no llega
+    nadie más.
+  · **ENTRA SIEMPRE POR LA BOCA DE LA CUEVA** (la borda de arriba): el guion
+    fuerza las sillas cuya entrada es `ENTRY` vía `lv.first_seats` antes del
+    sorteo. Y mide **2.5 u** (`KAPPA_ALTO` → `client3d.height_override`, que
+    level3d aplica al especial con `special_height`): más que un capitán.
+  · **LA 3ª ESTRELLA ES EL JEFE** (`lv.boss_hud_on`): su cara (`head_K.png`)
+    sustituye a la estrella de la meta en la barra del oro —se gana rindiéndolo,
+    no con oro— y `_place_star_marks` no la repinta (`boss_star_face`). Las dos
+    primeras siguen siendo de dinero. En `_finalize_results`: derrota del duelo
+    → 0 estrellas; rendido → mini(estrellas_oro, 2) + 1; cerrado sin verlo
+    (el reloj antes de la 2ª estrella) → tope 1.
+  · **SU CHAPA** (cara + platos que FALTAN en la fase, `boss_chip_set`) vive
+    centrada bajo la fila de arriba; el cartel "Kappa: N/10" de la tablilla de
+    fase se retiró (tapaba media pantalla).
+  · **CINCO CALAVERAS** (`BOSS_SKULLS`, mismas que el contador de vacíos del
+    puerto — el constructor es compartido, `_build_calaveras`/`_splash_calavera`).
+    Cada fallo enciende una (`boss_lose_skull`); a la quinta, `boss_lost` y
+    jornada perdida.
+  · **CADA FALLO DECOMISA LA FASE** (`boss_forfeit`): el oro y las propinas de
+    los platos que el Kappa comió en la fase en curso se restan (suelo 0). El
+    guion lleva la cuenta en `_oro_fase`/`_prop_fase` vía su `plate_served`.
+  · **FASE 1 — los platos**: `BOSS_PLATES` (10) antes de que su paciencia
+    toque fondo. **El jefe ya NO se marcha al agotarse**: se queda a cero y
+    emite `boss_starved` una vez (client3d); el guion cobra la calavera y le
+    devuelve el **75% → 50% → 30%** de barra (`KAPPA_RECUPERA`, cada hambruna
+    perdona menos, vía `boss_patience_set`).
+  · **FASE 2 — la variedad** (+75% de barra al entrar): `KAPPA_DISTINTOS` (3)
+    platos SIN repetir. Un repetido = calavera + decomiso + su paladar se
+    resetea (`_limpiar_paladar`, o la escalera del hastío del intento fallido
+    seguiría cargada) y se empieza de nuevo. Los picoteos que come también
+    cuentan (van a `eaten_ids`).
+  · **FASE 3 — el antojo** (+50%): `KAPPA_MISMO` (5) veces el plato MÁS CARO
+    de la carta de hoy (`_plato_mas_caro`: ni postres —los descarta antes del
+    dado— ni picoteos). Cualquier otro plato = calavera + decomiso + cuenta a
+    cero. Ojo: repetirle 5 veces el mismo plato carga su hastío — los EXTRAS
+    (que hacen "nuevo" a un repetido) son la herramienta pensada para esta fase.
+  · **EL GUION VA POR SONDEO de `eaten_ids`, no por señales** (`_fase_kappa`):
+    el id del plato solo está ahí, y resolver los fallos en el mismo bucle los
+    SERIALIZA con las frases (un handler async hablaba encima de la charla de
+    cambio de fase). Las señales solo levantan banderas (`_on_kappa_hambre`) o
+    suman el decomiso (`_on_kappa_plato`).
+  · **LA IRA ESCALA CON LA FASE**: los fallos hablan con `enfadado` (F1),
+    `furioso` (F2) y `colerico` (F3) — ver los retratos abajo.
+  · **VICTORIA**: `_kappa_duerme` — se le saca de `seat_clients` (nadie lo
+    cobra ni lo echa al cerrar), se cae del taburete (tween de la raíz, pivote
+    en los pies), barras y bocadillo fuera (`hide_bars`) y un "Zzz" flotante
+    encima. David felicita y el turno se cierra con las 3 estrellas.
+  · **Y PAGA EN EL MAPA** (`GameState.pending_kappa`, persistente; escena
+    `main_menu._presentar_kappa`): medio dormido, entrega **2 lingotes**
+    (`KAPPA_LINGOTES`) y su **diente**. El trofeo ya NO cae por la vía de las
+    stats — tanto la vieja (`bosses_beaten`) como la general de `BOSS_ITEMS`
+    esperan a `kappa_outro_done`; un guardado viejo que ya tuviera el diente
+    da la escena por hecha al cargar.
   · **El nivel del jefe monta su director SIEMPRE** (level3d: `boss_id != ""`
-    salta el filtro de `narrated_ports`): el director es quien trae al Kappa y
-    sin él el nivel sería infranqueable al reintentar. En las repeticiones el
-    guion corre EN MUDO (`_mudo`, capturado al arrancar `_run` porque el
-    puerto se marca narrado al acabar la preparación de esa misma partida).
-  · BALANCE SIMULADO (no a ojo): con la escalera de variedad real y carta de
-    3 principales + té, ganar exige un plato cada **≤9 s**; a 10-12 s el Kappa
-    se harta en el plato 5-9, y repetir platos lo hunde antes. La simulación
-    está en el historial (constantes PATIENCE_FOOD/REPEAT_RECHARGE reales).
-  · El modelo es `kappa_rig.glb` (concepto → 3D → rig `humanoid_template_hands`
-    con nombres smpl; el rig_type `humanoid` devolvió huesos `bone_0..14` sin
-    nombres y CharacterAnim no lo entiende). Piernas al 27% del alto (es
-    rechoncho): `has_humanoid_bones` no las veta y el andar corto le pega.
+    salta el filtro de `narrated_ports`); en las repeticiones corre EN MUDO
+    (`_mudo`) y el duelo se comunica solo con la chapa, las calaveras y los
+    avisos de `_play`.
+  · El modelo es `kappa_rig.glb` — **REHECHO con el rediseño**: el antiguo era
+    un cabezón rechoncho con las piernas al 27% del alto y el andar/sentado lo
+    DESFIGURABAN (una cuña verde enorme de carne arrastrada). El nuevo sale del
+    mismo dibujo que sus retratos 2D (larguirucho, barrigón, plato llano),
+    cadena completa vía `tmp-rig` con `humanoid_template_hands`: 52 huesos,
+    piernas al 50.6% y brazos al 24.8% — anda y se sienta con la animación de
+    verdad. `head_K.png` se regeneró de él (`FRAME_OVERRIDE` K bajó de 0.52 a
+    0.30: la cabeza ya no es media altura).
+- **RETRATOS 2D DEL KAPPA** (`assets/characters/kappa`, hablante `kappa`, 7
+  moods: serio, hablando, enfadado, furioso, colerico, feliz, dormido):
+  entrañable pero con un hambre terrible; le encanta dormir después de comer.
+  El diseño costó SEIS bases: ni chibi (infantil), ni musculado, ni viejo — el
+  bueno es un kappa JOVEN y larguirucho con barriga crema, pico de pato
+  PEQUEÑO y saliente, plato llano en la coronilla y ceño de gruñón bonachón
+  (referencia del usuario). Lecciones pagadas:
+  · El pico oscila salvajemente entre pasadas: pidió tres tamaños ("bigger and
+    wider" lo hizo babero, "smaller" lo dejó en boca de rana) — se acota
+    DESCRIBIENDO el ancho contra los ojos ("no más ancho que el espacio ENTRE
+    los dos ojos, saliente, acabando EN la barbilla").
+  · La ira máxima recoloreó la cara entera a rojo demonio y NO vale (pedido
+    del usuario: "demasiado diferente"): la piel se queda verde y la furia va
+    en ceño, boca a gritos, pelo erizado y el AGUA DEL PLATO hirviéndose.
+  · Las expresiones PIERDEN EL PLATO de la cabeza con facilidad ("furioso"
+    salió dos veces sin él): se pide explícitamente que el plato se queda, y
+    si aun así falta, una pasada aparte de "add back the plate" lo devuelve.
+  · **El montaje es `tools/kappa_portraits.py`**: inundación desde los CUATRO
+    bordes (viene entero y con aire), `ALTO_SUJETO = 1.30` — MAYOR QUE 1 a
+    propósito: a cuerpo entero su cara medía ~80 px contra los ~135 del
+    reparto, así que se compone DE CINTURA PARA ARRIBA anclando ARRIBA con
+    `AIRE` y recortando por abajo — y el RECORTE es la UNIÓN de las cajas de
+    todas las expresiones (el vapor del furioso se sale del cuerpo del serio;
+    con la caja del serio se cortaba a cuchillo). La escala sigue saliendo
+    solo del serio.
 - **El contador de clientes del HUD cuenta los que SE HAN SENTADO**
   (`clients_seated`, que sube con la señal `client3d.seated`), no los que se han
   ido —con los idos se quedaba en 0 con la barra llena, que es justo cuando
@@ -2928,6 +2999,14 @@ fondo de prep_screen/tienda/inventario (`scene_backdrop`). El
   otros—. Cuando uno falle, probar el otro ANTES de regenerar el modelo: a la
   grumete y a la ayudante femeninas les faltaba una pierna con `humanoid` y las
   dos entraron a la primera con la plantilla.
+- **LAS PIERNAS CORTAS NO SE ANIMAN** (`CharacterAnim.legs_ok`,
+  `MIN_LEG_FRAC` 0.32): unas piernas sanas miden el 43-55% del alto, y por
+  debajo del listón las rotaciones del andar y del sentado — pensadas para ese
+  largo — arrastran media carne del cuerpo. El Kappa VIEJO (27%) salía con una
+  cuña verde enorme detrás, andando Y sentado. Un rig así conserva sus piernas
+  como se modelaron (anda a bandazos con el vaivén del cuerpo, `sit()` solo
+  inclina el tronco y `sit_offset` devuelve 0). El Kappa nuevo (50.6%) ya no
+  la necesita, pero la regla se queda: es el gemelo de `has_usable_arms`.
 - **Un rig se da por bueno MIDIÉNDOLO, no mirando si tiene huesos.** Un
   esqueleto con los brazos amontonados pasa el `has_humanoid_bones()` y luego
   gira la carne del brazo alrededor de un punto del torso: el personaje agita
@@ -4251,6 +4330,10 @@ que no hay problema.
   18%, +2%/plato, tope 50%. El dinero (solo precio de platos) y las propinas
   (solo al bote) se abonan plato a plato, no al irse.
 - Bote de propinas exponencial: umbrales acumulados 10, 22, 36, 52… (`TIP_INCREMENTS`).
+- **UN CARTEL DE POTENCIADOR ABIERTO MUERE CON EL TURNO** (`_end_level`):
+  pausaba el árbol y, con el nivel acabándose por debajo, el juego se quedaba
+  clavado en la elección. Se cierra, se despausa y los pendientes se descartan
+  — ya no hay partida en la que gastarlos.
 - **El cartel de potenciador NO interrumpe un gesto sostenido**: si el jugador
   está manteniendo / removiendo / cortando lento / friendo / arrastrando
   (`prep_board.is_gesture_locked()`), la elección se aplaza y `_process` la

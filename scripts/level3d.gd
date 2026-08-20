@@ -2324,15 +2324,11 @@ const PHASE_W := 430.0
 const PHASE_H := 78.0
 
 
-## Altura del cartel de fase. Se calcula y no se clava porque los CONTADORES
-## DE MAESTRIA viven en esta misma banda, pegados al canto izquierdo, y el
-## cartel va centrado (x 145..575): con los dos a la misma altura se pisaban.
-## Cuando hay contadores, el cartel sube su renglon.
+## Altura del cartel de fase. Los contadores de maestría ya no comparten su
+## banda (viven abajo a la derecha, a la altura de las cabezas), así que vuelve
+## a ser fija: apoyado sobre la fila de cabezas.
 func _phase_sign_y() -> float:
-	var y := GameState.canvas_size().y - 588.0 - HEAD_ICON - 12.0 - PHASE_H
-	if skill_counter_row != null and is_instance_valid(skill_counter_row):
-		y -= float(SKILL_CHIP) + 10.0
-	return y
+	return GameState.canvas_size().y - 588.0 - HEAD_ICON - 12.0 - PHASE_H
 
 
 func _setup_phase_sign() -> void:
@@ -2536,6 +2532,10 @@ func _place_star_marks() -> void:
 		# pasaba de largo antes de haberse ganado la estrella.
 		n.position = Vector2(float(m["frac"]) * ancho - lado * 0.5,
 			(alto - lado) * 0.5)
+		# CON EL JEFE EN ESCENA la estrella de la meta es SU CARA y se gana
+		# rindiéndolo, no con oro: ni la cifra ni el repintado por dinero.
+		if meta_star and boss_star_face:
+			continue
 		if meta_star:
 			_place_goal_value(n, lado)
 		var ganada: bool = oro >= float(m["meta"])
@@ -3013,6 +3013,9 @@ func _try_spawn_client() -> bool:
 	if special_who != "" and not special_spawned and c.client_type == special_type:
 		special_spawned = true
 		c.who_override = special_who
+		# El JEFE mide lo que diga su guion, no lo que mida su tipo.
+		if special_height > 0.0:
+			c.height_override = special_height
 		c.gender = CharacterData.MALE
 	# La fila de cabezas del HUD cuenta por TIPO, y la cara que enseña es la del
 	# PRIMERO de ese tipo que ha pisado el barco en esta partida.
@@ -4182,6 +4185,14 @@ func _end_level() -> void:
 	if GameState.is_tutorial():
 		return
 	ended = true
+	# UN CARTEL DE POTENCIADOR ABIERTO MUERE CON EL TURNO: pausaba el árbol y,
+	# con el nivel acabándose por debajo, el juego se quedaba clavado en la
+	# elección — el jugador ya no tiene partida en la que gastar lo elegido.
+	# Los pendientes se descartan por lo mismo.
+	pending_powerups = 0
+	if powerup_panel != null and powerup_panel.visible:
+		powerup_panel.visible = false
+		get_tree().paused = false
 	# El encargo de "que siga sentado cuando acabe el turno" solo se puede
 	# resolver AQUÍ, y antes de que la barra se vacíe.
 	_check_treasure_al_cerrar()
@@ -4215,12 +4226,17 @@ func _finalize_results() -> void:
 		for threshold in star_money:
 			if _star_money() >= int(threshold):
 				stars += 1
-	# NIVEL CON JEFE: el aprobado es el jefe, no el oro. Sin rendirlo, las
-	# estrellas se quedan en 1 como mucho (el nivel NO se supera por dinero);
-	# con él rendido caen al menos las 2 del aprobado, y la 3ª sigue pidiendo
-	# el umbral de dinero de siempre.
+	# NIVEL CON JEFE: la 3ª ESTRELLA ES EL JEFE, no un umbral de oro (pedido
+	# por el usuario). Las dos primeras siguen siendo de dinero; rendirlo suma
+	# la tercera. Perder el duelo (5 calaveras) pierde la jornada entera, y
+	# cerrar sin haberlo rendido —el reloj, antes de que saliera— no aprueba.
 	if boss_id != "":
-		stars = maxi(stars, 2) if boss_done else mini(stars, 1)
+		if boss_lost:
+			stars = 0
+		elif boss_done:
+			stars = mini(stars, 2) + 1
+		else:
+			stars = mini(stars, 1)
 	# DERROTA POR VACÍOS (el hándicap del puerto): da igual el oro que hubiera
 	# en caja — tres clientes yéndose sin comer pierden la jornada entera.
 	if lost_by_leavers:
@@ -4308,6 +4324,12 @@ func _finalize_results() -> void:
 		# Y la stat DEL JEFE concreto, que es de la que cuelga su trofeo
 		# (`CollectibleData.BOSS_ITEMS`).
 		GameState.bump_stat("boss_%s" % boss_id)
+		# EL KAPPA PAGA EN EL MAPA (pedido por el usuario): medio dormido, con
+		# 2 lingotes y su diente. La escena la representa main_menu; hasta que
+		# corra, el trofeo no cae por la vía de la stat (ver el filtro de
+		# `_run_achievement_check`).
+		if boss_id == "kappa" and not GameState.kappa_outro_done:
+			GameState.pending_kappa = true
 	# La experiencia del cocinero, con su toast de subida si toca. Va antes del
 	# save para que el nivel nuevo viaje en el mismo guardado.
 	GameState.add_chef_xp(last_xp)
@@ -5460,26 +5482,44 @@ func _setup_vacios_puerto() -> void:
 	# cliente que se larga sin probar bocado enciende una de golpe (ver
 	# `_update_vacios_puerto`). A la tercera se pierde la jornada, y eso se lee
 	# de un vistazo mucho mejor que una cifra.
-	vacios_puerto_label = HBoxContainer.new()
-	vacios_puerto_label.add_theme_constant_override("separation", 4)
-	vacios_puerto_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_vacios_calaveras.clear()
-	for i in VACIOS_MAX:
+	vacios_puerto_label = _build_calaveras(VACIOS_MAX, _vacios_calaveras)
+	$HUD.add_child(vacios_puerto_label)
+	_colocar_vacios_puerto()
+	_update_vacios_puerto()
+
+
+## Una fila de N calaveras apagadas (la de la BANDERA PIRATA, no la
+## `col_calavera` de la vitrina). La comparten el contador de vacíos del
+## puerto (3) y el duelo del jefe (5); `lista` se rellena con los nodos.
+func _build_calaveras(n: int, lista: Array) -> HBoxContainer:
+	var fila := HBoxContainer.new()
+	fila.add_theme_constant_override("separation", 4)
+	fila.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lista.clear()
+	for i in n:
 		var cal := TextureRect.new()
-		# La calavera de la BANDERA PIRATA (craneo y huesos cruzados), no la
-		# `col_calavera` de la vitrina, que es un craneo pelado y no se leia
-		# como el aviso que es.
 		cal.texture = load("res://assets/ui/calavera_vacio.png")
 		cal.custom_minimum_size = Vector2(CALAVERA, CALAVERA)
 		cal.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		cal.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		cal.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		cal.pivot_offset = Vector2(CALAVERA, CALAVERA) * 0.5
-		vacios_puerto_label.add_child(cal)
-		_vacios_calaveras.append(cal)
-	$HUD.add_child(vacios_puerto_label)
-	_colocar_vacios_puerto()
-	_update_vacios_puerto()
+		# Apagada = la calavera en sombra.
+		cal.modulate = Color(0.10, 0.11, 0.16, 0.75)
+		fila.add_child(cal)
+		lista.append(cal)
+	return fila
+
+
+## El SPLASH de una calavera que acaba de encenderse: entra enorme, se aplasta
+## y rebota hasta su tamaño. Es la señal de que se está más cerca de perder.
+func _splash_calavera(cal: TextureRect) -> void:
+	cal.scale = Vector2(2.6, 2.6)
+	var t := create_tween()
+	t.tween_property(cal, "scale", Vector2(0.82, 1.18), 0.13) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.tween_property(cal, "scale", Vector2.ONE, 0.26) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func _colocar_vacios_puerto() -> void:
@@ -5494,6 +5534,144 @@ var _vacios_puerto_last := 0
 var _vacios_calaveras: Array = []
 ## Lado de cada calavera.
 const CALAVERA := 34
+
+# ------------------------------- EL JEFE EN EL HUD ---------------------------
+# Lo monta el GUION al traer al Kappa (`boss_hud_on`), no el nivel: hasta ese
+# momento la tercera estrella es una estrella más y no hay nada que contar.
+
+## Fallos que puede encajar el duelo. A las 5 calaveras la jornada se pierde.
+const BOSS_SKULLS := 5
+## Lado de la chapa del jefe (cara + platos restantes).
+const BOSS_CHIP := 66
+
+## Derrota del duelo: 5 calaveras. Fuerza 0 estrellas, como `lost_by_leavers`.
+var boss_lost := false
+## Alto a mano del cliente ESPECIAL (el jefe mide más que un capitán).
+var special_height := 0.0
+## Con el jefe en escena la 3ª estrella de la barra es SU CARA (se gana
+## rindiéndolo, no con oro): `_place_star_marks` no debe repintarla.
+var boss_star_face := false
+var boss_chip: Control = null
+var boss_chip_num: Label = null
+var boss_skull_row: HBoxContainer = null
+var _boss_skulls: Array = []
+var boss_fails := 0
+
+
+## ENTRA EL JEFE: la 3ª estrella pasa a ser su cara (la gana el duelo, no el
+## oro — la cifra del objetivo se esconde con ella), aparece su CHAPA con los
+## platos que faltan y las CINCO calaveras del duelo.
+func boss_hud_on() -> void:
+	# La cara en la estrella de la meta.
+	if not star_marks.is_empty():
+		boss_star_face = true
+		var n: TextureRect = star_marks.back()["nodo"]
+		n.texture = load("res://assets/ui/head_K.png")
+		n.modulate = Color(1, 1, 1)
+		if money_meta != null:
+			money_meta.visible = false
+	# La chapa de platos, centrada bajo la fila de arriba.
+	if boss_chip == null:
+		boss_chip = Control.new()
+		boss_chip.custom_minimum_size = Vector2(BOSS_CHIP, BOSS_CHIP)
+		boss_chip.size = boss_chip.custom_minimum_size
+		boss_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var fondo := PrepBoard.make_nine_patch(PrepBoard.CARD_TEX,
+			PrepBoard.CARD_MARGIN)
+		fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		boss_chip.add_child(fondo)
+		var ic := TextureRect.new()
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.texture = load("res://assets/ui/head_K.png")
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+		ic.offset_left = 7.0
+		ic.offset_top = 5.0
+		ic.offset_right = -7.0
+		ic.offset_bottom = -9.0
+		boss_chip.add_child(ic)
+		boss_chip_num = Label.new()
+		boss_chip_num.add_theme_font_size_override("font_size", 27)
+		boss_chip_num.add_theme_color_override("font_outline_color", Color.BLACK)
+		boss_chip_num.add_theme_constant_override("outline_size", 10)
+		var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+		if negrita != null:
+			boss_chip_num.add_theme_font_override("font", negrita)
+		boss_chip_num.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		boss_chip_num.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		boss_chip_num.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+		boss_chip_num.set_anchors_preset(Control.PRESET_FULL_RECT)
+		boss_chip_num.offset_right = 4.0
+		boss_chip_num.offset_bottom = 6.0
+		boss_chip.add_child(boss_chip_num)
+		$HUD.add_child(boss_chip)
+		var top: Control = $HUD/TopRow
+		boss_chip.position = Vector2(
+			(GameState.canvas_size().x - BOSS_CHIP) * 0.5,
+			top.global_position.y + top.size.y + 10.0)
+	# Las cinco calaveras, bajo el contador de clientes (ajustadas al canto:
+	# cinco de 34 miden 186 px y desde la caja de clientes se salían).
+	if boss_skull_row == null:
+		boss_skull_row = _build_calaveras(BOSS_SKULLS, _boss_skulls)
+		$HUD.add_child(boss_skull_row)
+		var caja: Control = $HUD/TopRow/ClientsBox
+		var ancho := BOSS_SKULLS * float(CALAVERA) + (BOSS_SKULLS - 1) * 4.0
+		boss_skull_row.position = Vector2(
+			minf(caja.global_position.x,
+				GameState.canvas_size().x - ancho - 8.0),
+			caja.global_position.y + caja.size.y + 2.0)
+
+
+## Platos que le FALTAN al jefe en la fase en curso, en su chapa.
+func boss_chip_set(n: int) -> void:
+	if boss_chip_num == null:
+		return
+	boss_chip_num.text = str(maxi(n, 0))
+	# Un botecito con cada cambio, para que el ojo lo pille de reojo.
+	boss_chip.pivot_offset = boss_chip.size * 0.5
+	var tw := create_tween()
+	tw.tween_property(boss_chip, "scale", Vector2(1.18, 1.18), 0.08)
+	tw.tween_property(boss_chip, "scale", Vector2.ONE, 0.16) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+## Un fallo del duelo: enciende su calavera con el splash. Devuelve las que
+## quedan; a cero el nivel se da por PERDIDO (`boss_lost`) y el guion cierra.
+func boss_lose_skull() -> int:
+	boss_fails += 1
+	if boss_fails - 1 < _boss_skulls.size():
+		var cal: TextureRect = _boss_skulls[boss_fails - 1]
+		if is_instance_valid(cal):
+			cal.modulate = Color(1, 1, 1)
+			_splash_calavera(cal)
+	if boss_fails >= BOSS_SKULLS:
+		boss_lost = true
+	return BOSS_SKULLS - boss_fails
+
+
+## EL PRECIO DE FALLARLE AL JEFE: el oro y las propinas de los platos que se
+## le sirvieron en la fase en curso se pierden. Con suelo en 0, como todos los
+## castigos del juego.
+func boss_forfeit(oro: int, propinas: int) -> void:
+	money_earned = maxi(money_earned - oro, 0)
+	tips_total = maxi(tips_total - propinas, 0)
+	_update_hud()
+
+
+## La cara de la meta celebra la victoria: bote y fogonazo, como una estrella.
+func boss_star_win() -> void:
+	if star_marks.is_empty() or not boss_star_face:
+		return
+	var n: TextureRect = star_marks.back()["nodo"]
+	var ts := create_tween()
+	ts.tween_property(n, "scale", Vector2(1.7, 1.7), 0.14) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	ts.tween_property(n, "scale", Vector2.ONE, 0.3) \
+		.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	var tm := create_tween()
+	tm.tween_property(n, "modulate", Color(2.2, 2.1, 1.6), 0.12)
+	tm.tween_property(n, "modulate", Color(1, 1, 1), 0.35)
 
 
 func _update_vacios_puerto() -> void:
@@ -5515,10 +5693,7 @@ func _update_vacios_puerto() -> void:
 		if idx >= 0 and idx < _vacios_calaveras.size():
 			var cal: TextureRect = _vacios_calaveras[idx]
 			if is_instance_valid(cal):
-				cal.scale = Vector2(2.6, 2.6)
-				var t := create_tween()
-				t.tween_property(cal, "scale", Vector2(0.82, 1.18), 0.13) 					.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-				t.tween_property(cal, "scale", Vector2.ONE, 0.26) 					.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+				_splash_calavera(cal)
 
 
 ## El "-15 s" del ABORDAJE: sale del reloj y sube desvaneciéndose, en rojo.
@@ -5601,11 +5776,6 @@ func _setup_skill_counters() -> void:
 		_skill_chip[id] = num
 		_skill_drawn[id] = -999
 	_place_skill_counters()
-	# El cartel de fase se monta antes que esto (`_skin_panels`), así que hay
-	# que recolocarlo AHORA que ya sabe que tiene vecinos. Solo la `y`: la `x`
-	# la lleva su propia animación de entrada y salida.
-	if phase_sign != null and is_instance_valid(phase_sign):
-		phase_sign.position.y = _phase_sign_y()
 	_refresh_skill_counters()
 
 
@@ -5623,22 +5793,24 @@ func _skill_periods() -> Dictionary:
 	return out
 
 
-## Margen al canto izquierdo de la fila de contadores.
-const SKILL_MARGIN := 12.0
+## Margen al canto de la fila de contadores.
+const SKILL_MARGIN := 10.0
 
 
-## LOS CONTADORES VIVEN ABAJO, JUSTO ENCIMA DE LA CINTA de la tabla de
-## elaboración y pegados al canto izquierdo (pedido por el usuario). Estuvieron
-## bajo el número de clientes, arriba del todo, y eso los dejaba en la otra
-## punta de la pantalla justo cuando hacen falta: son contadores y no dados
-## para poder PLANEAR el plato gratis, y para planear hay que verlos mientras
-## se cocina. Aquí comparten banda con el cartel de fase, que sube su renglón
-## para no pisarlos (ver `_phase_sign_y`).
+## LOS CONTADORES VIVEN ABAJO A LA DERECHA, PEGADOS A LA CINTA de la tabla de
+## elaboración (pedido por el usuario, que los bajó dos veces: primero del HUD
+## de arriba y luego otro renglón más). Van a la MISMA altura que la fila de
+## cabezas de cliente — la banda inmediatamente encima de la cinta — y por la
+## derecha, donde las cabezas (centradas) no llegan. Su ancho se calcula del
+## número de chips: es una fila suelta, no un contenedor anclado.
 func _place_skill_counters() -> void:
 	if skill_counter_row == null or not is_instance_valid(skill_counter_row):
 		return
-	skill_counter_row.position = Vector2(SKILL_MARGIN,
-		GameState.canvas_size().y - 588.0 - HEAD_ICON - 8.0 - float(SKILL_CHIP))
+	var n := skill_counter_row.get_child_count()
+	var ancho := n * float(SKILL_CHIP) + maxi(n - 1, 0) * 14.0
+	skill_counter_row.position = Vector2(
+		GameState.canvas_size().x - SKILL_MARGIN - ancho,
+		GameState.canvas_size().y - 588.0 - 2.0 - float(SKILL_CHIP))
 
 
 ## Cifras que faltan. `left` es lo que queda para el próximo premio; a 0 el

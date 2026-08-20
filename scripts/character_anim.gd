@@ -69,6 +69,13 @@ const IDLE_ARM_SPREAD := 9.0
 ## alto del personaje. Los brazos sanos miden entre el 25% y el 35%; los rigs
 ## fallidos dejan el brazo entero en el 1-2%. Ver _measure().
 const MIN_LIMB_FRAC := 0.15
+## Lo mismo para las PIERNAS, con su propio liston: unas piernas sanas miden
+## el 43-55% del alto (medido en los 13 rigs del reparto). Por debajo de 0.32
+## las rotaciones del andar y del sentado, pensadas para ese largo, arrastran
+## media carne del cuerpo: el KAPPA (27%) salia con una cuna verde enorme
+## detras, tanto andando como sentado. Un rig asi conserva sus piernas como se
+## modelaron y anda solo con el vaiven del cuerpo y los brazos.
+const MIN_LEG_FRAC := 0.32
 const ARM_SWING := 22.0       ## balanceo de hombro (opuesto a su pierna)
 const ELBOW_BEND := 16.0      ## flexion fija de codo, da naturalidad
 ## La clavicula mueve el hombro entero, no solo el brazo: acompaña al brazo
@@ -152,6 +159,7 @@ var _fingers := {}            ## "L"/"R" -> indices de los huesos de los dedos
 
 # Medidas de ESTE personaje, sacadas de su esqueleto en _measure().
 var _leg_len := 1.0           ## muslo + espinilla
+var legs_ok := true           ## si las piernas se pueden animar (ver arriba)
 var _arm_len := 1.0           ## brazo + antebrazo
 var stride := 0.0             ## las cuatro de arriba, ya en unidades del rig
 var foot_lift := 0.0
@@ -231,6 +239,7 @@ func _measure() -> void:
 	# altura. Cuando se detecta, los brazos se dejan como se modelaron.
 	var height: float = _skeleton_height()
 	arms_ok = minf(_arm_len, arm_l) > height * MIN_LIMB_FRAC
+	legs_ok = _leg_len > height * MIN_LEG_FRAC
 	if not arms_ok:
 		return
 
@@ -272,6 +281,13 @@ func has_humanoid_bones() -> bool:
 ## pueden animar. Ver la explicacion en _measure().
 func has_usable_arms() -> bool:
 	return arms_ok
+
+
+## Lo mismo con las piernas (el kappa las tiene al 27% del alto y animarlas lo
+## desfiguraba). Sin piernas animables el personaje anda de una pieza, a
+## bandazos, que a un bicho rechoncho ademas le pega.
+func has_usable_legs() -> bool:
+	return legs_ok
 
 
 ## Si la deteccion encontro ese hueso. Util para comprobar un rig nuevo.
@@ -370,13 +386,16 @@ func _arms_at_rest(breath: float) -> void:
 ## las rodillas ligeramente abiertas y el tronco algo inclinado. No incluye los
 ## brazos, que los pone quien llame (comer, esperar...).
 func sit() -> void:
-	for side in ["L", "R"]:
-		var out := 1.0 if side == "L" else -1.0
-		_pitch("%s_Hip" % side, -SIT_HIP)
-		_roll("%s_Hip" % side, out * SIT_SPREAD)
-		_pitch("%s_Knee" % side, SIT_KNEE)
-		# El pie queda plano en el suelo pese al giro de cadera y rodilla.
-		_pitch("%s_Ankle" % side, SIT_HIP - SIT_KNEE)
+	# Con piernas que no se pueden animar, sentarse es solo inclinar el tronco:
+	# doblar unas piernas del 27% del alto convertia al kappa en una cuna.
+	if legs_ok:
+		for side in ["L", "R"]:
+			var out := 1.0 if side == "L" else -1.0
+			_pitch("%s_Hip" % side, -SIT_HIP)
+			_roll("%s_Hip" % side, out * SIT_SPREAD)
+			_pitch("%s_Knee" % side, SIT_KNEE)
+			# El pie queda plano en el suelo pese al giro de cadera y rodilla.
+			_pitch("%s_Ankle" % side, SIT_HIP - SIT_KNEE)
 	_pitch("Spine1", SIT_LEAN * 0.5)
 	_pitch("Spine2", SIT_LEAN * 0.5)
 
@@ -386,7 +405,7 @@ func sit() -> void:
 ## los pies suben dentro del modelo, asi que el conjunto tiene que bajar).
 func sit_offset(model_scale: float) -> float:
 	var ankle := _skel.find_bone("L_Ankle")
-	if ankle < 0:
+	if ankle < 0 or not legs_ok:
 		return 0.0
 	reset()
 	var standing: float = _skel.get_bone_global_pose(ankle).origin.y
@@ -992,7 +1011,7 @@ func _swing_z(v: float) -> float:
 ## Resuelve la pierna para que el tobillo caiga sobre su objetivo.
 func _leg(side: StringName, cycle01: float, bob: float) -> void:
 	var s := String(side)
-	if not _legs.has(s):
+	if not _legs.has(s) or not legs_ok:
 		return
 	var leg: Dictionary = _legs[s]
 	var l1: float = leg["l1"]

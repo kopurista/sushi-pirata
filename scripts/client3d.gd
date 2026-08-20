@@ -16,6 +16,10 @@ signal finished(report: Dictionary)
 ## Se emite al terminar CADA plato: el precio del plato y la propina de ese
 ## plato (0 si no la deja). El nivel suma ambos al instante, no al marcharse.
 signal plate_served(food: int, tip: int)
+## El JEFE se ha quedado sin paciencia. Un jefe NO se marcha (el duelo lo
+## gobierna el guion): se queda clavado a cero y avisa UNA vez; el guion cobra
+## la calavera y le devuelve parte de la barra con boss_patience_*.
+signal boss_starved
 
 enum State { ARRIVING, WAITING, EATING, LEAVING, DONE }
 
@@ -351,6 +355,12 @@ var _body: Node3D
 var _anim: CharacterAnim = null
 var _model_scale := 1.0
 var _height := 1.75
+## Alto a mano (0 = el del tipo). Lo usa el JEFE: el Kappa mide mas que un
+## capitan, y su talla no puede salir de TYPE_HEIGHTS porque ocupa el hueco
+## de un cliente de tipo G.
+var height_override := 0.0
+## Ya se aviso de esta hambruna (se rearma al recuperar paciencia).
+var _starved_sent := false
 ## Mancha de sombra que acompaña al cliente.
 var _blob: MeshInstance3D = null
 var _t := 0.0                 ## reloj local para respirar/sentado
@@ -399,7 +409,8 @@ func _ready() -> void:
 	# Paciencia base ajustada a partidas de 2:30.
 	patience_max = randf_range(30.0, 40.0) * patience_scale
 	patience = patience_max
-	_height = float(TYPE_HEIGHTS.get(client_type, 1.75))
+	_height = height_override if height_override > 0.0 \
+			else float(TYPE_HEIGHTS.get(client_type, 1.75))
 	_spawn_model()
 	_make_blob()
 	_make_bars()
@@ -498,6 +509,32 @@ func make_boss(eat := 0.32, drain := 1.55, max_patience := 55.0) -> void:
 		_patience_bar.size = Vector2(96, 17)
 		_eat_bar.size = Vector2(96, 17)
 		patience_bar_update()
+
+
+## La paciencia del JEFE, mandada por el guion: a una fraccion de su maximo
+## (las recuperaciones tras cada hambruna) o sumandole una fraccion (el premio
+## por superar una fase). Las dos rearman el aviso de hambruna.
+func boss_patience_set(frac: float) -> void:
+	patience = clampf(patience_max * frac, 0.0, patience_max)
+	_starved_sent = false
+	patience_bar_update()
+
+
+func boss_patience_add(frac: float) -> void:
+	patience = minf(patience + patience_max * frac, patience_max)
+	_starved_sent = false
+	patience_bar_update()
+
+
+## Esconde todo el aparato flotante (barras y bocadillo). Lo usa la derrota
+## del jefe: dormido en el suelo, una barra de paciencia encima seria absurda.
+func hide_bars() -> void:
+	if _patience_bar != null:
+		_patience_bar.visible = false
+	if _eat_bar != null:
+		_eat_bar.visible = false
+	if _bubble != null:
+		_bubble.visible = false
 
 
 func _make_bars() -> void:
@@ -692,6 +729,17 @@ func _process(delta: float) -> void:
 			# deprisa: su espera es una cuenta atrás.
 			drain *= drain_scale
 			patience -= delta * drain
+			if patience <= 0.0 and boss:
+				# EL JEFE NO SE VA: se queda a cero y avisa una vez. Quien
+				# decide que pasa (calavera, recuperacion, derrota) es el
+				# guion, via boss_patience_set/add.
+				patience = 0.0
+				patience_bar_update()
+				if not _starved_sent:
+					_starved_sent = true
+					boss_starved.emit()
+				_scan_belt()
+				return
 			patience_bar_update()
 			if patience <= 0.0:
 				_leave()

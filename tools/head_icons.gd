@@ -20,7 +20,7 @@ const OUT := {
 	#   "E_f": "grumete_fem_rig", "A_f": "pirata_fem_rig",
 	#   "G_f": "capitan_fem_rig", "P": "pablo_rig", "K": "kappa_rig",
 	#   "C": "cai_rig", "AL": "alice_rig",
-	"AL": "alice_rig",
+	"K": "kappa_rig",
 }
 const SIZE := 192
 ## Encuadre en fracciones de la ALTURA TOTAL del personaje, no del hueso de la
@@ -31,8 +31,9 @@ const FRAME_F := 0.34
 ## Ajuste por icono cuando el modelo se sale de la norma: el sombrero de Pablo
 ## es mucho más alto que el del resto y con el encuadre general se le cortaba
 ## por arriba.
-## Y el Kappa es un cabezón con plato y pelambrera: media altura es cabeza.
-const FRAME_OVERRIDE := { "P": 0.44, "K": 0.52, "AL": 0.22 }
+## El Kappa del rediseño es larguirucho: la cabeza (pico y plato incluidos)
+## es ~un cuarto del alto, no la mitad del cabezón antiguo.
+const FRAME_OVERRIDE := { "P": 0.44, "K": 0.30, "AL": 0.22 }
 ## Centro del encuadre bajando desde la coronilla (incluye gorro/sombrero).
 const HEAD_DROP_F := 0.13
 ## Ajuste del centro por icono, cuando la coronilla no está donde parece. La

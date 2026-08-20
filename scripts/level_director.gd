@@ -21,13 +21,9 @@ const TARDIO_PROGRESO := 0.6
 ## Lo mismo para Pablo, que llega en abordaje (sin cupo): algo más tarde.
 const AVISO_PABLO := 0.8
 
-## --- JEFE (nivel 10) ---
-## Platos que tiene que comer el Kappa para rendirse.
+## --- JEFE (Cueva del Kappa) ---
+## Platos de la FASE 1 del duelo (el resto de constantes, junto al guion).
 const BOSS_PLATES := 10
-## Clientes ALIMENTADOS (≥1 plato) que piden la entrada del jefe...
-const KAPPA_FED := 3
-## ...o el reloj de la primera tanda que la fuerza aunque falten.
-const KAPPA_TIME := 60.0
 
 var guion := ""
 ## Clientes ya revisados en client_reports (para pillar al que se va de vacío).
@@ -39,6 +35,7 @@ var _mudo := false
 ## Mientras una lección congela la barra: los clientes que lleguen entran
 ## también con la paciencia retenida.
 var _paciencia_quieta := false
+
 
 
 func _run() -> void:
@@ -1453,11 +1450,49 @@ func _nivel_14() -> void:
 
 
 # ------------------------------------------------------------------- nivel 15
-# Cueva del Kappa: el JEFE. Primero se da de comer a la tripulación; cuando
-# hay suficientes barrigas llenas, el Kappa vacía la barra y empieza el duelo:
-# BOSS_PLATES platos antes de que su paciencia (que corre deprisa) toque fondo.
+# Cueva del Kappa: el JEFE, en TRES FASES (rediseño del 20-8-2026, pedido por
+# el usuario — no re-litigar):
+#  · El Kappa sale al ganarse la 2ª ESTRELLA (no por barrigas ni por reloj), y
+#    SIEMPRE por la boca de la cueva (la borda de arriba).
+#  · La 3ª estrella ES el Kappa: su cara sustituye a la estrella de la meta y
+#    se gana rindiéndolo. Su chapa con la cuenta de platos vive arriba.
+#  · Fase 1: BOSS_PLATES platos. Si su paciencia toca fondo: una CALAVERA, el
+#    oro y las propinas de los platos de la fase se pierden, y recupera el
+#    75% → 50% → 30% de paciencia (cada hambruna perdona menos).
+#  · Fase 2 (+75% de paciencia): KAPPA_DISTINTOS platos SIN repetir. Un
+#    repetido = calavera + oro de la fase + su paladar se resetea y se empieza
+#    de nuevo.
+#  · Fase 3 (+50%): KAPPA_MISMO veces el plato MÁS CARO de la carta de hoy.
+#    Cualquier otro plato = calavera + oro de la fase + cuenta a cero.
+#  · CINCO calaveras. A la quinta, jornada perdida (0 estrellas).
+#  · Victoria: el Kappa se cae del taburete y se queda DORMIDO en el suelo;
+#    David felicita, y al volver al mapa el Kappa (medio dormido) paga
+#    2 lingotes y su diente (`main_menu._presentar_kappa`).
 # Esta coreografía corre TAMBIÉN en las repeticiones (en mudo): sin ella no
 # habría jefe al que ganar.
+
+## Alto del Kappa en unidades de mundo: más que un capitán (1.95). Es el jefe
+## y tiene que verse desde la otra punta de la cubierta.
+const KAPPA_ALTO := 2.5
+## Platos distintos de la fase 2 y repeticiones del plato caro de la fase 3.
+const KAPPA_DISTINTOS := 3
+const KAPPA_MISMO := 5
+## Paciencia que recupera tras cada hambruna: cada una perdona menos.
+const KAPPA_RECUPERA := [0.75, 0.50, 0.30]
+## Premio de paciencia al superar la fase 1 y la 2.
+const KAPPA_PREMIO_F1 := 0.75
+const KAPPA_PREMIO_F2 := 0.50
+
+## Oro y propinas de los platos servidos al Kappa EN LA FASE EN CURSO: es lo
+## que se pierde con cada fallo. Los rellena `_on_kappa_plato`.
+var _oro_fase := 0
+var _prop_fase := 0
+## El Kappa se ha quedado sin paciencia (lo levanta su señal `boss_starved`;
+## el bucle de fase lo recoge y cobra la calavera).
+var _hambre := false
+## Hambrunas encajadas, para la escalera de recuperaciones.
+var _hambres := 0
+
 
 func _nivel_15() -> void:
 	await _decir([
@@ -1467,17 +1502,17 @@ func _nivel_15() -> void:
 	_play()
 	await _tras_la_preparacion()
 
-	# Primera fase: alimentar a la tripulación (o el tiempo la corta).
-	var t0: float = lv.elapsed
+	# EL KAPPA SALE AL GANARSE LA 2ª ESTRELLA: la señal está en la propia
+	# barra del oro, así que el jugador sabe exactamente cuánto le falta.
+	var umbral: int = int(lv.star_money[1]) if lv.star_money.size() >= 2 else 55
 	await _esperar(func() -> bool:
-		return lv.ended or _alimentados() >= KAPPA_FED \
-				or lv.elapsed - t0 > KAPPA_TIME)
+		return lv.ended or lv._score_money() >= umbral)
 	if lv.ended:
 		return
 
 	# --- ENTRA EL JEFE ---
-	# El reloj se para (manda la paciencia del Kappa), no llega nadie más y la
-	# barra se vacía: el duelo es de uno contra uno.
+	# El reloj se para (desde aquí manda su paciencia), no llega nadie más y
+	# la barra se vacía sin castigos: el duelo es de uno contra uno.
 	lv.timed = false
 	lv._apply_hud_layout()
 	lv.arrival_queue.clear()
@@ -1490,11 +1525,16 @@ func _nivel_15() -> void:
 	for c in lv.seat_clients:
 		if c is Node3D and is_instance_valid(c):
 			c.force_leave(false)
-	# El Kappa ocupa el mecanismo del cliente especial: modelo propio y su
-	# cara en la fila de cabezas del HUD.
+	# SIEMPRE POR ARRIBA: por la boca de la cueva (las sillas de la borda de
+	# arriba, `ENTRY`, se fuerzan antes del sorteo). Salir del agua por la
+	# borda de abajo rompía la escena: la boca está arriba.
+	for i in lv.seats.size():
+		if lv.seats[i]["entry"] == lv.ENTRY:
+			lv.first_seats.append(i)
 	lv.special_who = "kappa"
 	lv.special_type = "G"
 	lv.special_spawned = false
+	lv.special_height = KAPPA_ALTO
 	lv.forced_types.append("G")
 	lv._try_spawn_client()
 	var kappa := _kappa()
@@ -1506,65 +1546,232 @@ func _nivel_15() -> void:
 			return lv._try_spawn_client() and _kappa() != null)
 		kappa = _kappa()
 	kappa.make_boss()
+	lv.boss_hud_on()
+	kappa.plate_served.connect(_on_kappa_plato)
+	kappa.boss_starved.connect(_on_kappa_hambre)
 	await _pausa(1.2)
 	_focus_client(kappa)
 	await _decir([
+		{ "text": "HAMBRE.", "who": "kappa", "mood": "enfadado" },
 		{ "text": "Escúchame rápido: el Kappa come de TODO, a una velocidad de escándalo... y se **impacienta** igual de rápido.", "mood": "serio" },
-		{ "text": "Tiene que comerse **%d platos** antes de que su paciencia toque fondo. Variedad, cajas llenas y cero pausas." % BOSS_PLATES, "mood": "hablando" },
-		{ "text": "¡DALE DE COMER O NOS COME A NOSOTROS! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "**%d platos**, cocinero. Y que no se me vacíe la barriga... o nos enfadamos." % BOSS_PLATES, "who": "kappa", "mood": "hablando" },
+		{ "text": "Su cara está en la barra de arriba: ¡esa es hoy tu **tercera estrella**! Y ojo a las **cinco calaveras**: cada fallo enciende una, y a la quinta nos vamos a pique.", "mood": "hablando" },
 	])
-	# Marcador del duelo en la tablilla del nivel.
-	lv._show_phase(true)
-	lv.phase_label.text = "Kappa: 0/%d" % BOSS_PLATES
-	kappa.plate_served.connect(func(_f: int, _t2: int) -> void:
-		if is_instance_valid(kappa):
-			lv.phase_label.text = "Kappa: %d/%d" \
-					% [mini(kappa.eaten_ids.size(), BOSS_PLATES), BOSS_PLATES])
-	_play("¡El **Kappa** espera! ¡Platos variados, sin parar!")
+	_play("¡**%d platos** para el Kappa, sin dejar que su barra toque fondo!" % BOSS_PLATES)
 
-	# El duelo: o come BOSS_PLATES, o se harta y se va.
-	await _esperar(func() -> bool:
-		return lv.ended or not is_instance_valid(kappa) \
-				or kappa.state == kappa.State.LEAVING \
-				or kappa.state == kappa.State.DONE \
-				or kappa.eaten_ids.size() >= BOSS_PLATES)
-	if lv.ended:
+	# --- FASE 1: los platos ---
+	if not await _fase_kappa(kappa, BOSS_PLATES, "platos"):
 		return
-	if is_instance_valid(kappa) and kappa.eaten_ids.size() >= BOSS_PLATES:
-		# --- VICTORIA ---
-		lv.boss_done = true
-		lv.goal_reached = true
-		lv.phase_label.text = "¡Kappa rendido!"
-		await _decir([
-			{ "text": "¡GLUB! ¡GLUB-GLUB!", "who": "gigi", "mood": "loro_sorpresa" },
-			{ "text": "¡Se rinde! ¡Barriga llena y de vuelta al fondo! ¡Eres el cocinero que las leyendas pedían, %s!" % GameState.player_title(), "mood": "riendo" },
-		])
-		if is_instance_valid(kappa):
-			kappa.force_leave(false)
-			if kappa.state != kappa.State.DONE:
-				await kappa.finished
-		lv._show_phase(false)
-		lv._end_level()
-		return
-	# --- DERROTA: se hartó antes de tiempo ---
-	lv._show_phase(false)
+	kappa.boss_patience_add(KAPPA_PREMIO_F1)
+	_focus_client(kappa)
 	await _decir([
-		{ "text": "Se ha hartado... y un Kappa hambriento no paga. ¡Volveremos: ahora sabes cómo mastica!", "mood": "triste" },
-		{ "text": "¡MÁS CAJAS! ¡MÁS VARIEDAD! ¡RAAAK!", "who": "gigi", "mood": "loro" },
+		{ "text": "Mmm. Bueno. MÁS.", "who": "kappa", "mood": "hablando" },
+		{ "text": "Ahora, **%d platos DISTINTOS**. Si me repites plato... calavera." % KAPPA_DISTINTOS, "who": "kappa", "mood": "serio" },
+	])
+	_play("Fase 2: ¡**%d platos DISTINTOS**, sin repetir ninguno!" % KAPPA_DISTINTOS)
+
+	# --- FASE 2: la variedad ---
+	if not await _fase_kappa(kappa, KAPPA_DISTINTOS, "distintos", "", "furioso"):
+		return
+	kappa.boss_patience_add(KAPPA_PREMIO_F2)
+	var plato := _plato_mas_caro()
+	var nombre := str(RecipeData.get_recipe(plato).get("name", plato))
+	_focus_client(kappa)
+	await _decir([
+		{ "text": "Último antojo. Lo MEJOR de tu carta: **%s**." % nombre, "who": "kappa", "mood": "serio" },
+		{ "text": "**%d veces**. Ni una más, ni una menos... ni OTRA COSA." % KAPPA_MISMO, "who": "kappa", "mood": "furioso" },
+	])
+	_play("Fase 3: ¡**%d veces** el **%s** y nada más!" % [KAPPA_MISMO, nombre])
+
+	# --- FASE 3: el antojo ---
+	if not await _fase_kappa(kappa, KAPPA_MISMO, "mismo", plato, "colerico"):
+		return
+
+	# --- VICTORIA ---
+	lv.boss_done = true
+	lv.goal_reached = true
+	lv.boss_star_win()
+	lv.boss_chip_set(0)
+	await _kappa_duerme(kappa)
+	await _decir([
+		{ "text": "Kappa... lleno. Kappa... contento...", "who": "kappa", "mood": "feliz" },
+		{ "text": "Ahora... dormir...", "who": "kappa", "mood": "dormido" },
+		{ "text": "¡Se rinde! ¡Mirad cómo ronca! ¡Eres el cocinero que las leyendas pedían, %s!" % GameState.player_title(), "mood": "riendo" },
+		{ "text": "¡QUE ALGUIEN LO SAQUE DE LA BARRA! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
 	])
 	lv._end_level()
 
 
-## Clientes que han comido AL MENOS un plato en esta partida (sentados o idos).
-func _alimentados() -> int:
-	var n := 0
-	for r in lv.client_reports:
-		if not (r.get("eaten", []) as Array).is_empty():
-			n += 1
-	for c in lv.seat_clients:
-		if c is Node3D and is_instance_valid(c) and not c.eaten_ids.is_empty():
-			n += 1
-	return n
+## Una FASE del duelo. `modo`: "platos" (N cualesquiera), "distintos" (N sin
+## repetir) o "mismo" (N del plato `target`, y solo ese). Devuelve false si el
+## duelo murió por el camino: derrota por calaveras, fin del nivel o el propio
+## Kappa desaparecido.
+##
+## VA POR SONDEO de `eaten_ids`, no por señal: el id del plato solo está ahí,
+## y leerlo en el mismo bucle que decide serializa los fallos con las frases
+## (un handler async podía hablar ENCIMA de la charla de cambio de fase).
+func _fase_kappa(kappa: Node3D, objetivo: int, modo: String,
+		target := "", ira := "enfadado") -> bool:
+	_oro_fase = 0
+	_prop_fase = 0
+	_hambre = false
+	var progreso := 0
+	var distintos := {}
+	var vistos: int = kappa.eaten_ids.size()
+	lv.boss_chip_set(objetivo)
+	while true:
+		await _esperar(func() -> bool:
+			return lv.ended or lv.boss_lost or _hambre \
+				or not is_instance_valid(kappa) \
+				or kappa.eaten_ids.size() > vistos)
+		if lv.ended or lv.boss_lost or not is_instance_valid(kappa):
+			return false
+		if _hambre:
+			_hambre = false
+			if not await _hambruna_kappa(kappa, ira):
+				return false
+			continue
+		vistos += 1
+		var id := str(kappa.eaten_ids[vistos - 1])
+		if modo == "distintos" and distintos.has(id):
+			if not await _fallo_kappa(kappa,
+					"Eso... YA LO HE COMIDO. ¡DISTINTOS he dicho! ¡Empezamos de nuevo!", ira):
+				return false
+			distintos.clear()
+			progreso = 0
+			# Su paladar se resetea (pedido por el usuario): sin esto, la
+			# escalera del hastío del intento fallido seguía cargada y el
+			# reintento drenaba la paciencia como si nada se hubiera olvidado.
+			kappa._limpiar_paladar()
+			lv.boss_chip_set(objetivo)
+			continue
+		if modo == "mismo" and id != target:
+			var nombre := str(RecipeData.get_recipe(target).get("name", target))
+			if not await _fallo_kappa(kappa,
+					"¡ESO NO! ¡He dicho **%s**! ¡La cuenta A CERO!" % nombre, ira):
+				return false
+			progreso = 0
+			lv.boss_chip_set(objetivo)
+			continue
+		if modo == "distintos":
+			distintos[id] = true
+		progreso += 1
+		lv.boss_chip_set(objetivo - progreso)
+		if progreso >= objetivo:
+			return true
+	# Inalcanzable (el bucle solo sale por return), pero el analizador de
+	# GDScript exige que todos los caminos devuelvan algo.
+	return false
+
+
+## El Kappa se ha quedado sin paciencia: calavera, el oro de la fase se pierde
+## y recupera un trozo de barra — cada vez menos (75% → 50% → 30%). Devuelve
+## false si esa calavera era la quinta.
+func _hambruna_kappa(kappa: Node3D, ira := "enfadado") -> bool:
+	_hambres += 1
+	var quedan: int = lv.boss_lose_skull()
+	lv.boss_forfeit(_oro_fase, _prop_fase)
+	_oro_fase = 0
+	_prop_fase = 0
+	if quedan <= 0:
+		await _derrota_kappa()
+		return false
+	var frac: float = KAPPA_RECUPERA[mini(_hambres - 1, KAPPA_RECUPERA.size() - 1)]
+	kappa.boss_patience_set(frac)
+	_focus_client(kappa)
+	await _decir([
+		{ "text": "¡KAPPA TIENE **HAMBRE**! ¡Más deprisa, cocinero, o me como la cueva!", "who": "kappa", "mood": ira },
+	])
+	return true
+
+
+## Un fallo de fase (plato repetido, plato equivocado): calavera, el oro de la
+## fase se pierde y el Kappa lo canta. Devuelve false si era la quinta.
+func _fallo_kappa(kappa: Node3D, frase: String, ira := "enfadado") -> bool:
+	var quedan: int = lv.boss_lose_skull()
+	lv.boss_forfeit(_oro_fase, _prop_fase)
+	_oro_fase = 0
+	_prop_fase = 0
+	if quedan <= 0:
+		await _derrota_kappa()
+		return false
+	_focus_client(kappa)
+	await _decir([{ "text": frase, "who": "kappa", "mood": ira }])
+	return true
+
+
+## La quinta calavera: jornada perdida (0 estrellas, `boss_lost` ya puesto).
+func _derrota_kappa() -> void:
+	await _decir([
+		{ "text": "¡¡BASTA!! Kappa se harta. ¡KAPPA SE VA!", "who": "kappa", "mood": "colerico" },
+		{ "text": "Se acabó la jornada... Un Kappa enfadado no perdona. ¡Volveremos: ahora ya sabes cómo mastica!", "mood": "triste" },
+	])
+	lv._end_level()
+
+
+## El plato MÁS CARO de la carta de hoy: el antojo de la fase 3. Ni postres
+## (el jefe los descarta antes del dado) ni picoteos: tiene que ser un plato
+## que el Kappa vaya a coger y que se pueda repetir cinco veces.
+func _plato_mas_caro() -> String:
+	var mejor := ""
+	var precio := -1
+	for id in GameState.selected_recipes:
+		var r := RecipeData.get_recipe(id)
+		if r.get("leaves_seat", false) or r.get("snack", false):
+			continue
+		if int(r.get("price", 0)) > precio:
+			precio = int(r.get("price", 0))
+			mejor = str(id)
+	if mejor == "" and not GameState.selected_recipes.is_empty():
+		mejor = str(GameState.selected_recipes[0])
+	return mejor
+
+
+## LA VICTORIA SE VE: el Kappa se cae del taburete y se queda DORMIDO en el
+## suelo. Se le saca de la lógica del nivel (nadie lo cobra ni lo echa al
+## cerrar: `_end_level` ya no lo encuentra en `seat_clients`) y un "Zzz"
+## flotante lo remata.
+func _kappa_duerme(kappa: Node3D) -> void:
+	var idx: int = lv.seat_clients.find(kappa)
+	if idx >= 0:
+		lv.seat_clients[idx] = null
+	kappa.set_process(false)
+	kappa.hide_bars()
+	# El tumbo: cae de lado con un rebote corto. Se anima la RAÍZ (el pivote
+	# está en sus pies), así que vuelca sobre el suelo como un saco.
+	var tw := create_tween()
+	tw.tween_property(kappa, "rotation_degrees:z", 80.0, 0.5) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(kappa, "rotation_degrees:z", 71.0, 0.16)
+	tw.tween_property(kappa, "rotation_degrees:z", 76.0, 0.14)
+	await tw.finished
+	var z := Label.new()
+	z.text = "Zzz"
+	z.add_theme_font_size_override("font_size", 34)
+	z.add_theme_color_override("font_color", Color(0.75, 0.9, 1.0))
+	z.add_theme_color_override("font_outline_color", Color.BLACK)
+	z.add_theme_constant_override("outline_size", 8)
+	z.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lv.world_ui.add_child(z)
+	z.position = lv.cam.unproject_position(
+		kappa.global_position + Vector3(0.0, 1.0, 0.0)) - Vector2(20.0, 0.0)
+	var alto0 := z.position.y
+	var zt := z.create_tween().set_loops()
+	zt.tween_property(z, "position:y", alto0 - 16.0, 1.1)
+	zt.parallel().tween_property(z, "modulate:a", 0.15, 1.1)
+	zt.tween_callback(func() -> void:
+		z.position.y = alto0
+		z.modulate.a = 1.0)
+	await _pausa(0.7)
+
+
+func _on_kappa_plato(food: int, tip: int) -> void:
+	_oro_fase += food
+	_prop_fase += tip
+
+
+func _on_kappa_hambre() -> void:
+	_hambre = true
 
 
 ## El jefe, si ya está en el nivel.

@@ -271,6 +271,13 @@ func _menu_popups() -> void:
 		await get_tree().create_timer(0.7).timeout
 		await _presentar_maestrias()
 		return
+	# EL KAPPA PAGA AL SALIR DEL NIVEL (pedido por el usuario): medio dormido,
+	# 2 lingotes y su diente. Aquí y no en el nivel, por lo mismo que Pablo:
+	# el contador de lingotes está a la vista.
+	if GameState.pending_kappa:
+		await get_tree().create_timer(0.7).timeout
+		await _presentar_kappa()
+		return
 	# PABLO PAGA LO QUE COMIÓ. La promesa se hace en su nivel y el pago se cobra
 	# AQUÍ, con las tres cajas de recursos a la vista: es la primera vez que el
 	# jugador oye hablar de los lingotes y David puede señalarle el contador de
@@ -427,6 +434,36 @@ func _presentar_alice() -> void:
 	])
 	await caja.finished
 	await caja.close_and_free()
+
+
+## EL KAPPA, RENDIDO Y MEDIO DORMIDO, viene a pagar: 2 lingotes y su diente.
+## La escena corre UNA vez, al volver al mapa tras rendirlo por primera vez.
+const KAPPA_LINGOTES := 2
+
+
+func _presentar_kappa() -> void:
+	GameState.pending_kappa = false
+	GameState.kappa_outro_done = true
+	var caja := DialogueBox.new()
+	caja.z_index = 200
+	ui_layer.add_child(caja)
+	caja.say([
+		{ "text": "¡RAAAK! ¡NOS SIGUE! ¡EL BICHO NOS SIGUE!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "Mmm... cocinero...", "who": "kappa", "mood": "dormido" },
+		{ "text": "Tranquilo, loro. Un Kappa con la barriga llena no persigue a nadie: apenas se aguanta despierto.", "mood": "hablando" },
+		{ "text": "Comida... buena. Kappa... paga.", "who": "kappa", "mood": "hablando" },
+		{ "text": "Toma. Dos lingotes... y esto. Se me cayó... masticando.", "who": "kappa", "mood": "feliz" },
+		{ "text": "¡LINGOTES! ¡RAAAK! ¡QUE NO SE ARREPIENTA!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "Kappa duerme ahora. Mucho... tiempo. No hagáis... ruido...", "who": "kappa", "mood": "dormido" },
+		{ "text": "Que duermas bien, grandullón. Y nosotros, %s, a por el siguiente mar." % GameState.player_title(), "mood": "feliz" },
+	])
+	await caja.finished
+	await caja.close_and_free()
+	GameState.ingots += KAPPA_LINGOTES
+	_refresh_resources()
+	# El diente: su ventana la saca NoticeLayer en cuanto se desbloquea.
+	GameState.unlock_collectible("diente_kappa")
+	GameState.save_game()
 
 
 ## CAI se enrola. Al superar la Isla de Gades quiere pagar con su caña, y David
