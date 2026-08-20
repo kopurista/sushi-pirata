@@ -288,6 +288,8 @@ var tension_prev := 0.0
 var mezcla_pez := 0.0
 ## Cruce con el carrete del TIRÓN: 0 pelea normal, 1 el pez llevándose todo.
 var mezcla_tiron := 0.0
+## Lo que EMPUJA el pez en el tirón (barra/s), aunque el jugador lo frene.
+var tiron_tasa := 0.0
 ## Opacidad MAXIMA de las lineas. Casi opaca: con los parametros suaves
 ## (lineas largas y difusas) el velo no tapa nada, y a media opacidad el
 ## tiron apenas se notaba.
@@ -1075,14 +1077,18 @@ func _tick_fight(delta: float) -> void:
 		# baja, le FRENA la subida durante TAP_RELIEF s (y tensa el sedal en
 		# _on_zone_input). Solo pulsando más rápido que la ventana la barra
 		# baja, y muy poco.
+		# Lo que EMPUJA el pez, lo frene el jugador o no: es lo que manda en el
+		# sonido del tirón (ver `_audio_pelea`).
+		tiron_tasa = k_tiron * (SPEED_REGAIN_BASE + SPEED_REGAIN_TIER * tier) \
+			* fuerza
 		if speed_relief > 0.0:
 			energy -= SPEED_DRAIN_TAPPING * delta
 		else:
-			energy += k_tiron * (SPEED_REGAIN_BASE + SPEED_REGAIN_TIER * tier) \
-				* fuerza * delta
+			energy += tiron_tasa * delta
 		if speed_left <= 0.0:
 			instruction.text = "¡Mantén para recoger!\nSuelta si el sedal sufre"
 	else:
+		tiron_tasa = 0.0
 		if phases_left > 0:
 			speed_next -= delta
 			# Con la barra casi llena el tirón se APLAZA (ver SPEED_MAX_ENERGY):
@@ -2373,8 +2379,8 @@ const SND := {
 		"res://sounds/pesca/Bobber Lands in Water - 2.ogg",
 	],
 	"amago": [
-		"res://sounds/pesca/Fish Biting - 2.ogg",
 		"res://sounds/pesca/Fish Biting - 3.ogg",
+		"res://sounds/pesca/Fish Biting - 4.ogg",
 	],
 	"recoger": [
 		"res://sounds/pesca/Reeling in Fishing Rod - 1.ogg",
@@ -2459,7 +2465,13 @@ const PITCH_TIRON_MAX := 2.05
 ## Lo que sí distingue los dos estados sin procesar nada es que sean DOS
 ## GRABACIONES distintas, cruzadas por volumen (`MEZCLA_VEL`): el timbre
 ## cambia de verdad, no se reinicia nada y no hay DSP que pueda chasquear.
-const MEZCLA_VEL := 9.0
+## EL CRUCE VA MÁS RÁPIDO EN UN SENTIDO QUE EN OTRO, a propósito: cuando el
+## jugador APRIETA el sonido tiene que responderle CASI EN EL ACTO (es su
+## gesto, y una transición ahí se oye como que el juego va por detrás), y
+## cuando suelta el relevo puede ser más suave, porque quien toma el mando es
+## el pez. Mismo criterio para entrar y salir del tirón.
+const MEZCLA_A_RECOGER := 32.0
+const MEZCLA_A_SOLTAR := 16.0
 ## El carrete del pez arranca despacio y coge ritmo: su primer tramo suena
 ## una vez y el bucle vuelve aquí (ver `SoundBank.loop_on`).
 const SEDAL_PEZ_DESDE := 0.845
@@ -2488,13 +2500,22 @@ func _audio_pelea(delta: float, en_velocidad: bool) -> void:
 	# volver a lanzarlos es lo que se oía como un corte al pasar de un sonido
 	# a otro —un `play()` empieza el archivo desde cero, y encima el tirón
 	# entra y sale varias veces por pelea.
-	var paso := minf(delta * MEZCLA_VEL, 1.0)
-	mezcla_pez = lerpf(mezcla_pez, 0.0 if holding else 1.0, paso)
-	mezcla_tiron = lerpf(mezcla_tiron, 1.0 if en_velocidad else 0.0, paso)
+	var rapido := minf(delta * MEZCLA_A_RECOGER, 1.0)
+	var suave := minf(delta * MEZCLA_A_SOLTAR, 1.0)
+	mezcla_pez = lerpf(mezcla_pez, 0.0 if holding else 1.0,
+		rapido if holding else suave)
+	mezcla_tiron = lerpf(mezcla_tiron, 1.0 if en_velocidad else 0.0,
+		rapido if en_velocidad else suave)
 	var pitch := _pitch_sano(lerpf(PITCH_MIN, PITCH_MAX,
 		clampf(vel_barra / VEL_REF, 0.0, 1.0)))
+	# EN EL TIRÓN MANDA LA FUERZA DEL PEZ, NO LO QUE SE MUEVA LA BARRA. Cada
+	# toque del jugador FRENA la barra (esa es la mecánica), así que pulsando
+	# como hay que pulsar la barra casi se para y el carrete se venía abajo
+	# —de x1.84 a x1.61, medido— justo en el momento más apretado: se oía como
+	# si el tirón se hubiera acabado. El pez sigue tirando con todo, y eso es
+	# lo que tiene que sonar.
 	var pitch_tiron := _pitch_sano(lerpf(PITCH_TIRON_MIN, PITCH_TIRON_MAX,
-		clampf(vel_barra / VEL_REF_TIRON, 0.0, 1.0)))
+		clampf(maxf(vel_barra, tiron_tasa) / VEL_REF_TIRON, 0.0, 1.0)))
 	var normal := 1.0 - mezcla_tiron
 	snd.loop_on("arrastre",
 		SND_BUCLE + _mezcla_db(normal * (1.0 - mezcla_pez)), pitch)

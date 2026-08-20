@@ -1674,9 +1674,9 @@ primera vez que se entra en ellos (`logros_intro_done` /
     · Reparto por lo que HACE cada sonido, no por su nombre (**las tomas
       concretas las eligió el usuario a oído, no re-barajarlas**): "Open Bait
       Box" abre el intento (se saca el cebo) y ABRE EL COFRE —es literalmente
-      abrir una caja—; "Fish Biting" (**2 y 3**) son los AMAGOS y nada más,
-      flojitas porque es un mordisqueo; "Line Break (With Throw)" el sedal
-      roto.
+      abrir una caja—; "Fish Biting" (**3 y 4**, elegidas a oído) son los
+      AMAGOS y nada más, flojitas porque es un mordisqueo; "Line Break (With
+      Throw)" el sedal roto.
     · **TODA LA PELEA ES UN SOLO BUCLE QUE NUNCA SE CORTA** ("Moving Line
       Closer - 1"), en el mismo reproductor, así que pasar de recoger a soltar
       no reinicia nada: se oye acelerar y frenar. "Reeling in Fishing Rod - 1"
@@ -1696,6 +1696,13 @@ primera vez que se entra en ellos (`logros_intro_done` /
         (`PITCH_TIRON_MIN` 1.6) va por encima del techo de los otros dos
         (`PITCH_MAX` 1.5), así que ni el mejor tramo de recogida puede sonar
         tan acelerado como el pez llevándose el sedal.
+      · **Y EN EL TIRÓN MANDA LA FUERZA DEL PEZ (`tiron_tasa`), NO LO QUE SE
+        MUEVA LA BARRA**: ahí cada toque del jugador FRENA la barra —esa es la
+        mecánica—, así que pulsando como hay que pulsar la barra casi se para
+        y el carrete se venía abajo (de x1.84 a x1.61, medido) justo en el
+        momento más apretado; se oía como si el tirón se hubiera acabado y
+        hubiera vuelto el sonido de estar de brazos cruzados. El pez sigue
+        tirando con todo, y eso es lo que tiene que sonar.
       · **El suelo (`PITCH_MIN` 1.15) va por encima de la velocidad natural
         del sonido**: a 1.0 el carrete se arrastraba y la pelea sonaba parada
         aunque no lo estuviera.
@@ -1718,6 +1725,13 @@ primera vez que se entra en ellos (`logros_intro_done` /
       pelea. El cruce va por volumen LINEAL (`_mezcla_db` con `linear_to_db`),
       no interpolando decibelios: en dB se oye un bache en mitad del cruce,
       porque -6 dB ya es media señal.
+      · **Y ES ASIMÉTRICO A PROPÓSITO** (`MEZCLA_A_RECOGER` 32/s contra
+        `MEZCLA_A_SOLTAR` 16/s): cuando el jugador APRIETA, el sonido tiene
+        que responderle casi en el acto —es su gesto, y una transición ahí se
+        oye como que el juego va por detrás—; cuando suelta, el relevo puede
+        ser más suave, porque quien toma el mando es el pez. Medido: **66 ms**
+        para entrar a recoger y **133 ms** para soltar. Mismo criterio al
+        entrar y salir del tirón.
     · **`_pitch_sano` es una red de seguridad, no un adorno**: un `pitch_scale`
       que no sea un número reviente el mezclador y puede llevarse por delante
       TODO el audio del juego, no solo ese sonido. Cuesta una comparación por
