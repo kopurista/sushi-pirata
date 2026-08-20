@@ -775,12 +775,19 @@ func _nivel_6() -> void:
 # Y ES **EL** PIRATA: sube uno solo en todo el nivel (ver `client_weights` del
 # puerto) porque es quien lleva encima la BANDERA PIRATA, y este es el único
 # sitio del juego donde se consigue. Le pone precio él mismo, en su propio
-# retrato: PLATOS_BANDERA platos y el trapo es tuyo.
+# retrato: `platos_bandera()` platos y el trapo es tuyo.
 
 ## Platos que hay que servirle al pirata para que suelte su bandera. TRES, no
 ## cinco: en un abordaje de 2:30, con el pirata entrando el tercero y comiendo
 ## de dos estrellas, cinco eran casi todo el turno dedicado a un solo cliente.
-const PLATOS_BANDERA := 3
+## El número lo manda el PROPIO ESCENARIO (`collectible_here.n`), no esta
+## constante: la vitrina lee esos mismos datos para su pista, y con dos
+## números sueltos el pirata podía pedir tres platos y la pista decir otra
+## cosa. Aquí solo queda el respaldo por si el dato faltara.
+static func platos_bandera() -> int:
+	var cfg: Dictionary = CampaignData.get_port("nivel_7").get(
+		"collectible_here", {})
+	return maxi(int(cfg.get("n", 3)), 1)
 ## EL pirata del nivel 7 y su trato, que se resuelve por señal (ver
 ## `_on_pirata_come`).
 var _pirata_bandera: Node3D = null
@@ -877,12 +884,12 @@ func _nivel_7() -> void:
 	await _say([
 		{ "text": "Eh, cocinero. Baja un momento.", "who": quien, "mood": "nervioso" },
 		{ "text": "Mi capitán me manda a comer y vuelvo con el buche vacío... y esta noche me deja fregando la sentina.", "who": quien, "mood": "hablando" },
-		{ "text": "Ponme **%d platos** y te doy mi **bandera**. La llevo desde el primer abordaje, pero prefiero cenar." % PLATOS_BANDERA,
+		{ "text": "Ponme **%d platos** y te doy mi **bandera**. La llevo desde el primer abordaje, pero prefiero cenar." % platos_bandera(),
 			"who": quien, "mood": "serio" },
-		{ "text": "¡%d PLATOS POR UN TRAPO! ¡RAAAK!" % PLATOS_BANDERA, "who": "gigi", "mood": "loro" },
+		{ "text": "¡%d PLATOS POR UN TRAPO! ¡RAAAK!" % platos_bandera(), "who": "gigi", "mood": "loro" },
 		{ "text": "Ese trapo es un **coleccionable**, plumas. Tú sírvele, %s." % GameState.player_title(), "mood": "loro_resignado" },
 	])
-	_play("¡%d platos para el **pirata**! Lo demás ya vendrá." % PLATOS_BANDERA)
+	_play("¡%d platos para el **pirata**! Lo demás ya vendrá." % platos_bandera())
 
 	# --- Se cumple el trato: la bandera en mano ---
 	# LA SEÑAL SOLO APUNTA QUE LA CUENTA ESTÁ HECHA; QUIEN ENTREGA ES ESTE
@@ -938,7 +945,7 @@ func _on_pirata_come(_precio: int, _propina: int) -> void:
 	if _bandera_dada or _pirata_bandera == null \
 			or not is_instance_valid(_pirata_bandera):
 		return
-	if _pirata_bandera.eaten_ids.size() < PLATOS_BANDERA:
+	if _pirata_bandera.eaten_ids.size() < platos_bandera():
 		return
 	# AQUÍ SOLO SE APUNTA QUE LA CUENTA ESTÁ HECHA. La entrega (y con ella la
 	# ventana del coleccionable) la hace el guion cuando el pirata ha terminado

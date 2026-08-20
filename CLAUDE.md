@@ -348,10 +348,32 @@ que se sabe.
   premio por casualidad.
 · **Y UNA PIEZA QUE SE ESCAPÓ NO SE QUEDA EN MISTERIO**
   (`inventory_screen._pista_coleccionable`): con su escenario ya superado, la
-  ficha de la vitrina se abre y dice DÓNDE sale y QUÉ pide, con el dibujo
-  todavía en silueta. El jugador vio al tipo y oyó el encargo; escondérselo
-  después sería castigarle dos veces. El escenario lo deduce
-  `CampaignData.port_for_collectible`, no una tabla escrita a mano.
+  ficha de la vitrina se abre y dice **el MAR, el ESCENARIO y QUÉ hay que
+  hacer**, con el dibujo todavía en silueta. El jugador estuvo allí y la dejó
+  escapar; escondérselo después sería castigarle dos veces.
+  · La silueta con pista lleva una **chapa con un "?"** en la esquina
+    (`_boton_pista`): es la ÚNICA señal de que esa tarjeta tiene algo que
+    contar — sin ella, las que se abren y las que no se ven exactamente
+    igual y nadie las toca. Es un botón de verdad y no un adorno, porque en
+    una rejilla de 4 columnas fallar la esquina por dos píxeles y que no pase
+    nada se lee como que está roto.
+  · El escenario lo deduce `CampaignData.port_for_collectible`, que mira las
+    **TRES vías** por las que un escenario entrega una pieza: el cliente del
+    TESORO (`collectible_client`), la que entrega un guion
+    (`collectible_here`, la bandera del pirata) y el TROFEO del jefe, que sale
+    de `boss` + `BOSS_ITEMS` y no se escribe en ningún sitio. Añadir un jefe o
+    un cliente del tesoro no obliga a tocar la vitrina.
+  · El REQUISITO lo redacta `CampaignData.collectible_how` con el MISMO
+    `reto_texto` que canta el cliente en el nivel, así que la pista no puede
+    contradecir lo que se oye jugando. Por eso los platos de la bandera
+    viven ya en los datos del escenario 10 y `level_director.platos_bandera()`
+    los lee de ahí: con dos números sueltos, el pirata podía pedir tres y la
+    pista decir otra cosa.
+  · El MAR sale de `CampaignData.sea_of`, que hoy devuelve 1 para todos; el
+    día que entre el mar 2 basta con que sus puertos declaren `"sea": 2`.
+  · La ficha pinta con **RichTextLabel**, no Label: la pista trae palabras
+    clave entre `**` y `format_keywords` devuelve BBCode. Con un Label los
+    asteriscos se leían tal cual.
 
 **EL CONTADOR DE VACÍOS DEL PUERTO SON TRES CALAVERAS**, no un "Vacíos N/3"
 (`level3d._setup_vacios_puerto`): son la calavera de la BANDERA PIRATA

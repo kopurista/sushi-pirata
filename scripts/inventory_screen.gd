@@ -688,19 +688,57 @@ func _collection_card(it: Dictionary) -> Control:
 	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(name_l)
 
-	# UNA PIEZA QUE SE ESCAPO NO SE QUEDA EN MISTERIO. Si su escenario ya esta
-	# superado, la ficha se puede abrir para leer DONDE sale y QUE pide su
-	# cliente: el jugador vio al tipo del tesoro, oyo el encargo y no lo cumplio,
-	# asi que esconderselo despues solo seria castigarle dos veces.
-	if owned or _pista_coleccionable(id) != "":
+	# UNA PIEZA QUE SE ESCAPÓ NO SE QUEDA EN MISTERIO. Si su escenario ya está
+	# superado, la ficha se puede abrir para leer DONDE sale y QUE hay que
+	# hacer: el jugador estuvo allí y lo dejó escapar, así que escondérselo
+	# después solo sería castigarle dos veces.
+	var pista := "" if owned else _pista_coleccionable(id)
+	if owned or pista != "":
 		card.pressed.connect(_open_collectible_sheet.bind(id))
 		PrepBoard.add_press_feedback(card, 0.92)
+	# EL "?" ES LA ÚNICA SEÑAL de que esa silueta tiene algo que contar: sin
+	# él, las que se pueden abrir y las que no se ven igual y nadie las
+	# toca. Solo sale en las BLOQUEADAS con pista: la conseguida ya se explica
+	# sola al abrirla.
+	if pista != "":
+		card.add_child(_boton_pista(id))
 	return card
 
 
-## Pista de una pieza NO conseguida: el escenario donde sale y el encargo que
-## pide, con el `reto` tal y como lo canta David. "" si no la da ningun cliente
-## del tesoro o si su escenario aun no se ha superado.
+## Chapa con un "?" en la esquina de la tarjeta. Es un botón de verdad —y no
+## un adorno— para que tocarlo justo ahí también abra la ficha: en una
+## rejilla de 4 columnas la esquina es un blanco pequeño y fallarlo por dos
+## píxeles y que no pase nada se lee como que está roto.
+func _boton_pista(id: String) -> Control:
+	var b := Button.new()
+	b.text = "?"
+	b.size = Vector2(34, 34)
+	b.position = Vector2(112, 6)
+	b.add_theme_font_size_override("font_size", 22)
+	b.add_theme_color_override("font_color", Color(1, 0.93, 0.72))
+	b.add_theme_color_override("font_outline_color", Color(0.20, 0.11, 0.04))
+	b.add_theme_constant_override("outline_size", 6)
+	var chapa := StyleBoxFlat.new()
+	chapa.bg_color = Color(0.42, 0.26, 0.10)
+	chapa.border_color = Color(0.86, 0.68, 0.32)
+	chapa.set_border_width_all(2)
+	chapa.set_corner_radius_all(17)
+	for st in ["normal", "hover", "focus"]:
+		b.add_theme_stylebox_override(st, chapa)
+	var hundida := chapa.duplicate()
+	hundida.bg_color = Color(0.30, 0.18, 0.06)
+	b.add_theme_stylebox_override("pressed", hundida)
+	b.pressed.connect(_open_collectible_sheet.bind(id))
+	PrepBoard.add_press_feedback(b, 0.86)
+	return b
+
+
+## Pista de una pieza NO conseguida: DÓNDE sale —mar y escenario— y QUÉ hay
+## que hacer para llevársela. "" si no sale de ningún escenario o si el suyo
+## aún no se ha superado: la pista es por haber ESTADO allí, no un catálogo.
+##
+## El mar y el requisito salen de `CampaignData`, de los mismos datos que
+## usan el cliente y el guion en el nivel, para que no puedan contradecirse.
 func _pista_coleccionable(id: String) -> String:
 	if GameState.has_collectible(id):
 		return ""
@@ -708,11 +746,14 @@ func _pista_coleccionable(id: String) -> String:
 	if port_id == "" or not GameState.port_beaten(port_id):
 		return ""
 	var port := CampaignData.get_port(port_id)
-	var n := CampaignData.PORTS.find(port) + 1
-	return "Lo trae un cliente del escenario %d, **%s**.
-Para que lo suelte, %s." % [
-		n, str(port.get("name", "")),
-		CampaignData.reto_texto(port.get("collectible_client", {}))]
+	var donde := "**Mar %d**, escenario **%d**: %s." % [
+		CampaignData.sea_of(port_id), CampaignData.port_number(port_id),
+		str(port.get("name", ""))]
+	var como := CampaignData.collectible_how(port_id, id)
+	if como == "":
+		return donde
+	return "%s
+Para llevártelo, %s." % [donde, como]
 
 
 ## Ficha de un coleccionable YA conseguido: dibujo grande, nombre y cómo se
@@ -766,12 +807,19 @@ func _open_collectible_sheet(id: String) -> void:
 	name_l.offset_bottom = 334.0
 	panel.add_child(name_l)
 
-	var desc := Label.new()
-	desc.text = CollectibleData.describe(id) if tengo else _pista_coleccionable(id)
-	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# RichTextLabel y no Label: la pista trae palabras clave entre `**` y hay
+	# que pasarlas por `format_keywords`, que devuelve BBCode. Con un Label los
+	# asteriscos se leian tal cual en la ficha.
+	var desc := RichTextLabel.new()
+	desc.bbcode_enabled = true
+	desc.fit_content = true
+	desc.scroll_active = false
+	desc.text = "[center]%s[/center]" % DialogueBox.format_keywords(
+		CollectibleData.describe(id) if tengo else _pista_coleccionable(id))
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc.add_theme_font_size_override("font_size", 21)
-	desc.add_theme_color_override("font_color", Color(0.30, 0.20, 0.10))
+	desc.add_theme_font_size_override("normal_font_size", 21)
+	desc.add_theme_font_size_override("bold_font_size", 21)
+	desc.add_theme_color_override("default_color", Color(0.30, 0.20, 0.10))
 	desc.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	desc.offset_left = 54.0
 	desc.offset_right = -54.0

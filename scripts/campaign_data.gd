@@ -204,14 +204,57 @@ static func reto_texto(cfg: Dictionary, yo := false) -> String:
 	return plantilla
 
 
-## El puerto que reparte ese coleccionable, o "" si no lo da ninguno. Lo usa la
-## vitrina para decir DONDE se consigue una pieza que aun no se tiene.
+## El escenario que reparte ese coleccionable, o "" si no sale de ninguno. Lo
+## usa la VITRINA para decir DONDE se consigue una pieza que aun no se tiene.
+##
+## Mira las TRES vías por las que un escenario entrega una pieza, para que
+## añadir una no obligue a tocar la vitrina: el cliente del TESORO, la que
+## entrega un guion (`collectible_here`, la bandera del pirata) y el TROFEO
+## del jefe, que se deduce de `boss` y no se escribe en ningún sitio.
 static func port_for_collectible(item: String) -> String:
 	for p in PORTS:
-		var cfg: Dictionary = p.get("collectible_client", {})
-		if str(cfg.get("item", "")) == item:
+		if str(p.get("collectible_client", {}).get("item", "")) == item:
+			return str(p["id"])
+		if str(p.get("collectible_here", {}).get("item", "")) == item:
+			return str(p["id"])
+		var jefe := str(p.get("boss", ""))
+		if jefe != "" and str(CollectibleData.BOSS_ITEMS.get(jefe, "")) == item:
 			return str(p["id"])
 	return ""
+
+
+## QUÉ hay que hacer en ese escenario para llevarse la pieza, ya redactado.
+## Sale de los MISMOS datos con que lo canta el cliente o el guion, así que
+## la pista de la vitrina no puede contradecir lo que se oye en el nivel.
+static func collectible_how(port_id: String, item: String) -> String:
+	var p := get_port(port_id)
+	if p.is_empty():
+		return ""
+	var cliente: Dictionary = p.get("collectible_client", {})
+	if str(cliente.get("item", "")) == item:
+		return reto_texto(cliente)
+	var aqui: Dictionary = p.get("collectible_here", {})
+	if str(aqui.get("item", "")) == item:
+		return reto_texto(aqui)
+	if str(CollectibleData.BOSS_ITEMS.get(str(p.get("boss", "")), "")) == item:
+		return "ríndele en su duelo"
+	return ""
+
+
+## MAR al que pertenece el escenario. Hoy solo existe el primero, así que
+## todos valen 1; el día que entre el segundo basta con que sus puertos
+## declaren `"sea": 2` y la vitrina se entera sola.
+static func sea_of(port_id: String) -> int:
+	return maxi(int(get_port(port_id).get("sea", 1)), 1)
+
+
+## El NÚMERO que ve el jugador: su posición en la lista, que es lo único
+## que se le ha enseñado nunca (los ids no se renumeran).
+static func port_number(port_id: String) -> int:
+	for i in PORTS.size():
+		if str(PORTS[i]["id"]) == port_id:
+			return i + 1
+	return 0
 
 
 const PORTS: Array = [
@@ -509,6 +552,11 @@ const PORTS: Array = [
 		# darle sus platos, pero después de un par de grumetes para que la
 		# novedad se note.
 		"client_order": ["E", "E", "A", "E", "E", "E"],
+		# LA BANDERA PIRATA sale de AQUÍ, y se declara en los datos para que la
+		# pista de la vitrina sepa donde buscarla. El numero de platos es el
+		# que lee `level_director.platos_bandera()`: una sola fuente, para que
+		# lo que pide el pirata y lo que dice la vitrina no puedan discrepar.
+		"collectible_here": { "item": "bandera", "reto": "platos", "n": 3 },
 		"arrival_span": 100.0,
 		"patience_mult": 0.9,
 		"arrival_scale": 0.8,
