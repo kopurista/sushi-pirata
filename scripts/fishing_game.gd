@@ -573,6 +573,11 @@ func _set_rush(on: bool) -> void:
 		return
 	rush_on = on
 	rush_changed.emit(on)
+	# Un golpe seco AL EMPEZAR, encima del carrete: el tirón es un cambio de
+	# fase y las líneas de acción entran con un fundido de 0.18 s, así que
+	# sin él el momento exacto en que hay que empezar a pulsar no suena.
+	if on and snd != null:
+		snd.play("tiron", SND_TIRON)
 	if rush_fx != null and is_instance_valid(rush_fx):
 		if on:
 			rush_fx.visible = true
@@ -2297,14 +2302,16 @@ func _borrar_anillo(c: Control) -> void:
 ##   eso van flojitos. La PICADA de verdad NO es una boca, es AGUA: el mismo
 ##   chapoteo del pez que se suelta, que es lo que hace que los dos momentos
 ##   se reconozcan como la misma cosa vista al derecho y al revés.
-## · "Reeling in Fishing Rod - 1" es el carrete que MANEJA EL JUGADOR: recoger
-##   el sedal antes de que pique y la PELEA mientras se mantiene el dedo (y en
-##   el TIRÓN, esa misma a más pitch, que en Godot corre además más rápido).
-## · "Reeling in Fishing Rod - 2" es el carrete que se lleva EL PEZ, con el
-##   sedal suelto en plena pelea: ahí no se recoge nada, es el pez quien tira
-##   y es justo cuando su barra sube. Va con ARRANQUE (`SUELTO_DESDE`) y
-##   recortado a 1.779 s: su cola vuelve a frenar y en un bucle sonaría como
-##   un carrete que se para y arranca en cada vuelta.
+## · "Reeling in Fishing Rod - 1" es el carrete: recoger el sedal antes de que
+##   pique, y en el TIRÓN esa misma a más pitch (que en Godot corre además más
+##   rápido), porque ahí es el pez quien se lleva la línea.
+## · "Moving Line Closer - 1" es TODA la pelea, en un solo bucle que nunca se
+##   corta: lo que cambia es la VELOCIDAD (`PITCH_MANTENIENDO` recogiendo,
+##   `PITCH_SUELTO` con el dedo levantado). Comparten reproductor, así que el
+##   cambio no reinicia nada y se oye acelerar y frenar.
+## · "Frog Death - 1" es el golpe que marca el ARRANQUE del tirón, muy por
+##   debajo del resto: las líneas de acción entran con un fundido de 0.18 s,
+##   así que sin él el instante exacto del cambio de fase no suena.
 ## · "Line Break (With Throw)" para el sedal roto —la toma con el latigazo—
 ##   y el chapoteo de la boya para cuando la presa se suelta y para el pez
 ##   que sale del agua.
@@ -2338,10 +2345,15 @@ const SND := {
 	"carrete": [
 		"res://sounds/pesca/Reeling in Fishing Rod - 1.ogg",
 	],
-	# El sedal SUELTO con el pez tirando: se lleva línea, no se recoge. Va
-	# recortado y con ARRANQUE (ver `SUELTO_DESDE`).
-	"suelto": [
-		"res://sounds/pesca/Reeling in Fishing Rod - 2 (bucle).ogg",
+	# TODA la pelea es este arrastre, y lo que cambia es la VELOCIDAD (ver
+	# `PITCH_MANTENIENDO` y `PITCH_SUELTO`): el sedal se mueve siempre, más
+	# deprisa cuando el jugador recoge y más despacio cuando lo deja correr.
+	"arrastre": [
+		"res://sounds/pesca/Moving Line Closer - 1.ogg",
+	],
+	# El golpe que anuncia el TIRÓN, encima del carrete acelerado.
+	"tiron": [
+		"res://sounds/pesca/Frog Death - 1.ogg",
 	],
 	"rotura": [
 		"res://sounds/pesca/Line Break - 1 (With Throw).ogg",
@@ -2363,13 +2375,17 @@ const PITCH_PICADA := 0.85
 const PITCH_SUELTA := 0.65
 const PITCH_COBRADO := 0.8
 
-## El carrete del sedal suelto ARRANCA DESPACIO: "Reeling in Fishing Rod - 2"
-## empieza flojo y coge ritmo, así que su primer tramo suena UNA vez y el
-## bucle vuelve solo a este segundo, que es el que va a ritmo constante. El
-## punto NO se elige a ojo: sale de la densidad de PAQUETES del .ogg, que
-## delata los transitorios sin decodificar nada (155 paquetes/s al principio
-## contra 220-255 a partir de aquí).
-const SUELTO_DESDE := 0.845
+## El golpe del tirón va MUY por debajo del resto: subraya el cambio de fase,
+## no lo anuncia a gritos (el carrete acelerado y las líneas de acción ya lo
+## dicen bastante alto).
+const SND_TIRON := -14.0
+
+## Las dos velocidades del arrastre del sedal en la pelea: recogiendo va
+## deprisa y con el dedo levantado solo un poco más rápido de lo natural.
+## Comparten reproductor, así que pasar de una a otra no reinicia el bucle:
+## se oye acelerar y frenar, que es exactamente lo que hace el sedal.
+const PITCH_MANTENIENDO := 1.35
+const PITCH_SUELTO := 1.1
 
 
 func _setup_audio() -> void:
@@ -2389,14 +2405,12 @@ func _audio_pelea(en_velocidad: bool) -> void:
 		return
 	if en_velocidad:
 		snd.loop_off("recoger")
-		snd.loop_off("suelto")
+		snd.loop_off("arrastre")
 		snd.loop_on("carrete", SND_BUCLE + 2.0, 1.45)
-	elif holding:
-		snd.loop_off("suelto")
-		snd.loop_on("carrete", SND_BUCLE, 1.0)
 	else:
-		# Sedal SUELTO: el pez se lleva línea. El hueco de silencio que había
-		# aquí era justo el momento en que la barra de la presa sube, o sea
-		# lo único que no se puede dejar de oír.
+		# El arrastre no se corta al soltar: solo cambia de velocidad. El
+		# hueco de silencio que hubo aquí caía justo cuando la barra de la
+		# presa sube, o sea lo único que no se puede dejar de oír.
 		snd.loop_off("carrete")
-		snd.loop_on("suelto", SND_BUCLE, 1.0, SUELTO_DESDE)
+		snd.loop_on("arrastre", SND_BUCLE,
+			PITCH_MANTENIENDO if holding else PITCH_SUELTO)

@@ -1677,24 +1677,24 @@ primera vez que se entra en ellos (`logros_intro_done` /
       abrir una caja—; "Fish Biting" (**2 y 3**) son los AMAGOS y nada más,
       flojitas porque es un mordisqueo; "Line Break (With Throw)" el sedal
       roto.
-    · **EL CARRETE SE PARTE POR QUIÉN LO MUEVE**, que es lo que de verdad
-      distingue los dos momentos de la pelea: "Reeling in Fishing Rod - **1**"
-      es el carrete que maneja EL JUGADOR (recoger el sedal antes de la
-      picada, y la pelea mientras mantiene el dedo; en el TIRÓN esa misma a
-      pitch **1.45**, que en Godot corre además más rápido) y la "**2**" es el
-      carrete que se lleva EL PEZ, con el sedal suelto: ahí no se recoge nada
-      y es justo cuando la barra de la presa sube.
-    · **Y LA DEL PEZ LLEVA ARRANQUE**: empieza floja y coge ritmo, así que su
-      primer tramo suena UNA vez y el bucle vuelve a **0.845 s**, que es
-      donde ya va a ritmo constante. Lo hace el motor con `loop_offset` (el
-      `desde` de `SoundBank.loop_on`), sin partir el .ogg en dos ni encadenar
-      reproductores. Va además **recortada a 1.779 s** con `ogg_trim.py`: su
-      cola vuelve a frenar y en un bucle sonaría como un carrete que se para
-      y arranca en cada vuelta. Los dos instantes salen de la **densidad de
-      PAQUETES** del .ogg —en Vorbis un transitorio fuerza bloques cortos, así
-      que los paquetes por segundo son el ritmo del carrete— y se leen sin
-      decodificar nada: 155 paq/s al arrancar, 220-255 en el tramo bueno y de
-      vuelta a 155 en la cola.
+    · **TODA LA PELEA ES UN SOLO BUCLE QUE NUNCA SE CORTA** ("Moving Line
+      Closer - 1"), y lo que cambia es la VELOCIDAD: `PITCH_MANTENIENDO`
+      (1.35) mientras el jugador recoge y `PITCH_SUELTO` (1.1) con el dedo
+      levantado. Comparten reproductor, así que pasar de una a otra no
+      reinicia nada — se oye acelerar y frenar, que es lo que hace el sedal.
+      "Reeling in Fishing Rod - 1" se queda para recoger el sedal ANTES de la
+      picada y para el TIRÓN, ahí a pitch **1.45** (en Godot el pitch corre
+      además más rápido), porque en el tirón es el pez quien se lleva línea.
+    · **EL TIRÓN ENTRA CON UN GOLPE** ("Frog Death - 1", `SND_TIRON` -14 dB,
+      muy por debajo del resto): las líneas de acción entran con un fundido de
+      0.18 s, así que sin él el instante exacto del cambio de fase —que es
+      cuando hay que empezar a pulsar— no suena. Va en `_set_rush`, que ya
+      tiene su guarda de flanco, así que no puede repetirse mientras dura.
+    · **`SoundBank.loop_on` admite `desde`** (el `loop_offset` del motor): la
+      cabeza del archivo suena una vez y el bucle vuelve a ese punto, que es
+      lo que necesita una máquina que arranca despacio y luego mantiene el
+      ritmo. Hoy no lo usa nadie —la pesca lo estrenó con el carrete y acabó
+      en otro sonido—, pero está pagado y documentado.
     · **LA PICADA NO ES UNA BOCA, ES AGUA** (decidido por el usuario): suena
       el MISMO chapoteo que cuando el pez se suelta, y lo único que los separa
       es el TONO — `PITCH_PICADA` 0.85, `PITCH_SUELTA` **0.65** (el mismo
@@ -1727,17 +1727,23 @@ primera vez que se entra en ellos (`logros_intro_done` /
       `boya`, una sola toma) al terminar el vuelo del sedal; los chapoteos de
       la presa que se suelta y del pez que sale del agua viven en su propia
       familia (`chapoteo`, las dos tomas) porque son otro momento.
-    · **LA LIBRERÍA DE SONIDOS DE INTERFAZ (`sounds/ui`) LLEVA `.gdignore`**:
-      son 604 tomas de packs de UI, 49 MB y encima en TRIPLICADO (WAV, OGG y
-      MP3 del mismo sonido). El preset web exporta con
-      `export_filter="all_resources"`, o sea que Godot las empaqueta TODAS
-      aunque no suene ninguna — medido: 17,9 MB de recursos importados, un 30%
-      más de descarga. Mismo criterio que `assets/models/source` y
-      `snapshots`: material de consulta que el juego no ve.
-      **Cuando se elija un sonido hay que SACARLO de ahí** (a su propia
-      carpeta, como `sounds/pesca`), NO quitar el `.gdignore`. Y se prefiere
-      `.gdignore` al `exclude_filter` del preset porque ese dejaría el sonido
-      funcionando en el editor y ROTO en el juego publicado.
+    · **LAS LIBRERÍAS DE SONIDO LLEVAN `.gdignore`** (`sounds/ui` y las cuatro
+      `sounds/Game Sound Effects*`): son más de 1.000 tomas de packs, ~80 MB en
+      disco y encima en TRIPLICADO (WAV, OGG y MP3 del mismo sonido). El
+      preset web exporta con `export_filter="all_resources"`, o sea que Godot
+      las empaqueta TODAS aunque no suene ninguna. **MEDIDO exportando con y
+      sin ellas: 97,6 MB contra 61,0 — casi 35 MB, un 60% más de descarga.**
+      Mismo criterio que `assets/models/source` y `snapshots`: material de
+      consulta que el juego no ve.
+      **Cuando se elija un sonido hay que SACARLO de ahí** (copiarlo a su
+      propia carpeta, como `sounds/pesca`), NO quitar el `.gdignore` — así
+      salió "Frog Death - 1" del Pack 3. Y se prefiere `.gdignore` al
+      `exclude_filter` del preset porque ese dejaría el sonido funcionando en
+      el editor y ROTO en el juego publicado.
+      **OJO al medirlo**: si se borran a mano los `.godot/imported/*` de esos
+      archivos, el export los salta y parece que no pesaban nada (pasó, y por
+      poco se da por bueno). La comprobación buena es quitar el `.gdignore`,
+      **reimportar** y exportar.
     · Los bucles van **más bajos que los golpes** (-11 dB contra -4): suenan
       segundos seguidos y a la misma altura se comen la partida. Y NINGÚN
       bucle sobrevive a un cambio de estado ni al soltar el dedo — un carrete

@@ -77,9 +77,11 @@ func play(familia: String, volumen_db := 0.0, pitch := 1.0) -> void:
 ## `desde` es el punto (en segundos) AL QUE VUELVE el sonido al llegar al
 ## final, no por donde empieza: con él, la cabeza del archivo suena UNA sola
 ## vez y a partir de ahí se repite solo la cola. Es lo que necesita un sonido
-## con ARRANQUE —el carrete de la pesca empieza despacio y va cogiendo
-## ritmo—, y lo resuelve el propio motor (`loop_offset`), así que no hay que
-## partir el .ogg en dos ni encadenar reproductores.
+## con ARRANQUE (una máquina que se pone en marcha y luego mantiene el ritmo),
+## y lo resuelve el propio motor con `loop_offset`, así que no hay que partir
+## el .ogg en dos ni encadenar reproductores. Hoy no lo usa nadie —la pesca
+## lo estrenó con el carrete y acabó en otro sonido—, pero es la respuesta a
+## un problema que se repite en cuanto hay maquinaria de por medio.
 func loop_on(familia: String, volumen_db := 0.0, pitch := 1.0,
 		desde := 0.0) -> void:
 	if not _familias.has(familia):
