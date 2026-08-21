@@ -1,0 +1,158 @@
+<!doctype html><html lang='es'><head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>Sushi Pirata - sonidos del juego</title>
+<style>
+:root{--fondo:#1a120b;--panel:#241a10;--linea:#3d2c1a;--texto:#efe2cd;
+--suave:#b8a488;--oro:#e8b44a;--rojo:#c85a3c;--verde:#7fae5a}
+*{box-sizing:border-box}
+body{margin:0;padding:0 16px 64px;background:var(--fondo);color:var(--texto);
+font:16px/1.55 "Segoe UI",system-ui,sans-serif}
+.wrap{max-width:1000px;margin:0 auto}
+h1{font-size:30px;margin:36px 0 4px;color:var(--oro)}
+h2{font-size:22px;margin:38px 0 10px;color:var(--oro);
+border-bottom:1px solid var(--linea);padding-bottom:6px}
+.sub{color:var(--suave);margin:0 0 22px}
+.leyenda{background:var(--panel);border:1px solid var(--linea);border-radius:8px;
+padding:14px 18px;margin:22px 0}
+.leyenda p{margin:6px 0}
+table{width:100%;border-collapse:collapse;margin:0 0 8px;font-size:15px}
+th{text-align:left;color:var(--suave);font-weight:600;padding:8px 10px;
+border-bottom:1px solid var(--linea);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid #2c2013;vertical-align:top}
+tr:last-child td{border-bottom:none}
+code{background:#2c2013;padding:1px 6px;border-radius:4px;font-size:13px;
+color:#e8d8bd}
+.db{white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}
+.q{white-space:nowrap;font-size:13px;font-weight:600}
+.usuario{color:var(--oro)}
+.audio{color:var(--suave)}
+.nota{color:var(--suave);font-size:14px;margin:10px 0 0}
+.pill{display:inline-block;background:#2c2013;border:1px solid var(--linea);
+border-radius:20px;padding:2px 10px;font-size:13px;margin:2px 4px 2px 0}
+@media (max-width:700px){body{font-size:15px}table{font-size:13.5px}
+th,td{padding:7px 6px}}
+</style></head><body><div class='wrap'>
+<h1>Sushi Pirata &mdash; sonidos del juego</h1>
+<p class='sub'>Todo lo que suena, cuando suena y a que volumen. Los volumenes y las tomas salen leidos de <code>scripts/audio.gd</code>, asi que esta lista no puede contradecir al juego.</p>
+<div class='leyenda'>
+<p><span class='q usuario'>&#9679; usuario</span> &mdash; sonido o regla que pidio el usuario expresamente.</p>
+<p><span class='q audio'>&#9679; audio</span> &mdash; lo eligio quien monto el audio, sin instruccion concreta.</p>
+<p><b>dB</b> es el volumen de la familia. <b>Efectivo</b> le suma el ajuste general de <code>-7 dB</code>, que baja todos los efectos de una vez.</p>
+<p>Las familias marcadas con <code>&#9834;</code> sortean toma y mueven el tono en cada disparo: son las de cocina, donde el mismo gesto se repite decenas de veces. La interfaz hace lo contrario &mdash; un sonido por papel y siempre el mismo.</p>
+</div>
+<h2>Musica &mdash; 8 temas</h2>
+<p class='nota'>El usuario decidio QUE pantalla lleva cada tema; las piezas se generaron para el juego. La portada no lleva musica: solo el mar.</p>
+<table><tr><th>Tema</th><th>Donde suena</th></tr>
+<tr><td><code>menu</code></td><td>Menu principal Y mapa de Aventura (comparten tema)</td></tr>
+<tr><td><code>tienda</code></td><td>El puesto de Saverio</td></tr>
+<tr><td><code>arcade</code></td><td>El arcade sin fin</td></tr>
+<tr><td><code>pesca</code></td><td>El minijuego de pesca</td></tr>
+<tr><td><code>isla</code></td><td>Niveles de tipo ISLA</td></tr>
+<tr><td><code>puerto</code></td><td>Niveles de tipo PUERTO</td></tr>
+<tr><td><code>abordaje</code></td><td>Niveles de tipo ABORDAJE, y el tutorial</td></tr>
+<tr><td><code>cueva</code></td><td>La Cueva del Kappa (el jefe)</td></tr>
+</table>
+<p class='nota'>Todos a <code>-11 dB</code> sobre su bus, en bucle cruzado consigo mismos para que la vuelta no se note.</p>
+<h2>Interfaz &mdash; 13 sonidos</h2>
+<table><tr><th>Familia</th><th>Cuando suena</th><th class='db'>dB</th><th class='db'>Efectivo</th><th>Quien</th></tr>
+<tr><td><code>atras</code> <span class='pill'>tono 0.82</span></td><td>Atras, Salir, Terminar y cancelar una elaboracion. Es el mismo clic con el tono bajado</td><td class='db'>-7</td><td class='db'>-14</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>click</code></td><td>Cualquier boton que no tenga un papel propio, y elegir una receta en la tabla</td><td class='db'>-7</td><td class='db'>-14</td><td class='q audio'>audio</td></tr>
+<tr><td><code>error</code></td><td>Accion bloqueada: modo sin desbloquear, corte lento fallado, extra sin despensa</td><td class='db'>-6</td><td class='db'>-13</td><td class='q audio'>audio</td></tr>
+<tr><td><code>modo</code></td><td>Los cuatro pergaminos del menu: Aventura, Arcade, Pesca y Tienda</td><td class='db'>-8</td><td class='db'>-15</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>off</code></td><td>Apagar un interruptor, y quitar un extra del plato</td><td class='db'>-9</td><td class='db'>-16</td><td class='q audio'>audio</td></tr>
+<tr><td><code>ok</code></td><td>El visto verde fuera de las ventanas emergentes</td><td class='db'>-6</td><td class='db'>-13</td><td class='q audio'>audio</td></tr>
+<tr><td><code>on</code></td><td>Encender un interruptor en Opciones</td><td class='db'>-9</td><td class='db'>-16</td><td class='q audio'>audio</td></tr>
+<tr><td><code>pantalla</code></td><td>El mapa del bonus diario al desplegarse</td><td class='db'>-8</td><td class='db'>-15</td><td class='q audio'>audio</td></tr>
+<tr><td><code>recurso</code></td><td>Cajas de lingotes, doblones y arroz, barra de nivel, mejorar un bonificador, y CUALQUIER ventana emergente al abrirse</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>recurso_off</code> <span class='pill'>tono 0.80</span></td><td>Cancelar en una ventana emergente. Misma toma con el tono GRAVE</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>recurso_ok</code> <span class='pill'>tono 1.18</span></td><td>Confirmar en una ventana emergente. Misma toma con el tono AGUDO</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>submenu</code></td><td>Los cinco accesos de la barra de abajo: logros, inventario, perfil, bonificadores y opciones</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>timon</code> <span class='pill'>tono 0.88</span></td><td>El timon del menu: un chasquido cada vez que un mango pasa por arriba (8 por vuelta)</td><td class='db'>-12</td><td class='db'>-19</td><td class='q usuario'>usuario</td></tr>
+</table>
+<h2>Premios &mdash; 7 sonidos</h2>
+<table><tr><th>Familia</th><th>Cuando suena</th><th class='db'>dB</th><th class='db'>Efectivo</th><th>Quien</th></tr>
+<tr><td><code>cofre</code></td><td>Cofre que se abre: bonus diario, pesca y reclamo de logros</td><td class='db'>-6</td><td class='db'>-13</td><td class='q audio'>audio</td></tr>
+<tr><td><code>logro</code></td><td>Medalla de logro conseguida</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
+<tr><td><code>moneda</code></td><td>Un cliente PAGA su plato</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>monedas</code></td><td>Cobrar los logros de una tarjeta</td><td class='db'>-7</td><td class='db'>-14</td><td class='q audio'>audio</td></tr>
+<tr><td><code>premio</code></td><td>Receta nueva, coleccionable y captura de pesca</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
+<tr><td><code>tesoro</code></td><td>Cobrar todos los logros de golpe (200+ doblones)</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
+<tr><td><code>trofeo</code></td><td>Subida de nivel de cocinero y la TERCERA estrella del cartel de resultados</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
+</table>
+<h2>Cocina &mdash; 19 sonidos</h2>
+<table><tr><th>Familia</th><th>Cuando suena</th><th class='db'>dB</th><th class='db'>Efectivo</th><th>Quien</th></tr>
+<tr><td><code>arroz</code> &#9834; <span class='pill'>4 tomas</span></td><td>Golpes en la tabla al moldear el arroz</td><td class='db'>+12</td><td class='db'>+5</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>basura</code> &#9834;</td><td>El plato da la vuelta entera y cae al cubo</td><td class='db'>-15</td><td class='db'>-22</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>caja_abre</code></td><td>Sacar un plato de una caja a la tabla</td><td class='db'>-9</td><td class='db'>-16</td><td class='q audio'>audio</td></tr>
+<tr><td><code>caja_cierra</code></td><td>La caja se queda vacia</td><td class='db'>-9</td><td class='db'>-16</td><td class='q audio'>audio</td></tr>
+<tr><td><code>cinta</code> &#9834;</td><td>El plato sale a la cinta</td><td class='db'>-16</td><td class='db'>-23</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>corte</code> &#9834; <span class='pill'>9 tomas</span></td><td>Cada golpe de cuchillo del corte rapido</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>corte_lento</code></td><td>BUCLE mientras el dedo avanza en el corte lento; se pausa al parar y sigue por donde iba</td><td class='db'>-17</td><td class='db'>-24</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>enrollar</code> &#9834; <span class='pill'>2 tomas</span></td><td>Enrollar la esterilla y extender</td><td class='db'>+1</td><td class='db'>-6</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>extra</code> &#9834;</td><td>Echar wasabi, soja o jengibre</td><td class='db'>-13</td><td class='db'>-20</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>freir</code></td><td>BUCLE mientras se frie en la sarten</td><td class='db'>-29</td><td class='db'>-36</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>guardar</code></td><td>Guardar un plato en una caja</td><td class='db'>-8</td><td class='db'>-15</td><td class='q audio'>audio</td></tr>
+<tr><td><code>ingrediente</code> &#9834;</td><td>Coger un ingrediente de la fila</td><td class='db'>-16</td><td class='db'>-23</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>listo</code></td><td>El plato queda terminado</td><td class='db'>-11</td><td class='db'>-18</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>mantener</code></td><td>BUCLE al mantener apretado (calentar)</td><td class='db'>-2</td><td class='db'>-9</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>perfecto</code></td><td>Fritura clavada en el punto exacto</td><td class='db'>-4</td><td class='db'>-11</td><td class='q audio'>audio</td></tr>
+<tr><td><code>quemado</code></td><td>Fritura pasada o cruda: el plato se pierde</td><td class='db'>-6</td><td class='db'>-13</td><td class='q audio'>audio</td></tr>
+<tr><td><code>remover</code></td><td>BUCLE al remover o mezclar</td><td class='db'>-5</td><td class='db'>-12</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>soltar</code> &#9834;</td><td>Soltar el ingrediente sobre la tabla</td><td class='db'>-11</td><td class='db'>-18</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>soplete</code></td><td>BUCLE del soplete del aburi</td><td class='db'>-34</td><td class='db'>-41</td><td class='q usuario'>usuario</td></tr>
+</table>
+<h2>Barco y mar &mdash; 5 sonidos</h2>
+<table><tr><th>Familia</th><th>Cuando suena</th><th class='db'>dB</th><th class='db'>Efectivo</th><th>Quien</th></tr>
+<tr><td><code>barco_cruje</code></td><td>El casco crujiendo cada 9-17 s en la portada y en el menu (mas bajo en el menu)</td><td class='db'>-10</td><td class='db'>-17</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>barco_mover</code></td><td>El casco al ponerse en marcha, y en el mapa durante todo el viaje entre niveles (con fundido y tono sorteado)</td><td class='db'>+0</td><td class='db'>-7</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>gaviota</code> <span class='pill'>2 tomas</span></td><td>Una gaviota cada 7-16 s, SOLO en el menu y el mapa. Nunca en la portada</td><td class='db'>-11</td><td class='db'>-18</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>velas</code></td><td>Zarpar de la portada, salir hacia cualquiera de los cuatro modos y el boton Viajar del mapa</td><td class='db'>+2</td><td class='db'>-5</td><td class='q usuario'>usuario</td></tr>
+<tr><td><code>zarpar</code></td><td>Las campanas del barco: pulsar en la portada y el boton Zarpar del selector de recetas</td><td class='db'>-7</td><td class='db'>-14</td><td class='q usuario'>usuario</td></tr>
+</table>
+<h2>Jornada &mdash; 5 sonidos</h2>
+<table><tr><th>Familia</th><th>Cuando suena</th><th class='db'>dB</th><th class='db'>Efectivo</th><th>Quien</th></tr>
+<tr><td><code>calavera</code></td><td>Un cliente se va sin probar bocado, o el jefe cobra un fallo</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
+<tr><td><code>campana</code></td><td>Se acaba la preparacion y empieza el servicio</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
+<tr><td><code>estrella</code></td><td>Estrella ganada en la barra del oro y en el recuento final</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
+<tr><td><code>fin_turno</code></td><td>Se cierra la jornada</td><td class='db'>-6</td><td class='db'>-13</td><td class='q audio'>audio</td></tr>
+<tr><td><code>potenciador</code></td><td>Sale el cartel de potenciador o de mejora</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
+</table>
+<h2>Voces &mdash; 189 clips</h2>
+<p class='nota'>Tres sonidos por cada expresion de cada personaje. Son SONIDOS, no frases: el personaje no lee su linea, la acompana. Suenan al cambiar de linea en un dialogo, con la cara que trae esa linea. <span class='q usuario'>&#9679; usuario</span> pidio que fueran solo sonidos.</p>
+<p>
+<span class='pill'>alice &middot; 21</span>
+<span class='pill'>cai &middot; 15</span>
+<span class='pill'>capitan &middot; 9</span>
+<span class='pill'>capitan_f &middot; 9</span>
+<span class='pill'>david &middot; 24</span>
+<span class='pill'>gigi &middot; 12</span>
+<span class='pill'>grumete &middot; 9</span>
+<span class='pill'>grumete_f &middot; 9</span>
+<span class='pill'>kappa &middot; 21</span>
+<span class='pill'>pablo &middot; 21</span>
+<span class='pill'>pirata &middot; 12</span>
+<span class='pill'>pirata_f &middot; 12</span>
+<span class='pill'>saverio &middot; 15</span>
+</p>
+<h2>Lo que a proposito NO suena</h2>
+<table><tr><th>Que</th><th>Por que</th><th>Quien</th></tr>
+<tr><td>Los clientes: llegar, sentarse, coger plato, masticar, irse</td><td>Con ocho bocas a la vez el nivel era un gallinero y tapaba la cocina. Solo se oye la moneda cuando pagan</td><td class='q usuario'>usuario</td></tr>
+<tr><td>El paso completado de una receta</td><td>Una receta son hasta seis pasos y un tintineo en cada uno llenaba la elaboracion de avisos que no dicen nada</td><td class='q usuario'>usuario</td></tr>
+<tr><td>El crujido continuo del timon</td><td>Sobre el crujido del casco, que ya suena de fondo, eran dos maderas quejandose a la vez</td><td class='q usuario'>usuario</td></tr>
+<tr><td>El tecleo de la maquina de escribir del dialogo</td><td>Once clics por segundo mientras el texto aparece</td><td class='q audio'>audio</td></tr>
+<tr><td>El roce de vela en cada cambio de pantalla</td><td>El clic del boton ya marca el cambio</td><td class='q audio'>audio</td></tr>
+<tr><td>La propina</td><td>Cae en el mismo instante que el pago del plato y se oian dos monedas encima de la otra</td><td class='q audio'>audio</td></tr>
+</table>
+<h2>Peso</h2>
+<table><tr><th>Seccion</th><th class='db'>MB</th></tr>
+<tr><td><code>sounds/juego/musica</code></td><td class='db'>6.04</td></tr>
+<tr><td><code>sounds/juego/voces</code></td><td class='db'>1.34</td></tr>
+<tr><td><code>sounds/juego/pesca</code></td><td class='db'>1.00</td></tr>
+<tr><td><code>sounds/juego/barco</code></td><td class='db'>0.63</td></tr>
+<tr><td><code>sounds/juego/cocina</code></td><td class='db'>0.33</td></tr>
+<tr><td><code>sounds/juego/interfaz</code></td><td class='db'>0.15</td></tr>
+<tr><td><code>sounds/juego/nivel</code></td><td class='db'>0.09</td></tr>
+<tr><td><b>Total</b></td><td class='db'><b>9.59</b></td></tr>
+</table>
+<p class='nota'>Todo en OGG Vorbis. Las librerias de las que se picotea viven en <code>sounds/Sin utilizar/</code> y no viajan al juego.</p>
+</div></body></html>
