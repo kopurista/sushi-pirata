@@ -29,9 +29,27 @@ color:#e8d8bd}
 .nota{color:var(--suave);font-size:14px;margin:10px 0 0}
 .pill{display:inline-block;background:#2c2013;border:1px solid var(--linea);
 border-radius:20px;padding:2px 10px;font-size:13px;margin:2px 4px 2px 0}
+.pl{background:#3a2a18;border:1px solid #5a422a;color:var(--oro);cursor:pointer;
+border-radius:50%;width:30px;height:30px;font-size:12px;padding:0;margin:2px 3px 2px 0;
+line-height:1;vertical-align:middle;transition:background .12s,transform .12s}
+.pl:hover{background:#4d3821}
+.pl:active{transform:scale(.9)}
+.pl.on{background:var(--oro);color:#1a120b;border-color:var(--oro)}
+.pl b{font-size:11px;font-weight:700}
+.tomas{white-space:nowrap}
+.barra{position:sticky;top:0;z-index:5;background:var(--fondo);
+border-bottom:1px solid var(--linea);padding:10px 0;margin-bottom:4px}
+.barra label{color:var(--suave);font-size:14px;cursor:pointer;user-select:none}
+.barra input{vertical-align:-2px;margin-right:6px}
+details{background:var(--panel);border:1px solid var(--linea);border-radius:8px;
+padding:8px 14px;margin:8px 0}
+summary{cursor:pointer;color:var(--oro);font-weight:600;padding:4px 0}
+.expr{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:14px}
+.expr span{color:var(--suave);min-width:130px}
 @media (max-width:700px){body{font-size:15px}table{font-size:13.5px}
 th,td{padding:7px 6px}}
 </style></head><body><div class='wrap'>
+<div class='barra'><label><input type='checkbox' id='orig'>Escuchar a volumen ORIGINAL del archivo (sin el volumen que tiene dentro del juego)</label></div>
 <h1>Sushi Pirata &mdash; sonidos del juego</h1>
 <p class='sub'>Todo lo que suena, cuando suena y a que volumen. Los volumenes y las tomas salen leidos de <code>scripts/audio.gd</code>, asi que esta lista no puede contradecir al juego.</p>
 <div class='leyenda'>
@@ -43,97 +61,193 @@ th,td{padding:7px 6px}}
 <h2>Musica &mdash; 8 temas</h2>
 <p class='nota'>El usuario decidio QUE pantalla lleva cada tema; las piezas se generaron para el juego. La portada no lleva musica: solo el mar.</p>
 <table><tr><th>Tema</th><th>Donde suena</th></tr>
-<tr><td><code>menu</code></td><td>Menu principal Y mapa de Aventura (comparten tema)</td></tr>
-<tr><td><code>tienda</code></td><td>El puesto de Saverio</td></tr>
-<tr><td><code>arcade</code></td><td>El arcade sin fin</td></tr>
-<tr><td><code>pesca</code></td><td>El minijuego de pesca</td></tr>
-<tr><td><code>isla</code></td><td>Niveles de tipo ISLA</td></tr>
-<tr><td><code>puerto</code></td><td>Niveles de tipo PUERTO</td></tr>
-<tr><td><code>abordaje</code></td><td>Niveles de tipo ABORDAJE, y el tutorial</td></tr>
-<tr><td><code>cueva</code></td><td>La Cueva del Kappa (el jefe)</td></tr>
+<tr><td><button class='pl' data-src='sonidos/musica/menu.ogg' data-db='-11.0' title='menu.ogg'>&#9654;</button> <code>menu</code></td><td>Menu principal Y mapa de Aventura (comparten tema)</td></tr>
+<tr><td><button class='pl' data-src='sonidos/musica/tienda.ogg' data-db='-11.0' title='tienda.ogg'>&#9654;</button> <code>tienda</code></td><td>El puesto de Saverio</td></tr>
+<tr><td><button class='pl' data-src='sonidos/musica/arcade.ogg' data-db='-11.0' title='arcade.ogg'>&#9654;</button> <code>arcade</code></td><td>El arcade sin fin</td></tr>
+<tr><td><button class='pl' data-src='sonidos/musica/pesca.ogg' data-db='-11.0' title='pesca.ogg'>&#9654;</button> <code>pesca</code></td><td>El minijuego de pesca</td></tr>
+<tr><td><button class='pl' data-src='sonidos/musica/isla.ogg' data-db='-11.0' title='isla.ogg'>&#9654;</button> <code>isla</code></td><td>Niveles de tipo ISLA</td></tr>
+<tr><td><button class='pl' data-src='sonidos/musica/puerto.ogg' data-db='-11.0' title='puerto.ogg'>&#9654;</button> <code>puerto</code></td><td>Niveles de tipo PUERTO</td></tr>
+<tr><td><button class='pl' data-src='sonidos/musica/abordaje.ogg' data-db='-11.0' title='abordaje.ogg'>&#9654;</button> <code>abordaje</code></td><td>Niveles de tipo ABORDAJE, y el tutorial</td></tr>
+<tr><td><button class='pl' data-src='sonidos/musica/cueva.ogg' data-db='-11.0' title='cueva.ogg'>&#9654;</button> <code>cueva</code></td><td>La Cueva del Kappa (el jefe)</td></tr>
 </table>
 <p class='nota'>Todos a <code>-11 dB</code> sobre su bus, en bucle cruzado consigo mismos para que la vuelta no se note.</p>
 <h2>Interfaz &mdash; 13 sonidos</h2>
-<table><tr><th>Familia</th><th>Cuando suena</th><th class='db'>dB</th><th class='db'>Efectivo</th><th>Quien</th></tr>
-<tr><td><code>atras</code> <span class='pill'>tono 0.82</span></td><td>Atras, Salir, Terminar y cancelar una elaboracion. Es el mismo clic con el tono bajado</td><td class='db'>-7</td><td class='db'>-14</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>click</code></td><td>Cualquier boton que no tenga un papel propio, y elegir una receta en la tabla</td><td class='db'>-7</td><td class='db'>-14</td><td class='q audio'>audio</td></tr>
-<tr><td><code>error</code></td><td>Accion bloqueada: modo sin desbloquear, corte lento fallado, extra sin despensa</td><td class='db'>-6</td><td class='db'>-13</td><td class='q audio'>audio</td></tr>
-<tr><td><code>modo</code></td><td>Los cuatro pergaminos del menu: Aventura, Arcade, Pesca y Tienda</td><td class='db'>-8</td><td class='db'>-15</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>off</code></td><td>Apagar un interruptor, y quitar un extra del plato</td><td class='db'>-9</td><td class='db'>-16</td><td class='q audio'>audio</td></tr>
-<tr><td><code>ok</code></td><td>El visto verde fuera de las ventanas emergentes</td><td class='db'>-6</td><td class='db'>-13</td><td class='q audio'>audio</td></tr>
-<tr><td><code>on</code></td><td>Encender un interruptor en Opciones</td><td class='db'>-9</td><td class='db'>-16</td><td class='q audio'>audio</td></tr>
-<tr><td><code>pantalla</code></td><td>El mapa del bonus diario al desplegarse</td><td class='db'>-8</td><td class='db'>-15</td><td class='q audio'>audio</td></tr>
-<tr><td><code>recurso</code></td><td>Cajas de lingotes, doblones y arroz, barra de nivel, mejorar un bonificador, y CUALQUIER ventana emergente al abrirse</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>recurso_off</code> <span class='pill'>tono 0.80</span></td><td>Cancelar en una ventana emergente. Misma toma con el tono GRAVE</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>recurso_ok</code> <span class='pill'>tono 1.18</span></td><td>Confirmar en una ventana emergente. Misma toma con el tono AGUDO</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>submenu</code></td><td>Los cinco accesos de la barra de abajo: logros, inventario, perfil, bonificadores y opciones</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>timon</code> <span class='pill'>tono 0.88</span></td><td>El timon del menu: un chasquido cada vez que un mango pasa por arriba (8 por vuelta)</td><td class='db'>-12</td><td class='db'>-19</td><td class='q usuario'>usuario</td></tr>
+<table><tr><th>Oir</th><th>Familia</th><th>Cuando suena</th><th class='db'>dB</th><th class='db'>Efectivo</th><th>Quien</th></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/Click%20-%201.ogg' data-db='-14.0' title='Click - 1.ogg'>&#9654;</button></td><td><code>atras</code> <span class='pill'>tono 0.82</span></td><td>Atras, Salir, Terminar y cancelar una elaboracion. Es el mismo clic con el tono bajado</td><td class='db'>-7</td><td class='db'>-14</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/Click%20-%201.ogg' data-db='-14.0' title='Click - 1.ogg'>&#9654;</button></td><td><code>click</code></td><td>Cualquier boton que no tenga un papel propio, y elegir una receta en la tabla</td><td class='db'>-7</td><td class='db'>-14</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/UI2_Error_1.ogg' data-db='-13.0' title='UI2_Error_1.ogg'>&#9654;</button></td><td><code>error</code></td><td>Accion bloqueada: modo sin desbloquear, corte lento fallado, extra sin despensa</td><td class='db'>-6</td><td class='db'>-13</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/modo.ogg' data-db='-15.0' title='modo.ogg'>&#9654;</button></td><td><code>modo</code></td><td>Los cuatro pergaminos del menu: Aventura, Arcade, Pesca y Tienda</td><td class='db'>-8</td><td class='db'>-15</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/Disable%20-%201.ogg' data-db='-16.0' title='Disable - 1.ogg'>&#9654;</button></td><td><code>off</code></td><td>Apagar un interruptor, y quitar un extra del plato</td><td class='db'>-9</td><td class='db'>-16</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/UI2_Accept_1.ogg' data-db='-13.0' title='UI2_Accept_1.ogg'>&#9654;</button></td><td><code>ok</code></td><td>El visto verde fuera de las ventanas emergentes</td><td class='db'>-6</td><td class='db'>-13</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/Enable%20-%201.ogg' data-db='-16.0' title='Enable - 1.ogg'>&#9654;</button></td><td><code>on</code></td><td>Encender un interruptor en Opciones</td><td class='db'>-9</td><td class='db'>-16</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/Open%20Map%20-%20Menu%201.ogg' data-db='-15.0' title='Open Map - Menu 1.ogg'>&#9654;</button></td><td><code>pantalla</code></td><td>El mapa del bonus diario al desplegarse</td><td class='db'>-8</td><td class='db'>-15</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/recurso.ogg' data-db='-16.0' title='recurso.ogg'>&#9654;</button></td><td><code>recurso</code></td><td>Cajas de lingotes, doblones y arroz, barra de nivel, mejorar un bonificador, y CUALQUIER ventana emergente al abrirse</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/recurso.ogg' data-db='-16.0' title='recurso.ogg'>&#9654;</button></td><td><code>recurso_off</code> <span class='pill'>tono 0.80</span></td><td>Cancelar en una ventana emergente. Misma toma con el tono GRAVE</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/recurso.ogg' data-db='-16.0' title='recurso.ogg'>&#9654;</button></td><td><code>recurso_ok</code> <span class='pill'>tono 1.18</span></td><td>Confirmar en una ventana emergente. Misma toma con el tono AGUDO</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/submenu.ogg' data-db='-16.0' title='submenu.ogg'>&#9654;</button></td><td><code>submenu</code></td><td>Los cinco accesos de la barra de abajo: logros, inventario, perfil, bonificadores y opciones</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/timon.ogg' data-db='-19.0' title='timon.ogg'>&#9654;</button></td><td><code>timon</code> <span class='pill'>tono 0.88</span></td><td>El timon del menu: un chasquido cada vez que un mango pasa por arriba (8 por vuelta)</td><td class='db'>-12</td><td class='db'>-19</td><td class='q usuario'>usuario</td></tr>
 </table>
 <h2>Premios &mdash; 7 sonidos</h2>
-<table><tr><th>Familia</th><th>Cuando suena</th><th class='db'>dB</th><th class='db'>Efectivo</th><th>Quien</th></tr>
-<tr><td><code>cofre</code></td><td>Cofre que se abre: bonus diario, pesca y reclamo de logros</td><td class='db'>-6</td><td class='db'>-13</td><td class='q audio'>audio</td></tr>
-<tr><td><code>logro</code></td><td>Medalla de logro conseguida</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
-<tr><td><code>moneda</code></td><td>Un cliente PAGA su plato</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>monedas</code></td><td>Cobrar los logros de una tarjeta</td><td class='db'>-7</td><td class='db'>-14</td><td class='q audio'>audio</td></tr>
-<tr><td><code>premio</code></td><td>Receta nueva, coleccionable y captura de pesca</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
-<tr><td><code>tesoro</code></td><td>Cobrar todos los logros de golpe (200+ doblones)</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
-<tr><td><code>trofeo</code></td><td>Subida de nivel de cocinero y la TERCERA estrella del cartel de resultados</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
+<table><tr><th>Oir</th><th>Familia</th><th>Cuando suena</th><th class='db'>dB</th><th class='db'>Efectivo</th><th>Quien</th></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/nivel/Crate%20Opening%201.ogg' data-db='-13.0' title='Crate Opening 1.ogg'>&#9654;</button></td><td><code>cofre</code></td><td>Cofre que se abre: bonus diario, pesca y reclamo de logros</td><td class='db'>-6</td><td class='db'>-13</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/Achievement%20-%20Trophy%201.ogg' data-db='-12.0' title='Achievement - Trophy 1.ogg'>&#9654;</button></td><td><code>logro</code></td><td>Medalla de logro conseguida</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/Coins%20-%20Single%20Coin%20-%201.ogg' data-db='-16.0' title='Coins - Single Coin - 1.ogg'>&#9654;</button></td><td><code>moneda</code></td><td>Un cliente PAGA su plato</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/Coins%20-%20Small%20Pile%20-%201.ogg' data-db='-14.0' title='Coins - Small Pile - 1.ogg'>&#9654;</button></td><td><code>monedas</code></td><td>Cobrar los logros de una tarjeta</td><td class='db'>-7</td><td class='db'>-14</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/Quest%20Item%20Pickup%20-%201.ogg' data-db='-12.0' title='Quest Item Pickup - 1.ogg'>&#9654;</button></td><td><code>premio</code></td><td>Receta nueva, coleccionable y captura de pesca</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/Coins%20-%20Large%20Pile%20-%201.ogg' data-db='-12.0' title='Coins - Large Pile - 1.ogg'>&#9654;</button></td><td><code>tesoro</code></td><td>Cobrar todos los logros de golpe (200+ doblones)</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/UI2_Trophy_1.ogg' data-db='-12.0' title='UI2_Trophy_1.ogg'>&#9654;</button></td><td><code>trofeo</code></td><td>Subida de nivel de cocinero y la TERCERA estrella del cartel de resultados</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
 </table>
 <h2>Cocina &mdash; 19 sonidos</h2>
-<table><tr><th>Familia</th><th>Cuando suena</th><th class='db'>dB</th><th class='db'>Efectivo</th><th>Quien</th></tr>
-<tr><td><code>arroz</code> &#9834; <span class='pill'>4 tomas</span></td><td>Golpes en la tabla al moldear el arroz</td><td class='db'>+12</td><td class='db'>+5</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>basura</code> &#9834;</td><td>El plato da la vuelta entera y cae al cubo</td><td class='db'>-15</td><td class='db'>-22</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>caja_abre</code></td><td>Sacar un plato de una caja a la tabla</td><td class='db'>-9</td><td class='db'>-16</td><td class='q audio'>audio</td></tr>
-<tr><td><code>caja_cierra</code></td><td>La caja se queda vacia</td><td class='db'>-9</td><td class='db'>-16</td><td class='q audio'>audio</td></tr>
-<tr><td><code>cinta</code> &#9834;</td><td>El plato sale a la cinta</td><td class='db'>-16</td><td class='db'>-23</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>corte</code> &#9834; <span class='pill'>9 tomas</span></td><td>Cada golpe de cuchillo del corte rapido</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>corte_lento</code></td><td>BUCLE mientras el dedo avanza en el corte lento; se pausa al parar y sigue por donde iba</td><td class='db'>-17</td><td class='db'>-24</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>enrollar</code> &#9834; <span class='pill'>2 tomas</span></td><td>Enrollar la esterilla y extender</td><td class='db'>+1</td><td class='db'>-6</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>extra</code> &#9834;</td><td>Echar wasabi, soja o jengibre</td><td class='db'>-13</td><td class='db'>-20</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>freir</code></td><td>BUCLE mientras se frie en la sarten</td><td class='db'>-29</td><td class='db'>-36</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>guardar</code></td><td>Guardar un plato en una caja</td><td class='db'>-8</td><td class='db'>-15</td><td class='q audio'>audio</td></tr>
-<tr><td><code>ingrediente</code> &#9834;</td><td>Coger un ingrediente de la fila</td><td class='db'>-16</td><td class='db'>-23</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>listo</code></td><td>El plato queda terminado</td><td class='db'>-11</td><td class='db'>-18</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>mantener</code></td><td>BUCLE al mantener apretado (calentar)</td><td class='db'>-2</td><td class='db'>-9</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>perfecto</code></td><td>Fritura clavada en el punto exacto</td><td class='db'>-4</td><td class='db'>-11</td><td class='q audio'>audio</td></tr>
-<tr><td><code>quemado</code></td><td>Fritura pasada o cruda: el plato se pierde</td><td class='db'>-6</td><td class='db'>-13</td><td class='q audio'>audio</td></tr>
-<tr><td><code>remover</code></td><td>BUCLE al remover o mezclar</td><td class='db'>-5</td><td class='db'>-12</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>soltar</code> &#9834;</td><td>Soltar el ingrediente sobre la tabla</td><td class='db'>-11</td><td class='db'>-18</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>soplete</code></td><td>BUCLE del soplete del aburi</td><td class='db'>-34</td><td class='db'>-41</td><td class='q usuario'>usuario</td></tr>
+<table><tr><th>Oir</th><th>Familia</th><th>Cuando suena</th><th class='db'>dB</th><th class='db'>Efectivo</th><th>Quien</th></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/arroz_1.ogg' data-db='5.0' title='arroz_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/cocina/arroz_2.ogg' data-db='5.0' title='arroz_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/cocina/arroz_3.ogg' data-db='5.0' title='arroz_3.ogg'><b>3</b></button><button class='pl' data-src='sonidos/cocina/arroz_4.ogg' data-db='5.0' title='arroz_4.ogg'><b>4</b></button></td><td><code>arroz</code> &#9834; <span class='pill'>4 tomas</span></td><td>Golpes en la tabla al moldear el arroz</td><td class='db'>+12</td><td class='db'>+5</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/basura.ogg' data-db='-22.0' title='basura.ogg'>&#9654;</button></td><td><code>basura</code> &#9834;</td><td>El plato da la vuelta entera y cae al cubo</td><td class='db'>-15</td><td class='db'>-22</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/Open%20Drawer%20-%201.ogg' data-db='-16.0' title='Open Drawer - 1.ogg'>&#9654;</button></td><td><code>caja_abre</code></td><td>Sacar un plato de una caja a la tabla</td><td class='db'>-9</td><td class='db'>-16</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/Close%20Drawer%20-%201.ogg' data-db='-16.0' title='Close Drawer - 1.ogg'>&#9654;</button></td><td><code>caja_cierra</code></td><td>La caja se queda vacia</td><td class='db'>-9</td><td class='db'>-16</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/cinta.ogg' data-db='-23.0' title='cinta.ogg'>&#9654;</button></td><td><code>cinta</code> &#9834;</td><td>El plato sale a la cinta</td><td class='db'>-16</td><td class='db'>-23</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/corte_1.ogg' data-db='-16.0' title='corte_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/cocina/corte_2.ogg' data-db='-16.0' title='corte_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/cocina/corte_3.ogg' data-db='-16.0' title='corte_3.ogg'><b>3</b></button><button class='pl' data-src='sonidos/cocina/corte_4.ogg' data-db='-16.0' title='corte_4.ogg'><b>4</b></button><button class='pl' data-src='sonidos/cocina/corte_5.ogg' data-db='-16.0' title='corte_5.ogg'><b>5</b></button><button class='pl' data-src='sonidos/cocina/corte_6.ogg' data-db='-16.0' title='corte_6.ogg'><b>6</b></button><button class='pl' data-src='sonidos/cocina/corte_7.ogg' data-db='-16.0' title='corte_7.ogg'><b>7</b></button><button class='pl' data-src='sonidos/cocina/corte_8.ogg' data-db='-16.0' title='corte_8.ogg'><b>8</b></button><button class='pl' data-src='sonidos/cocina/corte_9.ogg' data-db='-16.0' title='corte_9.ogg'><b>9</b></button></td><td><code>corte</code> &#9834; <span class='pill'>9 tomas</span></td><td>Cada golpe de cuchillo del corte rapido</td><td class='db'>-9</td><td class='db'>-16</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/corte_lento.ogg' data-db='-24.0' title='corte_lento.ogg'>&#9654;</button></td><td><code>corte_lento</code></td><td>BUCLE mientras el dedo avanza en el corte lento; se pausa al parar y sigue por donde iba</td><td class='db'>-17</td><td class='db'>-24</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/enrollar_1.ogg' data-db='-6.0' title='enrollar_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/cocina/enrollar_2.ogg' data-db='-6.0' title='enrollar_2.ogg'><b>2</b></button></td><td><code>enrollar</code> &#9834; <span class='pill'>2 tomas</span></td><td>Enrollar la esterilla y extender</td><td class='db'>+1</td><td class='db'>-6</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/extra.ogg' data-db='-20.0' title='extra.ogg'>&#9654;</button></td><td><code>extra</code> &#9834;</td><td>Echar wasabi, soja o jengibre</td><td class='db'>-13</td><td class='db'>-20</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/freir.ogg' data-db='-36.0' title='freir.ogg'>&#9654;</button></td><td><code>freir</code></td><td>BUCLE mientras se frie en la sarten</td><td class='db'>-29</td><td class='db'>-36</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/Place%20Item%20-%204.ogg' data-db='-15.0' title='Place Item - 4.ogg'>&#9654;</button></td><td><code>guardar</code></td><td>Guardar un plato en una caja</td><td class='db'>-8</td><td class='db'>-15</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/ingrediente.ogg' data-db='-23.0' title='ingrediente.ogg'>&#9654;</button></td><td><code>ingrediente</code> &#9834;</td><td>Coger un ingrediente de la fila</td><td class='db'>-16</td><td class='db'>-23</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/interfaz/UI2_Decline_1.ogg' data-db='-18.0' title='UI2_Decline_1.ogg'>&#9654;</button></td><td><code>listo</code></td><td>El plato queda terminado</td><td class='db'>-11</td><td class='db'>-18</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/mantener.ogg' data-db='-9.0' title='mantener.ogg'>&#9654;</button></td><td><code>mantener</code></td><td>BUCLE al mantener apretado (calentar)</td><td class='db'>-2</td><td class='db'>-9</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/perfecto.ogg' data-db='-11.0' title='perfecto.ogg'>&#9654;</button></td><td><code>perfecto</code></td><td>Fritura clavada en el punto exacto</td><td class='db'>-4</td><td class='db'>-11</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/quemado.ogg' data-db='-13.0' title='quemado.ogg'>&#9654;</button></td><td><code>quemado</code></td><td>Fritura pasada o cruda: el plato se pierde</td><td class='db'>-6</td><td class='db'>-13</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/remover.ogg' data-db='-12.0' title='remover.ogg'>&#9654;</button></td><td><code>remover</code></td><td>BUCLE al remover o mezclar</td><td class='db'>-5</td><td class='db'>-12</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/soltar.ogg' data-db='-18.0' title='soltar.ogg'>&#9654;</button></td><td><code>soltar</code> &#9834;</td><td>Soltar el ingrediente sobre la tabla</td><td class='db'>-11</td><td class='db'>-18</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/cocina/soplete.ogg' data-db='-41.0' title='soplete.ogg'>&#9654;</button></td><td><code>soplete</code></td><td>BUCLE del soplete del aburi</td><td class='db'>-34</td><td class='db'>-41</td><td class='q usuario'>usuario</td></tr>
 </table>
 <h2>Barco y mar &mdash; 5 sonidos</h2>
-<table><tr><th>Familia</th><th>Cuando suena</th><th class='db'>dB</th><th class='db'>Efectivo</th><th>Quien</th></tr>
-<tr><td><code>barco_cruje</code></td><td>El casco crujiendo cada 9-17 s en la portada y en el menu (mas bajo en el menu)</td><td class='db'>-10</td><td class='db'>-17</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>barco_mover</code></td><td>El casco al ponerse en marcha, y en el mapa durante todo el viaje entre niveles (con fundido y tono sorteado)</td><td class='db'>+0</td><td class='db'>-7</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>gaviota</code> <span class='pill'>2 tomas</span></td><td>Una gaviota cada 7-16 s, SOLO en el menu y el mapa. Nunca en la portada</td><td class='db'>-11</td><td class='db'>-18</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>velas</code></td><td>Zarpar de la portada, salir hacia cualquiera de los cuatro modos y el boton Viajar del mapa</td><td class='db'>+2</td><td class='db'>-5</td><td class='q usuario'>usuario</td></tr>
-<tr><td><code>zarpar</code></td><td>Las campanas del barco: pulsar en la portada y el boton Zarpar del selector de recetas</td><td class='db'>-7</td><td class='db'>-14</td><td class='q usuario'>usuario</td></tr>
+<table><tr><th>Oir</th><th>Familia</th><th>Cuando suena</th><th class='db'>dB</th><th class='db'>Efectivo</th><th>Quien</th></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/barco/barco_cruje.ogg' data-db='-17.0' title='barco_cruje.ogg'>&#9654;</button></td><td><code>barco_cruje</code></td><td>El casco crujiendo cada 9-17 s en la portada y en el menu (mas bajo en el menu)</td><td class='db'>-10</td><td class='db'>-17</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/barco/barco_mover.ogg' data-db='-7.0' title='barco_mover.ogg'>&#9654;</button></td><td><code>barco_mover</code></td><td>El casco al ponerse en marcha, y en el mapa durante todo el viaje entre niveles (con fundido y tono sorteado)</td><td class='db'>+0</td><td class='db'>-7</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/barco/gaviota_1.ogg' data-db='-18.0' title='gaviota_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/barco/gaviota_2.ogg' data-db='-18.0' title='gaviota_2.ogg'><b>2</b></button></td><td><code>gaviota</code> <span class='pill'>2 tomas</span></td><td>Una gaviota cada 7-16 s, SOLO en el menu y el mapa. Nunca en la portada</td><td class='db'>-11</td><td class='db'>-18</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/barco/velas.ogg' data-db='-5.0' title='velas.ogg'>&#9654;</button></td><td><code>velas</code></td><td>Zarpar de la portada, salir hacia cualquiera de los cuatro modos y el boton Viajar del mapa</td><td class='db'>+2</td><td class='db'>-5</td><td class='q usuario'>usuario</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/barco/campanas.ogg' data-db='-14.0' title='campanas.ogg'>&#9654;</button></td><td><code>zarpar</code></td><td>Las campanas del barco: pulsar en la portada y el boton Zarpar del selector de recetas</td><td class='db'>-7</td><td class='db'>-14</td><td class='q usuario'>usuario</td></tr>
 </table>
 <h2>Jornada &mdash; 5 sonidos</h2>
-<table><tr><th>Familia</th><th>Cuando suena</th><th class='db'>dB</th><th class='db'>Efectivo</th><th>Quien</th></tr>
-<tr><td><code>calavera</code></td><td>Un cliente se va sin probar bocado, o el jefe cobra un fallo</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
-<tr><td><code>campana</code></td><td>Se acaba la preparacion y empieza el servicio</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
-<tr><td><code>estrella</code></td><td>Estrella ganada en la barra del oro y en el recuento final</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
-<tr><td><code>fin_turno</code></td><td>Se cierra la jornada</td><td class='db'>-6</td><td class='db'>-13</td><td class='q audio'>audio</td></tr>
-<tr><td><code>potenciador</code></td><td>Sale el cartel de potenciador o de mejora</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
+<table><tr><th>Oir</th><th>Familia</th><th>Cuando suena</th><th class='db'>dB</th><th class='db'>Efectivo</th><th>Quien</th></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/nivel/calavera.ogg' data-db='-12.0' title='calavera.ogg'>&#9654;</button></td><td><code>calavera</code></td><td>Un cliente se va sin probar bocado, o el jefe cobra un fallo</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/nivel/campana.ogg' data-db='-12.0' title='campana.ogg'>&#9654;</button></td><td><code>campana</code></td><td>Se acaba la preparacion y empieza el servicio</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/nivel/estrella.ogg' data-db='-12.0' title='estrella.ogg'>&#9654;</button></td><td><code>estrella</code></td><td>Estrella ganada en la barra del oro y en el recuento final</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/nivel/fin_turno.ogg' data-db='-13.0' title='fin_turno.ogg'>&#9654;</button></td><td><code>fin_turno</code></td><td>Se cierra la jornada</td><td class='db'>-6</td><td class='db'>-13</td><td class='q audio'>audio</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/nivel/potenciador.ogg' data-db='-12.0' title='potenciador.ogg'>&#9654;</button></td><td><code>potenciador</code></td><td>Sale el cartel de potenciador o de mejora</td><td class='db'>-5</td><td class='db'>-12</td><td class='q audio'>audio</td></tr>
+</table>
+<h2>El mar de fondo</h2>
+<p class='nota'>No es un efecto sino un AMBIENTE en bucle, y el mismo archivo suena a tres alturas seg&uacute;n d&oacute;nde est&eacute;s. Su vuelta se cruza consigo misma para que no se note el corte. <span class='q usuario'>&#9679; usuario</span></p>
+<table><tr><th>Oir</th><th>D&oacute;nde</th><th class='db'>dB</th></tr>
+<tr><td><button class='pl' data-src='sonidos/barco/ocean.ogg' data-db='-15.0' title='ocean.ogg'>&#9654;</button></td><td>Portada (es lo &uacute;nico que suena)</td><td class='db'>-15</td></tr>
+<tr><td><button class='pl' data-src='sonidos/barco/ocean.ogg' data-db='-26.0' title='ocean.ogg'>&#9654;</button></td><td>Men&uacute; principal y mapa</td><td class='db'>-26</td></tr>
+<tr><td><button class='pl' data-src='sonidos/barco/ocean.ogg' data-db='-35.0' title='ocean.ogg'>&#9654;</button></td><td>Dentro de un nivel</td><td class='db'>-35</td></tr>
+</table>
+<h2>Pesca &mdash; 11 sonidos</h2>
+<p class='nota'>El minijuego de pesca es ANTERIOR al director de audio y conserva su propio banco: sus tomas y sus vol&uacute;menes viven en <code>fishing_game.gd</code>, no en <code>audio.gd</code>. Las tomas las eligi&oacute; el usuario a o&iacute;do en su momento. <span class='q usuario'>&#9679; usuario</span></p>
+<table><tr><th>Oir</th><th>Familia</th><th>Cuando suena</th></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/pesca/Fish%20Biting%20-%203.ogg' data-db='-10.0' title='Fish Biting - 3.ogg'><b>1</b></button><button class='pl' data-src='sonidos/pesca/Fish%20Biting%20-%204.ogg' data-db='-10.0' title='Fish Biting - 4.ogg'><b>2</b></button></td><td><code>amago</code></td><td>El pez amaga con picar y se retira</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/pesca/Moving%20Line%20Closer%20-%201.ogg' data-db='-10.0' title='Moving Line Closer - 1.ogg'>&#9654;</button></td><td><code>arrastre</code></td><td>BUCLE mientras el jugador recoge en la pelea</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/pesca/Bobber%20Lands%20in%20Water%20-%202.ogg' data-db='-10.0' title='Bobber Lands in Water - 2.ogg'>&#9654;</button></td><td><code>boya</code></td><td>La boya toca el agua</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/pesca/Reeling%20in%20Fishing%20Rod%20-%201.ogg' data-db='-10.0' title='Reeling in Fishing Rod - 1.ogg'>&#9654;</button></td><td><code>carrete</code></td><td>BUCLE del carrete durante el tiron</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/pesca/Open%20Bait%20Box%20-%201.ogg' data-db='-10.0' title='Open Bait Box - 1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/pesca/Open%20Bait%20Box%20-%202.ogg' data-db='-10.0' title='Open Bait Box - 2.ogg'><b>2</b></button></td><td><code>cebo</code></td><td>Se abre el intento: se saca el cebo de la caja</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/pesca/Bobber%20Lands%20in%20Water%20-%201.ogg' data-db='-10.0' title='Bobber Lands in Water - 1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/pesca/Bobber%20Lands%20in%20Water%20-%202.ogg' data-db='-10.0' title='Bobber Lands in Water - 2.ogg'><b>2</b></button></td><td><code>chapoteo</code></td><td>La picada, la presa que se suelta y el pez al salir del agua (la misma toma a tres tonos)</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/pesca/Casting%20Line%20-%204%20%28corto%29.ogg' data-db='-10.0' title='Casting Line - 4 (corto).ogg'>&#9654;</button></td><td><code>lanzar</code></td><td>El latigazo de la cana al lanzar</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/pesca/Reeling%20in%20Fishing%20Rod%20-%201.ogg' data-db='-10.0' title='Reeling in Fishing Rod - 1.ogg'>&#9654;</button></td><td><code>recoger</code></td><td>BUCLE al recoger el sedal antes de la picada, y en el tiron</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/pesca/Line%20Break%20-%201%20%28With%20Throw%29.ogg' data-db='-10.0' title='Line Break - 1 (With Throw).ogg'><b>1</b></button><button class='pl' data-src='sonidos/pesca/Line%20Break%20-%202.ogg' data-db='-10.0' title='Line Break - 2.ogg'><b>2</b></button></td><td><code>rotura</code></td><td>El sedal se rompe</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/pesca/Reeling%20in%20Fishing%20Rod%20-%202%20%28bucle%29.ogg' data-db='-10.0' title='Reeling in Fishing Rod - 2 (bucle).ogg'>&#9654;</button></td><td><code>sedal_pez</code></td><td>BUCLE cuando el pez se lleva sedal</td></tr>
+<tr><td class='tomas'><button class='pl' data-src='sonidos/pesca/Frog%20Death%20-%201.ogg' data-db='-10.0' title='Frog Death - 1.ogg'>&#9654;</button></td><td><code>tiron</code></td><td>El golpe que anuncia el tiron</td></tr>
 </table>
 <h2>Voces &mdash; 189 clips</h2>
 <p class='nota'>Tres sonidos por cada expresion de cada personaje. Son SONIDOS, no frases: el personaje no lee su linea, la acompana. Suenan al cambiar de linea en un dialogo, con la cara que trae esa linea. <span class='q usuario'>&#9679; usuario</span> pidio que fueran solo sonidos.</p>
-<p>
-<span class='pill'>alice &middot; 21</span>
-<span class='pill'>cai &middot; 15</span>
-<span class='pill'>capitan &middot; 9</span>
-<span class='pill'>capitan_f &middot; 9</span>
-<span class='pill'>david &middot; 24</span>
-<span class='pill'>gigi &middot; 12</span>
-<span class='pill'>grumete &middot; 9</span>
-<span class='pill'>grumete_f &middot; 9</span>
-<span class='pill'>kappa &middot; 21</span>
-<span class='pill'>pablo &middot; 21</span>
-<span class='pill'>pirata &middot; 12</span>
-<span class='pill'>pirata_f &middot; 12</span>
-<span class='pill'>saverio &middot; 15</span>
-</p>
+<details><summary>alice &mdash; 21 clips</summary>
+<div class='expr'><span>callado</span><button class='pl' data-src='sonidos/voces/alice/callado_1.ogg' data-db='-5.0' title='callado_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/alice/callado_2.ogg' data-db='-5.0' title='callado_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/alice/callado_3.ogg' data-db='-5.0' title='callado_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>feliz</span><button class='pl' data-src='sonidos/voces/alice/feliz_1.ogg' data-db='-5.0' title='feliz_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/alice/feliz_2.ogg' data-db='-5.0' title='feliz_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/alice/feliz_3.ogg' data-db='-5.0' title='feliz_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>hablando</span><button class='pl' data-src='sonidos/voces/alice/hablando_1.ogg' data-db='-5.0' title='hablando_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/alice/hablando_2.ogg' data-db='-5.0' title='hablando_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/alice/hablando_3.ogg' data-db='-5.0' title='hablando_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>riendo</span><button class='pl' data-src='sonidos/voces/alice/riendo_1.ogg' data-db='-5.0' title='riendo_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/alice/riendo_2.ogg' data-db='-5.0' title='riendo_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/alice/riendo_3.ogg' data-db='-5.0' title='riendo_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>serio</span><button class='pl' data-src='sonidos/voces/alice/serio_1.ogg' data-db='-5.0' title='serio_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/alice/serio_2.ogg' data-db='-5.0' title='serio_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/alice/serio_3.ogg' data-db='-5.0' title='serio_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>sorprendido</span><button class='pl' data-src='sonidos/voces/alice/sorprendido_1.ogg' data-db='-5.0' title='sorprendido_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/alice/sorprendido_2.ogg' data-db='-5.0' title='sorprendido_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/alice/sorprendido_3.ogg' data-db='-5.0' title='sorprendido_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>triste</span><button class='pl' data-src='sonidos/voces/alice/triste_1.ogg' data-db='-5.0' title='triste_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/alice/triste_2.ogg' data-db='-5.0' title='triste_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/alice/triste_3.ogg' data-db='-5.0' title='triste_3.ogg'><b>3</b></button></div>
+</details>
+<details><summary>cai &mdash; 15 clips</summary>
+<div class='expr'><span>callado</span><button class='pl' data-src='sonidos/voces/cai/callado_1.ogg' data-db='-5.0' title='callado_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/cai/callado_2.ogg' data-db='-5.0' title='callado_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/cai/callado_3.ogg' data-db='-5.0' title='callado_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>feliz</span><button class='pl' data-src='sonidos/voces/cai/feliz_1.ogg' data-db='-5.0' title='feliz_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/cai/feliz_2.ogg' data-db='-5.0' title='feliz_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/cai/feliz_3.ogg' data-db='-5.0' title='feliz_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>hablando</span><button class='pl' data-src='sonidos/voces/cai/hablando_1.ogg' data-db='-5.0' title='hablando_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/cai/hablando_2.ogg' data-db='-5.0' title='hablando_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/cai/hablando_3.ogg' data-db='-5.0' title='hablando_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>serio</span><button class='pl' data-src='sonidos/voces/cai/serio_1.ogg' data-db='-5.0' title='serio_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/cai/serio_2.ogg' data-db='-5.0' title='serio_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/cai/serio_3.ogg' data-db='-5.0' title='serio_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>sorprendido</span><button class='pl' data-src='sonidos/voces/cai/sorprendido_1.ogg' data-db='-5.0' title='sorprendido_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/cai/sorprendido_2.ogg' data-db='-5.0' title='sorprendido_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/cai/sorprendido_3.ogg' data-db='-5.0' title='sorprendido_3.ogg'><b>3</b></button></div>
+</details>
+<details><summary>capitan &mdash; 9 clips</summary>
+<div class='expr'><span>feliz</span><button class='pl' data-src='sonidos/voces/capitan/feliz_1.ogg' data-db='-5.0' title='feliz_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/capitan/feliz_2.ogg' data-db='-5.0' title='feliz_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/capitan/feliz_3.ogg' data-db='-5.0' title='feliz_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>hablando</span><button class='pl' data-src='sonidos/voces/capitan/hablando_1.ogg' data-db='-5.0' title='hablando_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/capitan/hablando_2.ogg' data-db='-5.0' title='hablando_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/capitan/hablando_3.ogg' data-db='-5.0' title='hablando_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>serio</span><button class='pl' data-src='sonidos/voces/capitan/serio_1.ogg' data-db='-5.0' title='serio_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/capitan/serio_2.ogg' data-db='-5.0' title='serio_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/capitan/serio_3.ogg' data-db='-5.0' title='serio_3.ogg'><b>3</b></button></div>
+</details>
+<details><summary>capitan_f &mdash; 9 clips</summary>
+<div class='expr'><span>feliz</span><button class='pl' data-src='sonidos/voces/capitan_f/feliz_1.ogg' data-db='-5.0' title='feliz_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/capitan_f/feliz_2.ogg' data-db='-5.0' title='feliz_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/capitan_f/feliz_3.ogg' data-db='-5.0' title='feliz_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>hablando</span><button class='pl' data-src='sonidos/voces/capitan_f/hablando_1.ogg' data-db='-5.0' title='hablando_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/capitan_f/hablando_2.ogg' data-db='-5.0' title='hablando_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/capitan_f/hablando_3.ogg' data-db='-5.0' title='hablando_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>serio</span><button class='pl' data-src='sonidos/voces/capitan_f/serio_1.ogg' data-db='-5.0' title='serio_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/capitan_f/serio_2.ogg' data-db='-5.0' title='serio_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/capitan_f/serio_3.ogg' data-db='-5.0' title='serio_3.ogg'><b>3</b></button></div>
+</details>
+<details><summary>david &mdash; 24 clips</summary>
+<div class='expr'><span>feliz</span><button class='pl' data-src='sonidos/voces/david/feliz_1.ogg' data-db='-5.0' title='feliz_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/david/feliz_2.ogg' data-db='-5.0' title='feliz_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/david/feliz_3.ogg' data-db='-5.0' title='feliz_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>gritando</span><button class='pl' data-src='sonidos/voces/david/gritando_1.ogg' data-db='-5.0' title='gritando_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/david/gritando_2.ogg' data-db='-5.0' title='gritando_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/david/gritando_3.ogg' data-db='-5.0' title='gritando_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>hablando</span><button class='pl' data-src='sonidos/voces/david/hablando_1.ogg' data-db='-5.0' title='hablando_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/david/hablando_2.ogg' data-db='-5.0' title='hablando_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/david/hablando_3.ogg' data-db='-5.0' title='hablando_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>mira_loro</span><button class='pl' data-src='sonidos/voces/david/mira_loro_1.ogg' data-db='-5.0' title='mira_loro_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/david/mira_loro_2.ogg' data-db='-5.0' title='mira_loro_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/david/mira_loro_3.ogg' data-db='-5.0' title='mira_loro_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>riendo</span><button class='pl' data-src='sonidos/voces/david/riendo_1.ogg' data-db='-5.0' title='riendo_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/david/riendo_2.ogg' data-db='-5.0' title='riendo_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/david/riendo_3.ogg' data-db='-5.0' title='riendo_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>serio</span><button class='pl' data-src='sonidos/voces/david/serio_1.ogg' data-db='-5.0' title='serio_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/david/serio_2.ogg' data-db='-5.0' title='serio_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/david/serio_3.ogg' data-db='-5.0' title='serio_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>sorprendido</span><button class='pl' data-src='sonidos/voces/david/sorprendido_1.ogg' data-db='-5.0' title='sorprendido_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/david/sorprendido_2.ogg' data-db='-5.0' title='sorprendido_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/david/sorprendido_3.ogg' data-db='-5.0' title='sorprendido_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>triste</span><button class='pl' data-src='sonidos/voces/david/triste_1.ogg' data-db='-5.0' title='triste_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/david/triste_2.ogg' data-db='-5.0' title='triste_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/david/triste_3.ogg' data-db='-5.0' title='triste_3.ogg'><b>3</b></button></div>
+</details>
+<details><summary>gigi &mdash; 12 clips</summary>
+<div class='expr'><span>loro</span><button class='pl' data-src='sonidos/voces/gigi/loro_1.ogg' data-db='-5.0' title='loro_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/gigi/loro_2.ogg' data-db='-5.0' title='loro_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/gigi/loro_3.ogg' data-db='-5.0' title='loro_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>loro_grito</span><button class='pl' data-src='sonidos/voces/gigi/loro_grito_1.ogg' data-db='-5.0' title='loro_grito_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/gigi/loro_grito_2.ogg' data-db='-5.0' title='loro_grito_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/gigi/loro_grito_3.ogg' data-db='-5.0' title='loro_grito_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>loro_resignado</span><button class='pl' data-src='sonidos/voces/gigi/loro_resignado_1.ogg' data-db='-5.0' title='loro_resignado_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/gigi/loro_resignado_2.ogg' data-db='-5.0' title='loro_resignado_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/gigi/loro_resignado_3.ogg' data-db='-5.0' title='loro_resignado_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>loro_sorpresa</span><button class='pl' data-src='sonidos/voces/gigi/loro_sorpresa_1.ogg' data-db='-5.0' title='loro_sorpresa_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/gigi/loro_sorpresa_2.ogg' data-db='-5.0' title='loro_sorpresa_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/gigi/loro_sorpresa_3.ogg' data-db='-5.0' title='loro_sorpresa_3.ogg'><b>3</b></button></div>
+</details>
+<details><summary>grumete &mdash; 9 clips</summary>
+<div class='expr'><span>feliz</span><button class='pl' data-src='sonidos/voces/grumete/feliz_1.ogg' data-db='-5.0' title='feliz_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/grumete/feliz_2.ogg' data-db='-5.0' title='feliz_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/grumete/feliz_3.ogg' data-db='-5.0' title='feliz_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>hablando</span><button class='pl' data-src='sonidos/voces/grumete/hablando_1.ogg' data-db='-5.0' title='hablando_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/grumete/hablando_2.ogg' data-db='-5.0' title='hablando_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/grumete/hablando_3.ogg' data-db='-5.0' title='hablando_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>serio</span><button class='pl' data-src='sonidos/voces/grumete/serio_1.ogg' data-db='-5.0' title='serio_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/grumete/serio_2.ogg' data-db='-5.0' title='serio_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/grumete/serio_3.ogg' data-db='-5.0' title='serio_3.ogg'><b>3</b></button></div>
+</details>
+<details><summary>grumete_f &mdash; 9 clips</summary>
+<div class='expr'><span>feliz</span><button class='pl' data-src='sonidos/voces/grumete_f/feliz_1.ogg' data-db='-5.0' title='feliz_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/grumete_f/feliz_2.ogg' data-db='-5.0' title='feliz_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/grumete_f/feliz_3.ogg' data-db='-5.0' title='feliz_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>hablando</span><button class='pl' data-src='sonidos/voces/grumete_f/hablando_1.ogg' data-db='-5.0' title='hablando_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/grumete_f/hablando_2.ogg' data-db='-5.0' title='hablando_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/grumete_f/hablando_3.ogg' data-db='-5.0' title='hablando_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>serio</span><button class='pl' data-src='sonidos/voces/grumete_f/serio_1.ogg' data-db='-5.0' title='serio_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/grumete_f/serio_2.ogg' data-db='-5.0' title='serio_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/grumete_f/serio_3.ogg' data-db='-5.0' title='serio_3.ogg'><b>3</b></button></div>
+</details>
+<details><summary>kappa &mdash; 21 clips</summary>
+<div class='expr'><span>colerico</span><button class='pl' data-src='sonidos/voces/kappa/colerico_1.ogg' data-db='-5.0' title='colerico_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/kappa/colerico_2.ogg' data-db='-5.0' title='colerico_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/kappa/colerico_3.ogg' data-db='-5.0' title='colerico_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>dormido</span><button class='pl' data-src='sonidos/voces/kappa/dormido_1.ogg' data-db='-5.0' title='dormido_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/kappa/dormido_2.ogg' data-db='-5.0' title='dormido_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/kappa/dormido_3.ogg' data-db='-5.0' title='dormido_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>enfadado</span><button class='pl' data-src='sonidos/voces/kappa/enfadado_1.ogg' data-db='-5.0' title='enfadado_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/kappa/enfadado_2.ogg' data-db='-5.0' title='enfadado_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/kappa/enfadado_3.ogg' data-db='-5.0' title='enfadado_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>feliz</span><button class='pl' data-src='sonidos/voces/kappa/feliz_1.ogg' data-db='-5.0' title='feliz_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/kappa/feliz_2.ogg' data-db='-5.0' title='feliz_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/kappa/feliz_3.ogg' data-db='-5.0' title='feliz_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>furioso</span><button class='pl' data-src='sonidos/voces/kappa/furioso_1.ogg' data-db='-5.0' title='furioso_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/kappa/furioso_2.ogg' data-db='-5.0' title='furioso_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/kappa/furioso_3.ogg' data-db='-5.0' title='furioso_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>hablando</span><button class='pl' data-src='sonidos/voces/kappa/hablando_1.ogg' data-db='-5.0' title='hablando_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/kappa/hablando_2.ogg' data-db='-5.0' title='hablando_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/kappa/hablando_3.ogg' data-db='-5.0' title='hablando_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>serio</span><button class='pl' data-src='sonidos/voces/kappa/serio_1.ogg' data-db='-5.0' title='serio_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/kappa/serio_2.ogg' data-db='-5.0' title='serio_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/kappa/serio_3.ogg' data-db='-5.0' title='serio_3.ogg'><b>3</b></button></div>
+</details>
+<details><summary>pablo &mdash; 21 clips</summary>
+<div class='expr'><span>feliz</span><button class='pl' data-src='sonidos/voces/pablo/feliz_1.ogg' data-db='-5.0' title='feliz_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/pablo/feliz_2.ogg' data-db='-5.0' title='feliz_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/pablo/feliz_3.ogg' data-db='-5.0' title='feliz_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>guason</span><button class='pl' data-src='sonidos/voces/pablo/guason_1.ogg' data-db='-5.0' title='guason_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/pablo/guason_2.ogg' data-db='-5.0' title='guason_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/pablo/guason_3.ogg' data-db='-5.0' title='guason_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>hablando</span><button class='pl' data-src='sonidos/voces/pablo/hablando_1.ogg' data-db='-5.0' title='hablando_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/pablo/hablando_2.ogg' data-db='-5.0' title='hablando_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/pablo/hablando_3.ogg' data-db='-5.0' title='hablando_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>punal</span><button class='pl' data-src='sonidos/voces/pablo/punal_1.ogg' data-db='-5.0' title='punal_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/pablo/punal_2.ogg' data-db='-5.0' title='punal_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/pablo/punal_3.ogg' data-db='-5.0' title='punal_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>riendo</span><button class='pl' data-src='sonidos/voces/pablo/riendo_1.ogg' data-db='-5.0' title='riendo_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/pablo/riendo_2.ogg' data-db='-5.0' title='riendo_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/pablo/riendo_3.ogg' data-db='-5.0' title='riendo_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>serio</span><button class='pl' data-src='sonidos/voces/pablo/serio_1.ogg' data-db='-5.0' title='serio_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/pablo/serio_2.ogg' data-db='-5.0' title='serio_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/pablo/serio_3.ogg' data-db='-5.0' title='serio_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>sorprendido</span><button class='pl' data-src='sonidos/voces/pablo/sorprendido_1.ogg' data-db='-5.0' title='sorprendido_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/pablo/sorprendido_2.ogg' data-db='-5.0' title='sorprendido_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/pablo/sorprendido_3.ogg' data-db='-5.0' title='sorprendido_3.ogg'><b>3</b></button></div>
+</details>
+<details><summary>pirata &mdash; 12 clips</summary>
+<div class='expr'><span>feliz</span><button class='pl' data-src='sonidos/voces/pirata/feliz_1.ogg' data-db='-5.0' title='feliz_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/pirata/feliz_2.ogg' data-db='-5.0' title='feliz_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/pirata/feliz_3.ogg' data-db='-5.0' title='feliz_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>hablando</span><button class='pl' data-src='sonidos/voces/pirata/hablando_1.ogg' data-db='-5.0' title='hablando_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/pirata/hablando_2.ogg' data-db='-5.0' title='hablando_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/pirata/hablando_3.ogg' data-db='-5.0' title='hablando_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>nervioso</span><button class='pl' data-src='sonidos/voces/pirata/nervioso_1.ogg' data-db='-5.0' title='nervioso_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/pirata/nervioso_2.ogg' data-db='-5.0' title='nervioso_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/pirata/nervioso_3.ogg' data-db='-5.0' title='nervioso_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>serio</span><button class='pl' data-src='sonidos/voces/pirata/serio_1.ogg' data-db='-5.0' title='serio_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/pirata/serio_2.ogg' data-db='-5.0' title='serio_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/pirata/serio_3.ogg' data-db='-5.0' title='serio_3.ogg'><b>3</b></button></div>
+</details>
+<details><summary>pirata_f &mdash; 12 clips</summary>
+<div class='expr'><span>feliz</span><button class='pl' data-src='sonidos/voces/pirata_f/feliz_1.ogg' data-db='-5.0' title='feliz_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/pirata_f/feliz_2.ogg' data-db='-5.0' title='feliz_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/pirata_f/feliz_3.ogg' data-db='-5.0' title='feliz_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>hablando</span><button class='pl' data-src='sonidos/voces/pirata_f/hablando_1.ogg' data-db='-5.0' title='hablando_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/pirata_f/hablando_2.ogg' data-db='-5.0' title='hablando_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/pirata_f/hablando_3.ogg' data-db='-5.0' title='hablando_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>nervioso</span><button class='pl' data-src='sonidos/voces/pirata_f/nervioso_1.ogg' data-db='-5.0' title='nervioso_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/pirata_f/nervioso_2.ogg' data-db='-5.0' title='nervioso_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/pirata_f/nervioso_3.ogg' data-db='-5.0' title='nervioso_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>serio</span><button class='pl' data-src='sonidos/voces/pirata_f/serio_1.ogg' data-db='-5.0' title='serio_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/pirata_f/serio_2.ogg' data-db='-5.0' title='serio_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/pirata_f/serio_3.ogg' data-db='-5.0' title='serio_3.ogg'><b>3</b></button></div>
+</details>
+<details><summary>saverio &mdash; 15 clips</summary>
+<div class='expr'><span>explicando</span><button class='pl' data-src='sonidos/voces/saverio/explicando_1.ogg' data-db='-5.0' title='explicando_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/saverio/explicando_2.ogg' data-db='-5.0' title='explicando_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/saverio/explicando_3.ogg' data-db='-5.0' title='explicando_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>feliz</span><button class='pl' data-src='sonidos/voces/saverio/feliz_1.ogg' data-db='-5.0' title='feliz_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/saverio/feliz_2.ogg' data-db='-5.0' title='feliz_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/saverio/feliz_3.ogg' data-db='-5.0' title='feliz_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>hablando</span><button class='pl' data-src='sonidos/voces/saverio/hablando_1.ogg' data-db='-5.0' title='hablando_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/saverio/hablando_2.ogg' data-db='-5.0' title='hablando_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/saverio/hablando_3.ogg' data-db='-5.0' title='hablando_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>riendo</span><button class='pl' data-src='sonidos/voces/saverio/riendo_1.ogg' data-db='-5.0' title='riendo_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/saverio/riendo_2.ogg' data-db='-5.0' title='riendo_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/saverio/riendo_3.ogg' data-db='-5.0' title='riendo_3.ogg'><b>3</b></button></div>
+<div class='expr'><span>serio</span><button class='pl' data-src='sonidos/voces/saverio/serio_1.ogg' data-db='-5.0' title='serio_1.ogg'><b>1</b></button><button class='pl' data-src='sonidos/voces/saverio/serio_2.ogg' data-db='-5.0' title='serio_2.ogg'><b>2</b></button><button class='pl' data-src='sonidos/voces/saverio/serio_3.ogg' data-db='-5.0' title='serio_3.ogg'><b>3</b></button></div>
+</details>
 <h2>Lo que a proposito NO suena</h2>
 <table><tr><th>Que</th><th>Por que</th><th>Quien</th></tr>
 <tr><td>Los clientes: llegar, sentarse, coger plato, masticar, irse</td><td>Con ocho bocas a la vez el nivel era un gallinero y tapaba la cocina. Solo se oye la moneda cuando pagan</td><td class='q usuario'>usuario</td></tr>
@@ -147,12 +261,37 @@ th,td{padding:7px 6px}}
 <table><tr><th>Seccion</th><th class='db'>MB</th></tr>
 <tr><td><code>sounds/juego/musica</code></td><td class='db'>6.04</td></tr>
 <tr><td><code>sounds/juego/voces</code></td><td class='db'>1.34</td></tr>
-<tr><td><code>sounds/juego/pesca</code></td><td class='db'>1.00</td></tr>
+<tr><td><code>sounds/juego/pesca</code></td><td class='db'>0.32</td></tr>
 <tr><td><code>sounds/juego/barco</code></td><td class='db'>0.63</td></tr>
 <tr><td><code>sounds/juego/cocina</code></td><td class='db'>0.33</td></tr>
 <tr><td><code>sounds/juego/interfaz</code></td><td class='db'>0.15</td></tr>
 <tr><td><code>sounds/juego/nivel</code></td><td class='db'>0.09</td></tr>
-<tr><td><b>Total</b></td><td class='db'><b>9.59</b></td></tr>
+<tr><td><b>Total</b></td><td class='db'><b>8.91</b></td></tr>
 </table>
 <p class='nota'>Todo en OGG Vorbis. Las librerias de las que se picotea viven en <code>sounds/Sin utilizar/</code> y no viajan al juego.</p>
+
+<script>
+(function(){
+  var actual = null, boton = null;
+  function parar(){
+    if (actual) { actual.pause(); actual = null; }
+    if (boton) { boton.classList.remove('on'); boton = null; }
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target.closest('.pl');
+    if (!b) return;
+    var era = (b === boton);
+    parar();
+    if (era) return;
+    var a = new Audio(b.dataset.src);
+    var db = parseFloat(b.dataset.db || '0');
+    a.volume = document.getElementById('orig').checked
+      ? 1 : Math.max(0, Math.min(1, Math.pow(10, db / 20)));
+    a.addEventListener('ended', parar);
+    a.play().catch(function(){});
+    actual = a; boton = b; b.classList.add('on');
+  });
+})();
+</script>
+
 </div></body></html>
