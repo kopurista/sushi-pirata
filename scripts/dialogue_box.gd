@@ -412,11 +412,6 @@ func _fade(entra: bool) -> void:
 	if _fade_tween != null:
 		_fade_tween.kill()
 	_closing = not entra
-	# El pergamino entrando y saliendo. Solo cuando CAMBIA de estado: `_fade`
-	# se llama también al encadenar bloques con `keep_open` y ahí la caja ya
-	# está puesta, así que sonaría un pergamino por cada tanda de líneas.
-	if entra != visible:
-		Audio.sfx("pagina" if entra else "ventana_off", -3.0)
 	if entra:
 		# DESDE CERO cuando la caja no estaba puesta: el nodo nace con
 		# `modulate.a` a 1, así que la PRIMERA aparición tweenaba de 1 a 1 y
@@ -600,21 +595,12 @@ func _advance() -> void:
 	advanced.emit(_index)
 
 
-## Cada cuántas letras suena el tecleo de la máquina de escribir. NO puede ser
-## una por letra: a `CHARS_PER_SEC` (45) serían 45 golpes por segundo, que ni
-## se distinguen ni suenan a nada — y el propio `Audio.sfx` los descartaría
-## por su tope de ráfaga. Cada cuatro letras da un repiqueteo legible.
-const TECLA_CADA := 4
-
-
 func _process(delta: float) -> void:
 	if not visible or not _typing:
 		return
 	var antes := int(_visible_chars)
 	_visible_chars += CHARS_PER_SEC * delta
 	_text.visible_characters = int(_visible_chars)
-	if int(_visible_chars) / TECLA_CADA != antes / TECLA_CADA:
-		Audio.sfx("tecla")
 	if int(_visible_chars) >= _total_chars:
 		_finish_typing()
 

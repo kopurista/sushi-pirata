@@ -676,7 +676,10 @@ func _show_start() -> void:
 	# LA PORTADA NO LLEVA MÚSICA (decisión de diseño): solo el mar contra el
 	# casco. El tema del menú entra al zarpar, en `_llegar_al_menu`.
 	Audio.musica_off(0.6)
-	Audio.ambiente("mar")
+	# EL MAR LLENA LA PORTADA porque es lo único que suena ahí. En el menú
+	# el MISMO bucle sigue puesto pero muy por debajo (`AMB_MENU`): no se
+	# corta al zarpar, solo baja.
+	Audio.ambiente("mar", 1.2, AMB_PORTADA)
 	map_visible = false
 	_set_map_ui_visible(false)
 	_set_menu_ui_visible(false)
@@ -713,8 +716,9 @@ func _zarpar_de_la_portada() -> void:
 	if leaving:
 		return
 	leaving = true
-	# Zarpar de verdad: el barco se suelta del muelle y con él entra el juego.
+	# Zarpar de verdad: las CAMPANAS del barco y las velas cogiendo viento.
 	Audio.sfx("zarpar")
+	Audio.sfx("velas")
 	GameState.booted = true
 	_stop_logo_idle()
 	var tw_ui := create_tween().set_parallel(true) \
@@ -752,7 +756,7 @@ func _llegar_al_menu() -> void:
 	start_mode = false
 	leaving = false
 	Audio.musica("menu", 2.2)
-	Audio.ambiente_off(1.6)
+	Audio.ambiente("mar", 2.2, AMB_MENU)
 	logo_holder.visible = false
 	start_hint.visible = false
 	for caja in [ingot_box, money_box, rice_box, rice_timer_label]:
@@ -773,7 +777,8 @@ func _show_menu(animate: bool) -> void:
 	# no en `_enter_map`: son la misma escena y el mismo momento del juego, así
 	# que zarpar hacia el mapa no tiene que cortar la música.
 	Audio.musica("menu")
-	Audio.ambiente_off()
+	# El mar SIGUE, mucho más bajo: el menú es la misma cubierta.
+	Audio.ambiente("mar", 1.2, AMB_MENU)
 	_place_resources(false, animate)
 	map_visible = false
 	sky_leaving = false
@@ -1015,6 +1020,12 @@ func _quitar_velo(velo: Control) -> void:
 ## Modo MAPA: el barco navega hasta el último nivel abierto y entra la
 ## interfaz de la campaña.
 func _enter_map(animate: bool) -> void:
+	# EL MAPA COMPARTE TEMA CON EL MENÚ, y hay que pedirlo AQUÍ además de en
+	# `_show_menu`: al volver de un nivel se entra por la transición "mapa",
+	# que no pasa por el menú, y sin esto el mapa se quedaba con la música del
+	# nivel del que se acababa de salir.
+	Audio.musica("menu")
+	Audio.ambiente("mar", 1.5, AMB_MENU)
 	in_menu = false
 	# Con el mapa ya en pantalla: primero el arroz y, encadenada, la guía del
 	# primer puerto (las dos solo la 1ª vez, cada una con su bandera).
@@ -1202,26 +1213,55 @@ func _setup_clouds() -> void:
 		})
 
 
-## Cada cuánto se oye una gaviota o cruje la madera del barco, en segundos.
-## Va SORTEADO dentro de una horquilla ancha y no a intervalo fijo: un sonido
+## EL MAR DE FONDO, en las dos pantallas y a dos alturas distintas. En la
+## PORTADA es lo único que se oye —no hay música— así que va alto; en el menú y
+## el mapa queda por debajo del tema, apenas como fondo.
+const AMB_PORTADA := 0.0
+const AMB_MENU := -11.0
+
+## Cada cuánto cruje el barco y cada cuánto pasa una gaviota, en segundos.
+## Van SORTEADOS dentro de una horquilla ancha y no a intervalo fijo: un sonido
 ## de fondo que cae siempre al mismo ritmo deja de ser fondo y se convierte en
 ## un metrónomo.
-const AMB_ESPERA := Vector2(11.0, 26.0)
-var _amb_reloj := 6.0
+const BARCO_ESPERA := Vector2(9.0, 17.0)
+const GAVIOTA_ESPERA := Vector2(7.0, 16.0)
+## Cuánto más bajo cruje el barco en el menú que en la portada.
+const BARCO_MENU_DB := -3.0
 
-## Radianes de timón ya "crujidos" (ver `_bank_wheel_turns`).
-var _cruji_en := 0.0
+var _barco_reloj := 5.0
+var _gaviota_reloj := 8.0
 
 
-## El mar del menú no es solo música: de vez en cuando pasa una gaviota o
-## cruje una cuaderna. Suena en el menú, en la portada y en el mapa —los tres
-## son el mismo mar— y también con la pesca abierta, que sigue siendo cubierta.
+## El barco cruje siempre —en la portada y en el menú, más bajo— y las
+## GAVIOTAS solo en el menú: en la portada estorbaban al mar, que ahí es todo
+## el ambiente que hay (decidido por el usuario).
 func _tick_ambiente(delta: float) -> void:
-	_amb_reloj -= delta
-	if _amb_reloj > 0.0:
+	if not in_menu:
 		return
-	_amb_reloj = randf_range(AMB_ESPERA.x, AMB_ESPERA.y)
-	Audio.sfx("gaviota" if randf() < 0.65 else "cruje")
+	_barco_reloj -= delta
+	if _barco_reloj <= 0.0:
+		_barco_reloj = randf_range(BARCO_ESPERA.x, BARCO_ESPERA.y)
+		Audio.sfx("barco_cruje", 0.0 if start_mode else BARCO_MENU_DB)
+	if start_mode:
+		return
+	_gaviota_reloj -= delta
+	if _gaviota_reloj <= 0.0:
+		_gaviota_reloj = randf_range(GAVIOTA_ESPERA.x, GAVIOTA_ESPERA.y)
+		# CON FUNDIDO: una gaviota que entra y sale a cuchillo se oye como
+		# un corte, no como algo que pasa volando por el fondo.
+		Audio.sfx_suave("gaviota", 0.0, 0.5)
+
+
+## EL BARCO SE PONE EN MARCHA. Suena al salir hacia cualquiera de los cuatro
+## modos: las velas cogiendo viento y el casco moviéndose de fondo. El casco va
+## MUY bajo (`Audio.VOL`) a propósito: acompaña al viaje, no lo anuncia — el
+## botón ya lo ha anunciado.
+## `con_velas` en false para la PESCA: ahi no se zarpa a ninguna parte, solo
+## se saca la cana por la borda (pedido por el usuario).
+func _sonar_zarpe(con_velas := true) -> void:
+	if con_velas:
+		Audio.sfx("velas")
+	Audio.sfx("barco_mover")
 
 
 func _process(delta: float) -> void:
@@ -1538,7 +1578,11 @@ func _setup_resource_bar(st: float) -> void:
 
 const LVL_BAR_W := 420.0
 const LVL_BAR_H := 34.0
-const LVL_BAR_Y := 96.0
+## Y de la barra en el menu. BAJA hasta despejar la cuenta atras del proximo
+## saco de arroz, que cuelga de la caja del arroz y ocupa hasta la y 110: la
+## estrella arrancaba en 96 y le caia encima, y con el globo de puntos puesto
+## se comia el texto entero.
+const LVL_BAR_Y := 138.0
 ## Cuánto baja la barra en la PESCA, para dejar libre la fila del "Atrás" y del
 ## álbum (uno en cada esquina de arriba).
 const LVL_BAR_PESCA := 76.0
@@ -1584,21 +1628,25 @@ func _setup_level_bar(st: float) -> void:
 	level_bar.add_child(level_bar_fill)
 
 	# La estrella del juego cabalga el canto izquierdo, como los iconos de las
-	# cajas de recursos, y lleva un "+" DENTRO: es lo que dice que ahí se
-	# mejoran las maestrías. El "+" se pone ROJO cuando hay puntos que gastar.
+	# cajas de recursos, y lleva EL NIVEL DENTRO. Antes ponia un "+" y el nivel
+	# iba escrito en mitad de la barra; con la cifra en la estrella se lee de un
+	# vistazo y la barra se queda para lo que de verdad progresa, la
+	# experiencia. Late en rojo cuando hay puntos que gastar, igual que antes.
 	var estrella := TextureRect.new()
 	estrella.name = "Estrella"
 	estrella.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	estrella.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	estrella.texture = load("res://assets/ui/estrella_llena.png")
-	estrella.position = Vector2(-22.0, 0.0)
-	estrella.size = Vector2(48, 48)
-	estrella.pivot_offset = Vector2(24, 24)
+	# Un pelo mayor que antes (48): ahora tiene que caber un numero de hasta
+	# tres cifras dentro.
+	estrella.position = Vector2(-24.0, -3.0)
+	estrella.size = Vector2(54, 54)
+	estrella.pivot_offset = Vector2(27, 27)
 	estrella.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	level_bar.add_child(estrella)
 	level_star = estrella
 	level_plus = Label.new()
-	level_plus.text = "+"
+	level_plus.text = "1"
 	level_plus.set_anchors_preset(Control.PRESET_FULL_RECT)
 	level_plus.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	level_plus.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -1606,7 +1654,9 @@ func _setup_level_bar(st: float) -> void:
 	# (las dos puntas de abajo se abren): el "+" baja un pelo para caer en la
 	# panza del dibujo y no sobre el pico.
 	level_plus.offset_top = 2.0
-	level_plus.add_theme_font_size_override("font_size", 30)
+	# El cuerpo se remide en `_refresh_level_bar`: el nivel llega a 450 y tres
+	# cifras no caben al mismo tamano que una.
+	level_plus.add_theme_font_size_override("font_size", 24)
 	level_plus.add_theme_color_override("font_outline_color",
 		Color(0.28, 0.14, 0.02))
 	level_plus.add_theme_constant_override("outline_size", 6)
@@ -1626,17 +1676,21 @@ func _setup_level_bar(st: float) -> void:
 	level_bar_label.pivot_offset = Vector2(LVL_BAR_W * 0.5, (LVL_BAR_H + 14.0) * 0.5)
 	level_bar.add_child(level_bar_label)
 
-	# El globo de los puntos libres, cabalgando la esquina superior derecha.
+	# El globo de los puntos libres, cabalgando la estrella por su esquina
+	# superior IZQUIERDA. Estuvo al otro extremo de la barra, lejos de la
+	# estrella que es lo que hay que pulsar; aqui los dos avisos —la estrella
+	# latiendo y la cifra— caen juntos y en el sitio al que hay que ir.
 	# POSICIÓN Y TAMAÑO EXPLÍCITOS, sin `set_anchors_preset`: el preset no toca
 	# los offsets y con un anfitrión de tamaño cero el globo no llegaba a
 	# dibujarse (la trampa de siempre; ver CLAUDE.md).
 	level_bar_badge_host = Control.new()
-	level_bar_badge_host.position = Vector2(LVL_BAR_W - 34.0, -6.0)
+	level_bar_badge_host.position = Vector2(-46.0, -18.0)
 	level_bar_badge_host.size = Vector2(34, 34)
 	level_bar_badge_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	level_bar.add_child(level_bar_badge_host)
 
 	PrepBoard.add_press_feedback(level_bar)
+	level_bar.set_meta("snd", "recurso")
 	level_bar.pressed.connect(_go_skills)
 	_xp_shown = float(GameState.chef_xp)
 	_refresh_level_bar()
@@ -1656,15 +1710,25 @@ func _refresh_level_bar() -> void:
 		return
 	var xp := int(_xp_shown)
 	var nivel := SkillData.level_for_xp(xp)
+	# EL NIVEL VA EN LA ESTRELLA y la barra enseña la EXPERIENCIA, que es lo que
+	# de verdad se mueve ahi dentro (y es lo mismo que enseña la cabecera de
+	# Maestrias, asi que las dos pantallas cuentan lo mismo).
 	if nivel >= SkillData.MAX_LEVEL:
 		level_bar_fill.max_value = 1
 		level_bar_fill.value = 1
-		level_bar_label.text = "Nivel %d  ·  MÁXIMO" % nivel
+		level_bar_label.text = "MÁXIMO"
 	else:
 		var suelo := SkillData.xp_at_level(nivel)
-		level_bar_fill.max_value = SkillData.xp_for_next(nivel)
+		var falta := SkillData.xp_for_next(nivel)
+		level_bar_fill.max_value = falta
 		level_bar_fill.value = xp - suelo
-		level_bar_label.text = "Nivel %d" % nivel
+		level_bar_label.text = "%d / %d" % [xp - suelo, falta]
+	if level_plus != null:
+		level_plus.text = str(nivel)
+		# Tres cifras no caben al cuerpo de una: se remide contra el ancho util
+		# de la estrella, que tiene las puntas fuera.
+		level_plus.add_theme_font_size_override("font_size",
+			24 if nivel < 100 else 19)
 	for hijo in level_bar_badge_host.get_children():
 		hijo.queue_free()
 	# EL "+" DE LA ESTRELLA: crema mientras no hay nada que gastar, ROJO y
@@ -1727,8 +1791,13 @@ func _play_xp_anim_if_pending() -> void:
 		var frontera := SkillData.xp_at_level(nivel + 1) \
 			if nivel < SkillData.MAX_LEVEL else hasta
 		var tramo: int = mini(frontera, hasta)
-		t2.tween_method(_set_xp_shown, float(actual), float(tramo),
-			clampf(0.9 * float(tramo - actual) / float(hasta - desde), 0.18, 0.9))
+		# EL SONIDO DURA LO QUE DURE EL TRAMO (ver `Audio.sfx_dura`). Va en un
+		# `tween_callback` y no suelto, o sonaria al MONTAR la animacion en vez
+		# de cuando le toca a su tramo.
+		var dur := clampf(0.9 * float(tramo - actual) / float(hasta - desde),
+			0.18, 0.9)
+		t2.tween_callback(func() -> void: Audio.sfx_dura("exp", dur))
+		t2.tween_method(_set_xp_shown, float(actual), float(tramo), dur)
 		if tramo < hasta or (tramo == frontera and tramo > actual):
 			# Frontera cruzada: nivel nuevo.
 			var nuevo := SkillData.level_for_xp(tramo)
@@ -1746,6 +1815,7 @@ func _set_xp_shown(v: float) -> void:
 ## El fogonazo de la subida: destello sobre la barra, "¡Nivel N!" que salta y
 ## una corona de estrellas que salen despedidas.
 func _level_up_burst(nivel: int) -> void:
+	Audio.sfx("levelup")
 	if level_bar == null or not level_bar.visible:
 		return
 	# Destello blanco sobre la barra.
@@ -1819,6 +1889,9 @@ func _add_plus(caja: Control, accion: Callable) -> void:
 	mas.size = Vector2(48, 48)
 	mas.position = Vector2(-26.0, -24.0)
 	mas.name = "Mas"
+	# Las cajas de recurso (lingotes, doblones, arroz) tienen su propio
+	# sonido, y sus ventanas se cierran con el mismo más grave.
+	mas.set_meta("snd", "recurso")
 	PrepBoard.add_press_feedback(mas)
 	mas.pressed.connect(accion)
 	caja.add_child(mas)
@@ -2061,7 +2134,9 @@ func _open_pack_panel(titulo: String, packs: Array, real: bool,
 	var overlay := ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.55)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	Audio.ventana(overlay, "bolsa", "ventana_off")
+	# Se abre desde una caja de recurso, así que se cierra con su mismo
+	# sonido pero más grave.
+	Audio.ventana(overlay, "recurso", "recurso_off")
 	overlay.z_index = 160
 	ui_layer.add_child(overlay)
 
@@ -2269,7 +2344,6 @@ Solo te caben %d de los %d, así que se cobra la parte." % [
 	si.add_theme_font_size_override("font_size", 26)
 	si.pressed.connect(func() -> void:
 		GameState.buy_rice(sacos, coste)
-		Audio.sfx("saco")
 		_refresh_resources()
 		velo.queue_free()
 		overlay.queue_free())
@@ -2339,16 +2413,27 @@ func _on_wheel_input(e: InputEvent) -> void:
 
 ## Abona a la estadística cada VUELTA COMPLETA del timón. A las 5,
 ## `GameState._run_achievement_check` suelta el coleccionable "timón".
+## MANGOS del timón. El sonido salta cada vez que uno pasa por arriba, así
+## que un giro entero suena ocho veces y medio giro cuatro: el oído sigue el
+## giro en lugar de oír un ruido suelto.
+const TIMON_MANGOS := 8
+
+## Radianes de timón que ya han sonado.
+var _timon_sonado := 0.0
+
+
 func _bank_wheel_turns(rad: float) -> void:
 	wheel_turn_acc += rad
-	# El timón CRUJE cada cuarto de vuelta, no cada vuelta entera: girándolo
-	# despacio se pasaban segundos sin que la madera dijera nada.
-	while wheel_turn_acc - _cruji_en >= TAU * 0.25:
-		_cruji_en += TAU * 0.25
-		Audio.sfx("madera", -6.0)
+	# SOLO EL GOLPE DE CADA MANGO. Hubo también un crujido continuo mientras
+	# se giraba y el usuario lo quitó: encima del crujido del casco, que ya
+	# suena de fondo por su cuenta, eran dos maderas quejándose a la vez.
+	var paso := TAU / float(TIMON_MANGOS)
+	while wheel_turn_acc - _timon_sonado >= paso:
+		_timon_sonado += paso
+		Audio.sfx("timon")
 	while wheel_turn_acc >= TAU:
 		wheel_turn_acc -= TAU
-		_cruji_en -= TAU
+		_timon_sonado -= TAU
 		GameState.bump_stat("helm_turns")
 
 
@@ -2384,6 +2469,7 @@ func _setup_submenu() -> void:
 	# centro del menú (`_setup_level_bar`), que además enseña el progreso.
 	for def in [
 			["ic_logros", func() -> void: _go_achievements()],
+			["ic_recetario", func() -> void: _go_recipes()],
 			["ic_inventario", func() -> void: _go_inventory()],
 			["ic_perfil", func() -> void: _go_profile()],
 			["ic_perks", func() -> void: _go_perks()],
@@ -2407,6 +2493,7 @@ func _attach_badge(host: Control, count: int) -> void:
 ## es el fondo de los cinco).
 func _make_sub_button(icon: String, action: Callable) -> Control:
 	var b := Button.new()
+	b.set_meta("snd", "submenu")
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
@@ -2459,6 +2546,9 @@ func _make_mode_button(text: String, icon: String, _height: int,
 		font_size: int, action: Callable) -> Button:
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(0, MODE_BTN_H)
+	# Los CUATRO pergaminos de modo tienen su propio sonido, distinto del de
+	# los accesos de la barra de abajo (ver `Audio.FAMILIAS`).
+	b.set_meta("snd", "modo")
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 	PrepBoard.add_press_feedback(b, 0.94)
@@ -2609,10 +2699,10 @@ func _go_tutorial() -> void:
 ## AVENTURA: sin cambiar de escena. El barco leva anclas y navega hasta el
 ## último nivel abierto mientras la interfaz del menú se retira.
 func _go_adventure() -> void:
-	Audio.sfx("pantalla")
 	if leaving:
 		return
 	leaving = true
+	_sonar_zarpe()
 	# Los contadores NO salen: se quedan y viajan a los extremos del mapa, y la
 	# BARRA DE NIVEL tampoco — se queda y se corre a la derecha con ellos.
 	_ui_out(false, false)
@@ -2672,6 +2762,7 @@ func _go_arcade() -> void:
 		_show_locked_notice("El Arcade sin fin se abre al vencer al Kappa\nen la Cueva del Kappa (escenario 20).")
 		return
 	leaving = true
+	_sonar_zarpe()
 	GameState.mode = "test"
 	GameState.current_port = ""
 	GameState.selected_recipes = []
@@ -2704,6 +2795,7 @@ func _go_fishing() -> void:
 		_show_locked_notice("La Pesca se abre al superar\nla Isla de Gades (nivel 8).")
 		return
 	leaving = true
+	_sonar_zarpe(false)
 	# La BARRA DE NIVEL se queda: en la pesca cada captura paga experiencia y
 	# hay que VERLA subir. Se queda solo de escaparate — `MOUSE_FILTER_IGNORE`,
 	# porque el panel táctil de la pesca cubre la pantalla entera y una barra
@@ -2920,7 +3012,7 @@ func _barra_nivel_a_casa() -> void:
 
 func _show_locked_notice(text: String) -> void:
 	var panel := Control.new()
-	Audio.ventana(panel, "error", "ventana_off")
+	Audio.ventana(panel, "aviso", "aviso_off")
 	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.offset_left = -280.0
 	panel.offset_top = -110.0
@@ -2957,6 +3049,9 @@ const DAILY_ICONS: Dictionary = {
 	"rice": "res://assets/ui/ic_arroz.png",
 	"ingots": "res://assets/ui/ic_lingote.png",
 	"extras": "res://assets/ingredients/jengibre.png",
+	"bait": "res://assets/ui/ic_cebo.png",
+	# El mapa del tesoro de la vitrina: es el mismo objeto.
+	"maps": "res://assets/ui/col_mapa_tesoro.png",
 }
 
 ## Los CUATRO estados del cofre. Los dos de "mapa" son el MISMO dibujo pasado a
@@ -3062,7 +3157,7 @@ func _show_daily() -> void:
 	var velo := ColorRect.new()
 	velo.color = Color(0, 0, 0, 0.55)
 	velo.size = GameState.canvas_size()
-	Audio.ventana(velo, "pantalla", "ventana_off")
+	Audio.ventana(velo)
 	velo.mouse_filter = Control.MOUSE_FILTER_STOP
 	ui_layer.add_child(velo)
 
@@ -3195,6 +3290,8 @@ func _open_daily_chest(velo: Control, panel: Control, caja: Control,
 		# La tapa suena JUSTO cuando se abre, que es donde también se cobra el
 		# premio (ver el comentario de arriba): las dos cosas en el mismo
 		# instante o el oro llega antes que el cofre.
+		# La cerradura y la tapa, a la vez.
+		Audio.sfx("cofre_llave")
 		Audio.sfx("cofre")
 		cofre.texture = load(DAILY_CHEST_TEX["abierto"])
 		botin["dado"] = GameState.claim_daily()
@@ -3234,7 +3331,7 @@ func _daily_coin_burst(caja: Control) -> void:
 func _show_daily_reward(dado: Dictionary, velo: Control, panel: Control,
 		pie: Label) -> void:
 	var fichas: Array[Control] = []
-	for clave in ["money", "rice", "ingots", "extras"]:
+	for clave in ["money", "rice", "ingots", "bait", "maps", "extras"]:
 		if not dado.has(clave):
 			continue
 		fichas.append(_daily_chip(load(DAILY_ICONS[clave]),
@@ -3487,6 +3584,7 @@ func _go_shop() -> void:
 el nivel 2 de la Aventura.")
 		return
 	leaving = true
+	_sonar_zarpe()
 	# Los contadores NO salen: se quedan y viajan a los extremos del mapa.
 	_ui_out(false)
 	_sky_out(0.9)
@@ -3555,7 +3653,16 @@ func _leave_to(path: String) -> void:
 
 
 ## INVENTARIO: la interfaz se retira y la pantalla se apaga.
+## El COFRE lleva derecho a la vitrina. El RECETARIO tiene boton propio desde
+## que se separaron: son dos cosas distintas -lo que sabes cocinar y lo que has
+## ido encontrando- y compartir pantalla obligaba a pasar por una pestana.
+func _go_recipes() -> void:
+	GameState.inventory_view = "recetario"
+	_leave_to("res://scenes/inventory_screen.tscn")
+
+
 func _go_inventory() -> void:
+	GameState.inventory_view = "coleccion"
 	if leaving:
 		return
 	leaving = true

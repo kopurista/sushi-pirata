@@ -28,7 +28,7 @@ import sys
 import urllib.request
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DESTINO = os.path.join(RAIZ, "sounds", "voces")
+DESTINO = os.path.join(RAIZ, "sounds", "juego", "voces")
 
 # ESCALERA DE UMBRALES del detector, de mas exigente a menos. -35 dB deja
 # fuera el ruido de fondo del sintetizador sin comerse el final de una vocal

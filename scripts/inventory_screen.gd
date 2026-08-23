@@ -2,7 +2,7 @@ extends Node3D
 ## Inventario del jugador, en tres libros:
 ##
 ## - RECETARIO: todas las recetas del juego (desbloqueadas y bloqueadas), 4 por
-##   página, con buscador y filtros (vegetariana / tipo de cliente). Al tocar
+##   página, con buscador y filtro por tipo de cliente. Al tocar
 ##   una receta se abre su ficha: propiedades, ingredientes, qué clientes se la
 ##   comerán y una DEMOSTRACIÓN paso a paso de cómo se prepara.
 ## - DESPENSA: los ingredientes y los usos que quedan de cada uno.
@@ -19,7 +19,9 @@ const Client3D := preload("res://scripts/client3d.gd")
 const DARK := Color(0.26, 0.16, 0.08)
 const FADED := Color(0.45, 0.34, 0.2)
 
-const RECIPES_PER_PAGE := 4
+## Recetas por DOBLE pagina, 3 en cada hoja. Eran 4 (2 por hoja) con el plato
+## enorme; a este tamano se ve la carta de un vistazo sin perder el dibujo.
+const RECIPES_PER_PAGE := 6
 const INGREDIENTS_PER_PAGE := 8
 ## Nombre y sprite de cada tipo de cliente (para los filtros y las fichas).
 const CLIENT_TYPES := ["E", "A", "G"]
@@ -43,7 +45,6 @@ var money_label: Label = null
 
 # --- Estado del recetario ---
 var search_text := ""
-var filter_veg := false
 var filter_client := ""
 var recipe_page := 0
 var pantry_page := 0
@@ -68,7 +69,7 @@ func _ready() -> void:
 	Engine.max_fps = GameState.fps_for(false)
 	backdrop = SceneBackdrop.build(self, "", 17.0, 40.0, 6.0)
 	_setup_ui()
-	_show_tab("recetario")
+	_show_tab("coleccion" if _solo_coleccion() else "recetario")
 	# La PRIMERA visita la explica David (recetario, despensa y vitrina).
 	_explicar_inventario.call_deferred()
 	if GameState.take_transition() == "inventario":
@@ -140,7 +141,8 @@ func _setup_ui() -> void:
 	bar.add_child(back)
 	# El rótulo va sobre su CINTA de tela (PrepBoard.make_title):
 	# el mismo aire de cartel que el resto del set.
-	var title := PrepBoard.make_title("Inventario")
+	var title := PrepBoard.make_title(
+		"Colección" if _solo_coleccion() else "Recetario")
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar.add_child(title)
 	bar.add_child(_make_money_box())
@@ -157,9 +159,10 @@ func _setup_ui() -> void:
 	root.add_child(tabs)
 	# Las MEJORAS ya no viven aquí: se mudaron a su propia pantalla
 	# (perks_screen, el botón "Bonificadores" del submenú del menú principal).
-	# El inventario se queda con lo que se lleva encima.
-	for def in [["recetario", "Recetario"], ["despensa", "Despensa"],
-			["coleccion", "Colección"]]:
+	# Y la COLECCIÓN tampoco comparte pestañas con el recetario: entra por el
+	# COFRE del submenú y llega sola, sin fila de pestañas que cruzar. Lo que
+	# queda aquí es el par que sí va junto: lo que sabes cocinar y con qué.
+	for def in _pestanas():
 		var b := Button.new()
 		b.text = def[1]
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -169,15 +172,30 @@ func _setup_ui() -> void:
 		b.pressed.connect(_show_tab.bind(def[0]))
 		tabs.add_child(b)
 		tab_buttons[def[0]] = b
+	# Con UNA sola pestaña no se dibuja la fila: una pestaña suelta no es una
+	# eleccion, es el rotulo de la pantalla repetido debajo de su cinta.
+	tabs.visible = tab_buttons.size() > 1
 	tabs_row = tabs
 
 	content = Control.new()
 	content.set_anchors_preset(Control.PRESET_FULL_RECT)
-	content.offset_top = 178.0
+	content.offset_top = 178.0 if tabs.visible else 112.0
 	content.offset_left = 10.0
 	content.offset_right = -10.0
 	content.offset_bottom = -14.0
 	root.add_child(content)
+
+
+## Se ha entrado por el COFRE: esto es la vitrina y nada mas.
+func _solo_coleccion() -> bool:
+	return GameState.inventory_view == "coleccion"
+
+
+## Las pestanas que toca ensenar segun por donde se haya entrado.
+func _pestanas() -> Array:
+	if _solo_coleccion():
+		return [["coleccion", "Colección"]]
+	return [["recetario", "Recetario"], ["despensa", "Despensa"]]
 
 
 func _make_money_box() -> Control:
@@ -280,12 +298,6 @@ func _build_recipe_book() -> Control:
 	filters.add_theme_constant_override("separation", 6)
 	filters.alignment = BoxContainer.ALIGNMENT_CENTER
 	top.add_child(filters)
-	filters.add_child(_make_filter_chip("Vegetarianas",
-		func() -> bool: return filter_veg,
-		func() -> void:
-			filter_veg = not filter_veg
-			recipe_page = 0
-			_refresh_recipe_pages()))
 	for t in CLIENT_TYPES:
 		var type_id := str(t)
 		filters.add_child(_make_filter_chip(str(CLIENT_NAMES[type_id]),
@@ -331,11 +343,16 @@ func _refresh_recipe_pages() -> void:
 		r.call()
 
 	var pages := _make_book(recipe_book_host)
-	var ids := _filtered_recipes()
-	var total_pages := maxi(1, ceili(float(ids.size()) / float(RECIPES_PER_PAGE)))
+	# LAS PAGINAS SE ARMAN POR SECCIONES: cada una lleva recetas de UN SOLO
+	# nivel de estrellas, y por eso las estrellas se pueden dibujar una vez
+	# arriba en vez de repetirlas en cada plato. Una pagina a medias no se
+	# rellena con la seccion siguiente: el corte es lo que hace la seccion.
+	var paginas := _paginas_recetario()
+	var total_pages := maxi(1, paginas.size())
 	recipe_page = clampi(recipe_page, 0, total_pages - 1)
+	var ids: Array = [] if paginas.is_empty() else paginas[recipe_page]["ids"]
 
-	if ids.is_empty():
+	if paginas.is_empty():
 		var empty := Label.new()
 		empty.text = "No hay recetas que encajen con la búsqueda."
 		empty.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -346,21 +363,86 @@ func _refresh_recipe_pages() -> void:
 		empty.add_theme_color_override("font_color", FADED)
 		pages.add_child(empty)
 	else:
+		# CABECERA DE SECCION: las estrellas del nivel, una sola vez y arriba
+		# del todo. Antes iban debajo de CADA plato, repitiendo seis veces el
+		# mismo dato en la misma pagina.
+		# VA EN EL CANTO IZQUIERDO DE LA HOJA IZQUIERDA, no centrada: centrada
+		# caia justo sobre el LOMO del libro, o sea en el hueco entre las dos
+		# hojas, y un titulo de seccion escrito en la costura no pertenece a
+		# ninguna de las dos paginas. Al margen, se lee antes que las recetas.
+		var cab := HBoxContainer.new()
+		cab.alignment = BoxContainer.ALIGNMENT_BEGIN
+		cab.add_theme_constant_override("separation", 10)
+		cab.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		cab.offset_left = 20.0
+		cab.offset_top = 2.0
+		cab.offset_bottom = 36.0
+		pages.add_child(cab)
+		var nivel := int(paginas[recipe_page]["nivel"])
+		var rot := Label.new()
+		rot.text = "Recetas de"
+		rot.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		rot.add_theme_font_size_override("font_size", 20)
+		rot.add_theme_color_override("font_color", FADED)
+		cab.add_child(rot)
+		cab.add_child(PrepBoard.make_star_row(nivel, nivel, 26))
+
 		var grid := GridContainer.new()
 		grid.columns = 2
 		grid.set_anchors_preset(Control.PRESET_FULL_RECT)
+		# El grid ocupa lo que queda de hoja bajo la cabecera. `offset_bottom`
+		# a 0 (borde de la pagina) y las tarjetas se reparten el hueco: sin
+		# acotarlo, la tercera fila se salia por debajo del papel y los nombres
+		# quedaban cortados por la tapa.
+		grid.offset_top = 40.0
+		# Y se detiene ANTES del canto: el dibujo del libro oscurece el final de
+		# la hoja, y el nombre de la tercera receta caia justo ahi y se leia
+		# gris sobre gris.
+		grid.offset_bottom = -26.0
 		# Hueco central para el lomo del libro.
 		grid.add_theme_constant_override("h_separation", 34)
-		grid.add_theme_constant_override("v_separation", 8)
+		grid.add_theme_constant_override("v_separation", 4)
 		pages.add_child(grid)
-		var start := recipe_page * RECIPES_PER_PAGE
-		for i in range(start, mini(start + RECIPES_PER_PAGE, ids.size())):
-			grid.add_child(_build_recipe_entry(ids[i]))
+		# EN COLUMNAS, no en filas: el libro son dos hojas y una rejilla que
+		# llena por filas repartiria cada pareja entre las dos, asi que la
+		# primera hoja acabaria con recetas de arriba y de abajo mezcladas.
+		# Rellenando por columnas, la hoja izquierda lleva las tres primeras.
+		var mitad := int(ceil(ids.size() / 2.0))
+		for fila in mitad:
+			grid.add_child(_build_recipe_entry(ids[fila]))
+			if fila + mitad < ids.size():
+				grid.add_child(_build_recipe_entry(ids[fila + mitad]))
+			else:
+				var hueco := Control.new()
+				hueco.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				grid.add_child(hueco)
 
 	recipe_pager_host.add_child(_make_pager(total_pages, recipe_page,
 		func(delta: int) -> void:
 			recipe_page = clampi(recipe_page + delta, 0, total_pages - 1)
 			_refresh_recipe_pages()))
+
+
+## Las paginas del recetario: `[{ nivel, ids }]`, cada una con recetas de un
+## solo nivel de estrellas. Es lo que permite ensenar las estrellas UNA vez por
+## pagina, como titulo de seccion, en vez de en cada plato.
+func _paginas_recetario() -> Array:
+	var por_nivel: Dictionary = {}
+	for id in _filtered_recipes():
+		var lvl := int(RecipeData.RECIPES[id].get("level", 1))
+		if not por_nivel.has(lvl):
+			por_nivel[lvl] = []
+		por_nivel[lvl].append(id)
+	var out: Array = []
+	var niveles: Array = por_nivel.keys()
+	niveles.sort()
+	for lvl in niveles:
+		var ids: Array = por_nivel[lvl]
+		var i := 0
+		while i < ids.size():
+			out.append({ "nivel": lvl, "ids": ids.slice(i, i + RECIPES_PER_PAGE) })
+			i += RECIPES_PER_PAGE
+	return out
 
 
 ## Recetas que pasan el buscador y los filtros, ordenadas por nivel y precio.
@@ -370,8 +452,6 @@ func _filtered_recipes() -> Array:
 	for id in RecipeData.RECIPES:
 		var data: Dictionary = RecipeData.RECIPES[id]
 		if needle != "" and not str(data.get("name", "")).to_lower().contains(needle):
-			continue
-		if filter_veg and not data.get("vegetarian", false):
 			continue
 		if filter_client != "":
 			# Se listan las recetas que ese tipo de cliente coge con ganas.
@@ -391,14 +471,20 @@ func _filtered_recipes() -> Array:
 	return out
 
 
-## Una receta en el libro: plato, nombre, estrellas y candado si no se tiene.
+## Una receta en el libro: plato, nombre y candado si no se tiene. Las
+## ESTRELLAS ya no van aqui: son el titulo de la seccion, arriba.
 func _build_recipe_entry(id: String) -> Button:
 	var data: Dictionary = RecipeData.RECIPES[id]
 	var known := GameState.is_recipe_unlocked(id)
 	var b := Button.new()
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	b.custom_minimum_size = Vector2(0, 180)
+	# SIN alto minimo: las tres tarjetas de la hoja se REPARTEN lo que quede de
+	# papel bajo la cabecera (`SIZE_EXPAND_FILL`). Con un alto fijo, la tercera
+	# fila se salia por debajo del libro y los nombres quedaban cortados por la
+	# tapa —y el corte cambiaba con el alto de la pantalla, asi que ningun
+	# numero fijo valia para todas.
+	b.custom_minimum_size = Vector2(0, 0)
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 
@@ -407,10 +493,10 @@ func _build_recipe_entry(id: String) -> Button:
 	dish.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	dish.texture = RecipeData.get_dish_texture(id)
 	dish.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dish.offset_left = 16.0
-	dish.offset_top = 6.0
-	dish.offset_right = -16.0
-	dish.offset_bottom = -62.0
+	dish.offset_left = 12.0
+	dish.offset_top = 2.0
+	dish.offset_right = -12.0
+	dish.offset_bottom = -34.0
 	dish.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if not known:
 		# Bloqueada: silueta oscura, como una página aún por escribir.
@@ -420,37 +506,15 @@ func _build_recipe_entry(id: String) -> Button:
 	var name_l := Label.new()
 	name_l.text = str(data.get("name", id)) if known else "???"
 	name_l.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	name_l.offset_top = -60.0
-	name_l.offset_bottom = -26.0
+	name_l.offset_top = -34.0
+	name_l.offset_bottom = -2.0
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	name_l.add_theme_font_size_override("font_size", 18)
+	name_l.add_theme_font_size_override("font_size", 16)
 	name_l.add_theme_color_override("font_color", DARK if known else FADED)
 	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(name_l)
-
-	var lvl := int(data.get("level", 1))
-	var stars := PrepBoard.make_star_row(lvl, lvl, 22)
-	stars.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	stars.offset_top = -26.0
-	stars.offset_bottom = -2.0
-	b.add_child(stars)
-
-	if data.get("vegetarian", false):
-		# En la esquina de DENTRO de la página: pegada al borde derecho de la
-		# tarjeta caía justo sobre el lomo del libro y parecía suelta.
-		var leaf := TextureRect.new()
-		leaf.texture = load("res://assets/ui/hoja.png")
-		leaf.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		leaf.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		leaf.set_anchors_preset(Control.PRESET_TOP_LEFT)
-		leaf.offset_left = 4.0
-		leaf.offset_top = 2.0
-		leaf.offset_right = 34.0
-		leaf.offset_bottom = 32.0
-		leaf.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		b.add_child(leaf)
 
 	b.pressed.connect(_open_recipe_sheet.bind(id))
 	return b
@@ -951,7 +1015,7 @@ func _section_title(text: String) -> Label:
 	return l
 
 
-## Precio, saciedad, cooldown y rasgos (vegetariana, maestría...).
+## Precio, saciedad, cooldown y rasgos (maestría...).
 func _build_stats_block(data: Dictionary) -> Control:
 	var grid := GridContainer.new()
 	grid.columns = 2
@@ -961,8 +1025,6 @@ func _build_stats_block(data: Dictionary) -> Control:
 		["Precio", "%d doblones" % int(data.get("price", 0))],
 		["Espera", "%.1f s de cooldown" % float(data.get("cooldown", 0.0))],
 	]
-	if data.get("vegetarian", false):
-		rows.append(["Dieta", "Apta para vegetarianos"])
 	if int(data.get("free_uses", 0)) > 0:
 		rows.append(["Maestría", "Tras hacerla, las %d siguientes salen solas"
 			% int(data.get("free_uses", 0))])

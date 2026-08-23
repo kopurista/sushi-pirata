@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://bxomci118gsu0"
+path="res://.godot/imported/Casting Line - 4 (corto).ogg-86df4e468e80a97f44ef55080f4ec73b.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/juego/pesca/Casting Line - 4 (corto).ogg"
+dest_files=["res://.godot/imported/Casting Line - 4 (corto).ogg-86df4e468e80a97f44ef55080f4ec73b.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

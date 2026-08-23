@@ -441,6 +441,178 @@ def build_bar(name: str = "barra", h: int = BAR_H) -> None:
     save(fill.resize((w // BAR_SS, alto), Image.LANCZOS), name + "_relleno")
 
 
+# ------------------------------------------------------ deslizador de volumen
+
+## Alto del canal del deslizador y lado del tirador, EN PIXELES FINALES. Los
+## dos se dibujan a `BAR_SS` veces eso y se reducen al final: es lo mismo que
+## se hace con la barra de progreso, y por el mismo motivo — una textura
+## generada a otro tamano y estirada hasta aqui deforma los topes redondos.
+SLIDER_H = 30
+SLIDER_KNOB = 58
+
+
+## Madera del juego, medida sobre la cara de `boton_madera.png` (el tono que
+## mas se repite en su centro). El canal y el tirador salen de aqui para que el
+## deslizador sea del mismo material que los botones y no una pieza de otro
+## juego.
+SLIDER_MADERA = (204, 126, 62)
+
+
+def build_slider() -> None:
+    """El canal del deslizador de VOLUMEN de Opciones.
+
+    Va con la MISMA paleta que la barra de progreso del juego (`build_bar`):
+    madera oscura por fuera y hueco casi negro por dentro. La primera version
+    llevaba una madera clara y saturada y un relleno de color por canal —oro,
+    verde y azul— y el usuario la rechazo: "demasiado coloridos y llamativos,
+    no casan con el arte del juego". Hoy los tres canales van del mismo tono de
+    madera y lo unico que los distingue es su rotulo, que es como se distinguen
+    el resto de filas de esta pantalla.
+
+    El TIRADOR no se dibuja aqui: se DERIVA del boton de mas (ver
+    `derive_slider_knob`).
+    """
+    S = BAR_SS
+    h = SLIDER_H * S
+    w = h * 7
+    # --- CANAL: mismos colores que `build_bar`, con una sombra interior
+    # pegada al labio de arriba para que se lea hundido.
+    borde = round(3.0 * S)
+    canal = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(canal)
+    d.rounded_rectangle((0, 0, w - 1, h - 1), radius=h // 2,
+                        fill=(74, 44, 22, 255), outline=(38, 20, 9, 255),
+                        width=max(2, S // 2))
+    d.rounded_rectangle((borde, borde, w - 1 - borde, h - 1 - borde),
+                        radius=(h - 2 * borde) // 2, fill=(38, 22, 12, 255))
+    sombra = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(sombra).rounded_rectangle(
+        (borde, borde, w - 1 - borde, borde + h // 3),
+        radius=h // 6, fill=(0, 0, 0, 70))
+    canal = Image.alpha_composite(canal, sombra)
+    save(canal.resize((w // S, SLIDER_H), Image.LANCZOS), "slider_canal")
+
+    # --- RELLENO: blanco (lo tine el juego con la madera) y un brillo suave
+    # en la mitad alta, para que no sea una mancha plana.
+    dentro = borde + round(1.5 * S)
+    relleno = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(relleno).rounded_rectangle(
+        (dentro, dentro, w - 1 - dentro, h - 1 - dentro),
+        radius=(h - 2 * dentro) // 2, fill=(255, 255, 255, 255))
+    brillo = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(brillo).rounded_rectangle(
+        (dentro, dentro, w - 1 - dentro, h // 2),
+        radius=(h // 2 - dentro) // 2, fill=(255, 255, 255, 60))
+    relleno = Image.alpha_composite(relleno, brillo)
+    save(relleno.resize((w // S, SLIDER_H), Image.LANCZOS), "slider_relleno")
+
+
+def derive_slider_knob() -> None:
+    """`slider_tirador.png` NO se dibuja: se DERIVA de `boton_mas.png`.
+
+    Es el mismo truco —y el mismo codigo— que `derive_minus_button`, y por la
+    misma razon: una perilla dibujada a mano sale plana al lado del set (aro
+    dorado, bisel, brillo) y se ve que no es del juego. Aqui se le quita la
+    cruz ENTERA y se le cambia el campo verde por la MADERA del juego, asi que
+    lo que queda es un disco de madera con el aro dorado de los botones.
+    """
+    import math
+    VERDE_G = 144.0        # canal verde del campo del boton (53,144,74)
+    im = Image.open(OUT / "boton_mas.png").convert("RGBA")
+    W, H = im.size
+    src = im.load()
+    cx0, cy0 = (W - 1) / 2.0, (H - 1) / 2.0
+
+    # La cruz crema: clara, poco saturada y CERCA DEL CENTRO (el brillo de
+    # arriba a la izquierda tambien es casi blanco y no es la cruz).
+    cruz = [[False] * W for _ in range(H)]
+    for y in range(H):
+        for x in range(W):
+            r, g, b, a = src[x, y]
+            if a < 128 or math.hypot(x - cx0, y - cy0) > min(W, H) * 0.34:
+                continue
+            if min(r, g, b) > 170 and (max(r, g, b) - min(r, g, b)) < 70:
+                cruz[y][x] = True
+    assert any(any(f) for f in cruz), "no se ha encontrado la cruz de boton_mas"
+
+    # DILATADA antes de borrarla, y MUCHO MAS que en `derive_minus_button`
+    # (2): la cruz crema va perfilada con una linea de tinta oscura que el
+    # filtro por color NO detecta —no es clara—, asi que con un halo corto esa
+    # tinta se quedaba de CONTORNO del hueco y la difusion rellenaba el centro
+    # del disco con su tono. Salia un fantasma de la cruz, mas oscuro que el
+    # campo. Medido subiendo el halo hasta que desaparece.
+    DIL = 7
+    ancha = [[False] * W for _ in range(H)]
+    for y in range(H):
+        for x in range(W):
+            if not cruz[y][x]:
+                continue
+            for dy in range(-DIL, DIL + 1):
+                for dx in range(-DIL, DIL + 1):
+                    if 0 <= y + dy < H and 0 <= x + dx < W:
+                        ancha[y + dy][x + dx] = True
+
+    # EL HUECO SE RELLENA DIFUNDIENDO, no interpolando. `derive_minus_button`
+    # interpola de lado a lado y le vale porque alli solo se borra el brazo
+    # VERTICAL, que es estrecho; aqui se va la cruz ENTERA y en las filas del
+    # brazo horizontal no queda campo ni a izquierda ni a derecha, asi que la
+    # interpolacion cruzaba el disco de punta a punta y dejaba dos bandas y un
+    # recuadro claro con la silueta de la cruz. Esto resuelve Laplace sobre el
+    # hueco (cada pixel, la media de sus cuatro vecinos, hasta que converge)
+    # con el campo de alrededor de contorno: la superficie que sale no tiene
+    # costura porque empalma en pendiente, no en valor.
+    hueco = [(x, y) for y in range(H) for x in range(W)
+             if src[x, y][3] >= 128 and ancha[y][x]]
+    canal = [[[float(src[x, y][i]) for x in range(W)] for y in range(H)]
+             for i in range(3)]
+    borde_val = []
+    for x, y in hueco:
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            u, v = x + dx, y + dy
+            if 0 <= u < W and 0 <= v < H and src[u, v][3] >= 128                     and not ancha[v][u]:
+                borde_val.append(src[u, v][:3])
+    media = [sum(c[i] for c in borde_val) / max(1, len(borde_val))
+             for i in range(3)]
+    for x, y in hueco:
+        for i in range(3):
+            canal[i][y][x] = media[i]
+    for _ in range(400):
+        for i in range(3):
+            capa = canal[i]
+            for x, y in hueco:
+                capa[y][x] = 0.25 * (
+                    capa[y][max(0, x - 1)] + capa[y][min(W - 1, x + 1)]
+                    + capa[max(0, y - 1)][x] + capa[min(H - 1, y + 1)][x])
+
+    out = Image.new("RGBA", (W, H))
+    dst = out.load()
+    for y in range(H):
+        for x in range(W):
+            dst[x, y] = src[x, y]
+    for x, y in hueco:
+        dst[x, y] = (int(round(canal[0][y][x])), int(round(canal[1][y][x])),
+                     int(round(canal[2][y][x])), 255)
+    # Verde -> MADERA. El canal verde lleva TODO el sombreado del campo, asi
+    # que se usa de factor y el bisel, la sombra y el brillo se conservan.
+    # EL LISTON VA MAS FLOJO que en `derive_minus_button` (g > r + 12): en el
+    # canto del brillo hay pixeles de transicion donde el verde solo saca al
+    # rojo ocho o diez puntos, y con el liston alto se quedaban SIN convertir —
+    # cinco pixeles verde oliva, que a este tamano son una mancha visible en el
+    # borde de arriba a la izquierda. El oro del aro (g muy por debajo de r) y
+    # la tinta oscura no lo cruzan, asi que aflojarlo no toca nada mas.
+    for y in range(H):
+        for x in range(W):
+            r, g, b, a = dst[x, y]
+            if a < 8 or not (g + 2 >= r and g > b + 2):
+                continue
+            k = g / VERDE_G
+            dst[x, y] = (min(255, int(SLIDER_MADERA[0] * k)),
+                         min(255, int(SLIDER_MADERA[1] * k)),
+                         min(255, int(SLIDER_MADERA[2] * k)), a)
+    out = out.resize((SLIDER_KNOB, SLIDER_KNOB), Image.LANCZOS)
+    save(out, "slider_tirador")
+
+
 # ------------------------------------------------- montones de los paquetes
 
 def _pile(base: Image.Image, spots) -> Image.Image:
@@ -1061,6 +1233,97 @@ def drop_color(img, cond):
 MODE_BTN_H = 96
 
 
+## El multiplicador que se dibuja DENTRO de la moneda del "Paladar de capitan".
+## Es un EJEMPLO, no el tope real (que va de x5 a x10 segun el nivel): lo que
+## tiene que decir el icono es "esto sube el multiplicador", y una cifra
+## concreta lo dice y un arco de flecha sobre una moneda vacia no.
+PALADAR_MULT = "x6"
+
+
+def build_perk_icons() -> None:
+    """Los iconos de los BONIFICADORES permanentes.
+
+    Dos de ellos NO se generan enteros, se COMPONEN, y por el mismo motivo por
+    el que las chapas del multiplicador se dibujan en vez de pedirse: el
+    generador no sabe escribir.
+    """
+    for n in ("perk_veloz",):
+        img = drop_white(load("perks/" + n))
+        save(fit_max(crop_alpha(drop_specks(img), 2), 128), n)
+
+    # AYUDANTE: dos manos abiertas con un "+". Llevaba la CARA DE ALICE (ella
+    # es el ayudante), y en una rejilla de bonificadores un retrato entre
+    # objetos se leia como "un personaje", no como "una mano de mas en la
+    # cocina", que es lo que hace. La cara de Alice sigue siendo el icono del
+    # BOTON de la tabla, que es donde si se la esta llamando a ella.
+    manos = drop_white(load("perks/manos_c"))
+    save(fit_max(crop_alpha(drop_specks(manos), 2), 128), "perk_ayudante")
+
+    # PALADAR DE CAPITAN: la misma moneda con la flecha, pero con el
+    # multiplicador ESCRITO dentro. La moneda vacia no decia de que iba el
+    # bonificador. Se estampa sobre el original de 768 px y se reduce despues,
+    # asi que la cifra baja limpia igual que el resto del dibujo.
+    pal = drop_white(Image.open(RAW / "pot" / "perk_limite_b.webp")
+        .convert("RGBA"))
+    _sellar_mult(pal, PALADAR_MULT)
+    save(fit_max(crop_alpha(drop_specks(pal), 2), 128), "perk_limite")
+
+
+def _sellar_mult(img: Image.Image, texto: str) -> None:
+    """Escribe el multiplicador en la CARA de la moneda de `perk_limite`.
+
+    El sitio NO se pone a ojo: se MIDE la moneda sobre el propio dibujo. Es el
+    objeto mas ancho de la mitad de abajo y es redondo, asi que la fila mas
+    ancha da su diametro y su centro, y el borde inferior del alfa da su base;
+    de ahi sale el centro. La cara brillante esta un pelo mas arriba y a la
+    izquierda que el disco entero (el canto de la moneda se ve por abajo a la
+    derecha), y ese desvio va en fracciones del radio, no en pixeles: asi
+    aguanta un cambio de resolucion del original.
+    """
+    w, h = img.size
+    a = img.split()[3].load()
+    filas = []
+    for y in range(h):
+        xs = [x for x in range(w) if a[x, y] > 128]
+        filas.append((min(xs), max(xs)) if xs else None)
+    abajo = max(y for y in range(h) if filas[y])
+    ancha = max((y for y in range(int(h * 0.45), abajo + 1) if filas[y]),
+                key=lambda y: filas[y][1] - filas[y][0])
+    x0, x1 = filas[ancha]
+    rad = (x1 - x0) / 2.0
+    cx = (x0 + x1) / 2.0 - rad * 0.04
+    cy = abajo - rad - rad * 0.10
+    d = ImageDraw.Draw(img)
+    font = ImageFont.truetype("fonts/static/Exo2-Bold.ttf", int(rad * 0.86))
+    bb = d.textbbox((0, 0), texto, font=font)
+    d.text((cx - (bb[0] + bb[2]) / 2.0, cy - (bb[1] + bb[3]) / 2.0), texto,
+           font=font, fill=BADGE_TEXTO)
+
+
+## CHAPA DE "MEJORAR", el boton de subir de nivel un bonificador. Se exporta a
+## 300 de ancho: a esa escala su marco de madera y los galones de los extremos
+## caben en 54 texeles, que es el margen 9-slice que los deja enteros. El
+## margen NO es libre (ver PANEL_MARGIN): por debajo del grosor del marco, la
+## madera sobrante cae en la banda que se estira y se derrama hacia dentro.
+UPGRADE_BTN_W = 300
+
+
+def build_upgrade_button() -> None:
+    """El boton de MEJORAR de la pantalla de bonificadores.
+
+    Va aparte del boton de madera de todo el juego a proposito: mejorar cuesta
+    de 500 a 10.000 doblones y es la unica accion de esa pantalla, asi que no
+    puede parecer un "Cerrar" mas. Placa de laton sobre marco de madera con
+    remaches y un GALON DOBLE hacia arriba grabado en cada extremo — el galon
+    dice "sube de nivel" sin escribirlo, y al ir en los extremos cae dentro de
+    los margenes del 9-slice, que es lo unico que el estirado no deforma.
+    """
+    img = drop_white(Image.open(RAW / "misc" / "mejorar_b.webp")
+        .convert("RGBA"))
+    save(fit_width(solidify(crop_alpha(keep_largest(img))), UPGRADE_BTN_W),
+         "boton_mejorar")
+
+
 def build_menu_panel() -> None:
     """El tablon del MENU principal (SIN banner: quedaba vacio y sobraba — el
     remate de arriba lo pone el timon), sus BOTONES DE PERGAMINO y los iconos
@@ -1085,7 +1348,11 @@ def build_menu_panel() -> None:
     save(fit_max(crop_alpha(drop_specks(ancla), 2), 96), "menu_ancla")
     timon = crop_alpha(keep_largest(drop_white(load("menu/timon"))), 2)
     save(fit_max(timon, 300), "timon")
-    for n in ("ic_logros", "ic_inventario", "ic_opciones"):
+    # `ic_recetario` es el libro del RECETARIO, que desde que la coleccion se
+    # mudo al cofre tiene boton propio en el submenu. Va sin gala dorada a
+    # proposito: su vecino en la barra es el cofre, que ya es todo oro, y con
+    # cantoneras se confundian de un vistazo.
+    for n in ("ic_logros", "ic_inventario", "ic_opciones", "ic_recetario"):
         img = drop_white(load("menu/" + n))
         # El engranaje de Opciones encierra fondo: el circulo interior detras
         # de la llave y las muescas entre dientes quedan rodeados de metal por

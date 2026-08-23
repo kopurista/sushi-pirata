@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://biwqw75luecno"
+path="res://.godot/imported/Reeling in Fishing Rod - 2 (bucle).ogg-3c010f567da93f476471fbaa34231457.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/juego/pesca/Reeling in Fishing Rod - 2 (bucle).ogg"
+dest_files=["res://.godot/imported/Reeling in Fishing Rod - 2 (bucle).ogg-3c010f567da93f476471fbaa34231457.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

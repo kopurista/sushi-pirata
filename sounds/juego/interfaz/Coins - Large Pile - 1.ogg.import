@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://bsfcgcmij8j3m"
+path="res://.godot/imported/Coins - Large Pile - 1.ogg-4bc930b587e9ed4825f1cb99c12a4003.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/juego/interfaz/Coins - Large Pile - 1.ogg"
+dest_files=["res://.godot/imported/Coins - Large Pile - 1.ogg-4bc930b587e9ed4825f1cb99c12a4003.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -476,6 +476,14 @@ func _skin_start_button(board_script: GDScript) -> void:
 	# Placa de ORO, no el tablón de siempre: es el botón que arranca la partida
 	# y tiene que destacar por encima de todo lo demás de la pantalla.
 	board_script.skin_start_button(start_button)
+	# Este SÍ zarpa, pero su sonido lo pone `_on_start_pressed` (campanas más
+	# el casco crujiendo): sin esto sonarían las campanas dos veces.
+	start_button.set_meta("snd", "")
+	# EN NEGRITA DE VERDAD (Exo2-Bold), no con contorno: sobre el oro de la
+	# placa la Regular se leía fina al lado del resto de rótulos.
+	var gorda := load("res://fonts/static/Exo2-Bold.ttf")
+	if gorda != null:
+		start_button.add_theme_font_override("font", gorda)
 	start_button.add_theme_font_size_override("font_size", 44)
 
 
@@ -547,8 +555,7 @@ func _build_card(id: String, board_script: GDScript) -> Button:
 	nl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(nl)
 
-	# Insignia de precio (moneda + cantidad) arriba-izquierda; la hoja
-	# vegetariana se añade al lado si aplica.
+	# Insignia de precio (moneda + cantidad), arriba a la izquierda.
 	var price_box := HBoxContainer.new()
 	price_box.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	price_box.offset_left = 5.0
@@ -572,15 +579,11 @@ func _build_card(id: String, board_script: GDScript) -> Button:
 	pl.add_theme_constant_override("outline_size", 5)
 	pl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	price_box.add_child(pl)
-	if data.get("vegetarian", false):
-		var leaf := TextureRect.new()
-		leaf.texture = load("res://assets/ui/hoja.png")
-		leaf.custom_minimum_size = Vector2(24, 24)
-		leaf.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		leaf.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		leaf.tooltip_text = "Vegetariano"
-		leaf.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		price_box.add_child(leaf)
+	# AL QUITAR LA HOJA VEGETARIANA SE FUE CON ELLA ESTE `add_child`, que
+	# estaba justo detrás: la insignia se montaba entera y no se colgaba de
+	# ningún sitio, así que las tarjetas se quedaron SIN PRECIO y cada una
+	# dejaba tres nodos huérfanos. Salió midiendo fugas en la sonda, no
+	# mirando la pantalla — un precio que falta no da ningún error.
 	b.add_child(price_box)
 
 	# Check verde de selección (esquina superior derecha).
@@ -979,7 +982,9 @@ func _clientela_desatendida() -> String:
 
 
 func _on_start_pressed() -> void:
+	# Las campanas del barco y el casco crujiendo al soltar amarras.
 	Audio.sfx("zarpar")
+	Audio.sfx("barco_cruje")
 	# UNA CARTA DE SOLO GRUMETES NO DA DE COMER A UN PUERTO CON PIRATAS (o con
 	# capitanes): comen de dos y de tres estrellas y sin un plato así se quedan
 	# mirando la cinta. Gigi avisa, pero NO bloquea: si el jugador insiste, allá

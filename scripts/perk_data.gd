@@ -34,7 +34,7 @@ const PERKS: Dictionary = {
 	"cocina_veloz": {
 		"name": "Cocina veloz",
 		"desc": "Los enfriamientos de todas las recetas duran menos durante toda la partida.",
-		"icon": "res://assets/ui/ic_arcade.png",
+		"icon": "res://assets/ui/perk_veloz.png",
 		"unlock": "Consigue que un mismo cliente se coma 5 platos en una partida.",
 		# PORCENTAJE al que queda el enfriamiento (60 = un 60% de lo normal).
 		# Va en porcentaje y no en fracción porque su rótulo lo enseña así y
@@ -47,7 +47,7 @@ const PERKS: Dictionary = {
 		"desc": "Alice se suma a la cocina: al empezar una receta puedes pasársela con su botón y la termina ella sola.",
 		# SU CARA, no un cofre. El ayudante ES Alice desde que se enrola, y el
 		# icono de `ic_inventario` (un arcon) no decia nada de eso.
-		"icon": "res://assets/ui/head_AL.png",
+		"icon": "res://assets/ui/perk_ayudante.png",
 		"unlock": "Dale de comer 4 platos a 4 clientes distintos en una partida.",
 		# Segundos de descanso entre plato y plato.
 		"levels": [60.0, 54.0, 48.0, 40.0, 30.0],

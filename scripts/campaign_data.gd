@@ -203,6 +203,27 @@ static func reto_texto(cfg: Dictionary, yo := false) -> String:
 		return plantilla % int(cfg.get("n", cfg.get("plates", 3)))
 	return plantilla
 
+## QUE PIEZA DE VITRINA se puede conseguir en este escenario, si es que hay
+## alguna. Es el inverso de `port_for_collectible` y mira las MISMAS tres vias:
+## el cliente del TESORO, la que entrega un guion y el TROFEO del jefe. Lo usa
+## la ficha del mapa para poner el icono con su interrogacion.
+static func collectible_of(port_id: String) -> String:
+	var p := get_port(port_id)
+	if p.is_empty():
+		return ""
+	var cli := str(p.get("collectible_client", {}).get("item", ""))
+	if cli != "":
+		return cli
+	var aqui := str(p.get("collectible_here", {}).get("item", ""))
+	if aqui != "":
+		return aqui
+	var jefe := str(p.get("boss", ""))
+	if jefe != "":
+		return str(CollectibleData.BOSS_ITEMS.get(jefe, ""))
+	return ""
+
+
+
 
 ## El escenario que reparte ese coleccionable, o "" si no sale de ninguno. Lo
 ## usa la VITRINA para decir DONDE se consigue una pieza que aun no se tiene.
@@ -1017,6 +1038,15 @@ static func prev_port_id(id: String) -> String:
 	if i <= 0:
 		return ""
 	return PORTS[i - 1].id
+
+
+## Id del escenario SIGUIENTE a este ("" si es el ultimo). Se usa al cerrar un
+## turno para dejar el mapa mirando al que viene, aunque ya este superado.
+static func next_port_id(id: String) -> String:
+	var i := port_index(id)
+	if i < 0 or i >= PORTS.size() - 1:
+		return ""
+	return PORTS[i + 1].id
 
 
 ## Id del primer nivel de la ruta ("" si no hay niveles).

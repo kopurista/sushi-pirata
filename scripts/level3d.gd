@@ -498,6 +498,9 @@ func _ready() -> void:
 	_setup_exit_button()
 	_setup_heads_row()
 	_musica_del_nivel()
+	# EL MAR SIGUE SONANDO EN EL NIVEL, aún más bajo que en el menú: aquí
+	# hay una cocina entera por delante y el fondo no puede robarle sitio.
+	Audio.ambiente("mar", 1.5, AMB_NIVEL)
 
 	seat_clients.resize(seats.size())
 	prep_board.dish_served.connect(_on_player_dish_served)
@@ -2229,17 +2232,50 @@ func _add_rope_corners(box: Control) -> void:
 ## la excepción del jefe y el ARCADE tiene el suyo, que no es una travesía sino
 ## una carrera.
 ##
-## El TUTORIAL suena a abordaje: es una cubierta desbordada contra el reloj, y
-## el tema de la isla debajo de aquel desastre lo dejaba en broma.
+## El TUTORIAL tiene SU tema (`tutorial`). Sonó un tiempo al de abordaje —una
+## cubierta desbordada contra el reloj— y no es lo mismo: en un abordaje el
+## jugador pelea, y aquí pierde a propósito. El suyo es de pánico de cocina.
+## Volumen del mar de fondo dentro de un nivel, sobre `Audio.AMB_DB`.
+const AMB_NIVEL := -20.0
+
+
 func _musica_del_nivel() -> void:
 	if GameState.is_arcade():
 		Audio.musica("arcade")
 		return
 	if GameState.is_tutorial():
-		Audio.musica("abordaje")
+		Audio.musica("tutorial")
 		return
 	var kind := scenery_kind
 	Audio.musica(kind if Audio.TEMAS.has(kind) else "isla")
+
+
+## EL ABORDAJE SE ACELERA SEGÚN SE ACABA EL RELOJ (pedido por el usuario). No
+## es un efecto: es información. `pitch_scale` sube la velocidad Y el tono, así
+## que la música se va poniendo nerviosa sola y el jugador nota la prisa antes
+## de mirar el cronómetro.
+##
+## Va SOLO donde hay reloj de verdad y el tema es el de abordaje: en una isla o
+## un puerto no hay cuenta atrás que acompañar, y la cueva es del jefe (allí el
+## reto no es el tiempo).
+##
+## Y NO ARRANCA HASTA `TEMPO_DESDE`: acelerar desde el primer segundo se oye
+## como que el tema está mal, no como que queda poco. El último tercio es donde
+## la prisa significa algo.
+const TEMPO_MAX := 1.12
+const TEMPO_DESDE := 0.55
+
+
+func _tempo_del_abordaje() -> void:
+	if not timed or scenery_kind != "abordaje" or time_limit <= 0.0:
+		return
+	if GameState.is_arcade() or GameState.is_tutorial():
+		return
+	var gastado := clampf(elapsed / time_limit, 0.0, 1.0)
+	var t := clampf((gastado - TEMPO_DESDE) / (1.0 - TEMPO_DESDE), 0.0, 1.0)
+	# Curva suave: entra despacio y aprieta al final, en vez de una rampa
+	# recta que se nota como un motor subiendo de vueltas.
+	Audio.tempo(lerpf(1.0, TEMPO_MAX, t * t))
 
 
 func _ask_start() -> void:
@@ -2296,7 +2332,14 @@ func _ask_start() -> void:
 
 	var go := Button.new()
 	go.text = "¡Empezar!"
-	go.custom_minimum_size = Vector2(300, 80)
+	# Un botón de cartel corriente: zarpar ya sonó en el selector. Esto YA
+	# estaba puesto y no servía de nada: `skin_start_button` corre DESPUÉS y
+	# le pisaba el papel con el suyo. El skinner ya no toca el sonido.
+	go.set_meta("snd", "click")
+	# 112 y no 80: la placa de oro tiene su marco 9-slice a 54, así que por
+	# debajo de 108 se encoge y el botón se ve apretado a lo alto, sin sitio
+	# para el cuerpo de letra que lleva (ver `PrepBoard.skin_start_button`).
+	go.custom_minimum_size = Vector2(300, 112)
 	go.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	PrepBoard.skin_start_button(go)
 	go.add_theme_font_size_override("font_size", 40)
@@ -2560,7 +2603,7 @@ func _place_star_marks() -> void:
 		var ganada: bool = oro >= float(m["meta"])
 		if ganada != bool(m["on"]):
 			m["on"] = ganada
-			_light_star_mark(n, ganada)
+			_light_star_mark(n, ganada, i)
 
 
 ## Lo que mide la estrella de la meta: su tamaño base, y si el objetivo del
@@ -2604,11 +2647,16 @@ func _place_goal_value(estrella: TextureRect, lado: float) -> void:
 ##
 ## Se apaga también (con el castigo por plato tirado o por cliente que se va de
 ## vacío el oro BAJA), pero sin bote: perder una estrella no se celebra.
-func _light_star_mark(n: TextureRect, ganada: bool) -> void:
+## `cual` es la estrella (0, 1 o 2). Las dos primeras comparten toma —la
+## primera mas grave— y la tercera tiene la suya: es la meta del turno.
+func _light_star_mark(n: TextureRect, ganada: bool, cual := 0) -> void:
 	# Solo suena al ENCENDERSE. Apagarse también pasa (los castigos bajan el
 	# oro) y ahí no hay nada que celebrar, igual que tampoco hay bote.
 	if ganada and n != null and not n.get_meta("encendida", false):
-		Audio.sfx("estrella")
+		if cual >= 2:
+			Audio.sfx("bar_estrella3")
+		else:
+			Audio.sfx("bar_estrella", 0.0, 0.88 if cual == 0 else 1.0)
 	if n != null:
 		n.set_meta("encendida", ganada)
 	n.texture = load(STAR_MARK_TEX % ("llena" if ganada else "vacia"))
@@ -2921,9 +2969,11 @@ func _process(delta: float) -> void:
 		phase_label.text = "Preparación: %d s" % ceili(maxf(prep_time_left, 0.0))
 		if prep_time_left <= 0.0:
 			prep_phase = false
-			# La campana del barco: se acabó la preparación y empieza el
-			# servicio. Es el único aviso que marca ese instante.
-			Audio.sfx("campana")
+			# LA CAMPANA QUE ABRE Y CIERRA LA JORNADA: la misma que suena al
+			# acabar el turno (pedido por el usuario). Lo que se confundía con
+			# esto eran las campanas de ZARPAR y el botón de "¡Empezar!", que
+			# ya suenan a otra cosa; el servicio empieza y termina igual.
+			Audio.sfx("fin_turno")
 			_show_phase(false)
 			# (El guion del puerto se marca como visto al SUPERARLO, no aquí:
 			# ver `_finalize_results`. Quien se quede corto de estrellas y
@@ -2948,6 +2998,7 @@ func _process(delta: float) -> void:
 	# acabe el turno al agotarse.
 	if not clock_hold:
 		elapsed += delta
+	_tempo_del_abordaje()
 	if timed and elapsed >= time_limit:
 		_end_level()
 		return
@@ -3249,9 +3300,8 @@ func _on_client_served(food: int, tip: int) -> void:
 	money_earned += food
 	Audio.sfx("moneda")
 	if tip > 0:
-		# La propina suena aparte del plato y más rica: es lo que llena el
-		# bote de los potenciadores, no el oro de la jornada.
-		Audio.sfx("monedas", -2.0)
+		# La propina NO suena aparte: cae en el mismo instante que el pago del
+		# plato y se oían dos monedas encima de la otra.
 		_add_tip(tip)
 	_check_treasure()
 	_check_goal_reached()
@@ -4434,9 +4484,10 @@ func _build_star_slots() -> void:
 ## `especial` es la TERCERA: gira entera, tarda más y deja un fogonazo dorado
 ## que se abre detrás. Sacar las tres tiene que notarse.
 func _pop_star(idx: int, especial := false) -> void:
-	# La estrella del recuento final. La TERCERA suena a trofeo, no a estrella:
-	# es el cierre de la jornada y ya lleva su propio fogonazo dorado.
-	Audio.sfx("trofeo" if especial else "estrella")
+	# La MISMA estrella, mas aguda con cada una: la primera al 75% de
+	# velocidad, la segunda al 85% y la tercera a velocidad normal. Se oye
+	# subir la jornada.
+	Audio.sfx("estrella", 0.0, [0.75, 0.85, 1.0][clampi(idx, 0, 2)])
 	if idx < 0 or idx >= star_slots.size():
 		return
 	var ic: TextureRect = star_slots[idx]
@@ -4519,7 +4570,11 @@ func _cerrar_cajas_de_guion() -> void:
 
 func _show_results(stars: int, total_money: int, new_recipes: Array) -> void:
 	_cerrar_cajas_de_guion()
-	Audio.sfx("ventana")
+	Audio.sfx("recurso")
+	# LA JORNADA TIENE SU PROPIO TEMA. Se pide aquí y no al montar una
+	# pantalla porque el cartel de resultados no es una pantalla: sale
+	# encima del nivel, que sigue montado debajo.
+	Audio.musica("resultados", Audio.CRUCE_FINAL)
 	# El juego se dirige al jugador por su nombre (Opciones); sin nombre usa el
 	# tratamiento que toque por el género elegido.
 	for c in stars_row.get_children():
@@ -4696,6 +4751,10 @@ func _play_xp_gain() -> void:
 		var tramo: int = mini(frontera, hasta)
 		var dur := clampf(0.9 * float(tramo - actual) / float(hasta - desde),
 			0.2, 0.9)
+		# EL SONIDO DURA LO QUE DURE EL TRAMO: se calcula primero el viaje
+		# de la barra y de ahi sale la velocidad del sonido, para que
+		# empiece y acabe con ella (ver `Audio.sfx_dura`).
+		Audio.sfx_dura("exp", dur)
 		var t := xp_bar.create_tween()
 		t.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		t.tween_method(_set_xp_shown, float(actual), float(tramo), dur)
@@ -4715,6 +4774,7 @@ func _play_xp_gain() -> void:
 ## Fogonazo de subida de nivel sobre la barra del cartel: destello, bote y
 ## "¡Nivel N!" saliendo hacia arriba.
 func _xp_level_burst(nivel: int) -> void:
+	Audio.sfx("levelup")
 	if xp_bar == null or not is_instance_valid(xp_bar):
 		return
 	var flash := ColorRect.new()
@@ -5289,6 +5349,8 @@ func _setup_exit_button() -> void:
 	# En el arcade el botón no ABANDONA: TERMINA la partida y cobra lo ganado.
 	# Un modo sin fin necesita una forma de parar y llevarse el botín.
 	b.text = "Terminar" if GameState.is_arcade() else "Salir"
+	# Mismo papel que los "Atrás" del juego: se sale de donde se está.
+	b.set_meta("snd", "atras")
 	# El tablón de madera de TODO el juego, no un recuadro propio: se había
 	# quedado con un StyleBoxFlat suelto y era el único botón del juego que no
 	# seguía el estilo. Algo más grande que antes (96×44) porque el 9-slice
@@ -5481,7 +5543,7 @@ func _on_exit_pressed() -> void:
 
 
 func _confirm_exit() -> void:
-	Audio.sfx("ventana")
+	Audio.sfx("recurso")
 	# En la fase de preparacion la salida es gratis: se devuelve TODO lo que se
 	# descuento al empezar el nivel (usos de ingredientes, potenciadores
 	# permanentes Y EL SACO DE ARROZ). Aun no se ha jugado nada, asi que no se
@@ -5512,10 +5574,16 @@ func _on_retry_pressed() -> void:
 ## "Siguiente" devuelve al MAPA de la campaña (no al menú principal), que es
 ## desde donde se elige el puerto siguiente. (La visita guiada a la tienda ya no
 ## se dispara aquí: la lleva el mapa, en `main_menu._presentar_saverio`.)
+##
+## Y el mapa se queda mirando al escenario SIGUIENTE al que se acaba de jugar,
+## aunque ese ya estuviera superado: al terminar, lo que uno quiere ver es lo
+## que viene ahora, no el punto mas lejano de la ruta.
 func _on_menu_pressed() -> void:
 	get_tree().paused = false
 	if GameState.is_adventure():
 		GameState.transition = "mapa"
+		var siguiente := CampaignData.next_port_id(GameState.current_port)
+		GameState.map_port = siguiente if siguiente != "" else GameState.current_port
 	GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45)
 
 

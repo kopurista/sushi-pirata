@@ -88,7 +88,8 @@ func _setup_ui() -> void:
 	var hueco := Control.new()
 	hueco.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar.add_child(hueco)
-	# "Reclamar todo": cobra de golpe TODAS las medallas pendientes (25/50/100
+	# "Reclamar todo": cobra de golpe TODAS las medallas pendientes (lo que
+	# pague hoy cada metal segun el nivel, ver `GameState.medal_reward`
 	# por bronce/plata/oro). Cada tarjeta se puede cobrar por separado tocándola.
 	claim_btn = Button.new()
 	claim_btn.text = "Reclamar todo"
@@ -373,9 +374,11 @@ func _claim_one(id: String, card: Control) -> void:
 ## pantalla (no en la tarjeta) para que puedan salirse de ella.
 func _coin_burst(desde: Vector2, cantidad: int, cuantas := COINS_N,
 		con_cifra := true) -> void:
-	# El mismo sitio sirve para el cobro de UNA tarjeta y para el del cofre
-	# entero, así que la cuantía decide si suena a puñado o a tesoro.
-	Audio.sfx("tesoro" if cantidad >= 200 else "monedas")
+	# El cobro de UNA tarjeta. El del cofre entero suena aparte, al
+	# abrirse (`monedas_todo`), asi que aqui solo suena la lluvia de la
+	# tarjeta y la cuantia decide si es un puñado o un tesoro.
+	if con_cifra:
+		Audio.sfx("tesoro" if cantidad >= 200 else "monedas")
 	var capa := Control.new()
 	capa.set_anchors_preset(Control.PRESET_FULL_RECT)
 	capa.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -465,8 +468,13 @@ func _open_claim() -> void:
 	overlay.add_child(veil)
 	create_tween().tween_property(veil, "color:a", 0.6, 0.25)
 
+	# EL CARTEL CRECE SI HAY QUE CANTAR EL MULTIPLICADOR: la recompensa de
+	# una medalla sube con el nivel del cocinero (`GameState.medal_reward`) y
+	# eso hay que verlo, o el jugador no sabe que le pagan mas por seguir
+	# subiendo. En el nivel 1 el multiplicador es 1 y el renglon no sale.
+	var mult := GameState.medal_level_mult()
 	var pw := 520.0
-	var ph := 600.0
+	var ph := 600.0 + (34.0 if mult > 1.0 else 0.0)
 	var panel := Control.new()
 	var cs := GameState.canvas_size()
 	panel.position = Vector2((cs.x - pw) * 0.5, (cs.y - ph) * 0.5)
@@ -532,6 +540,20 @@ func _open_claim() -> void:
 	detail.modulate.a = 0.0
 	panel.add_child(detail)
 
+	var nivel: Label = null
+	if mult > 1.0:
+		nivel = Label.new()
+		# Con COMA decimal, que el juego habla en español.
+		nivel.text = "x%s por tu nivel de cocinero" % String.num(mult, 2).replace(".", ",")
+		nivel.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		nivel.add_theme_font_size_override("font_size", 21)
+		nivel.add_theme_color_override("font_color", Color(0.2, 0.45, 0.12))
+		nivel.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		nivel.offset_top = 468.0
+		nivel.offset_bottom = 500.0
+		nivel.modulate.a = 0.0
+		panel.add_child(nivel)
+
 	var seguir := Button.new()
 	seguir.text = "Continuar"
 	PrepBoard.skin_button(seguir)
@@ -539,8 +561,8 @@ func _open_claim() -> void:
 	seguir.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	seguir.offset_left = 150.0
 	seguir.offset_right = -150.0
-	seguir.offset_top = 486.0
-	seguir.offset_bottom = 552.0
+	seguir.offset_top = 486.0 + (34.0 if mult > 1.0 else 0.0)
+	seguir.offset_bottom = 552.0 + (34.0 if mult > 1.0 else 0.0)
 	seguir.modulate.a = 0.0
 	panel.add_child(seguir)
 	seguir.pressed.connect(func() -> void:
@@ -564,7 +586,11 @@ func _open_claim() -> void:
 	tw.tween_property(chest, "rotation", deg_to_rad(-4.0), 0.09)
 	tw.tween_property(chest, "rotation", 0.0, 0.09)
 	tw.tween_callback(func() -> void:
+		# La cerradura y la tapa, a la vez; y el chorro de monedas, que
+		# suena AL ABRIRSE y no al pulsar (como la lluvia de abajo).
+		Audio.sfx("cofre_llave")
 		Audio.sfx("cofre")
+		Audio.sfx("monedas_todo")
 		chest.texture = load("res://assets/ui/daily_cofre_abierto.png")
 		# Y AQUÍ la lluvia: sale de la boca del cofre en el mismo fotograma en
 		# que se abre. Sin cifra, que el cartel ya canta el total.
@@ -577,6 +603,8 @@ func _open_claim() -> void:
 	tw.set_parallel()
 	tw.tween_property(loot, "modulate:a", 1.0, 0.25)
 	tw.tween_property(detail, "modulate:a", 1.0, 0.25).set_delay(0.1)
+	if nivel != null:
+		tw.tween_property(nivel, "modulate:a", 1.0, 0.25).set_delay(0.15)
 	tw.tween_property(seguir, "modulate:a", 1.0, 0.25).set_delay(0.2)
 
 

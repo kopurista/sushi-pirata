@@ -1554,7 +1554,7 @@ func _show_fish_reveal(premio: Dictionary) -> void:
 ## `roll` no se entrega hasta que el jugador lo abre (ver el botón), así que
 ## la ventana del coleccionable llega DESPUÉS de ver el cofre abrirse.
 func _show_chest_reveal() -> void:
-	Audio.sfx("ventana")
+	Audio.sfx("recurso")
 	var alto := 620.0
 	var panel := _reveal_panel(alto)
 	var title := PrepBoard.make_big_title("¡Un cofre\ndel mar!", 44)
@@ -1612,6 +1612,7 @@ func _show_chest_reveal() -> void:
 		estado["abierto"] = true
 		# La tapa del cofre. Va aquí, en la pulsación que lo ABRE, y no en la
 		# que cierra el cartel: el botón hace los dos papeles.
+		Audio.sfx("cofre_llave")
 		Audio.sfx("cofre")
 		espera.kill()
 		btn.disabled = true
@@ -2367,50 +2368,50 @@ func _borrar_anillo(c: Control) -> void:
 ##   que sale del agua.
 const SND := {
 	"cebo": [
-		"res://sounds/pesca/Open Bait Box - 1.ogg",
-		"res://sounds/pesca/Open Bait Box - 2.ogg",
+		"res://sounds/juego/pesca/Open Bait Box - 1.ogg",
+		"res://sounds/juego/pesca/Open Bait Box - 2.ogg",
 	],
 	"lanzar": [
-		"res://sounds/pesca/Casting Line - 4 (corto).ogg",
+		"res://sounds/juego/pesca/Casting Line - 4 (corto).ogg",
 	],
 	# La boya tocando el agua: el plof del lanzamiento.
 	"boya": [
-		"res://sounds/pesca/Bobber Lands in Water - 2.ogg",
+		"res://sounds/juego/pesca/Bobber Lands in Water - 2.ogg",
 	],
 	# EL MISMO chapoteo para los tres momentos de agua removida, y lo que los
 	# distingue es el TONO (ver `PITCH_*`): la PICADA, el pez que se SUELTA
 	# —el mismo golpe pero más grave, que es lo que lo hace sonar a derrota— y
 	# el pez que sale del agua al cobrarlo.
 	"chapoteo": [
-		"res://sounds/pesca/Bobber Lands in Water - 1.ogg",
-		"res://sounds/pesca/Bobber Lands in Water - 2.ogg",
+		"res://sounds/juego/pesca/Bobber Lands in Water - 1.ogg",
+		"res://sounds/juego/pesca/Bobber Lands in Water - 2.ogg",
 	],
 	"amago": [
-		"res://sounds/pesca/Fish Biting - 3.ogg",
-		"res://sounds/pesca/Fish Biting - 4.ogg",
+		"res://sounds/juego/pesca/Fish Biting - 3.ogg",
+		"res://sounds/juego/pesca/Fish Biting - 4.ogg",
 	],
 	"recoger": [
-		"res://sounds/pesca/Reeling in Fishing Rod - 1.ogg",
+		"res://sounds/juego/pesca/Reeling in Fishing Rod - 1.ogg",
 	],
 	"carrete": [
-		"res://sounds/pesca/Reeling in Fishing Rod - 1.ogg",
+		"res://sounds/juego/pesca/Reeling in Fishing Rod - 1.ogg",
 	],
 	# LA PELEA SON DOS BUCLES QUE SUENAN A LA VEZ y se cruzan con el dedo:
 	# el arrastre cuando el jugador recoge y el carrete del pez cuando lo
 	# deja correr. Los dos van a la velocidad de las barras (ver `VEL_REF`).
 	"arrastre": [
-		"res://sounds/pesca/Moving Line Closer - 1.ogg",
+		"res://sounds/juego/pesca/Moving Line Closer - 1.ogg",
 	],
 	"sedal_pez": [
-		"res://sounds/pesca/Reeling in Fishing Rod - 2 (bucle).ogg",
+		"res://sounds/juego/pesca/Reeling in Fishing Rod - 2 (bucle).ogg",
 	],
 	# El golpe que anuncia el TIRÓN, encima del carrete acelerado.
 	"tiron": [
-		"res://sounds/pesca/Frog Death - 1.ogg",
+		"res://sounds/juego/pesca/tiron.ogg",
 	],
+	# SOLO la toma 2 (decidido por el usuario).
 	"rotura": [
-		"res://sounds/pesca/Line Break - 1 (With Throw).ogg",
-		"res://sounds/pesca/Line Break - 2.ogg",
+		"res://sounds/juego/pesca/Line Break - 2.ogg",
 	],
 }
 

@@ -72,6 +72,9 @@ var slices_done: int = 0
 var slice_active := false
 var slice_start := Vector2.ZERO
 var slice_start_ms := 0
+## Instante del último movimiento del dedo cortando. De él sale si el sonido
+## del corte lento corre o se queda pausado (`_sonido_sostenido`).
+var slice_move_ms := 0
 ## Avance horizontal (px) del corte lento en curso, para llenar la barra.
 var slice_progress: float = 0.0
 ## Avance (0-1) del deslizamiento EN CURSO, para la barra de progreso.
@@ -580,6 +583,113 @@ const ICON_BTN_CAP := 34
 const BACK_TEX := "res://assets/ui/boton_atras.png"
 const OK_TEX := "res://assets/ui/boton_si.png"
 const NO_TEX := "res://assets/ui/boton_no.png"
+## DESLIZADOR (las tres barras de volumen de Opciones). Canal, relleno y
+## TIRADOR propios: hasta ahora reusaban el canal de la barra de progreso y
+## dejaban el tirador del tema por defecto de Godot, o sea un rectangulito gris
+## en mitad del pergamino — lo único de la pantalla que no era del juego.
+## El canal es 9-slice SOLO horizontal, como todas las barras: en una cápsula
+## los topes redondos miden media altura, así que un margen vertical igual al
+## tope dejaría la banda central en 0 px de alto.
+const SLIDER_TEX := "res://assets/ui/slider_canal.png"
+const SLIDER_FILL_TEX := "res://assets/ui/slider_relleno.png"
+const SLIDER_KNOB_TEX := "res://assets/ui/slider_tirador.png"
+## Tope redondo del canal = media altura de la textura (30).
+const SLIDER_CAP := 15
+## El TIRADOR mide 58 y el canal 30: la pieza que se toca tiene que sobresalir,
+## o en un móvil no se ve dónde está el dedo. De ahí que la fila mida 60.
+const SLIDER_ROW_H := 60
+
+
+## MADERA del relleno. Los tres canales de sonido van del MISMO tono: hubo una
+## versión con un color por canal —oro la música, verde los efectos, azul las
+## voces— y el usuario la rechazó ("demasiado coloridos y llamativos, no casan
+## con el arte del juego"). Lo que distingue una barra de otra es su rótulo,
+## como en el resto de filas de esa pantalla.
+const SLIDER_TINTE := Color(0.86, 0.56, 0.27)
+
+
+## Viste un HSlider con las piezas del juego: canal de madera, relleno y el
+## TIRADOR, que es el disco de `boton_mas` sin su cruz y con el campo en
+## madera (ver `ui2_prep.derive_slider_knob`).
+static func skin_slider(sl: HSlider, tinte := SLIDER_TINTE) -> void:
+	sl.custom_minimum_size = Vector2(0, SLIDER_ROW_H)
+	sl.add_theme_stylebox_override("slider", _slider_box(SLIDER_TEX, Color.WHITE))
+	for st in ["grabber_area", "grabber_area_highlight"]:
+		sl.add_theme_stylebox_override(st, _slider_box(SLIDER_FILL_TEX, tinte))
+	var knob: Texture2D = load(SLIDER_KNOB_TEX)
+	for ic in ["grabber", "grabber_highlight", "grabber_disabled"]:
+		sl.add_theme_icon_override(ic, knob)
+
+
+## UN SLIDER SACA EL ALTO DE SU CANAL DEL `content_margin` DEL STYLEBOX, no
+## del tamaño de la textura. Es la trampa que dejaba las tres barras de volumen
+## con el tirador flotando sobre el pergamino, sin canal ni relleno debajo:
+## `Slider` dibuja su fondo con un alto de `get_minimum_size().height + ...`, y
+## las barras del juego llevan los márgenes verticales a CERO a propósito (en
+## una cápsula el tope redondo mide media altura, así que un margen vertical
+## igual al tope dejaría la banda central en 0 px). Alto cero, nada dibujado.
+## `ProgressBar` no pregunta —dibuja su stylebox contra su propio rectángulo—,
+## así que `make_bar_box` sigue como está para el resto del juego y el arreglo
+## vive aquí: se le declara el alto por content_margin sin tocar el 9-slice,
+## que sigue siendo horizontal.
+## MEDIDO con las tres barras a la vez: sin margen vertical no se dibuja nada,
+## con 12+12 sale un canal de 24 px. Es el margen quien manda.
+static func _slider_box(tex_path: String, tinte: Color) -> StyleBoxTexture:
+	var sb := make_bar_box(tex_path, tinte, SLIDER_CAP)
+	if sb.texture != null:
+		var alto := sb.texture.get_size().y
+		sb.region_rect = Rect2(Vector2.ZERO, sb.texture.get_size())
+		sb.content_margin_top = alto * 0.5
+		sb.content_margin_bottom = alto * 0.5
+	return sb
+
+
+## CHAPA DE "MEJORAR": el botón de subir de nivel un bonificador. Es un SPRITE
+## FIJO, no un 9-slice, por lo mismo que el tablón del menú: su marco de madera
+## es irregular y lleva remaches en las cuatro esquinas y un galón grabado en
+## cada extremo, así que estirar una banda lo deformaría. Se dibuja a su
+## proporción y se acabó — por eso `skin_upgrade_button` fija el alto a partir
+## del ancho en vez de dejarlo suelto.
+const UPGRADE_TEX := "res://assets/ui/boton_mejorar.png"
+## Ancho / alto de esa textura. Si se regenera la chapa, volver a medirlo.
+const UPGRADE_ASPECT := 300.0 / 137.0
+
+
+## Botón de MEJORAR (pantalla de Bonificadores). Va aparte del botón de madera
+## de todo el juego a propósito: mejorar cuesta de 500 a 10.000 doblones y es
+## la única acción de esa pantalla, así que no puede parecer un "Cerrar" más.
+static func skin_upgrade_button(b: Button, ancho := 200.0) -> void:
+	b.custom_minimum_size = Vector2(ancho, roundf(ancho / UPGRADE_ASPECT))
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	b.add_theme_color_override("font_color", Color(1, 0.96, 0.86))
+	b.add_theme_color_override("font_hover_color", Color(1, 1, 0.94))
+	b.add_theme_color_override("font_disabled_color", Color(1, 0.96, 0.86))
+	b.add_theme_color_override("font_outline_color", Color(0.16, 0.08, 0.02))
+	b.add_theme_constant_override("outline_size", 8)
+	if b.has_node("Skin"):
+		return
+	b.add_child(_upgrade_plate(Color(0, 0, 0, 0.35), 3.0, 5.0))
+	b.add_child(_upgrade_plate(Color.WHITE, 0.0, 0.0))
+	add_press_feedback(b, 0.95)
+
+
+static func _upgrade_plate(tinte: Color, dx: float, dy: float) -> TextureRect:
+	var tr := TextureRect.new()
+	tr.name = "Skin" if dx == 0.0 else "SkinShadow"
+	tr.texture = load(UPGRADE_TEX)
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_SCALE
+	tr.modulate = tinte
+	tr.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tr.offset_left = dx
+	tr.offset_top = dy
+	tr.offset_right = dx
+	tr.offset_bottom = dy
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return tr
+
+
 ## Placa de oro con ribete rojo del botón que ARRANCA la partida ("¡Zarpar!").
 ## Ese sí es un 9-slice normal: no lleva icono que deformar.
 const START_TEX := "res://assets/ui/boton_zarpar.png"
@@ -633,7 +743,11 @@ static func skin_action_button(b: Button, ok: bool) -> void:
 	# El visto verde y el aspa roja no suenan como un botón cualquiera: son la
 	# respuesta a una pregunta. Se marca aquí, que es por donde pasan TODOS los
 	# aceptar y cancelar del juego.
-	b.set_meta("snd", "ok" if ok else "no")
+	# ESTOS DOS SON LOS DE LAS VENTANAS EMERGENTES: la misma toma que abre
+	# el cartel, AGUDA al confirmar y GRAVE al cancelar (ver `Audio.TONO`).
+	# Así el jugador oye si acaba de aceptar o de deshacer sin tener que
+	# aprenderse dos sonidos nuevos.
+	b.set_meta("snd", "recurso_ok" if ok else "recurso_off")
 
 
 ## Botón de VOLVER: el único con la flecha dibujada en la propia madera.
@@ -645,6 +759,9 @@ static func make_back_button(text := "Atrás") -> Button:
 	# hueco que queda a la derecha del icono se iba al borde del botón y dejaba
 	# la mitad izquierda vacía.
 	skin_icon_button(b, BACK_TEX, ICON_BTN_ZONE - 12.0)
+	# VOLVER es un PAPEL, no un botón cualquiera: todos los "Atrás" del juego
+	# suenan igual entre sí y distinto del resto (ver `Audio.FAMILIAS`).
+	b.set_meta("snd", "atras")
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	b.add_theme_font_size_override("font_size", 26)
 	return b
@@ -693,10 +810,24 @@ static func skin_small_button(b: Button) -> void:
 const START_TEXT_DROP := 9.0
 
 
-static func skin_start_button(b: Button) -> void:
+## `drop` sube o baja el rótulo dentro de la placa. OJO CON EL SIGNO: en este
+## motor un `content_margin` NO desplaza el texto, solo le RECORTA el alto
+## disponible, y el texto se centra en lo que queda contando desde ARRIBA — así
+## que un margen superior lo sube, no lo baja (medido: con 9 arriba el rótulo
+## queda 5 px POR ENCIMA del centro del botón). Aquí viene bien, porque la cara
+## dorada de la textura tampoco está centrada: el ribete rojo asoma más por
+## abajo. Pero un botón que quiera el texto centrado de verdad —el "Viajar" del
+## mapa, que es más bajo y ahí la placa sí llena el rectángulo— pasa 0.
+static func skin_start_button(b: Button, drop := START_TEXT_DROP) -> void:
+	# EL botón de la pantalla: arrancar la jornada tiene sonido propio.
+	# EL PAPEL LO PONE QUIEN LO USA, no el skinner. Esta placa de oro la
+	# llevan TRES botones que hacen tres cosas distintas —zarpar del selector,
+	# viajar por el mapa y empezar el turno— y poniéndoles aquí el mismo
+	# sonido, los tres sonaban a campanas de barco.
+	b.set_meta("snd", "")
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		var sb := StyleBoxEmpty.new()
-		sb.content_margin_top = START_TEXT_DROP
+		sb.content_margin_top = drop
 		b.add_theme_stylebox_override(st, sb)
 	b.add_theme_color_override("font_color", Color(0.32, 0.16, 0.05))
 	b.add_theme_color_override("font_hover_color", Color(0.2, 0.09, 0.02))
@@ -710,12 +841,30 @@ static func skin_start_button(b: Button) -> void:
 	var shadow := make_nine_patch(START_TEX, START_MARGIN)
 	shadow.name = "SkinShadow"
 	shadow.modulate = Color(0, 0, 0, 0.38)
-	shadow.offset_left = 4.0
-	shadow.offset_top = 7.0
-	shadow.offset_right = 4.0
-	shadow.offset_bottom = 7.0
 	b.add_child(shadow)
-	b.add_child(make_nine_patch(START_TEX, START_MARGIN))
+	var skin := make_nine_patch(START_TEX, START_MARGIN)
+	b.add_child(skin)
+	# EL MARGEN 9-SLICE SE ENCOGE EN LOS BOTONES BAJOS, igual que en
+	# `skin_button` y por una razón peor que la estética: con margen 54 arriba
+	# y 54 abajo, un botón de menos de 108 px de alto no tiene sitio para sus
+	# dos esquinas y el 9-slice se DESBORDA — la placa se dibujaba medio
+	# centenar de píxeles por debajo del rectángulo del botón, pisando el marco
+	# del pergamino del mapa, y el rótulo (que sí va centrado en el rectángulo)
+	# quedaba en el tercio de arriba de la placa. Medido con el rectángulo
+	# pintado encima de una captura.
+	b.resized.connect(func() -> void:
+		b.pivot_offset = b.size / 2.0
+		var m := mini(START_MARGIN, int(minf(b.size.x, b.size.y) * 0.44))
+		for np in [skin, shadow]:
+			np.patch_margin_left = m
+			np.patch_margin_top = m
+			np.patch_margin_right = m
+			np.patch_margin_bottom = m
+		var off := clampf(b.size.y * 0.09, 2.0, 7.0)
+		shadow.offset_left = off * 0.6
+		shadow.offset_top = off
+		shadow.offset_right = off * 0.6
+		shadow.offset_bottom = off)
 	add_press_feedback(b, 0.96)
 
 
@@ -1152,8 +1301,7 @@ func _ready() -> void:
 	# escuchándola aquí no hay que repartir llamadas de audio por el archivo —
 	# y un gesto nuevo suena solo con emitir su evento.
 	craft_event.connect(_sonido_gesto)
-	slice_failed.connect(func() -> void: Audio.sfx("error"))
-	helper_used.connect(func() -> void: Audio.sfx("chispa"))
+	slice_failed.connect(func() -> void: Audio.sfx("corte_mal"))
 	_update_ui()
 
 
@@ -2341,15 +2489,16 @@ func _toggle_extra(id: String) -> void:
 		return
 	if extras_chosen.get(id, false):
 		extras_chosen.erase(id)
-		Audio.sfx("off")
+		# Quitar un extra es el mismo sonido de ponerlo, mas grave.
+		Audio.sfx("recurso_off")
 	else:
 		# Solo se puede echar si queda en la despensa.
 		if GameState.get_ingredient_uses(id) <= 0:
 			_flash_message("¡Sin %s!" % RecipeData.get_ingredient(id).get("short", id))
-			Audio.sfx("error")
+			Audio.sfx("recurso_off")
 			return
 		extras_chosen[id] = true
-		Audio.sfx("extra")
+		Audio.sfx("recurso")
 	_bump_extra(extra_buttons.get(id, null))
 	_update_extra_buttons()
 
@@ -2709,6 +2858,8 @@ func _delay_arm() -> void:
 		dish_arm_max_ms)
 
 
+## Agarrar un plato ya terminado de la tabla. Suena lo que antes sonaba al
+## salir a la cinta: es el mismo gesto de coger loza.
 func _try_start_dish_drag(event: InputEventScreenTouch) -> bool:
 	if state != State.READY:
 		return false
@@ -2716,6 +2867,7 @@ func _try_start_dish_drag(event: InputEventScreenTouch) -> bool:
 		var d: Control = dishes[i]
 		if _touched(d, event.position):
 			dragging_dish = d
+			Audio.sfx("agarrar")
 			drag_offset = event.position - d.global_position
 			dish_press_at = event.position
 			dish_moved = false
@@ -2953,6 +3105,11 @@ func _try_start_stack_drag(event: InputEventScreenTouch) -> bool:
 	for i in stacks.keys():
 		var p: Control = storage_panels[i]
 		if p.get_global_rect().has_point(event.position):
+			# AGARRAR el plato: aquí, al empezar el gesto. Estuvo solo en
+			# `_restore_from_stack`, que es el TOQUE limpio al soltar y
+			# encima solo corre con la tabla libre — o sea que sacar un
+			# plato de la caja para servirlo no sonaba nunca.
+			Audio.sfx("agarrar")
 			stack_drag_index = i
 			stack_drag_start = event.position
 			stack_drag_moved = false
@@ -3020,13 +3177,10 @@ func _pop_stack_unit(i: int) -> Array:
 func _restore_from_stack(i: int) -> void:
 	if state != State.IDLE or not stacks.has(i):
 		return
-	Audio.sfx("caja_abre")
 	var id: String = stacks[i].id
 	var unit := _pop_stack_unit(i)
 	stacks[i].count -= 1
 	if stacks[i].count <= 0:
-		# La caja se queda vacía: se oye cerrarse.
-		Audio.sfx("caja_cierra")
 		stacks[i].node.queue_free()
 		stacks.erase(i)
 	else:
@@ -3191,10 +3345,11 @@ func _handle_ingredient_drag(event: InputEvent, step: Dictionary) -> void:
 		if event.pressed:
 			var node: Control = ingredient_nodes.get(ing_id)
 			if ghost == null and _touched(node, event.position):
-				# COGER el ingrediente. El evento `drag` de `craft_event` es
-				# el de SOLTARLO sobre la tabla, así que el momento de
-				# levantarlo no sonaba.
-				Audio.sfx("ingrediente")
+				# SELECCIONAR un ingrediente suena como un acceso de menú: es
+				# elegir de una lista, no manipular comida. El evento `drag` de
+				# `craft_event` es el de SOLTARLO sobre la tabla, así que el
+				# momento de levantarlo no sonaba.
+				Audio.sfx("submenu")
 				ghost = _make_ghost(ing_id)
 				add_child(ghost)
 				ghost.global_position = event.position - ghost.size / 2.0
@@ -3265,12 +3420,17 @@ func _handle_slice(event: InputEvent, step: Dictionary) -> void:
 			slice_active = true
 			slice_start = event.position
 			slice_start_ms = Time.get_ticks_msec()
+			slice_move_ms = slice_start_ms
 			slice_progress = 0.0
 		elif not event.pressed:
 			slice_active = false
 			slice_progress = 0.0
 			_update_tap_bar()
 	elif event is InputEventScreenDrag and slice_active:
+		# El dedo se ha MOVIDO: es lo que mantiene sonando el corte (ver
+		# `_sonido_sostenido`). Se apunta ANTES de mirar el retroceso, porque
+		# retroceder también es mover.
+		slice_move_ms = Time.get_ticks_msec()
 		# "direction": "v" corta de ARRIBA ABAJO (dorayaki partido por la
 		# mitad); "alt" alterna el sentido en cada pasada (ida y vuelta del
 		# pincel al glasear la anguila); por defecto es el barrido de izquierda
@@ -4106,19 +4266,23 @@ func _update_tap_bar() -> void:
 const SONIDO_GESTO := {
 	"tap": "arroz",
 	"cut": "corte",
-	"slice": "corte_lento",
 	"swipe": "enrollar",
 	"drag": "soltar",
-	"stage": "paso",
 	"done": "listo",
-	"select": "click_suave",
-	"cancel": "no",
+	"select": "click",
+	"cancel": "atras",
 	"serve": "cinta",
 }
 
 
 func _sonido_gesto(kind: String, _stage_id: String) -> void:
 	var fam := str(SONIDO_GESTO.get(kind, ""))
+	# TOCAR UN INGREDIENTE es seleccionarlo de una lista, no amasar arroz: se
+	# distingue por el PASO en curso y no por el evento, porque el `kind` de
+	# `craft_event` es el mismo "tap" y ese contrato lo lee también el chef
+	# para animarse (ver la cabecera de CLAUDE.md).
+	if kind == "tap" and _current_step().get("type", "") == "tap_ingredient":
+		fam = "submenu"
 	if fam != "":
 		Audio.sfx(fam)
 
@@ -4131,22 +4295,39 @@ func _sonido_gesto(kind: String, _stage_id: String) -> void:
 ##
 ## El AGUANTE del aburi es un soplete y suena como tal: lo distingue el
 ## `prop` del paso, no el tipo de gesto.
+## Con el dedo parado más de esto (ms), el corte lento se calla. Va CORTO: el
+## dedo llega y se para constantemente mientras se busca la velocidad buena, y
+## con un margen largo el sonido seguía corriendo con el corte ya detenido.
+const CORTE_QUIETO_MS := 90
+
+
 func _sonido_sostenido() -> void:
 	var quiere := ""
+	# El corte LENTO también es un bucle, pero con una vuelta de tuerca: no
+	# corre mientras se está cortando, sino mientras el dedo AVANZA. Parado se
+	# PAUSA por donde iba, y al seguir continúa — apagarlo y volver a
+	# encenderlo lo devolvería al principio y sonaría como un corte nuevo en
+	# cada tirón.
+	var pausa := false
 	if state == State.CRAFTING:
 		if frying:
 			quiere = "freir"
 		elif holding:
-			quiere = "soplete" if _current_step().get("prop", "") == "soplete" 				else "mantener"
+			var utensilio: String = _current_step().get("prop", "")
+			quiere = "soplete" if utensilio == "soplete" else "mantener"
 		elif stirring:
 			quiere = "remover"
-	if quiere == _bucle_cocina:
-		return
-	if _bucle_cocina != "":
-		Audio.loop_off(_bucle_cocina)
-	_bucle_cocina = quiere
-	if quiere != "":
-		Audio.loop_on(quiere)
+		elif slice_active:
+			quiere = "corte_lento"
+			pausa = Time.get_ticks_msec() - slice_move_ms > CORTE_QUIETO_MS
+	if quiere != _bucle_cocina:
+		if _bucle_cocina != "":
+			Audio.loop_off(_bucle_cocina)
+		_bucle_cocina = quiere
+		if quiere != "":
+			Audio.loop_on(quiere)
+	if _bucle_cocina == "corte_lento":
+		Audio.loop_pausa("corte_lento", pausa)
 
 
 var _bucle_cocina := ""

@@ -1101,6 +1101,7 @@ func _confirmar_reinicio(tree: String) -> void:
 ## "aprendida"; las demás CANTAN EL CAMBIO, con el efecto de antes tachado y el
 ## nuevo debajo — que es lo que el jugador quiere saber al gastar un punto.
 func _celebrar_rango(id: String, antes: int, ahora: int) -> void:
+	Audio.sfx("habilidad")
 	var s := SkillData.get_skill(id)
 	var color: Color = TREE_COLORS.get(str(s.get("tree", "")), DARK)
 	# Las dos variantes acaban en el mismo sitio (efecto + botón), así que el

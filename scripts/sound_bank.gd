@@ -135,6 +135,16 @@ func silencio_total() -> void:
 		b.stream = null
 
 
+## PAUSA un bucle sin pararlo: al reanudar sigue POR DONDE IBA, que no es lo
+## mismo que apagarlo y volver a encenderlo (eso lo devolvería al principio y
+## se oiría como un sonido nuevo). Lo necesita el corte lento, que suena
+## mientras el dedo avanza y se queda a medias en cuanto se para.
+func loop_pause(familia: String, pausado: bool) -> void:
+	var p: AudioStreamPlayer = _bucles.get(familia)
+	if p != null:
+		p.stream_paused = pausado
+
+
 func loop_off(familia: String) -> void:
 	var p: AudioStreamPlayer = _bucles.get(familia)
 	if p != null and p.playing:

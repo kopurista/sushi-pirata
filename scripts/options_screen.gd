@@ -408,6 +408,11 @@ func _show_graphics_values() -> void:
 ## Y cada barra suena AL MOVERLA con algo de SU bus —la música con la música,
 ## los efectos con un clic, las voces con David—, que es la única forma de
 ## saber dónde la estás dejando.
+##
+## LAS TRES VAN DEL MISMO COLOR (la madera del juego). Hubo una versión con un
+## color por canal —oro, verde y azul— y el usuario la rechazó por llamativa:
+## lo que distingue una barra de otra es su rótulo, como en el resto de filas
+## de esta pantalla.
 const VOL_FILAS := [
 	["vol_musica", "Música", "Los temas de cada sitio."],
 	["vol_efectos", "Efectos", "La cocina, la barra y la interfaz."],
@@ -447,13 +452,10 @@ func _slider_row(box: Control, clave: String, titulo: String,
 	barra.max_value = 1.0
 	barra.step = 0.05
 	barra.value = float(GameState.get_setting(clave))
-	barra.custom_minimum_size = Vector2(0, 44)
-	# El canal de madera y el relleno del resto del juego, para que no parezca
-	# un control del tema por defecto de Godot en mitad del pergamino.
-	barra.add_theme_stylebox_override("slider",
-		PrepBoard.make_bar_box(PrepBoard.BAR_BG_TEX))
-	barra.add_theme_stylebox_override("grabber_area",
-		PrepBoard.make_bar_box(PrepBoard.BAR_FILL_TEX, Color(0.36, 0.88, 0.38)))
+	# Canal, relleno y TIRADOR del juego (PrepBoard.skin_slider): el tirador
+	# era lo único de esta pantalla que seguía siendo del tema por defecto de
+	# Godot, un rectangulito gris sobre el pergamino.
+	PrepBoard.skin_slider(barra)
 	fila.add_child(barra)
 	_note(fila, nota)
 
@@ -1026,7 +1028,9 @@ func _toggle_row(box: Control, label: String, key: String,
 	b.set_meta("snd", "")
 	b.pressed.connect(func() -> void:
 		var nuevo := not bool(draft_graphics[key])
-		Audio.sfx("on" if nuevo else "off")
+		# El MISMO clic de cualquier boton para encender, y el clic mas
+		# grave (el de "atras") para apagar.
+		Audio.sfx("click" if nuevo else "atras")
 		_set_custom(key, nuevo, repaint)
 		paint.call())
 	row.add_child(b)

@@ -302,7 +302,10 @@ const LVL_ROW_H := 52.0
 
 
 func _show_level_up(data: Dictionary) -> void:
-	Audio.sfx("trofeo")
+	# EL MISMO SONIDO QUE DESBLOQUEAR UNA HABILIDAD del árbol (pedido por el
+	# usuario): subir de nivel es exactamente eso, algo que se abre. Tenía el
+	# de trofeo, que aquí sonaba a premio conseguido y no a puerta abierta.
+	Audio.sfx("habilidad")
 	var desde := int(data.get("desde", 0))
 	var hasta := int(data.get("hasta", 0))
 	var premios: Dictionary = data.get("premios", {})

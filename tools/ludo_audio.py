@@ -31,6 +31,7 @@ Uso:
     python tools/ludo_audio.py <perfil> <destino.ogg> <url>
     python tools/ludo_audio.py --lote lote.tsv     (perfil<TAB>destino<TAB>url)
     python tools/ludo_audio.py --mono <carpeta>    (pasa a mono lo que sea estereo)
+    python tools/ludo_audio.py --local <perfil> <origen> <destino.ogg>
 
 Perfiles: musica (estereo q3) | ambiente (estereo q2) | efecto (mono q2)
           voz (mono q1 32 kHz)
@@ -144,6 +145,37 @@ def a_mono(carpeta):
              100 * despues // max(antes, 1)))
 
 
+def local(perfil, origen, destino, filtros=None, dura=0.0):
+    """Convierte un archivo del disco con uno de los perfiles del juego.
+
+    `filtros` son filtros de ffmpeg que se AÑADEN a la cadena (el recorte de
+    silencios va siempre delante), y `dura` corta el resultado a esos
+    segundos. Los necesitan las VOCES: son interjecciones que acompañan a una
+    linea de dialogo, no la leen, asi que tienen que ser lo mas cortas
+    posibles — y el corte se hace AQUI, sobre el original del pack, en vez de
+    volver a comprimir un .ogg ya comprimido.
+    """
+    src = origen if os.path.isabs(origen) else os.path.join(RAIZ, origen)
+    dst = destino if os.path.isabs(destino) else os.path.join(RAIZ, destino)
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    cmd = [_ffmpeg(), "-v", "error", "-y", "-i", src]
+    cadena = []
+    if perfil != "ambiente":
+        cadena.append("silenceremove=start_periods=1:start_threshold=-50dB:"
+                      "start_silence=0.02:detection=peak,areverse,"
+                      "silenceremove=start_periods=1:start_threshold=-50dB:"
+                      "start_silence=0.05:detection=peak,areverse")
+    if filtros:
+        cadena += list(filtros)
+    if cadena:
+        cmd += ["-af", ",".join(cadena)]
+    if dura > 0:
+        cmd += ["-t", "%.3f" % dura]
+    cmd += PERFILES[perfil] + [dst]
+    subprocess.run(cmd, check=True)
+    return os.path.getsize(dst)
+
+
 def main():
     args = sys.argv[1:]
     if not args:
@@ -151,6 +183,12 @@ def main():
     if args[0] == "--mono":
         for c in args[1:]:
             a_mono(c)
+        return
+    if args[0] == "--local":
+        # Un archivo que YA esta en el disco (los .wav que trae el usuario en
+        # `sounds/soundly`, a 24 bits y 96 kHz). Misma cadena que lo de Ludo:
+        # recorte de silencios, mono donde toca y OGG.
+        print(local(args[1], args[2], args[3]))
         return
     if args[0] == "--lote":
         total = 0

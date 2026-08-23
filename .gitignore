@@ -26,7 +26,12 @@ __pycache__/
 /zz*
 
 # Librerias de sonido: material de consulta, no assets del juego.
-# Ocupan ~80 MB y se llevarian 35 MB al .pck si Godot las viera, por eso
-# ademas llevan .gdignore. Lo que se use se COPIA a su carpeta (sounds/pesca).
-/sounds/ui/
-/sounds/Game Sound Effects*/
+# Ocupan ~265 MB y se irian enteras al .pck si Godot las viera, por eso
+# ademas llevan .gdignore. Lo que se use se COPIA a su carpeta ya convertido
+# (sounds/pesca, sounds/cocina, sounds/interfaz, sounds/nivel).
+#
+# "Cozy Craft" son 174 MB de foley de cocina y oficios y "soundly" tomas a
+# 96 kHz y 24 bits: son los ORIGINALES de los que sale la cocina del juego, y
+# de cada uno viaja solo su .ogg convertido (unos pocos KB). Viven todas en
+# sounds/Sin utilizar/, que es la carcasa que las agrupa.
+/sounds/Sin utilizar/

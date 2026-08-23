@@ -994,6 +994,15 @@ primera vez que se entra en ellos (`logros_intro_done` /
   · Con la tienda ya abierta, **Gigi canta lo que falta y para qué receta**,
     con un cartel de tres salidas — Jugar, Visitar tienda y una X que devuelve
     al mapa.
+- **EL MAPA RECUERDA DONDE ESTABA** (`GameState.map_port`, de sesión; lo
+  apunta `level_select3d._select` y lo lee `_puerto_de_partida`): volver de
+  Maestrías, de la tienda o del selector y encontrarse el barco en otro
+  escenario es perder el hilo de lo que se estaba mirando. Si el recordado ya
+  no vale —o no hay— cae al último abierto, como antes.
+  · **Y al cerrar un turno salta al SIGUIENTE del jugado**, aunque ya esté
+    superado (`level3d._on_menu_pressed` con `CampaignData.next_port_id`): al
+    terminar, lo que uno quiere ver es lo que viene ahora, no el punto más
+    lejano de la ruta.
 - **`recipe_slots` sí se suelta al repetir** (`GameState.port_beaten`): un
   puerto ya superado se juega con los cuatro huecos de siempre.
 - **Los ingredientes GRATIS (coste 0) no se piden ni se gastan**:
@@ -1046,8 +1055,7 @@ primera vez que se entra en ellos (`logros_intro_done` /
 ## Arquitectura (archivos y responsabilidad)
 
 - `scripts/recipe_data.gd` — datos const de las recetas: nivel, saciedad,
-  cooldown, precio, `free_uses` (maestría), `vegetarian` (apta para clientes
-  vegetarianos, aún sin efecto en cliente), `steps` (secuencia de gestos) y
+  cooldown, precio, `free_uses` (maestría), `steps` (secuencia de gestos) y
   `stages` (sprite por paso). Ingredientes y helpers `get_dish_texture` /
   `get_stage_texture`. **Tipos de paso**: `tap_ingredient` {ingredient},
   `tap_board` {count, cutting?}, `drag_ingredient` {ingredient, prop?}
@@ -1324,6 +1332,14 @@ primera vez que se entra en ellos (`logros_intro_done` /
     volver del mapa: si no, el tween de la entrada y el del viaje pelean por
     su `position`. Solo la PORTADA y la FICHA la apagan a mano
     (`_set_menu_ui_visible` ya no la toca).
+    **EL NIVEL VA DENTRO DE LA ESTRELLA**, no escrito en mitad de la barra:
+    ahí se lee de un vistazo y la barra se queda para lo que de verdad se
+    mueve, la EXPERIENCIA ("928 / 1029"). La estrella sigue latiendo en rojo
+    cuando hay puntos, y el globo con cuántos hay pasó a la IZQUIERDA,
+    cabalgándola: los dos avisos caen juntos y en el sitio al que hay que ir.
+    **Y LA BARRA ESTÁ A `LVL_BAR_Y` 138, no a 96**: la caja del arroz ocupa
+    hasta la y 76 y su cuenta atrás hasta la 110, así que la estrella le caía
+    encima y con el globo puesto se comía el texto entero.
     **EN LA PESCA baja `LVL_BAR_PESCA` (76 px)**: arriba están el "Atrás" de
     la pesca y el botón del álbum, uno en cada esquina, y la barra les caía
     encima. Va de ESCAPARATE (`MOUSE_FILTER_IGNORE` mientras dura, restaurado
@@ -1473,9 +1489,35 @@ primera vez que se entra en ellos (`logros_intro_done` /
   pueda ganar de otra forma, así que la campaña cubre 33 de las 34 recetas
   visibles. **Completado el 7 la racha se reinicia al 1 y hay que desbloquearlo
   todo otra vez**; en esa segunda vuelta la casilla del 7 ya no da la receta
-  sino `RECIPE_FALLBACK` (**200**) doblones ADEMÁS del resto de su premio, o
-  sea 300 de oro. Solo sale en el menú de verdad, con el tutorial ya hecho y
-  después del anuncio de recetas, para no apilar carteles.
+  sino `RECIPE_FALLBACK` (**200**) doblones ADEMÁS del resto de su premio.
+  Solo sale en el menú de verdad, con el tutorial ya hecho y después del
+  anuncio de recetas, para no apilar carteles.
+  **EL REPARTO (23-8-2026, pedido por el usuario)**: 1) 50 oro + 1 saco ·
+  2) 50 + 5 usos de UN extra al azar + 1 cebo · 3) 60 + 1 lingote + 3 usos de
+  UN ingrediente normal al azar · 4) 75 + 1 mapa del tesoro + 3 de un extra al
+  azar + 3 cebos · 5) 80 + 3 de CADA extra + 3 de un ingrediente al azar + 1
+  lingote · 6) 85 + 5 de cada extra + 5 de un ingrediente + 5 cebos + 1 mapa ·
+  7) 100 + 10 de cada extra + 10 de un ingrediente + 5 lingotes + 2 mapas +
+  10 cebos + el dragon roll. Cuatro reglas que salen de ahí:
+  · **EL ORO ESCALA CON EL NIVEL DEL COCINERO** (`DailyData.money_for`,
+    `ORO_POR_NIVEL` 0.10 por nivel sobre el 1: el nivel 16 multiplica por
+    2,5 y el 100 por ~11), el `RECIPE_FALLBACK` también. Es la misma
+    pendiente lineal que el oro de subir de nivel. Perilla libre.
+  · **LOS SORTEOS SE RESUELVEN AL ABRIR EL COFRE** (`claim_daily`), no en los
+    datos: `extra_random` saca uno de los tres extras y `ingredient_random`
+    uno de los ingredientes de pago de las recetas que el jugador YA SABE
+    (`_random_known_ingredient`, el mismo filtro que el surtido de Saverio;
+    sin ninguna, cualquiera de pago). Llegan al cartel ya resueltos dentro
+    de `ingredients`, con su propio dibujo.
+  · **LOS CEBOS SOLO CON LA PESCA ABIERTA** (`fishing_unlocked`): antes de
+    Cai no hay dónde usarlos y NO se guardan para después — la racha es una
+    cadencia, no una deuda (el mismo criterio que las compuertas de premios
+    de nivel).
+  · **LOS MAPAS DEL TESORO SE ACUMULAN EN `GameState.treasure_maps`** (clave
+    `treasure_maps` del save): el sistema de misiones secundarias que los
+    gasta AÚN NO EXISTE, así que el contador guarda lo cobrado para cuando
+    entre. El cartel los enseña con `col_mapa_tesoro.png`, que es el mismo
+    objeto de la vitrina, y los cebos con `ic_cebo.png`.
 - **El cartel del bonus diario es un MAPA DEL TESORO** (`main_menu._show_daily`
   y compañía). Las siete paradas llevan un cofre y el estado se lee del dibujo:
   los días PASADOS con el cofre ABIERTO y los que FALTAN cerrado, los dos a
@@ -1793,10 +1835,22 @@ primera vez que se entra en ellos (`logros_intro_done` /
       `boya`, una sola toma) al terminar el vuelo del sedal; los chapoteos de
       la presa que se suelta y del pez que sale del agua viven en su propia
       familia (`chapoteo`, las dos tomas) porque son otro momento.
-    · **LAS LIBRERÍAS DE SONIDO NO ESTÁN EN EL REPOSITORIO NI LAS VE GODOT**
-      (`sounds/ui` y las cuatro `sounds/Game Sound Effects*`): son más de mil
-      tomas de packs comprados, material de consulta del que se PICOTEA, no
-      assets del juego. Llevan `.gdignore` **y** están en `.gitignore`.
+    · **`sounds/` VA EN DOS MITADES**: `sounds/juego/` es TODO lo que suena,
+      repartido por secciones —`musica`, `voces`, `interfaz`, `cocina`,
+      `nivel`, `barco` y `pesca`—, y `sounds/Sin utilizar/` son las librerías
+      de las que se picotea. Un archivo que deje de usarse se va a la segunda;
+      uno que empiece a usarse, a la sección de la primera que le toque.
+    · **LAS LIBRERÍAS NO ESTÁN EN EL REPOSITORIO NI LAS VE GODOT**
+      (`sounds/Sin utilizar/`: `ui`, las cuatro `Game Sound Effects*`,
+      **`Cozy Craft`** y **`soundly`**): son más de mil tomas de packs comprados, material de
+      consulta del que se PICOTEA, no assets del juego. Llevan `.gdignore`
+      **y** están en `.gitignore`.
+      · **`Cozy Craft` son 174 MB** de foley de cocina y oficios (tiene una
+        carpeta **Cooking** entera) y **`soundly` 11 MB** de tomas a 96 kHz y
+        24 bits. Llegaron SIN `.gdignore` y Godot ya les había generado 203
+        `.import`: tal cual se habrían ido enteras al `.pck`. De cada una viaja
+        solo su `.ogg` convertido, de unos pocos KB. **Una carpeta de sonido
+        nueva se gdignora ANTES de tocar nada.**
       · Godot: el preset web exporta con `export_filter="all_resources"`, o
         sea que las empaquetaría TODAS aunque no suene ninguna. **MEDIDO
         exportando con y sin ellas: 97,6 MB contra 61,0 — casi 35 MB, un 60%
@@ -2153,6 +2207,17 @@ primera vez que se entra en ellos (`logros_intro_done` /
     disco a propósito (`seen_medals` viaja con el siguiente save natural).
   · El TOAST es la banda de `notice_layer.gd`: baja de arriba, se va sola y es
     `MOUSE_FILTER_IGNORE` en todo — notificación, no cartel.
+  · **LO QUE PAGA UNA MEDALLA CRECE CON EL NIVEL DEL COCINERO** (pedido
+    por el usuario): `MEDAL_REWARDS` (8/15/30) es lo que vale en el nivel
+    1 y `GameState.medal_reward(tier)` le aplica `medal_level_mult()` —
+    +`MEDAL_LEVEL_STEP` (2%) por nivel, con TOPE en `MEDAL_LEVEL_MAX`
+    (×5, que se alcanza en el nivel 201). El tope no es un adorno: el
+    reclamo es ACUMULATIVO y con ~170 logros de tres metales, sin techo
+    bastaba con guardárselos todos hasta el nivel 450 para cobrar de
+    golpe más oro que la campaña entera. MEDIDO: el mismo lote paga 220
+    doblones en el nivel 1 y 656 en el 100. El cartel del cofre CANTA el
+    multiplicador ("x1,82 por tu nivel de cocinero") y crece 34 px para
+    ese renglón; en el nivel 1 no sale, porque no hay nada que decir.
   · **Reclamo**: `claimed_medals` (id → 0..3) y `MEDAL_REWARDS` 25/50/100 por
     bronce/plata/oro. Si de un logro hay bronce Y plata sin reclamar, caen las
     dos de golpe. El botón "Reclamar todo" de `achievements_screen` (en el
@@ -2392,6 +2457,15 @@ primera vez que se entra en ellos (`logros_intro_done` /
   Antes de una pasada de helpers, COPIAR el savegame y restaurarlo después —
   y con rutas que existan de verdad en las DOS herramientas (el `/tmp` de Git
   Bash no lo ve Python, y un `cp` con `|| true` falla en silencio).
+  · **Y UNA SONDA DE NIVEL COBRA LA JORNADA**: arrancar `level3d` gasta el saco
+    de arroz y la primera tanda de despensa y lo GUARDA, aunque la sonda no
+    llegue a jugar nada. Medido: tras una captura del cartel de "¿Comenzamos?"
+    cambiaron `rice`, `ingredients` y `stats`. No es un fallo, es el juego
+    haciendo su trabajo; hay que restaurar el guardado igual.
+  · **Y SE COMPRUEBA CON UN DIFF, no de memoria**: al terminar, comparar el
+    savegame con el respaldo clave a clave. Si el usuario ha jugado mientras
+    tanto, ahí se ve —y entonces NO se restaura a ciegas, que se le borraría la
+    partida: se mira qué claves tocó la sonda y se devuelven solo esas.
 - `scripts/options_screen.gd` — Opciones (raíz **Node3D**, fondo `SceneBackdrop`)
   en CUATRO pestañas (el Perfil se mudó a `profile_screen`): **Gráficos**
   (bloques Alta / Media / Baja / Personalizado, con "Aplicar cambios"),
@@ -2404,6 +2478,46 @@ primera vez que se entra en ellos (`logros_intro_done` /
   que confirmar para escucharlo se ajusta a ciegas; y cada barra suena al
   moverla con algo de SU canal (la música con la música, los efectos con un
   clic, las voces con David), que es la única forma de saber dónde la dejas.
+  **LAS TRES BARRAS SON UN DESLIZADOR PROPIO** (`PrepBoard.skin_slider`):
+  canal de madera con el hueco oscuro y su sombra interior
+  (`ui2_prep.build_slider`, con la MISMA paleta que la barra de progreso del
+  juego) y un TIRADOR que **se DERIVA de `boton_mas.png`**
+  (`ui2_prep.derive_slider_knob`): se le quita la cruz y se le cambia el campo
+  verde por la madera, así que lo que queda es un disco de madera con el aro
+  dorado y el bisel de los botones del juego. Antes reusaban el canal de la
+  barra de progreso y dejaban el tirador del tema por defecto de Godot — un
+  rectangulito gris, lo único de la pantalla que no era del juego. El tirador
+  mide 58 y el canal 30: la pieza que se toca tiene que sobresalir o en un
+  móvil no se ve dónde está el dedo.
+  · **LOS TRES CANALES VAN DEL MISMO COLOR** (`PrepBoard.SLIDER_TINTE`, la
+    madera). Hubo una versión con un color por canal —oro la música, verde los
+    efectos, azul las voces— y el usuario la RECHAZÓ ("demasiado coloridos y
+    llamativos, no casan con el arte del juego"). Lo que distingue una barra de
+    otra es su rótulo, igual que el resto de filas de la pantalla.
+  · **UNA PERILLA DIBUJADA A MANO NO CASA CON EL SET**, y por eso se deriva:
+    la primera fue un disco de latón con muescas hecho con `ImageDraw`, y al
+    lado del aro dorado y el bisel del resto de botones se veía plana.
+  · Al derivarla hay que **borrar la cruz con un halo ANCHO (7) y rellenar el
+    hueco DIFUNDIENDO** (Laplace: cada píxel, la media de sus cuatro vecinos).
+    Con el halo corto de `derive_minus_button` (2) sobrevivía la línea de tinta
+    que perfila la cruz y la difusión rellenaba el centro con ESE tono, o sea
+    un fantasma de la cruz; e interpolando de lado a lado —lo que hace el botón
+    de menos, al que solo le quitan el brazo vertical— las filas del brazo
+    HORIZONTAL no tienen campo a ningún lado y salían dos bandas cruzando el
+    disco. Y el listón del verde va más flojo (`g + 2 >= r`): en el canto del
+    brillo hay píxeles donde el verde solo saca ocho puntos al rojo, y con el
+    listón alto se quedaban sin convertir — cinco píxeles verde oliva que a
+    ese tamaño son una mancha.
+  · **UN SLIDER SACA EL ALTO DE SU CANAL DEL `content_margin` DEL STYLEBOX**,
+    no del tamaño de la textura, y esta es la trampa que costó la primera
+    pasada: las barras del juego llevan los márgenes verticales a CERO a
+    propósito (en una cápsula el tope redondo mide media altura), así que
+    `Slider` calculaba alto cero y NO DIBUJABA NADA — el tirador salía flotando
+    sobre el pergamino, sin canal ni relleno debajo. MEDIDO poniendo las tres
+    barras con styleboxes distintos a la vez: sin margen vertical no se dibuja
+    nada y con 12+12 sale un canal de 24 px. `ProgressBar` no pregunta —dibuja
+    su stylebox contra su propio rectángulo—, así que `make_bar_box` sigue como
+    está para el resto del juego y el arreglo vive en `_slider_box`.
   Los rótulos siguen a cuerpo 26: los cuatro son cortos. Los cambios
   viven en `draft_*` y NO tocan `GameState` hasta pulsar aplicar: así se puede
   probar una combinación y arrepentirse. Tocar un ajuste suelto pasa el bloque
@@ -2939,7 +3053,8 @@ primera vez que se entra en ellos (`logros_intro_done` /
   **SUBMENÚ inferior**: una barra de madera oscura con cuerda en el canto
   (`submenu_barra.png`, estilo propio, exportada al alto exacto de dibujo con
   margen vertical CERO como los botones con icono) con los CINCO accesos del
-  jugador: **Logros, Inventario, Perfil, Bonificadores y Opciones** (iconos
+  jugador: **Logros, Recetario, Colección, Perfil, Bonificadores y Opciones**
+  (iconos
   `ic_logros/ic_inventario/ic_perfil/ic_perks/ic_opciones`). Las MAESTRÍAS no
   van aquí: su acceso es la BARRA DE NIVEL del centro del menú (ver su
   bloque). El submenú sustituyó a los dos botones redondos de esquina que
@@ -2947,9 +3062,55 @@ primera vez que se entra en ellos (`logros_intro_done` /
   · **Perfil** abre `profile_screen` (el cartel de recompensa en pantalla
     propia; ya NO es pestaña de Opciones, que se quedó con Gráficos/Guía/
     Progreso a cuerpo 26).
-  · **Bonificadores** abre `perks_screen` (los permanentes de `PerkData`; ya
-    NO son la pestaña "Mejoras" del Inventario, que se quedó con Recetario y
-    Despensa). Tarjetas con `CARD_TEX` (pergamino liso) y recompra de usos.
+  · **Bonificadores** abre `perks_screen`, **rehecha con el lenguaje de
+    Maestrías**: rejilla de tarjetas en dos columnas, icono grande con MARCO
+    POR ESTADO (gris sin conseguir, verde conseguido, ORO al nivel máximo), el
+    nivel en ESTRELLAS —cinco niveles, cinco estrellas, igual que el rango de
+    una maestría—, los usos, el botón de mejorar con su precio dibujado y una
+    FICHA al tocar la tarjeta que enseña QUÉ HACE EN CADA UNO de los cinco
+    niveles con el vigente marcado. Era una lista de la compra: filas de alto
+    libre, una debajo de otra, con el texto peleándose con un botón. Son las
+    dos pantallas donde el jugador reparte oro en mejoras permanentes, así que
+    se leen igual.
+    · **LOS ICONOS VAN CENTRADOS A MANO** (anclas al 0.5 y offsets a media
+      anchura del marco). `set_anchors_preset(PRESET_CENTER_TOP, true)` NO
+      centra nada: conserva los offsets y, al llevarse el ancla al 0.5, empuja
+      el marco MEDIA TARJETA a la derecha — que es como se veían, todos
+      descolgados. Peor todavía porque en ese momento el anfitrión mide 0 (el
+      contenedor aún no ha repartido), así que el "conservar la posición" no
+      tiene contra qué compensar. Es la misma trampa del preset que ya costó
+      el globo de la barra de nivel.
+    · `cocina_veloz` tiene **icono propio** (`perk_veloz.png`, reloj de
+      bolsillo con cuchillo y estelas): le estaba robando el suyo al ARCADE.
+    · **EL AYUDANTE SON DOS MANOS CON UN "+"** (`perk_ayudante.png`), no la
+      cara de Alice: en una rejilla de bonificadores un retrato entre objetos
+      se leía como "un personaje" y no como "una mano de más en la cocina",
+      que es lo que el bonificador hace. La cara de Alice sigue siendo el
+      icono del BOTÓN de la tabla, que es donde sí se la está llamando a ella.
+    · **EL PALADAR LLEVA EL MULTIPLICADOR ESCRITO DENTRO DE LA MONEDA**
+      ("x6", un EJEMPLO: el tope real va de x5 a x10 según el nivel). Era la
+      misma moneda con su flecha pero VACÍA, y así no decía de qué iba el
+      bonificador. No se regenera: se ESTAMPA la cifra sobre el original de
+      768 px (`_sellar_mult`) y se reduce después, por lo mismo que las chapas
+      del multiplicador se dibujan en vez de pedirse — el generador no sabe
+      escribir. Y el sitio no se pone a ojo: la moneda es el objeto más ancho
+      de la mitad de abajo y es redonda, así que la fila más ancha da su
+      diámetro y su centro y el borde inferior del alfa da su base.
+    · **"MEJORAR" TIENE CHAPA PROPIA** (`boton_mejorar.png` +
+      `PrepBoard.skin_upgrade_button`): placa de latón sobre marco de madera
+      con remaches y un GALÓN DOBLE hacia arriba grabado en cada extremo, que
+      dice "sube de nivel" sin escribirlo. Va aparte del tablón de madera de
+      todo el juego a propósito: es la única acción de la pantalla y cuesta de
+      500 a 10.000 doblones, así que no podía parecer un "Cerrar" más. Es un
+      SPRITE FIJO, no un 9-slice —su marco es irregular y lleva remaches en las
+      cuatro esquinas—, así que `skin_upgrade_button` fija el alto a partir del
+      ancho con `UPGRADE_ASPECT`; si se regenera la chapa, volver a medirlo.
+    · La tarjeta mide **376** de alto, y el número se CUENTA (icono 104 +
+      nombre + estrellas + texto de hasta dos renglones + usos + la chapa).
+      Estuvo en 268 y en 340, y las dos veces la chapa se salía por el canto
+      inferior justo en las tarjetas de abajo, que son las de dos renglones.
+    Son los permanentes de `PerkData`; ya NO son la pestaña "Mejoras" del
+    Inventario.
   · Las gaviotas y las nubes ENTRAN planeando desde arriba (`_sky_in` +
     `sky_drop`): `_process` las coloca cada fotograma, así que un tween de
     posición pelearía con él — se anima un DESVÍO vertical que `_process` suma
@@ -3035,6 +3196,50 @@ primera vez que se entra en ellos (`logros_intro_done` /
   que lo borra y deja solo la espuma; además la animación rompería la
   continuidad de bordes y el mar tileado saldría con costuras. Por eso el
   movimiento del agua va por shader (deriva + dos senos cruzados).
+- **EL PANEL DEL NIVEL VA EN DOS COLUMNAS** (`level_select3d._build_info_panel`,
+  372 px de alto contra los 470 que tuvo): arriba y centrado lo que IDENTIFICA
+  el escenario —nombre, tipo, nivel recomendado y estrellas—, y debajo la ficha
+  repartida: a la IZQUIERDA lo que uno se va a encontrar (clientela, carta y
+  reloj) y a la DERECHA lo que se lleva (objetivos, récord y recompensas). En
+  una sola columna el panel se comía media pantalla, que es justo la que hace
+  falta para elegir en el mapa. Las filas de iconos son **HFlowContainer** y no
+  HBox: en una columna estrecha, lo que no cabe tiene que SALTAR de línea.
+  `goal_box` y `record_box` se cuelgan del padre de sus etiquetas, así que
+  basta con poner esas dos en la columna derecha para que toda su información
+  caiga allí.
+  · **LOS PREMIOS VAN EN LA LÍNEA DE SU ESCALÓN**, no en un bloque aparte
+    (`_fill_goal_rows` + `_premios_de`): cada renglón se lee entero de
+    izquierda a derecha —"tantas monedas ➜ tantas estrellas ➜ esto te llevas"—
+    y se acabó el emparejar a ojo qué premio caía en qué escalón. Estuvieron en
+    dos bloques, y eso dibujaba DOS veces la misma hilera de estrellas y
+    gastaba una fila entera de la columna: es esa fila la que le devuelve el
+    alto al botón de Viajar. Antes de eso, el bloque de premios llevaba además
+    un rótulo "Recompensa:" que descuadraba el escalón de 2 contra el de 3, y
+    también se fue.
+    Cada línea es un **HFlowContainer**: con el umbral, las estrellas y hasta
+    tres premios en el mismo renglón, lo que no cabe en una columna estrecha
+    tiene que saltar de línea en vez de estirar la columna.
+  · **UN ESCALÓN YA CONSEGUIDO SE QUEDA SOLO EN SU PREMIO**: ni umbral ni
+    estrellas. No es un objetivo, es un recuerdo — las estrellas que se tienen
+    ya salen arriba, bajo el nombre del escenario, y repetir la cifra de oro de
+    algo que se superó hace tres jornadas no ayuda a decidir nada. Así, un
+    escenario exprimido deja la columna derecha con lo único que sigue vivo (el
+    récord y lo que dejó), y uno aprobado a 2★ enseña solo el escalón de 3, que
+    es justo lo que le queda por hacer. Un escalón conseguido y SIN premio no
+    deja nada que enseñar y su línea se retira entera, o abriría un hueco.
+  · **EL RÉCORD NO SALE SI EL ESCENARIO NO SE HA JUGADO**: decía "Récord: sin
+    jugar", que es un renglón para decir que no hay nada que decir. La ficha de
+    un escenario nuevo se entiende sin él y el hueco se lo queda el botón.
+  · **Y TODA LA COLUMNA DERECHA COMPARTE CANTO IZQUIERDO** (objetivos y
+    récord): con unos renglones centrados y otros arrimados, se leían como
+    frases sueltas cada una a su aire en vez de como una lista.
+  · **EL BOTÓN DE "VIAJAR" NO CABÍA, y no era por su tamaño**: el panel va
+    anclado al canto de la pantalla y el marco de madera del pergamino mide
+    ~50 px (`PANEL_MARGIN`), así que con un `margin_bottom` de 30-38 el botón
+    se dibujaba ENCIMA del marco. Por eso el margen de abajo (50) es mayor que
+    el de arriba (34) y el panel subió a 396. El rótulo va en **Exo2-Bold** y
+    sin desplazamiento (`skin_start_button(b, 0.0)`), y el récord bajó de
+    cuerpo 30/20 a 25/17 para hacerle sitio.
 - `scripts/shop_screen.gd` — tienda (raíz **Node3D**): el **tendero 3D**
   (`tendero.glb`, sin rig: respira y se balancea desde su pivote) atiende en un
   **PUESTO DE MERCADO** montado sobre un muelle en el mar. El puesto se
@@ -3060,10 +3265,42 @@ primera vez que se entra en ellos (`logros_intro_done` /
   el botón **"Recargar artículos"** vuelve a sortearlo pagando
   `GameState.SHOP_REROLL_COST`. Al tocar un artículo se abre un cartel que
   pregunta CUÁNTOS usos se quieren (flechas ◄ N ►, total y dinero restante).
+- **EL RECETARIO VA POR SECCIONES DE ESTRELLAS** (`_paginas_recetario`): cada
+  doble página lleva recetas de UN SOLO nivel y las estrellas se dibujan una
+  vez arriba, como título de sección, en vez de repetirse debajo de cada
+  plato. Caben **6 por doble página** (3 por hoja) contra las 4 de antes, con
+  el dibujo algo más pequeño.
+  · **EL TÍTULO DE SECCIÓN VA EN EL CANTO IZQUIERDO DE LA HOJA IZQUIERDA**,
+    no centrado: centrado caía justo sobre el LOMO del libro, o sea en el
+    hueco entre las dos hojas, y un título escrito en la costura no pertenece
+    a ninguna de las dos páginas. Al margen, además, se lee antes que las
+    recetas.
+  · La rejilla se rellena **por COLUMNAS**, no por filas: el libro son dos
+    hojas y llenando por filas cada pareja se repartía entre las dos, así que
+    la hoja izquierda mezclaba recetas de arriba y de abajo.
+  · Las tarjetas van **SIN alto mínimo** y se reparten el papel
+    (`SIZE_EXPAND_FILL`): con un alto fijo la tercera fila se salía por
+    debajo del libro, y el corte cambiaba con el alto de la pantalla, así que
+    ningún número fijo valía. Y la rejilla se detiene ANTES del canto, que el
+    dibujo del libro oscurece el final de la hoja y el nombre se leía gris
+    sobre gris.
+- **`RecipeData.summary` DICE CIFRAS, no adjetivos**: "se come un 80% más
+  despacio" se puede comparar con otra receta y "muy despacio" no. Son hasta
+  `SUMMARY_MAX` (4) frases cortas, deducidas de los propios datos.
+- **LA COMIDA VEGETARIANA SE RETIRÓ** (pedido por el usuario): el campo
+  `vegetarian`, su hoja verde en el libro y en el selector, su filtro y su
+  línea en la ficha. Ningún cliente la pedía, así que el icono prometía una
+  mecánica que no existía.
+- **EL RECETARIO Y LA COLECCIÓN SON DOS BOTONES DISTINTOS** del submenú (el
+  LIBRO y el COFRE), aunque compartan escena (`GameState.inventory_view`, que
+  pone `main_menu._go_recipes` / `_go_inventory`): son dos cosas que no tienen
+  nada que ver —lo que sabes cocinar y lo que has ido encontrando— y compartir
+  pantalla obligaba a cruzar una pestaña para llegar a cualquiera. Con una sola
+  pestaña la fila no se dibuja: una pestaña suelta no es una elección.
 - `scripts/inventory_screen.gd` — inventario (raíz **Node3D**, fondo 3D del
-  barco) con tres pestañas:
+  barco) con sus pestañas:
   **Recetario** (libro `libro.png` con 4 recetas por doble página, buscador y
-  filtros de vegetariana / tipo de cliente; salen TODAS, las no aprendidas como
+  filtro por tipo de cliente; salen TODAS, las no aprendidas como
   silueta "???"; al tocar una se abre su ficha con precio, saciedad, cooldown,
   ingredientes, qué clientes la cogerán —leyendo `client3d.TAKE_CHANCES`, para
   que la ficha nunca mienta— y una DEMOSTRACIÓN que recorre sus pasos en bucle
@@ -3092,6 +3329,13 @@ primera vez que se entra en ellos (`logros_intro_done` /
   que el propio selector regaña por boca de Gigi. Con piratas en la mezcla se
   fuerza un plato de 2★, y con capitanes uno de 3★, cambiando el PEOR principal
   de la carta (nunca el postre ni el picoteo, que están por lo que hacen).
+  **LA INSIGNIA DE PRECIO DE LA TARJETA SE MONTABA Y NO SE COLGABA**: al
+  retirar la hoja vegetariana se fue con ella el `b.add_child(price_box)` que
+  estaba justo detrás, así que las tarjetas del selector se quedaron SIN
+  PRECIO y cada una dejaba tres nodos huérfanos. **Salió midiendo fugas en una
+  sonda, no mirando la pantalla**: un precio que falta no da ningún error y se
+  lee como que el diseño es así. Al quitar un bloque de una función que monta
+  interfaz, comprobar qué había pegado a él.
   **CON LA CARTA LLENA, LO QUE NO CABE SE APAGA** (`recipe_cards` +
   `_update_ui`): las no elegidas bajan a opacidad y las elegidas se quedan a
   plena luz, para poder soltar una y cambiarla. Tocar una receta de más nunca
@@ -3218,10 +3462,27 @@ Todo el audio del juego cuelga de UN autoload, `Audio`, para que ninguna
 pantalla tenga que saber por dónde suena nada. Antes solo sonaba la PESCA (con
 su `SoundBank` propio, que ahora es la pieza de bajo nivel que usan los dos).
 
-- **TRES BUSES**, creados por código en `Audio._crear_buses()` y no en un
-  `default_bus_layout.tres`: el layout es un recurso binario que no se lee ni
-  se versiona, y esto son nueve líneas que además documentan para qué es cada
-  bus. `Musica` / `Efectos` / `Voces` cuelgan de Master y los mueve el jugador
+- **TRES BUSES, y VAN EN `default_bus_layout.tres`** (que además es texto y se
+  versiona igual que el código). Estuvieron creados SOLO por código en
+  `Audio._crear_buses()`, y eso deja el juego **COMPLETAMENTE MUDO EN EL BUILD
+  DE WEB** — que es como se prueba en el móvil, así que el fallo solo aparecía
+  ahí. MEDIDO en el navegador, enchufando un analizador a la salida antes de
+  que arrancara el motor: contexto de audio vivo y `running`, la salida de
+  Godot conectada al destino (`AudioWorkletNode → destination`), sus sonidos
+  lanzándose (`AudioBufferSourceNode` a los 0,45 s: el mar de la portada)...
+  y **RMS 0.00000 clavado**. Un tono de prueba por el mismo camino daba 0,0355,
+  así que la medida era buena y el juego sonaba a volumen cero de verdad.
+  · **POR QUÉ**: el build de escritorio mezcla en software y se entera de un
+    bus nuevo en cualquier momento. El de WEB reparte los sonidos por un grafo
+    de WebAudio que monta AL ARRANCAR con la disposición que haya —se ve en la
+    traza de conexiones, a los 0,21 s— y todo lo que se mande a un bus creado
+    después no va a ninguna parte.
+  · `_crear_buses()` se queda como RED por si el archivo se pierde: salta los
+    buses que ya existan, así que con el .tres puesto no hace nada.
+  · **LA LECCIÓN GENERAL: lo que el motor monta AL ARRANCAR no se puede
+    configurar desde un `_ready()`.** Y como el escritorio lo perdona, hay que
+    comprobarlo en el build de verdad.
+  `Musica` / `Efectos` / `Voces` cuelgan de Master y los mueve el jugador
   desde Opciones → Sonido. **El volumen se mapea por POTENCIA** (`pow(v, 1.6)`),
   no lineal: al oído, media barra tiene que sonar a la mitad, y en lineal la
   mitad de la barra ya suena casi igual de fuerte. A cero el bus se **silencia**
@@ -3239,14 +3500,99 @@ su `SoundBank` propio, que ahora es la pieza de bajo nivel que usan los dos).
   de verdad, que es la peor clase de ruido: el que enseña a no mirar. **Por eso
   las sondas de audio se corren SIN `--headless`.**
 
-**LA MÚSICA: OCHO TEMAS, uno por SITIO** (`Audio.TEMAS`). El menú y el mapa de
-aventura comparten el suyo (son la misma escena y el mismo momento: estar en
-casa preparando el viaje), y los niveles llevan uno por **TIPO de escenario**,
-no por escenario: una isla suena a isla aquí y en el mar 7.
-menú/aventura · tienda · arcade · pesca · isla · puerto · abordaje · cueva.
+**LA MÚSICA: NUEVE TEMAS DE SITIO Y UNO DE MOMENTO** (`Audio.TEMAS`). El menú
+y el mapa de aventura comparten el suyo (son la misma escena y el mismo
+momento: estar en casa preparando el viaje), y los niveles llevan uno por
+**TIPO de escenario**, no por escenario: una isla suena a isla aquí y en el
+mar 7.
+menú/aventura · tienda · arcade · pesca · isla · puerto · abordaje · cueva ·
+tutorial. Los nueve son BUCLES y el décimo una pieza cerrada; el detalle, más
+abajo.
+**Los temas vigentes los eligió el usuario tema a tema** (menú alegre, isla
+tranquila, puerto animado, abordaje tenso pero divertido, pesca apacible,
+tutorial de pánico de cocina, la cueva la de siempre).
+**Y LA PALETA PIRATA ES DE FOLK Y VIENTO: ACORDEÓN, CONCERTINA, VIOLÍN Y
+TAMBORES MARINEROS EN 6/8** (decidido por el usuario al oír la isla y la pesca:
+"los piratas no usan la guitarra"). **NUEVE DE LOS DIEZ TEMAS ESTÁN HECHOS
+ASÍ**, la cueva incluida —allí la misma paleta va grave y con el violín
+soltando notas sueltas sobre un bodhrán que no para—, así que el juego suena a
+una sola banda tocando en sitios distintos.
+**LA EXCEPCIÓN ES EL MENÚ**: se rehízo con esta paleta y el usuario prefirió el
+anterior, así que se recuperó de `musica (v1)/menu_v2_guitarra.ogg` y ahí se
+queda. La paleta es la norma, no un dogma: manda el oído.
+**Y "SUENA A PIRATA" NO BASTA PARA UN SITIO CONCRETO**: la primera tienda con
+esta paleta sonaba a muelle abarrotado —o sea, al tema del PUERTO— porque
+llevaba caja marcial y pisotones. La segunda se pidió al revés, describiendo
+la ESCENA y no el género: un tendero apoyado en el mostrador, acordeón solo,
+concertina contestando, percusión de mano y nada de marcha. La guitarra —y con ella la mandolina, el
+banjo y cualquier cuerda pulsada— se PROHÍBE explícitamente en el prompt, o el
+generador la mete siempre: es su idea por defecto de "folk". El 6/8 es lo que
+suena a marinero; lo que cambia entre un tema y otro es la MELODÍA (animada en
+la isla, de notas largas en la pesca), no el ritmo ni los instrumentos y **la tanda anterior está guardada** en
+`sounds/Sin utilizar/musica (v1)/`, con los mp3 de origen de todas las
+generaciones en `musica (originales)/` — los dos con `.gdignore`, que una
+carpeta de sonido nueva se gdignora ANTES de tocar nada. La tienda y el
+arcade conservan SU canción: solo se les cosió el bucle.
+- **Y UN NOVENO QUE NO ES UN SITIO SINO UN MOMENTO**: `resultados`, el cartel
+  de fin de jornada. Es el único que no pide una pantalla al montarse —lo pide
+  `level3d._show_results`, porque ese cartel sale ENCIMA del nivel, que sigue
+  montado debajo— y lo releva la pantalla siguiente (el mapa al continuar, el
+  selector al repetir).
 - **LA PORTADA NO LLEVA MÚSICA** (decisión del usuario): solo el mar contra el
-  casco (`Audio.ambiente("mar")`). El tema entra al llegar al fondeadero, en
-  `_llegar_al_menu`, y ahí se va el ambiente.
+  casco. El tema entra al llegar al fondeadero, en `_llegar_al_menu`.
+- **EL MAR NO SE CORTA AL ZARPAR: BAJA.** Es el MISMO bucle (`ocean.ogg`)
+  sonando a TRES alturas — `AMB_PORTADA` (0 dB, donde es lo único que se oye),
+  `AMB_MENU` (−11 dB, por debajo del tema) y `level3d.AMB_NIVEL` (−20 dB, que
+  ahí hay una cocina entera por delante). Para eso `Audio.ambiente` admite un
+  `db`: pedirlo otra vez con otro volumen NO lo reinicia, solo lo mueve. Y el
+  BARCO cruje en las dos pantallas (`barco_cruje`, cada 9-17 s sorteados), más
+  bajo en el menú.
+- **Y SU VUELTA SE CRUZA CONSIGO MISMA** (`_bucle_ambiente`, `CRUCE_AMB` 2,5 s),
+  igual que la música y por lo mismo: con el `loop` del motor, el salto del
+  final al principio se oía como un corte en cada vuelta. MEDIDO con sonda: en
+  el cruce hay 15 fotogramas con las DOS pistas sonando a la vez.
+- **LOS SUELTOS DE AMBIENTE ENTRAN Y SALEN CON FUNDIDO** (`Audio.sfx_suave`):
+  un efecto puntual puede entrar de golpe —es un golpe—, pero un sonido de
+  fondo que aparece y desaparece a cuchillo se oye como un corte. Van en un
+  POOL de tres reproductores, aparte del de los efectos, porque se solapan de
+  verdad: en el mapa el barco viaja mientras pasa una gaviota.
+  · Con `dura` el sonido tarda LO QUE SE LE DIGA en vez de lo que dure la
+    toma, y con `tono` se le mueve la altura. Los dos los usa el CRUJIDO DEL
+    BARCO viajando por el mapa: dura exactamente lo que el trayecto y sortea
+    el tono en cada viaje (medido: 0.87, 0.95 y 1.11 en tres seguidos) — es
+    el mismo crujido, y cambiando de nivel diez veces sonaba siempre igual.
+  · Sin `dura`, se apaga al acercarse el final de la toma para que la cola
+    tampoco termine en seco.
+- **LAS DOS GAVIOTAS ESTABAN A 19 dB UNA DE OTRA** (una picaba a 0 dBFS y la
+  otra a −15,8) y el sorteo se oía como un fallo, no como variedad. Se
+  emparejaron con `volume` sobre el archivo, no con la tabla `VOL`: el
+  desnivel era del material, no del papel que hace en el juego. **Al meter una
+  toma nueva en una familia, medirla contra sus hermanas.**
+- **A LAS CAMPANAS LES COMIÓ LA COLA EL RECORTE DE SILENCIOS** (`ludo_audio`
+  quita el final por defecto, que en un efecto que se dispara mil veces es
+  lag). En una campana ESO ES el sonido: la resonancia. Se rehace del original
+  recortando solo la cabeza y con un `afade` de salida. Mismo criterio para
+  cualquier toma con cola larga.
+- **LAS GAVIOTAS SOLO EN EL MENÚ, NUNCA EN LA PORTADA** (decidido por el
+  usuario): allí estorbaban al mar, que es todo el ambiente que hay. Los dos
+  relojes van sorteados dentro de una horquilla ancha y no a intervalo fijo —
+  un sonido de fondo que cae siempre al mismo ritmo deja de ser fondo y se
+  convierte en un metrónomo.
+- **ZARPAR SON LAS CAMPANAS DEL BARCO**, no un "confirmar" de interfaz, y al
+  soltar amarras suenan además las VELAS cogiendo viento. Salir hacia
+  cualquiera de los cuatro modos llama a `_sonar_zarpe()`: velas más el casco
+  moviéndose de fondo, este último MUY bajo porque acompaña al viaje — el
+  botón ya lo ha anunciado.
+- **EL TIMÓN SON DOS SONIDOS DISTINTOS**: el CRUJIDO (`timon_cruje`) salta con
+  cualquier movimiento por mínimo que sea —con un reposo de 0,22 s, o se
+  solaparían decenas de copias por segundo— y el GOLPE (`timon`) solo cuando
+  un mango pasa por arriba. Son dos cosas: una es la madera girando y la otra
+  el mango llegando. **Y por eso el golpe es un CHASQUIDO DE MECANISMO, no un
+  crujido**: la primera versión se pidió como "creak and click" y sonaba a un
+  segundo crujido encima del primero, o sea a ruido. Se regeneró prohibiendo
+  explícitamente la madera ("no wood creak, no groan, no rope"). `TIMON_MANGOS` = 8, así que una vuelta
+  entera suena ocho veces y media vuelta cuatro; el oído sigue el giro en lugar
+  de oír un ruido suelto. MEDIDO: 8 golpes por vuelta completa.
 - **EL SELECTOR DE RECETAS YA SUENA AL SITIO AL QUE SE VA** (`prep_screen`):
   elegir carta es parte del viaje, así que pone el tema del DESTINO. Con eso la
   transición al nivel no corta la música y el jugador ya sabe si le espera una
@@ -3254,28 +3600,176 @@ menú/aventura · tienda · arcade · pesca · isla · puerto · abordaje · cue
 - Las pantallas de casa (inventario, opciones, logros, maestrías,
   bonificadores, perfil) **siguen con el tema del menú**: se entra y se sale de
   ellas todo el rato y cortar la música en cada una sería un tajo.
-- El TUTORIAL suena a **abordaje**: es una cubierta desbordada contra el reloj,
-  y el tema de la isla debajo de aquel desastre lo dejaba en broma.
-- **EL BUCLE SE HACE CRUZANDO EL TEMA CONSIGO MISMO** (`_bucle_musica`, dos
-  reproductores), no con el `loop` del recurso: el corte del final contra el
-  arranque se oye como un salto aunque el .ogg no deje hueco, y estos temas no
-  están compuestos para casar nota con nota. MEDIDO con sonda: a 2,1 s del
-  final entra la copia desde 0, se solapan ~2 s cruzando volumen y al terminar
-  queda una sola sonando; ni un hueco. Si la otra pista estuviera ocupada (se
-  acaba de cambiar de tema y justo toca la vuelta) se rebobina la que suena:
-  una costura suena mejor que quedarse en silencio.
+- **EL ABORDAJE SE ACELERA SEGÚN SE ACABA EL RELOJ** (pedido por el usuario;
+  `level3d._tempo_del_abordaje` → `Audio.tempo`). `pitch_scale` sube la
+  velocidad Y el tono a la vez, así que la música se pone nerviosa sola y el
+  jugador nota la prisa antes de mirar el cronómetro. Va del 1.00 al **1.12**,
+  y **no arranca hasta el 55% del turno** (`TEMPO_DESDE`): acelerando desde el
+  primer segundo se oye como que el tema está mal, no como que queda poco. La
+  curva es cuadrática, que entra despacio y aprieta al final en vez de sonar a
+  motor subiendo de vueltas. Solo donde hay reloj Y el tema es el de abordaje
+  —ni arcade ni tutorial ni cueva—, y `musica()` devuelve el tempo a 1.0 al
+  cambiar de tema, o el siguiente heredaría la prisa del anterior.
+- **ZARPAR, EMPEZAR Y EL FIN DE LA PREPARACIÓN SON TRES MOMENTOS Y TRES
+  SONIDOS.** Sonaban los tres igual, y la causa era de ORDEN: los tres botones
+  llevan la placa de oro de `skin_start_button`, que les ponía el papel
+  "zarpar" — y como el skinner corre DESPUÉS de que el llamante ponga el suyo,
+  se lo pisaba. `level3d` ya tenía escrito su `set_meta("snd", "click")` y no
+  servía de nada. **El skinner ya no toca el sonido: la placa es un LOOK, y el
+  papel lo pone quien la usa.** Hoy: zarpar del selector = campanas del barco
+  (y su botón va con el papel VACÍO, porque el sonido lo pone
+  `_on_start_pressed` junto al crujido del casco — con los dos, las campanas
+  sonaban dos veces), "Viajar" del mapa = velas, "¡Empezar!" = clic corriente,
+  y el fin de la preparación suena a **`fin_turno`**, LA MISMA CAMPANA con la
+  que se cierra la jornada (pedido por el usuario): el servicio abre y cierra
+  igual, y lo que no podía sonar como esto eran las campanas de ZARPAR —que
+  son del barco— ni el botón de "¡Empezar!". Llegó a tener familia propia
+  (`servicio`) y se retiró al decidirse esto.
+- **EL TUTORIAL TIENE SU PROPIO TEMA** (`tutorial`). Sonó un tiempo al de
+  ABORDAJE —una cubierta desbordada contra el reloj— y no es lo mismo: en un
+  abordaje el jugador PELEA, y en la intro del caos PIERDE, a propósito y sin
+  saber todavía por qué. El suyo va acelerado, atropellado y cómico, de pánico
+  de cocina. Es además el tema con el material más suelto de todos (su punto
+  de vuelta "casa" a 0.767, cuando los demás andan por 0.13-0.30) y aun así su
+  costura mide percentil 25: en una pieza que es puro desorden, un salto no
+  destaca. La prueba de que el listón tiene que ser RELATIVO a la canción.
+- **EL BUCLE VA COSIDO EN EL ARCHIVO, no en el reproductor**
+  (`tools/musica_bucle.py`, `Audio.TEMAS_BUCLE`, rehecho el 22-8-2026 a
+  petición del usuario: "que tanto el inicio como el final de la canción
+  resulten en un bucle"). Los ocho temas de sitio llevan su .ogg preparado
+  para repetirse y el bucle lo lleva el MOTOR (`loop=true` en su `.import`),
+  que no cuesta nada y no se nota. Cómo se prepara, y por qué así:
+  · **EL PUNTO DE VUELTA SE BUSCA, NO SE CALCULA**: nada de estimar el tempo
+    —falla en cuanto la pieza respira—. Se saca un espectrograma por bandas,
+    se coge una ventana de 4 s del arranque y se compara contra TODAS las
+    posiciones posibles del final. Como casar exige que coincidan el compás y
+    la instrumentación, los puntos que salen están alineados a compás solos.
+  · **PERO EL QUE MEJOR CASA NO ES EL QUE MEJOR SUENA**: se cosen diez puntos
+    de verdad y se MIDE cada uno (`_costura`: se pega el bucle consigo mismo y
+    se compara el salto de la vuelta con el que la propia canción da en cada
+    cambio de compás; sale un PERCENTIL, así que el listón se adapta a si es
+    una nana o un abordaje). Los ocho temas quedan entre el percentil 18 y el
+    65: la vuelta salta MENOS que una transición normal suya.
+  · **Y EL CRUCE TAMPOCO SE DEDUCE: SE PRUEBA** (0.03 · 0.12 · 0.35 · 0.80 ·
+    1.50 s, se queda el que mejor mide). Parecía que "casa bien, cruce corto",
+    y es al revés de lo que uno diría: en el abordaje, el punto que casaba
+    casi calcado (0.019) daba la PEOR vuelta de todas con 0.38 s de cruce —
+    con material idéntico pero no alineado en fase, el cruce no funde, CANCELA.
+  · El cruce es **ENVUELTO**: la cabeza del archivo se mezcla con lo que venía
+    DESPUÉS del punto de vuelta, o sea con su continuación natural, en potencia
+    constante (seno/coseno; en lineal se oye un bache a mitad).
+  · **SE CAMBIA LARGO POR COSTURA A UNA TASA FIJA** (`VALE_UN_SEGUNDO` 1.5):
+    quedarse con el candidato más limpio a secas tiraba media canción (la isla
+    se quedaba en 18 s de los 48 que casaban de sobra), y quedarse con el más
+    largo metía saltos. El corte duro de `PCT_LIMPIO` (85) no se salta nunca.
+- **LOS TEMAS NO SE GENERAN "A VER QUÉ SALE": SE PIDEN COMO BUCLE.** Un
+  generador devuelve una PIEZA, con su desarrollo, y una pieza que nunca
+  repite su material NO TIENE punto de vuelta bueno: se midió, y los primeros
+  intentos de menú, isla, puerto y pesca no casaban en ningún sitio por debajo
+  de 0.19. Rehechos pidiendo **"UN SOLO groove de ocho compases repetido todo
+  el rato, sin secciones, sin modulación, sin ir añadiendo capas"**, la isla
+  bajó de 0.39 a 0.097. Lo que hace que un bucle exista es que la música
+  repita, y eso hay que pedirlo en el prompt.
+- **`_bucle_musica` SE QUEDA COMO RED** para un tema sin bucle preparado: cruza
+  el tema consigo mismo 2,2 s. Esconde el corte, sí, pero mezcla dos segundos
+  de compases que no se corresponden y cada vuelta suena emborronada. Hoy no
+  la usa nadie; si entra un tema nuevo, cósele el bucle.
+- **EL DE RESULTADOS ES EL ÚNICO CON FINAL** (`Audio.TEMAS_FINAL`): ni se cruza
+  —el cruce se comería justo el acorde de cierre— ni lleva `loop`. Suena
+  entero, se apaga y vuelve a empezar (`_bucle_musica` lo rearranca mirando
+  `_obj`, para no revivirlo mientras se está yendo).
+  **Y ENTRA CON TRANSICIÓN** (`CRUCE_FINAL`, 1,4 s), tanto la primera vez como
+  en cada vuelta (pedido por el usuario: "como es una canción que tiene fin,
+  que inicie con una transición"). Un tema en bucle puede entrar de golpe —no
+  tiene principio, es un lazo—, pero este acaba de morirse con su acorde y
+  volver a plena fuerza se oye como un pinchazo.
+  **Y SU FINAL ESTÁ MONTADO A MANO** (`tools/musica_cierre.py`): se le pidió
+  tres veces al generador "treinta segundos con cadencia final, acorde largo
+  que se apaga y silencio" y las tres devolvió la pieza CORTADA a media frase,
+  con el último compás al 70-99% de su fuerza (medido con el perfil de energía
+  de la cola). La herramienta busca el ÚLTIMO GOLPE fuerte y desde ahí apaga
+  el sonido con curva exponencial —un acorde se muere así; en lineal se oye el
+  gesto de bajar el volumen— y deja silencio detrás. Arrancando en un golpe se
+  lee como "la canción ha terminado" y no como "han bajado el mando".
 - **LOS FUNDIDOS SE HACEN A MANO EN `_process`, no con tweens**: la caja de
   diálogo pone el árbol en pausa a cada rato y un tween a medias dejaría la
   música congelada a mitad de volumen para siempre.
 
-**LOS EFECTOS: 54 FAMILIAS Y 151 TOMAS** (`Audio.FAMILIAS`). Una familia son varias tomas
-del MISMO sonido y `SoundBank` elige una **sin repetir la anterior**; encima,
-`Audio.sfx()` le mueve el TONO al azar (`VAIVEN` 6%, o 10% en las familias de
-una sola toma, que no tienen otra variedad). Con seis tomas de clic y ese
-vaivén no hay dos pulsaciones idénticas en toda la partida, que era lo que
-pedía el encargo.
-- **Volumen POR FAMILIA** en la tabla `VOL`, no en cada llamada: así un sonido
-  no suena a un volumen en una pantalla y a otro en la siguiente.
+**LOS EFECTOS: 41 FAMILIAS** (`Audio.FAMILIAS`), y la regla que las gobierna es
+**variedad SOLO donde hace falta**. Se aprendió a base de rehacerlo: la primera
+versión sorteaba toma y movía el tono en TODO, botones incluidos, y el usuario
+lo rechazó — «esos botones no tienen por qué sonar aleatoriamente unos u otros
+distintos».
+- **LA INTERFAZ VA POR PAPELES, un solo sonido cada uno y SIEMPRE EL MISMO.**
+  Un botón no es un gesto que busque variedad: es una respuesta, y una
+  respuesta que suena distinta cada vez se lee como que el juego está haciendo
+  cosas distintas. Lo que tiene que distinguirse es el PAPEL, no la pulsación.
+Los papeles, y todos los botones de uno suenan igual entre sí:
+  **`click`** (el botón corriente), **`atras`** (Atrás, Salir, Terminar,
+  Cancelar y el aspa roja), **`ok`** (el visto verde), **`modo`** (los cuatro
+  pergaminos: Aventura, Arcade, Pesca y Tienda), **`submenu`** (los cinco
+  accesos de la barra de abajo), **`recurso`** (las cajas de lingotes,
+  doblones y arroz, y la barra de nivel que lleva a Maestrías) y **`zarpar`**
+  (arrancar la jornada).
+- **DOS PAPELES PUEDEN COMPARTIR TOMA Y AUN ASÍ DISTINGUIRSE**, moviéndoles el
+  TONO (`Audio.TONO`): "atras" es el clic de siempre a 0.82. Se lee como "lo
+  contrario de lo que acabas de hacer" sin añadir un sonido más al juego.
+- **TODA VENTANA EMERGENTE HABLA CON LA MISMA TOMA A TRES ALTURAS**: `recurso`
+  al abrirse, **`recurso_off`** (0.80, grave) al cancelar y **`recurso_ok`**
+  (1.18, aguda) al confirmar. Sin aprenderse nada, el jugador oye si acaba de
+  deshacer o de aceptar. Lo pone `skin_action_button` —el visto verde y el
+  aspa roja— y el propio `Audio.ventana`, cuyos valores por defecto son ya
+  esos dos, así que un cartel nuevo lo hereda sin tocar nada. Por eso ya no
+  existen las familias "ventana"/"ventana_off".
+- **EL BARCO ES LA RESPUESTA A PULSAR UN MODO, no un adorno**: `velas` y
+  `barco_mover` estuvieron a −10 y −14 dB y con el ajuste general encima no se
+  oían; hoy van a +2 y 0. En el MAPA suena `barco_mover` al elegir un nodo (el
+  barco viaja hasta él) y su botón dice **"Viajar"**, no "¡Zarpar!", con las
+  VELAS: zarpar es lo que se hace al salir del selector de recetas, y allí
+  suenan las CAMPANAS.
+- **EL MAPA PIDE SU MÚSICA EN `_enter_map`, no solo en `_show_menu`.** Al
+  volver de un nivel se entra por la transición "mapa", que NO pasa por el
+  menú, así que el mapa se quedaba con la música del nivel del que se acababa
+  de salir. Cualquier camino nuevo de entrada al mapa tiene que pedir su tema.
+  El papel se marca en el SKINNER, que es por donde pasan todos:
+  `make_back_button`, `skin_action_button`, `skin_start_button` y los dos
+  constructores de botón de `main_menu`. Un botón nuevo hereda el papel de su
+  skinner sin tocar nada.
+- **EL SORTEO Y EL VAIVÉN DE TONO SON SOLO DE LA COCINA** (`VARIAN`): ahí el
+  jugador repite el mismo gesto decenas de veces por partida y la toma
+  idéntica se delata. Fuera de la cocina no se aplica ninguno de los dos.
+- **TODO EL JUEGO SUENA AL MISMO NIVEL, Y ESE NIVEL SE MIDE**
+  (`tools/audio_nivelar.py`, pedido por el usuario: "que todos los sonidos y
+  música suenen al mismo volumen... de esta forma yo podré luego modificar el
+  volumen como vea necesario"). El material viene de cuatro sitios distintos y
+  cada uno traía el suyo: MEDIDO, había **37,9 dB** entre el sonido más flojo
+  (el "mantener" de la cocina) y el más fuerte (el soplete). Con esa
+  dispersión no hay perilla que valga, porque subir el conjunto deja unos a
+  gritos antes de que otros se oigan.
+  · **SE MIDE LA SONORIDAD, NO EL PICO**: dos sonidos con el mismo pico suenan
+    muy distinto si uno es un golpe seco y el otro un zumbido sostenido. Se usa
+    la sonoridad con **ponderación K** (ITU-R BS.1770, la de radio y
+    televisión), que pesa cada frecuencia como la oye una persona.
+  · **Y SOLO LA PARTE QUE SUENA**: la norma trabaja por bloques de 400 ms y
+    descarta lo que quede bajo un umbral, así que con efectos de 80 ms devuelve
+    "silencio". La herramienta acota antes la región activa (lo que pasa de
+    −45 dB de su propio pico) y mide ahí, así que un chasquido y un bucle de un
+    minuto se comparan por lo mismo: lo fuerte que suenan MIENTRAS suenan.
+  · La ponderación se aplica **por Parseval**, multiplicando la potencia del
+    espectro por la respuesta de los dos biquads de la norma en vez de filtrar.
+    Sale lo mismo en una línea de numpy.
+  · Resultado: los 53 efectos, los 10 temas, las 13 voces y el mar quedan
+    todos en **−28 LKFS con 0,1 dB de dispersión**, y el pico efectivo más alto
+    es −1,9 dBFS, o sea que nada recorta. Las tablas son `VOL` (efectos),
+    `TEMAS_DB` (música), `VOZ_DB_PERS` (voces) y `AMB_DB`; los trims de
+    categoría (`AJUSTE`, `MUS_DB`, `VOZ_DB`) van los tres a −7, así que las
+    tres barras de Opciones parten de una mezcla plana.
+  · **LAS EXCEPCIONES VAN DECLARADAS** en `MATIZ`, dentro de la herramienta, y
+    son solo dos: el CORTE LENTO, que el usuario pidió de fondo, y los bucles
+    de trabajo sostenido (mantener, remover, freír, soplete), que suenan
+    segundos seguidos y a la misma altura que un golpe se comen la partida.
+  · **Al añadir un sonido, pasar la herramienta.** A ojo no se acierta, y un
+    número puesto a mano rompe la nivelación de todo lo demás.
 - **`REPOSO` (35 ms) es un tope de ráfaga**, no un adorno: la cocina dispara
   tres golpes de corte muy seguidos y tres copias solapadas del mismo golpe
   suenan a distorsión, no a tres golpes.
@@ -3299,6 +3793,22 @@ Un botón nuevo suena sin que nadie se acuerde de nada.
   de RECETA de la tabla (su sonido lo pone el evento `select` de `craft_event`,
   y con el clic genérico encima sonaban dos cosas por toque).
 
+**COSAS QUE SE APRENDIERON AFINANDO ESTO** (todas medidas o pedidas):
+- **UNA FAMILIA PUEDE LLEVAR DÍGITOS EN EL NOMBRE** (`bar_estrella3`) y las
+  herramientas que leen `audio.gd` con `[a-z_]+` NO LA VEN: su fila
+  desaparecía de la lista publicada sin dar ningún error. Las regex van con
+  `[a-z_0-9]+`.
+- **UN EFECTO PUEDE DURAR LO QUE SE LE PIDA** (`Audio.sfx_dura`): se calcula
+  primero cuánto va a tardar lo que acompaña —el viaje de la barra de
+  experiencia— y de ahí sale la velocidad del sonido, para que empiecen y
+  acaben juntos. El tono se acota a 0.55-2.0: si el viaje se sale de ahí, se
+  prefiere que no cuadre del todo a que suene a ardilla.
+- **LOS TONOS SON LA MONEDA DE CAMBIO DE TODO ESTE SISTEMA.** La misma toma a
+  otra altura vale como sonido nuevo y no añade un archivo: "atrás" es el clic
+  a 0.82, cancelar una ventana es su apertura a 0.80 y confirmar a 1.18, el
+  cartel de potenciador es la habilidad a 0.85, y las tres estrellas del cartel
+  de resultados son la misma a 0.75, 0.85 y 1.00.
+
 **LAS VENTANAS, con una sola llamada**: `Audio.ventana(nodo)` suena al abrir y
 **vuelve a sonar sola** cuando ese nodo se va del árbol (`tree_exiting`). Va
 así porque el juego tiene una veintena de carteles modales y cada uno se cierra
@@ -3309,6 +3819,38 @@ lo mata): colgándose de la señal no hay forma de que a un camino se le olvide.
 `craft_event` a `_sonido_gesto`, y esa señal ya se emitía en los veinte sitios
 donde el jugador hace algo. No hay llamadas de audio repartidas por el archivo,
 y un gesto nuevo suena solo con emitir su evento.
+- **TODA LA COCINA SALE DE `sounds/soundly` Y DE `Cozy Craft`** (elegido por el
+  usuario a oído, NO re-barajarlo): foley de cocina de verdad. La primera
+  versión se generó con Ludo describiendo el gesto ("cuchillo cortando pescado
+  sobre tabla") y **el usuario la rechazó entera**; el material bueno estaba en
+  una carpeta del repositorio que no se miró. Antes de generar un sonido, MIRAR
+  qué hay: `Cozy Craft` trae una carpeta **Cooking** completa.
+- **EL AMASADO SON 4 TOMAS Y EL CORTE 9**, no dos: son los gestos que el
+  jugador repite decenas de veces por partida y con dos se oía el patrón por
+  mucho sorteo sin repetición que hubiera. Las nueve del corte salen de UN
+  archivo (`cortar.wav`, once golpes seguidos) partido por silencios con
+  `tools/audio_split.py`; las dos de enrollar, igual.
+- **EL PASO COMPLETADO NO SUENA** (decidido por el usuario): una receta son
+  hasta seis pasos y un tintineo en cada uno llenaba la elaboración de avisos
+  que no dicen nada. Por eso no existe la familia "paso".
+- **EL CORTE LENTO NO ES UN DISPARO: ES UN BUCLE QUE SIGUE AL DEDO.** Suena
+  mientras el dedo AVANZA y se **PAUSA** en cuanto se para, y al seguir
+  continúa POR DONDE IBA (`Audio.loop_pausa` → `SoundBank.loop_pause`, que
+  mueve `stream_paused`). Apagarlo y volver a encenderlo lo devolvería al
+  principio y sonaría como un corte nuevo en cada tirón. Lo gobierna
+  `prep_board._sonido_sostenido` con `slice_move_ms`, que apunta el último
+  arrastre; parado más de `CORTE_QUIETO_MS` (90 ms), se calla. Ese margen va
+  CORTO a propósito: el dedo se para constantemente mientras se busca la
+  velocidad buena, y con un margen largo el sonido seguía corriendo con el
+  corte ya detenido. MEDIDO con sonda: posición 0,28 congelada durante 0,3 s
+  de parón y reanudada en 0,49, no en cero.
+- **LOS VOLÚMENES DE COCINA NO SE ELIGEN, SALEN DE LA MEDIDA** como los del
+  resto del juego (ver el bloque de la nivelación, arriba): las tomas traen
+  niveles muy distintos entre sí —el amasado pica a −30 dBFS y el soplete a 0—
+  y de ahí que el arroz suba +23 dB y el soplete baje −19. Lo único que se
+  decide a mano es el MATIZ: el corte lento va 10 dB por debajo del resto
+  porque el usuario lo pidió de fondo, y los cuatro bucles de trabajo
+  sostenido, 6 dB, porque suenan segundos seguidos.
 - **LOS BUCLES SOSTENIDOS SE DEDUCEN DEL ESTADO**, no se encienden y apagan a
   mano (`_sonido_sostenido`, llamado desde `_process`): `holding`, `stirring` y
   `frying` ya dicen lo que pasa, así que ningún camino de salida —cancelar,
@@ -3326,6 +3868,23 @@ y un gesto nuevo suena solo con emitir su evento.
   como en una aventura clásica. Se empezó con interjecciones habladas ("¡Eso
   es!", "Escucha") y **se rehízo entero**: si dice palabras, no es una voz de
   personaje, es doblaje a medias.
+- **Y SON MUY CORTAS: 0,50 s DE TOPE, CON FUNDIDO DE SALIDA** (`MAX_S` en
+  `tools/voces_humanas.py` y en `tools/voces_afinar.py`; pedido por el
+  usuario). Estaban en 1,32 s de media y alguna llegaba a **10,65 s**, y como
+  el diálogo se pasa A TOQUES, una toma larga se pisa con la siguiente y acaba
+  sonando como si el personaje hablara de verdad — justo lo que no se busca.
+  Hoy la media es 0,462 s y ninguna pasa de 0,52. El corte se hace SOBRE EL
+  ORIGINAL del pack, no sobre el .ogg ya convertido, así que el archivo del
+  juego sigue siendo de primera generación; solo Cai y el Kappa, que no tienen
+  original a mano, se recortan en el sitio.
+- **HABÍA DIEZ TOMAS MUERTAS Y NADIE LO SABÍA** (`voces_afinar.py --sanear`):
+  `voz_split.py` parte cada generación en tres, y cuando el motor de voz dejó
+  una pausa larga al final, el tercer trozo salió SIENDO esa pausa — 0,06 s a
+  **-91 dBFS**. Tres de Cai y siete del Kappa. En el juego eso es que una de
+  cada tres veces que ese personaje habla no suena NADA, y como el sorteo es al
+  azar se vive como que el audio va y viene. Se tapan copiando la mejor toma de
+  SU MISMO humor. **Al añadir voces, medir los picos**: una toma muda no da
+  ningún error.
 - Las rutas se COMPONEN por convención a partir de la tabla `VOCES` (que es la
   que dice qué existe) y se comprueban con `ResourceLoader.exists`, que sí
   funciona en el export — al revés que escanear la carpeta.
@@ -3335,30 +3894,60 @@ y un gesto nuevo suena solo con emitir su evento.
   elige la cara. Así el retrato y la voz no pueden ser de dos personas
   distintas. Una expresión sin voz cae a la primera del personaje en vez de
   quedarse muda.
-- **CATÁLOGO DE VOCES DE PRESET, no diseñadas** (`createSpeechPreset` de Ludo):
-  lo que más importa en 63 tomas es que el personaje suene IGUAL en todas, y un
-  preset con nombre lo garantiza mientras que diseñar la voz en cada llamada la
-  cambia. Reparto: David *Deep voice man*, Saverio *Friendly man*, Pablo
-  *Determined man*, Cai *Young elegant man* (y en JAPONÉS, que es lo único que
-  habla), Alice *Calm teen girl*, grumete *Teen boy* / *Sweet girl*, pirata
-  *Patient man* / *Fast-paced woman*, capitana *Serious woman*.
-  · **Solo hay SEIS voces masculinas de catálogo y el reparto son siete
-    hombres**: el CAPITÁN comparte la de David y se le baja el tono a 0.86
-    (`VOZ_TONO`), que basta para que se lea como otra persona. El Kappa va a
-    0.92 para sonar grande y Gigi a 1.06.
-  · **GIGI Y EL KAPPA NO SON DE PRESET**: un loro y una criatura no salen de un
-    TTS. Los suyos son `createSoundEffect` — chillidos y graznidos para Gigi,
-    croares y rugidos para el Kappa.
+- **SALEN DEL PACK "FS Human Voices", no de un sintetizador**
+  (`tools/voces_humanas.py`). El pack trae 541 tomas por tipo de voz repartidas
+  en 15 categorías —Idle, Affirmation, Cheering, Laughing, Reaction, Screaming,
+  Crying, Erm, Thinking, Objection…— y **ninguna dice una palabra**, que es
+  justo lo que pide el juego. Antes eran voces de TTS diciendo interjecciones;
+  el pack humano suena a persona y no a un sintetizador leyendo "mmm".
+  · **La expresión manda sobre la categoría** (`CATEGORIA`): "riendo" es una
+    risa y "gritando" un grito, no hay que darle más vueltas.
+  · **Solo hay CUATRO tipos de voz y el reparto son DIEZ personajes**, así que
+    varios comparten timbre por fuerza y lo que los separa es el TONO
+    (`Audio.VOZ_TONO`), que va en la tabla y NO horneado en el archivo: se
+    afina sin reconvertir 141 clips. David, pirata y capitán son *Male Type 1*
+    (1.00 / 0.94 / 0.84); Pablo, Saverio y grumete *Male Type 2*
+    (1.22 / 1.08 / 1.32); las cuatro mujeres comparten *Female Type 1*
+    (decidido por el usuario) y se separan igual, por tono.
+    **LOS TRES DEL TIPO 2 SUBIERON DE GOLPE** (el usuario, de los tres a la
+    vez: "tiene la voz demasiado grave"). Estaban en 1.06 / 0.92 / 1.14, y que
+    los tres suenen graves no es un problema de cada uno sino del TIPO DE VOZ
+    que comparten: se sube el conjunto y se conserva la separación entre ellos,
+    que es lo único que los distingue. De propina, subir el tono acorta la
+    toma, que aquí viene bien.
+  · **UNA TOMA NO SE REPITE DENTRO DEL MISMO PERSONAJE**: el pool de cada
+    categoría se baraja y se consume, así que dos expresiones de la misma cara
+    nunca salen con el mismo gruñido. La semilla es fija: la pasada es
+    repetible.
+  · **CAI Y EL KAPPA NO SE TOCAN**: el primero conserva su voz japonesa (lo
+    único que habla) y el segundo no es humano — croares de criatura,
+    generados.
+  · **GIGI TIENE SU PROPIA TOMA** (`gigi.wav`, del usuario), y sus seis
+    graznidos SE REPARTEN Y SE REPITEN entre los doce huecos de sus cuatro
+    humores: pedido así a propósito, porque el loro de verdad repetido suena
+    mejor que una voz generada que no es la suya.
+    **SE REHACEN CON `voces_afinar.py --gigi`**, no a mano: la grabación es de
+    sala, así que lleva pasa-altos a 200 Hz (el retumbe del cuarto; el graznido
+    es todo agudo) y `afftdn` contra el siseo, y **cada graznido se normaliza
+    POR SEPARADO** — entre uno y otro hay 10 dB, y lo que se oye repetido es
+    cada uno por su cuenta. Estaban a -13/-15 dBFS de pico, flojísimos al lado
+    del resto; hoy van a -3,5 (el usuario los pidió más altos y sin ruido).
+    **Y EL REPARTO NO PUEDE SER "los tres primeros, los tres siguientes"**: así
+    dos humores salen con LOS MISMOS tres archivos y suenan idénticos. Cada
+    humor lleva un trío distinto (`GIGI_MOODS`).
 - **EL VAIVÉN DE TONO DE LAS VOCES VA CORTO** (2,5% contra el 6% de los
   efectos): una voz humana estirada se nota enseguida, al revés que un golpe de
   cuchillo.
 - Una voz nueva **corta a la anterior**: el personaje no puede hablarse encima
   de sí mismo al pasar de línea a toques.
-- **LOS CLIENTES HABLAN POCO Y SORTEADO** (`client3d.VOZ_AL_SENTARSE` 0.35,
-  `VOZ_AL_COMER` 0.22): en la barra hay hasta ocho a la vez y un gruñido por
-  cada cosa que hacen convierte el nivel en un gallinero. Al LEVANTARSE sí
-  habla siempre, y con la cara que toca: contento si comió, seco si se va de
-  vacío — ese es el momento que el jugador tiene que oír.
+- **LOS CLIENTES NO SUENAN. NINGUNO** (decidido por el usuario, no
+  re-litigar): ni al llegar, ni al sentarse, ni al coger plato, ni al
+  masticar, ni al irse. Lo único que se oye de la barra es la MONEDA cuando
+  pagan. Se probó lo contrario —voz sorteada al sentarse y al comer, chasquido
+  al coger el plato, un "ñam" por mordisco— y con ocho bocas a la vez el nivel
+  era un gallinero que tapaba la cocina, que es donde el jugador tiene las
+  manos. Las voces de DIÁLOGO (los guiones) no tienen nada que ver con esto y
+  siguen puestas.
 
 **CÓMO SE FABRICÓ TODO ESTO** (dos herramientas, las dos re-ejecutables):
 - **`tools/ludo_audio.py`** descarga de Ludo y deja el archivo en OGG dentro
@@ -3379,6 +3968,16 @@ y un gesto nuevo suena solo con emitir su evento.
     ya casados para que el bucle no se note, y quitarle el silencio los
     descuadra. Todo lo demás sí, que una cola de silencio en un efecto que se
     dispara mil veces se oye como lag.
+- **`tools/audio_split.py`** parte un audio por sus SILENCIOS y deja cada
+  trozo en OGG. Lo necesitan las tomas con VARIOS sonidos dentro de un mismo
+  archivo: `cortar.wav` trae once golpes de cuchillo seguidos y el sprite de
+  enrollar trae dos. Del archivo entero solo sale UN sonido; partido, sale una
+  familia con la que sortear. **Los trozos cortos se tiran** (`--min`, 40 ms
+  por defecto): entre golpe y golpe quedan colas de 16 ms que el detector
+  cuenta como sonido y que en el juego serían un clic sucio — de los once
+  tramos de `cortar.wav` sobreviven nueve. Es el hermano genérico de
+  `voz_split.py`, que fuerza exactamente tres tomas y escribe en
+  `sounds/voces`.
 - **`tools/voz_split.py`** parte UNA toma en las TRES que pide cada expresión.
   63 expresiones × 3 son 189 clips: pidiéndolos de uno en uno son 189
   generaciones, y pidiendo las tres interjecciones en la MISMA llamada y
@@ -3401,9 +4000,30 @@ y un gesto nuevo suena solo con emitir su evento.
     la separación, porque partir por partes iguales daría tres trozos cortados
     a media vocal.
 
-**PESO FINAL DEL AUDIO: 9,36 MB** — música 6,28 · voces 1,34 · interfaz 0,86 ·
-cocina 0,51 · nivel 0,37. Los ocho temas duran de 48 a 76 s (el del menú es el
-más largo porque es el que más se oye).
+**SOLO SUENA LO QUE APORTA AL JUEGO** (decidido por el usuario). Se quitaron,
+con su código y sus archivos: el tecleo de la máquina de escribir del diálogo
+(11 clics por segundo mientras escribe), el pergamino al abrir y cerrar la caja
+—la voz del personaje ya dice que alguien habla—, las gaviotas y los crujidos
+de fondo del menú, el crujido del timón, el roce de vela en cada cambio de
+pantalla, el saco al comprar arroz, el destello del ayudante (el plato que
+termina ya suena por `craft_event`), la propina —cae en el mismo instante que
+el pago y se oían dos monedas encima de la otra— y el tintineo de cada paso de
+receta. **Antes de añadir un sonido nuevo, la pregunta es si el jugador
+DECIDE algo distinto al oírlo.**
+
+**PESO FINAL DEL AUDIO: 7,86 MB** — música 5,25 · voces 1,23 · barco 0,63 ·
+pesca 0,30 · cocina 0,29 · interfaz 0,20 · nivel 0,08. Los diez temas duran de
+26 a 58 s y son el 67% del total: al recortar peso de audio, es ahí donde
+está. Las VOCES cayeron de 2,24 a 1,23 MB al cortarlas a medio segundo, y la
+música bajó un mega al coserle el bucle a cada tema, porque se queda solo con
+la parte que da la vuelta.
+la parte que da la vuelta.
+
+**HAY UNA LISTA PUBLICADA CON TODO Y CON REPRODUCTOR**, en
+`kopurista.github.io/sushi-pirata/sonidos.html`: qué suena, cuándo, a qué dB,
+quién lo eligió, y un botón por toma para oírlo. La genera
+`tools/lista_sonidos.py` LEYENDO `audio.gd`, así que no puede contradecir al
+juego; hay que regenerarla y volver a subirla al tocar la tabla.
 
 **NI UNA FAMILIA VACÍA NI UNA TOMA HUÉRFANA**, y las dos cosas se comprueban
 con una sonda que recorre el manifiesto contra el disco en los dos sentidos:
@@ -4041,9 +4661,35 @@ que no hay problema.
 - **Rótulo grande = `make_big_title()`** (letras doradas con contorno grueso),
   para carteles cortos: "¿Salir?" y "Jornada acabada". Una cinta con una frase
   larga pesaba más que el propio mensaje.
-- **`START_TEXT_DROP`**: el rótulo de la placa de oro baja 9 px. La cara dorada
-  no está centrada en la textura (el ribete rojo asoma más por abajo), así que
-  centrado a lo geométrico se leía descolocado.
+- **LA PLACA DE ORO SE DESBORDABA EN LOS BOTONES BAJOS** (`skin_start_button`,
+  arreglado): `boton_zarpar.png` lleva margen 9-slice **54**, así que un botón
+  de menos de 108 px de alto no tiene sitio para sus dos esquinas y el 9-slice
+  se sale del rectángulo — la placa se dibujaba medio centenar de píxeles por
+  DEBAJO del botón (pisando el marco del pergamino del mapa) y el rótulo, que
+  sí va centrado en el rectángulo, quedaba en el tercio de arriba de la placa.
+  Se veía como "el botón no entra en el panel" y como "el texto no está
+  centrado", y eran la misma cosa. Ahora el margen se encoge al redimensionar
+  (`min(lado)*0.44`), igual que en `skin_button` y por el mismo motivo. Lo
+  llevaban los TRES botones de placa: "¡Zarpar!" (420×92), "¡Empezar!" y
+  "Viajar". Medido pintando el rectángulo del botón sobre una captura.
+  **Y POR ESO NINGUNO DEBE IR BAJO**: encogido, el marco de la placa se
+  estrecha y el botón se ve apretado a lo alto (el usuario lo dijo de los dos).
+  108 es el mínimo para que el 9-slice no se toque; hoy "Viajar" mide 282×100 y
+  "¡Empezar!" 300×112.
+- **LOS TRES RÓTULOS DE PLACA VAN EN Exo2-Bold Y GRANDES**: sobre el oro, la
+  Regular se lee fina al lado del resto de rótulos del juego, y un cuerpo
+  pequeño sobre una placa alta hace que el texto "nade". Hoy: "Viajar" a 42,
+  "¡Zarpar!" a 44 y "¡Empezar!" a 40. Al cambiar el ALTO de uno de estos
+  botones hay que mirarle el cuerpo de letra, que no se ajusta solo.
+- **`START_TEXT_DROP`**: el rótulo de la placa de oro se sube 9 px. **OJO CON
+  EL SIGNO**: en este motor un `content_margin` NO desplaza el texto, solo le
+  RECORTA el alto disponible, y el texto se centra en lo que queda contando
+  desde ARRIBA — así que un margen SUPERIOR lo SUBE, no lo baja (medido: con 9
+  arriba el rótulo queda 5 px por encima del centro del botón). Aquí viene
+  bien, porque la cara dorada de la textura tampoco está centrada: el ribete
+  rojo asoma más por abajo. Un botón que quiera el texto centrado de verdad
+  —el "Viajar" del mapa, más bajo, donde la placa sí llena el rectángulo—
+  pasa `skin_start_button(b, 0.0)`.
 - **`Control.position` ES RELATIVO A LA ESQUINA SUPERIOR IZQUIERDA DEL PADRE,
   NO AL ANCLA.** Con los botones redondos anclados ABAJO, guardar como posición
   de reposo el número que se les pasa (-114) en vez de su `position.y` real

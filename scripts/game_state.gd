@@ -3,6 +3,12 @@ extends Node
 ## campaña (se guarda en disco en user://savegame.json).
 
 const SAVE_PATH := "user://savegame.json"
+## DE DONDE SE ENTRO A LA TIENDA Y A OPCIONES (de sesion, no se guarda). El
+## submenu del MAPA lleva a las dos, y volver al menu principal desde ahi
+## sacaba al jugador de donde estaba: con esto el "Atras" devuelve al mapa.
+var shop_from := ""
+var options_from := ""
+
 
 ## --- Estado de la partida en curso (NO se guarda a disco) ---
 ## Modo: "adventure" (nivel de campaña) o "test" (nivel de prueba libre).
@@ -21,6 +27,16 @@ var transition: String = ""
 ## jugador de donde estaba. "menu" | "mapa" | "pesca". De SESION: no se
 ## guarda, porque no es progreso sino por donde se iba.
 var skills_from: String = "menu"
+## Escenario que el MAPA tiene elegido ahora mismo. Se apunta al seleccionarlo y
+## lo consume `level_select3d._focus_last_port`, para que al volver de cualquier
+## pantalla el mapa siga donde estaba en vez de saltar al ultimo abierto. Al
+## cerrar un turno, `level3d` lo deja en el escenario SIGUIENTE al jugado.
+## De SESION: es por donde se iba, no progreso.
+var map_port: String = ""
+## QUE ensena el inventario al abrirse: "recetario" (recetario + despensa) o
+## "coleccion" (la vitrina). Son dos botones distintos del submenu y una sola
+## escena, porque comparten fondo, cabecera y el libro. De SESION.
+var inventory_view: String = "recetario"
 ## Recetas recién desbloqueadas que el MENÚ principal tiene que anunciar con su
 ## animación. Lo llena complete_tutorial/complete_port y lo consume el menú.
 var pending_reveal: Array = []
@@ -366,10 +382,6 @@ func fade_in(time := 0.4) -> void:
 ## pantalla en negro: entonces la escena que entra tiene que llamar a
 ## `fade_in()` cuando le venga bien.
 func fade_to_scene(path: String, out_time := 0.3, in_time := 0.45) -> void:
-	# Un roce de vela acompaña al telón. Es el único sonido que tienen las
-	# transiciones, y las hay en cada cambio de pantalla del juego.
-	if has_node("/root/Audio"):
-		get_node("/root/Audio").sfx("swoosh")
 	await fade_out(out_time)
 	get_tree().change_scene_to_file(path)
 	# La escena nueva se monta al FINAL del frame y alguna coloca su interfaz un
@@ -742,7 +754,9 @@ func daily_next_day() -> int:
 
 
 ## Cobra el premio de hoy y devuelve lo que se ha dado, para que el cartel lo
-## pueda enseñar: { money, rice, ingots, extras, ingredients, recipe }.
+## pueda enseñar: { money, rice, ingots, bait, maps, extras, ingredients,
+## recipe }. Los sorteos (`extra_random`, `ingredient_random`) se resuelven
+## AQUÍ, al abrir el cofre, y salen ya resueltos dentro de `ingredients`.
 ## Devuelve {} si hoy ya estaba cobrado.
 func claim_daily() -> Dictionary:
 	if not daily_available():
@@ -752,7 +766,8 @@ func claim_daily() -> Dictionary:
 	daily_day = n
 	daily_last = _today()
 	var dado := { "day": n }
-	var oro := int(premio.get("money", 0))
+	# EL ORO ESCALA CON EL NIVEL del cocinero (DailyData.ORO_POR_NIVEL).
+	var oro := DailyData.money_for(int(premio.get("money", 0)), chef_level)
 	if premio.has("recipe"):
 		# La receta del día 7 solo se entrega una vez; quien ya la tenga cobra
 		# doblones en su lugar para que la última casilla no salga vacía.
@@ -760,7 +775,7 @@ func claim_daily() -> Dictionary:
 			dado["recipe"] = str(premio["recipe"])
 			gift_ingredients_for([str(premio["recipe"])], PORT_GIFT)
 		else:
-			oro += DailyData.RECIPE_FALLBACK
+			oro += DailyData.money_for(DailyData.RECIPE_FALLBACK, chef_level)
 	if oro > 0:
 		money += oro
 		dado["money"] = oro
@@ -770,12 +785,31 @@ func claim_daily() -> Dictionary:
 	if premio.has("ingots"):
 		ingots += int(premio["ingots"])
 		dado["ingots"] = int(premio["ingots"])
+	# Los cebos solo con la PESCA abierta: antes de Cai no hay dónde usarlos, y
+	# no se guardan para después (la racha es una cadencia, no una deuda).
+	if premio.has("bait") and fishing_unlocked():
+		bait += int(premio["bait"])
+		dado["bait"] = int(premio["bait"])
+	if premio.has("maps"):
+		treasure_maps += int(premio["maps"])
+		dado["maps"] = int(premio["maps"])
 	if premio.has("extras"):
 		for e in RecipeData.EXTRAS:
 			add_ingredient_uses(e, int(premio["extras"]))
 		dado["extras"] = int(premio["extras"])
-	if premio.has("ingredients"):
-		var ings: Dictionary = premio["ingredients"]
+	var ings: Dictionary = {}
+	for k in premio.get("ingredients", {}):
+		ings[str(k)] = int(premio["ingredients"][k])
+	# Sorteos de la apertura: UN extra al azar y UN ingrediente normal al azar
+	# de entre los que el jugador ya usa.
+	if premio.has("extra_random"):
+		var e: String = RecipeData.EXTRAS.pick_random()
+		ings[e] = int(ings.get(e, 0)) + int(premio["extra_random"])
+	if premio.has("ingredient_random"):
+		var ing := _random_known_ingredient()
+		if ing != "":
+			ings[ing] = int(ings.get(ing, 0)) + int(premio["ingredient_random"])
+	if not ings.is_empty():
 		for k in ings:
 			add_ingredient_uses(str(k), int(ings[k]))
 		dado["ingredients"] = ings
@@ -784,6 +818,30 @@ func claim_daily() -> Dictionary:
 	if n >= DailyData.day_count():
 		unlock_collectible("mapa_tesoro")
 	return dado
+
+
+## Un ingrediente NORMAL al azar (ni extras ni gratis) de entre los que usan
+## las recetas que el jugador ya sabe cocinar — el mismo filtro que el surtido
+## de Saverio: regalar atún antes de tener una receta con atún no sirve de
+## nada. Si todavía no sabe ninguna receta que cueste despensa, cae a cualquier
+## ingrediente de pago; "" solo si no hay ninguno.
+func _random_known_ingredient() -> String:
+	var utiles := {}
+	for rid in unlocked_recipes:
+		for ing in RecipeData.get_ingredients(rid):
+			utiles[ing] = true
+	var pool: Array[String] = []
+	var todos: Array[String] = []
+	for ing in RecipeData.INGREDIENTS:
+		if ing in RecipeData.EXTRAS \
+				or int(RecipeData.INGREDIENTS[ing].get("cost", 0)) <= 0:
+			continue
+		todos.append(ing)
+		if utiles.has(ing):
+			pool.append(ing)
+	if pool.is_empty():
+		pool = todos
+	return "" if pool.is_empty() else pool.pick_random()
 
 
 ## Renueva el surtido si ha cambiado el día (o si el guardado no traía uno).
@@ -1634,6 +1692,32 @@ func achievement_value(a: Dictionary) -> int:
 ## el oro dejaba de valer nada. Una jornada normal deja 50-110 doblones: una
 ## medalla tiene que ser una propina, no un sueldo.
 const MEDAL_REWARDS := [8, 15, 30]
+## Y ESE PAGO CRECE CON EL NIVEL DEL COCINERO (pedido por el usuario): la base
+## de arriba es lo que vale una medalla en el nivel 1, y cada nivel le suma
+## MEDAL_LEVEL_STEP. Un logro reclamado tarde vale más que reclamado pronto,
+## que es lo que se busca: premia seguir cocinando.
+##
+## El TOPE (MEDAL_LEVEL_MAX) no es un adorno: el reclamo es ACUMULATIVO —hay
+## ~160 logros de tres metales— y sin techo bastaba con guardárselos todos
+## hasta el nivel 450 para cobrar de golpe más oro del que da la campaña
+## entera. Con ×5 se llega al tope en el nivel 201 y una medalla de oro paga
+## 150, un pelín por encima de lo que pagaba la tabla vieja sin escalar.
+const MEDAL_LEVEL_STEP := 0.02
+const MEDAL_LEVEL_MAX := 5.0
+
+
+## Multiplicador de recompensa por el nivel del cocinero (1.0 en el nivel 1).
+func medal_level_mult() -> float:
+	return minf(1.0 + float(maxi(chef_level - 1, 0)) * MEDAL_LEVEL_STEP,
+		MEDAL_LEVEL_MAX)
+
+
+## Lo que paga HOY una medalla de ese metal (1 bronce, 2 plata, 3 oro), ya
+## escalado por el nivel. Lo usan el cobro y la ficha, para que nadie tenga
+## que repetir la cuenta.
+func medal_reward(tier: int) -> int:
+	var base: int = int(MEDAL_REWARDS[clampi(tier - 1, 0, MEDAL_REWARDS.size() - 1)])
+	return maxi(int(round(base * medal_level_mult())), base)
 ## El coleccionable "cartel de recompensa" cae al llegar a este botín de vida.
 const CARTEL_BOUNTY := 1000000
 ## Vueltas al timón del menú que piden el coleccionable "timón".
@@ -1709,6 +1793,10 @@ func add_triforce_piece(n := 1) -> void:
 ## un segundo contador que hiciera exactamente lo mismo con otro nombre solo
 ## habría confundido al jugador (los guardados viejos migran su `free_casts`).
 var bait := 0
+## MAPAS DEL TESORO (las misiones secundarias). Los reparte el bonus diario
+## (días 4, 6 y 7), pero el sistema que los gasta AÚN NO EXISTE: aquí se
+## acumulan para que, el día que entre, el jugador tenga lo que ya cobró.
+var treasure_maps := 0
 
 
 func fishing_pay() -> bool:
@@ -1981,8 +2069,9 @@ func unclaimed_medals() -> int:
 
 
 ## Cobra las medallas pendientes DE UN SOLO LOGRO (el jugador ha tocado su
-## tarjeta). Mismo reparto que el cobro en bloque: 25/50/100 por metal, y si de
-## ese logro hay bronce y plata pendientes caen los dos.
+## tarjeta). Mismo reparto que el cobro en bloque —`medal_reward` por metal,
+## ya escalado por el nivel— y si de ese logro hay bronce y plata pendientes
+## caen los dos.
 func claim_achievement(id: String) -> int:
 	var a := AchievementData.get_achievement(id)
 	if a.is_empty():
@@ -1993,7 +2082,7 @@ func claim_achievement(id: String) -> int:
 		return 0
 	var total := 0
 	for tier in range(claimed + 1, earned + 1):
-		total += int(MEDAL_REWARDS[tier - 1])
+		total += medal_reward(tier)
 	claimed_medals[id] = earned
 	# Reclamado implica visto: que el toast no anuncie lo ya cobrado.
 	seen_medals[id] = maxi(int(seen_medals.get(id, 0)), earned)
@@ -2014,7 +2103,7 @@ func claim_achievement_rewards() -> Dictionary:
 		if earned <= claimed:
 			continue
 		for tier in range(claimed + 1, earned + 1):
-			out["total"] = int(out["total"]) + int(MEDAL_REWARDS[tier - 1])
+			out["total"] = int(out["total"]) + medal_reward(tier)
 			var metal := str(AchievementData.MEDALS[tier - 1])
 			out[metal] = int(out[metal]) + 1
 		claimed_medals[id] = earned
@@ -2214,6 +2303,7 @@ func save_game() -> void:
 		"logros_intro_done": logros_intro_done,
 		"inventario_intro_done": inventario_intro_done,
 		"bait": bait,
+		"treasure_maps": treasure_maps,
 		"rice_intro_done": rice_intro_done,
 		"pablo_shop_done": pablo_shop_done,
 		"menu_intro_done": menu_intro_done,
@@ -2426,6 +2516,7 @@ func load_game() -> void:
 	# Las "tiradas gratis" de los guardados viejos son los CEBOS de hoy: el
 	# mecanismo era el mismo y solo cambió de nombre al ganarse por nivel.
 	bait = int(parsed.get("bait", parsed.get("free_casts", 0)))
+	treasure_maps = int(parsed.get("treasure_maps", 0))
 	rice_intro_done = bool(parsed.get("rice_intro_done", false))
 	pablo_shop_done = bool(parsed.get("pablo_shop_done", false))
 	# Guardados de antes de la guía del menú: si el tutorial ya está hecho, la
@@ -2535,6 +2626,7 @@ func _new_game() -> void:
 	logros_intro_done = false
 	inventario_intro_done = false
 	bait = 0
+	treasure_maps = 0
 	rice_intro_done = false
 	pablo_shop_done = false
 	menu_intro_done = false

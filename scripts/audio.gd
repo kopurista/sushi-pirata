@@ -13,12 +13,14 @@ extends Node
 ## —solo el mar, que fue una decisión de diseño— así que colgándolo del bus de
 ## la música, bajarla a cero dejaba la portada en silencio absoluto.
 ##
-## DINAMISMO: ninguna familia suena nunca dos veces igual. Cada toma sale
-## SORTEADA SIN REPETIR LA ANTERIOR (eso lo pone `SoundBank`) y encima con el
-## TONO movido al azar dentro de su horquilla (`VAIVEN`). Con seis tomas de
-## clic y un vaivén del 6% no hay dos pulsaciones idénticas en toda la
-## partida, que es lo que delata a un juego cuando el jugador repite la misma
-## acción doscientas veces.
+## VARIEDAD SOLO DONDE HACE FALTA, y esto se aprendió a base de rehacerlo. La
+## COCINA sortea toma sin repetir la anterior y le mueve el tono (`VARIAN`,
+## `VAIVEN`): ahí el jugador repite el mismo gesto decenas de veces por partida
+## y la toma idéntica se delata. La INTERFAZ hace lo CONTRARIO: un sonido por
+## PAPEL —volver, aceptar, cambiar de pantalla, zarpar, botón corriente— y
+## siempre el mismo. Un botón no es un gesto que busque variedad: es una
+## respuesta, y una respuesta que suena distinta cada vez se lee como que el
+## juego está haciendo cosas distintas.
 
 const SoundBankCls := preload("res://scripts/sound_bank.gd")
 
@@ -33,30 +35,90 @@ const BUS_VOCES := "Voces"
 ## viaje); la tienda, el arcade y la pesca tienen el suyo, y los niveles uno
 ## por TIPO de escenario. La cueva es el tema del jefe.
 const TEMAS := {
-	"menu": "res://sounds/musica/menu.ogg",
-	"tienda": "res://sounds/musica/tienda.ogg",
-	"arcade": "res://sounds/musica/arcade.ogg",
-	"pesca": "res://sounds/musica/pesca.ogg",
-	"isla": "res://sounds/musica/isla.ogg",
-	"puerto": "res://sounds/musica/puerto.ogg",
-	"abordaje": "res://sounds/musica/abordaje.ogg",
-	"cueva": "res://sounds/musica/cueva.ogg",
+	"menu": "res://sounds/juego/musica/menu.ogg",
+	"tienda": "res://sounds/juego/musica/tienda.ogg",
+	"arcade": "res://sounds/juego/musica/arcade.ogg",
+	"pesca": "res://sounds/juego/musica/pesca.ogg",
+	"isla": "res://sounds/juego/musica/isla.ogg",
+	"puerto": "res://sounds/juego/musica/puerto.ogg",
+	"abordaje": "res://sounds/juego/musica/abordaje.ogg",
+	"cueva": "res://sounds/juego/musica/cueva.ogg",
+	# La INTRO DEL CAOS tiene el suyo. Estuvo sonando a abordaje —una cubierta
+	# desbordada contra el reloj— y no es lo mismo: allí el jugador pelea y
+	# aquí PIERDE, a propósito y sin saber por qué. Su tema va acelerado y
+	# cómico, de pánico de cocina.
+	"tutorial": "res://sounds/juego/musica/tutorial.ogg",
+	# El cartel de fin de jornada. No es un SITIO sino un MOMENTO, y por
+	# eso es el único tema que no lo pone una pantalla al montarse: lo
+	# pide `level3d._show_results` y lo releva la pantalla siguiente.
+	"resultados": "res://sounds/juego/musica/resultados.ogg",
+}
+
+## LOS TEMAS QUE DAN LA VUELTA SOLOS. Sus .ogg están COSIDOS para repetirse
+## (`tools/musica_bucle.py`: se busca el punto donde la música vuelve a sonar
+## como al principio, se corta ahí y se envuelve la cabeza con su propia
+## continuación), así que el bucle lo lleva el MOTOR —`loop=true` en su
+## `.import`— y no cuesta nada.
+##
+## ESTO SUSTITUYE AL CRUCE DEL TEMA CONSIGO MISMO, que era lo que había antes
+## y sigue abajo como red para cualquier tema sin bucle preparado. Aquel
+## escondía el corte, sí, pero MEZCLABA dos segundos de compases que no se
+## corresponden: cada vuelta sonaba emborronada. Un tema cosido no necesita
+## que le tapen nada.
+const TEMAS_BUCLE := {
+	"menu": true, "tienda": true, "arcade": true, "pesca": true,
+	"isla": true, "puerto": true, "abordaje": true, "cueva": true,
+	"tutorial": true,
+}
+
+## Y EL QUE TIENE FINAL DE VERDAD. El de resultados es una pieza cerrada: sube,
+## se recrea y termina con su acorde apagándose. No se cruza consigo mismo —el
+## cruce se comería justo el cierre, que es lo que lo hace sonar a jornada
+## terminada— ni se le pone el `loop` del motor: se deja sonar entero y se
+## vuelve a empezar, con el silencio que trae detrás haciendo de respiro.
+const TEMAS_FINAL := {
+	"resultados": true,
 }
 
 const AMBIENTES := {
-	"mar": "res://sounds/musica/ambiente_mar.ogg",
+	"mar": "res://sounds/juego/barco/ocean.ogg",
 }
 
 ## Volumen de referencia de la música, en dB sobre su bus. Va POR DEBAJO de
 ## los efectos a propósito: la música es el fondo y lo que el jugador tiene
 ## que oír para jugar son los avisos de la barra y la cocina.
-const MUS_DB := -11.0
-const AMB_DB := -15.0
+## Nivel de referencia al que se lleva TODO el audio del juego, medido en
+## sonoridad ponderada K. Es la mediana de lo que había, así que la mitad de
+## los sonidos suben y la otra mitad bajan y ninguno tiene que estirarse tanto
+## como para recortar.
+const NIVEL := -21.0
+
+## LO QUE SE LE SUMA A CADA TEMA para que los diez suenen igual de fuertes.
+## Medido, no elegido (ver la cabecera de `VOL`): entre la cueva y el menú
+## había 7 dB de diferencia, y eso se oye como que el juego sube y baja de
+## volumen al cambiar de pantalla.
+const TEMAS_DB := {
+	"abordaje": 0.7, "arcade": -0.8, "cueva": -5.1,
+	"isla": 2.4, "menu": -2.6, "pesca": 2.1,
+	"puerto": 0.7, "resultados": -1.9, "tienda": 1.0,
+	"tutorial": -1.6,
+}
+
+const MUS_DB := -7.0
+const AMB_DB := 6.8
 
 ## Segundos de cruce entre dos temas, y del tema consigo mismo al dar la
 ## vuelta (ver `_bucle_musica`).
 const CRUCE := 1.6
 const CRUCE_BUCLE := 2.2
+
+## Con lo que ENTRA un tema que tiene final (hoy el de resultados), tanto la
+## primera vez como cada vez que vuelve a empezar. Un tema en bucle puede
+## entrar de golpe —no tiene principio, es un lazo—, pero uno que acaba de
+## apagarse con su acorde y arranca otra vez a plena fuerza se oye como un
+## pinchazo. Pedido por el usuario: "como es una canción que tiene fin, que
+## inicie con una transición".
+const CRUCE_FINAL := 1.4
 
 # -------------------------------------------------------------- EFECTOS
 
@@ -67,138 +129,237 @@ const CRUCE_BUCLE := 2.2
 ## los .ogg se importan a `.godot/imported/*.oggvorbisstr` y en el EXPORT los
 ## originales no están, así que un escaneo funcionaría en el editor y
 ## devolvería una lista VACÍA en el juego publicado.
-const IF_ := "res://sounds/interfaz/"
-const CO_ := "res://sounds/cocina/"
-const NI_ := "res://sounds/nivel/"
+const IF_ := "res://sounds/juego/interfaz/"
+const CO_ := "res://sounds/juego/cocina/"
+const NI_ := "res://sounds/juego/nivel/"
+## EL BARCO Y EL MAR tienen seccion propia: no son avisos de la jornada,
+## son el mundo que hay alrededor.
+const BA_ := "res://sounds/juego/barco/"
 
 const FAMILIAS := {
-	# --- interfaz -------------------------------------------------------
-	"click": [IF_ + "Click - 1.ogg", IF_ + "Click - 2.ogg",
-		IF_ + "Click - 3.ogg", IF_ + "Click - 4.ogg",
-		IF_ + "Click - 5.ogg", IF_ + "Click - 6.ogg"],
-	"click_suave": [IF_ + "UI2_Click_1.ogg", IF_ + "UI2_Click_2.ogg",
-		IF_ + "UI2_Click_3.ogg"],
-	"ok": [IF_ + "UI2_Accept_1.ogg", IF_ + "UI2_Accept_2.ogg"],
-	"no": [IF_ + "UI2_Decline_1.ogg", IF_ + "UI2_Decline_2.ogg",
-		IF_ + "UI2_Decline_3.ogg"],
-	"error": [IF_ + "UI2_Error_1.ogg", IF_ + "UI2_Error_2.ogg"],
-	"zarpar": [IF_ + "Start - Confirm 1.ogg", IF_ + "Start - Confirm 2.ogg",
-		IF_ + "Start - Confirm 1 Alternate.ogg"],
-	"ventana": [IF_ + "UI2_Window_Open_1.ogg", IF_ + "UI2_Window_Open_2.ogg",
-		IF_ + "UI2_Window_Open_3.ogg"],
-	"ventana_off": [IF_ + "UI2_Window_Close_1.ogg",
-		IF_ + "UI2_Window_Close_2.ogg", IF_ + "UI2_Window_Close_3.ogg"],
-	"bolsa": [IF_ + "Open - Close Bag 1.ogg", IF_ + "Open - Close Bag 2.ogg",
-		IF_ + "Open - Close Bag 3.ogg", IF_ + "Open - Close Bag 4.ogg"],
-	"pantalla": [IF_ + "Open Map - Menu 1.ogg", IF_ + "Open Map - Menu 2.ogg",
-		IF_ + "Open Map - Menu 3.ogg", IF_ + "Open Map - Menu 4.ogg",
-		IF_ + "Open Map - Menu 5.ogg"],
-	"swoosh": [IF_ + "Slide - Swoosh 1.ogg", IF_ + "Slide - Swoosh 2.ogg",
-		IF_ + "Slide - Swoosh 3.ogg", IF_ + "Slide - Swoosh 4.ogg"],
-	"pagina": [IF_ + "Cutting Cloth & Paper - 1.ogg",
-		IF_ + "Cutting Cloth & Paper - 2.ogg",
-		IF_ + "Cutting Cloth & Paper - 3.ogg"],
-	"tecla": [IF_ + "Typing Sound - 1.ogg", IF_ + "Typing Sound - 2.ogg",
-		IF_ + "Typing Sound - 3.ogg", IF_ + "Typing Sound - 4.ogg",
-		IF_ + "Typing Sound - 5.ogg", IF_ + "Typing Sound - 6.ogg"],
-	"on": [IF_ + "Enable - 1.ogg", IF_ + "Enable - 2.ogg"],
-	"off": [IF_ + "Disable - 1.ogg", IF_ + "Disable - 2.ogg"],
-	"logro": [IF_ + "Achievement - Trophy 1.ogg",
-		IF_ + "Achievement - Trophy 2.ogg", IF_ + "Achievement - Trophy 3.ogg",
-		IF_ + "Achievement - Trophy 7.ogg",
-		IF_ + "Achievement - Trophy 12.ogg"],
-	"trofeo": [IF_ + "UI2_Trophy_1.ogg", IF_ + "UI2_Trophy_2.ogg"],
-	"moneda": [IF_ + "Coins - Single Coin - 1.ogg",
-		IF_ + "Coins - Single Coin - 2.ogg",
-		IF_ + "Coins - Single Coin - 3.ogg",
-		IF_ + "Coins - Single Coin - 4.ogg"],
-	"monedas": [IF_ + "Coins - Small Pile - 1.ogg",
-		IF_ + "Coins - Small Pile - 2.ogg", IF_ + "Coins - Small Pile - 3.ogg",
-		IF_ + "Coins - Small Pile - 4.ogg",
-		IF_ + "Coins - Small Pile - 5.ogg"],
-	"tesoro": [IF_ + "Coins - Large Pile - 1.ogg",
-		IF_ + "Coins - Large Pile - 2.ogg",
-		IF_ + "Coins - Large Pile - 3.ogg"],
-	"premio": [IF_ + "Quest Item Pickup - 1.ogg",
-		IF_ + "Quest Item Pickup - 2.ogg", NI_ + "GS2_Item_Acquire_1.ogg",
-		NI_ + "GS2_Item_Acquire_2.ogg", NI_ + "GS2_Item_Acquire_3.ogg",
-		NI_ + "GS2_Item_Acquire_4.ogg", NI_ + "GS2_Item_Acquire_5.ogg"],
-	"chispa": [IF_ + "UI_Puzzle_Game_1.ogg", IF_ + "UI_Puzzle_Game_2.ogg",
-		IF_ + "UI_Puzzle_Game_3.ogg", IF_ + "UI_Puzzle_Game_4.ogg",
-		IF_ + "UI_Puzzle_Game_5.ogg", IF_ + "UI_Puzzle_Game_6.ogg"],
-	# --- cocina ---------------------------------------------------------
-	"arroz": [CO_ + "arroz_1.ogg", CO_ + "arroz_2.ogg"],
-	"corte": [CO_ + "corte_1.ogg", CO_ + "corte_2.ogg"],
-	"corte_lento": [CO_ + "corte_lento_1.ogg", CO_ + "corte_lento_2.ogg"],
+	# --- INTERFAZ: UN SONIDO POR PAPEL, y siempre EL MISMO -----------------
+	#
+	# Aquí no hay sorteo ni vaivén de tono a propósito, al revés que en la
+	# cocina. Un botón no es un gesto que se repita cien veces buscando
+	# variedad: es una respuesta, y una respuesta que suena distinta cada vez
+	# se lee como que el juego hace cosas distintas. Lo que tiene que
+	# distinguirse es el PAPEL del botón, no la pulsación.
+	#
+	# Los cinco papeles: volver o cancelar, aceptar, cambiar de pantalla,
+	# arrancar la jornada, y el botón corriente. Cada uno con su toma, y todos
+	# los botones de un mismo papel suenan igual entre sí.
+	"click": [IF_ + "Click - 1.ogg"],
+	# VOLVER es el MISMO clic que el resto con el tono bajado (ver
+	# `TONO`): es la misma acción de interfaz, no otra cosa, y basta con
+	# eso para que el oído la reconozca sin meter un sonido nuevo.
+	"atras": [IF_ + "Click - 1.ogg"],
+	"ok": [IF_ + "recurso.ogg"],
+	"pantalla": [IF_ + "Open Map - Menu 1.ogg"],
+	# Los CUATRO pergaminos de modo: Aventura, Arcade, Pesca y Tienda.
+	"modo": [IF_ + "modo.ogg"],
+	# Los CINCO accesos de la barra de abajo (logros, inventario,
+	# perfil, bonificadores y opciones).
+	"submenu": [IF_ + "submenu.ogg"],
+	# Las cajas de RECURSO de arriba (lingotes, doblones, arroz) y la
+	# barra de nivel que lleva a Maestrías. Al CERRAR sus ventanas suena
+	# la misma toma con el tono bajado.
+	"recurso": [IF_ + "recurso.ogg"],
+	"recurso_off": [IF_ + "recurso.ogg"],
+	"recurso_ok": [IF_ + "recurso.ogg"],
+	# EL TIMÓN SOLO SUENA POR MANGOS: un chasquido de mecanismo cada vez
+	# que uno pasa por arriba. Hubo además un CRUJIDO continuo mientras se
+	# giraba y el usuario lo quitó: sobre el crujido del casco, que ya
+	# suena de fondo por su cuenta, eran dos maderas quejándose a la vez.
+	"timon": [IF_ + "timon.ogg"],
+	# ZARPAR son las CAMPANAS del barco, no un "confirmar" de interfaz.
+	"zarpar": [BA_ + "campanas.ogg"],
+	# EL AVISO DE ALGO BLOQUEADO: la misma pareja de ventana, un pelo mas
+	# aguda al abrirse y mas grave al cerrarse (ver `TONO`).
+	"aviso": [IF_ + "aviso_abre.ogg"],
+	"aviso_off": [IF_ + "aviso_cierra.ogg"],
+	"corte_mal": [IF_ + "corte_mal.ogg"],
+	# --- premios y dinero -------------------------------------------------
+	"logro": [IF_ + "logro.ogg"],
+	# El cliente que PAGA. Va al 85% de velocidad (ver `TONO`).
+	"moneda": [NI_ + "pago.ogg"],
+	"monedas": [IF_ + "Coins - Small Pile - 1.ogg"],
+	"tesoro": [IF_ + "Coins - Large Pile - 1.ogg"],
+	# El cobro de TODOS los logros de golpe, al 60% de velocidad.
+	"monedas_todo": [IF_ + "monedas_todo.ogg"],
+	"premio": [IF_ + "Quest Item Pickup - 1.ogg"],
+	# EL COFRE SON DOS SONIDOS A LA VEZ: la cerradura y la tapa.
+	"cofre": [IF_ + "cofre.ogg"],
+	"cofre_llave": [IF_ + "cofre_llave.ogg"],
+	# La barra de experiencia mientras sube: suena SOLO mientras se
+	# mueve, y su velocidad se ajusta a lo que tarde (ver `sfx_dura`).
+	"exp": [IF_ + "exp.ogg"],
+	"levelup": [IF_ + "levelup.ogg"],
+	# Habilidad del arbol desbloqueada. La MISMA toma, mas grave, es el
+	# cartel de potenciador.
+	"habilidad": [IF_ + "habilidad.ogg"],
+	# --- COCINA: aquí SÍ se sortea -----------------------------------------
+	#
+	# Sale de `sounds/soundly` y de `Cozy Craft` (elegido por el usuario a
+	# oído, NO re-barajarlo). El amasado son 4 tomas y el corte 9 porque son
+	# los gestos que el jugador repite decenas de veces por partida: ahí la
+	# variedad es lo que evita que suene a máquina, justo lo contrario que en
+	# un botón.
+	"arroz": [CO_ + "arroz_1.ogg", CO_ + "arroz_2.ogg", CO_ + "arroz_3.ogg",
+		CO_ + "arroz_4.ogg"],
+	"corte": [CO_ + "corte_1.ogg", CO_ + "corte_2.ogg", CO_ + "corte_3.ogg",
+		CO_ + "corte_4.ogg", CO_ + "corte_5.ogg", CO_ + "corte_6.ogg",
+		CO_ + "corte_7.ogg", CO_ + "corte_8.ogg", CO_ + "corte_9.ogg"],
+	# El corte LENTO no es un disparo: es un bucle que corre mientras el dedo
+	# avanza y se PAUSA en cuanto se para (ver `prep_board._sonido_sostenido`).
+	"corte_lento": [CO_ + "corte_lento.ogg"],
 	"enrollar": [CO_ + "enrollar_1.ogg", CO_ + "enrollar_2.ogg"],
 	"mantener": [CO_ + "mantener.ogg"],
 	"remover": [CO_ + "remover.ogg"],
 	"freir": [CO_ + "freir.ogg"],
 	"soplete": [CO_ + "soplete.ogg"],
-	"ingrediente": [CO_ + "ingrediente_1.ogg", CO_ + "ingrediente_2.ogg",
-		CO_ + "Take Out Item - 1.ogg", CO_ + "Take Out Item - 2.ogg",
-		CO_ + "Take Out Item - 3.ogg", CO_ + "Take Out Item - 4.ogg"],
-	"soltar": [CO_ + "soltar_1.ogg", CO_ + "soltar_2.ogg",
-		CO_ + "Place Item - 1.ogg", CO_ + "Place Item - 2.ogg",
-		CO_ + "Place Item - 3.ogg"],
-	"paso": [CO_ + "paso_1.ogg", CO_ + "paso_2.ogg"],
-	"listo": [CO_ + "listo_1.ogg", CO_ + "listo_2.ogg"],
-	"cinta": [CO_ + "cinta_1.ogg", CO_ + "cinta_2.ogg"],
+	"soltar": [CO_ + "soltar.ogg"],
+	# EL PASO COMPLETADO NO SUENA (decidido por el usuario): una receta son
+	# hasta seis pasos y un tintineo en cada uno llenaba la elaboración de
+	# avisos que no dicen nada.
+	"listo": [IF_ + "UI2_Decline_1.ogg"],
+	"cinta": [CO_ + "coger.ogg"],
 	"quemado": [CO_ + "quemado.ogg"],
 	"perfecto": [CO_ + "perfecto.ogg"],
-	"extra": [CO_ + "extra_1.ogg", CO_ + "extra_2.ogg"],
-	"basura": [CO_ + "basura_1.ogg", CO_ + "Drop Item - 1.ogg",
-		CO_ + "Drop Item - 2.ogg", CO_ + "Drop Item - 3.ogg"],
-	"caja_abre": [CO_ + "Open Drawer - 1.ogg", CO_ + "Open Drawer - 2.ogg"],
-	"caja_cierra": [CO_ + "Close Drawer - 1.ogg", CO_ + "Close Drawer - 2.ogg"],
-	"guardar": [CO_ + "Place Item - 4.ogg", CO_ + "Place Item - 5.ogg",
-		CO_ + "Place Item - 6.ogg"],
-	# --- nivel ----------------------------------------------------------
-	"campana": [NI_ + "campana.ogg"],
+	"basura": [CO_ + "basura.ogg"],
+	"guardar": [CO_ + "guardar.ogg"],
+	# AGARRAR un plato ya terminado de la tabla.
+	"agarrar": [CO_ + "cinta.ogg"],
+	# --- el barco y el mar -------------------------------------------------
+	"velas": [BA_ + "velas.ogg"],
+	"barco_mover": [BA_ + "barco_mover.ogg"],
+	"barco_cruje": [BA_ + "barco_cruje.ogg"],
+	"gaviota": [BA_ + "gaviota_1.ogg", BA_ + "gaviota_2.ogg"],
+	# --- avisos de la jornada ----------------------------------------------
+	# LA CAMPANA DE LA JORNADA: suena al acabarse la preparación y al cerrar
+	# el turno. Es a propósito que sea la MISMA (pedido por el usuario): el
+	# servicio abre y cierra con la misma campana, y lo que no puede sonar
+	# igual que esto son las campanas de ZARPAR (que son del barco) ni el
+	# botón de "¡Empezar!".
 	"fin_turno": [NI_ + "fin_turno.ogg"],
+	# La del CARTEL de resultados, que suena mas aguda con cada una.
 	"estrella": [NI_ + "estrella.ogg"],
+	# Las de la BARRA DEL ORO en partida: la 1a y la 2a comparten toma
+	# (la primera mas grave) y la 3a tiene la suya.
+	"bar_estrella": [NI_ + "bar_estrella.ogg"],
+	"bar_estrella3": [NI_ + "bar_estrella3.ogg"],
 	"calavera": [NI_ + "calavera.ogg"],
-	"potenciador": [NI_ + "potenciador.ogg"],
-	"gaviota": [NI_ + "gaviota_1.ogg", NI_ + "gaviota_2.ogg"],
-	"cruje": [NI_ + "madera_barco_1.ogg"],
-	"coger_plato": [NI_ + "coger_plato_1.ogg", CO_ + "cinta_2.ogg"],
-	"comer": [NI_ + "comer_1.ogg", NI_ + "comer_2.ogg"],
-	"cofre": [NI_ + "Crate Opening 1.ogg", NI_ + "Crate Opening 2.ogg",
-		NI_ + "Crate Opening 3.ogg", NI_ + "Crate Opening 4.ogg",
-		NI_ + "GS2_Treasure_Chest_Open.ogg"],
-	"madera": [NI_ + "Crate Hit 1.ogg", NI_ + "Crate Hit 2.ogg",
-		NI_ + "Crate Hit 3.ogg", NI_ + "Crate Hit 4.ogg",
-		NI_ + "Crate Hit 5.ogg"],
-	"saco": [NI_ + "GS2_Bag_Open_1.ogg", NI_ + "GS2_Bag_Open_2.ogg",
-		NI_ + "GS2_Bag_Open_3.ogg"],
+	"potenciador": [IF_ + "habilidad.ogg"],
 }
 
+## TONO FIJO de una familia. Es lo que deja que dos papeles compartan la
+## MISMA toma y aun así se distingan: "atras" es el clic de siempre más
+## grave, y cerrar una ventana de recurso es su propio sonido más grave.
+## Bajar el tono lo justo se lee como "lo contrario de lo que acabas de
+## hacer" sin añadir un sonido más al juego.
+const TONO := {
+	"atras": 0.82,
+	# LOS GOLPES DEL ARROZ VAN MUY RAPIDOS (pedido por el usuario): las
+	# tomas duran 0,3-0,4 s y al ritmo natural el amasado se arrastraba
+	# detrás del gesto. Con el tono arriba el golpe es seco y llega con
+	# el dedo.
+	"arroz": 1.70,
+	# LAS VENTANAS EMERGENTES hablan con la MISMA toma a tres alturas:
+	# normal al abrirse, GRAVE al cancelar y AGUDA al confirmar. Sin
+	# aprenderse nada, el jugador oye si acaba de deshacer o de aceptar.
+	"recurso_off": 0.80,
+	"recurso_ok": 1.18,
+	# El golpe del timón, algo más grave que el clic del que sale.
+	"timon": 0.88,
+	# El aviso de bloqueado: un pelo mas agudo al abrirse, mas grave al
+	# cerrarse.
+	"aviso": 1.10,
+	"aviso_off": 0.90,
+	# El cliente que paga, al 85% de velocidad.
+	"moneda": 0.85,
+	# El cobro de todos los logros, al 60%.
+	"monedas_todo": 0.60,
+	# El cartel de potenciador es la MISMA toma que desbloquear una
+	# habilidad, mas grave.
+	"potenciador": 0.85,
+}
+
+
+## LAS FAMILIAS QUE VARÍAN EL TONO EN CADA DISPARO. Son SOLO las de la cocina,
+## que es donde el jugador repite el mismo gesto decenas de veces por partida y
+## la toma idéntica se delata. Todo lo demás —botones, ventanas, premios,
+## avisos— suena EXACTAMENTE IGUAL siempre: son respuestas del juego, y una
+## respuesta que cambia de tono se lee como otra cosa distinta.
+## Familias a las que se les mueve el tono un poco en cada disparo. Es de la
+## COCINA y de lo que se repite mucho, no de la interfaz: el criterio es
+## "¿cuántas veces oye el jugador ESTE sonido en una partida?". Un botón suena
+## cuando se pulsa y tiene que sonar igual siempre; un golpe de cuchillo suena
+## treinta veces seguidas y la toma idéntica se delata.
+## LA MONEDA DEL PAGO entra por lo mismo (pedido por el usuario): es UNA sola
+## toma y la oye cada vez que un cliente paga, que en una jornada son docenas.
+const VARIAN := ["arroz", "corte", "enrollar", "soltar",
+	"cinta", "basura", "moneda"]
+
+## VOLUMEN DE CADA FAMILIA, EN dB, Y TODAS SUENAN IGUAL DE FUERTE.
+##
+## LOS NÚMEROS NO SE ELIGEN: SE MIDEN (`tools/audio_nivelar.py`). El material
+## viene de un pack de foley, otro de interfaz, voces de un tercero y música
+## generada, y cada uno trae su nivel: medido, había **38 dB** entre el sonido
+## más flojo y el más fuerte. Con eso no hay perilla que valga, porque subir el
+## conjunto deja unos a gritos antes de que otros se oigan.
+##
+## SE MIDE LA SONORIDAD, NO EL PICO. Dos sonidos con el mismo pico suenan muy
+## distinto si uno es un golpe seco y el otro un zumbido sostenido, así que se
+## usa la sonoridad con PONDERACIÓN K (la de la norma de radio y televisión),
+## que pesa cada frecuencia como la oye una persona. Cada familia se lleva a
+## `NIVEL`; lo que sale aquí es la diferencia que le hacía falta.
+##
+## LAS EXCEPCIONES VAN DECLARADAS en `MATIZ` (dentro de la herramienta) y son
+## solo dos: el CORTE LENTO, que el usuario pidió de fondo, y los bucles de
+## trabajo sostenido (mantener, remover, freír, soplete), que suenan segundos
+## seguidos y a la misma altura que un golpe se comen la partida. Todo lo demás
+## va plano. Al añadir un sonido, pasar la herramienta: a ojo no se acierta.
 ## Volumen de cada familia, en dB. Se guarda aquí y no en cada llamada para
 ## que un sonido no suene a un volumen en una pantalla y a otro en la
 ## siguiente. Lo que no esté listado va a 0.
+##
+## LOS DE COCINA VAN MEDIDOS, NO A OJO. Las tomas traen niveles muy distintos
+## entre sí —el amasado pica a -30 dBFS y el soplete a 0— así que el mismo
+## número dejaba unas inaudibles y otras a gritos. Cada ganancia sale de
+## `objetivo - (media + pico)/2`, leídos con `ffmpeg -af volumedetect`: -26
+## para los disparos, -32 para los bucles de trabajo y -38 para los que tienen
+## que quedar de fondo (corte lento, sartén y soplete). De ahí que el arroz
+## SUBA +12 dB y el soplete baje -34.
 const VOL := {
-	"click": -7.0, "click_suave": -9.0, "ok": -6.0, "no": -7.0,
-	"error": -6.0, "zarpar": -4.0, "ventana": -8.0, "ventana_off": -9.0,
-	"bolsa": -8.0, "pantalla": -8.0, "swoosh": -12.0, "pagina": -10.0,
-	"tecla": -16.0, "on": -9.0, "off": -9.0, "logro": -5.0, "trofeo": -5.0,
-	"moneda": -9.0, "monedas": -7.0, "tesoro": -5.0, "premio": -5.0,
-	"chispa": -9.0,
-	"arroz": -9.0, "corte": -7.0, "corte_lento": -7.0, "enrollar": -9.0,
-	"mantener": -13.0, "remover": -13.0, "freir": -12.0, "soplete": -13.0,
-	"ingrediente": -11.0, "soltar": -10.0, "paso": -10.0, "listo": -6.0,
-	"cinta": -8.0, "quemado": -6.0, "perfecto": -4.0, "extra": -9.0,
-	"basura": -7.0, "caja_abre": -9.0, "caja_cierra": -9.0, "guardar": -8.0,
-	"campana": -5.0, "fin_turno": -6.0, "estrella": -5.0, "calavera": -5.0,
-	"potenciador": -5.0, "gaviota": -14.0, "cruje": -16.0,
-	"coger_plato": -12.0, "comer": -14.0, "cofre": -6.0, "madera": -9.0,
-	"saco": -8.0,
+	"agarrar": -3.5, "arroz": 23.5, "atras": -0.1,
+	"aviso": -4.1, "aviso_off": 1.3, "bar_estrella": 8.8,
+	"bar_estrella3": 12.2, "barco_cruje": 14.5, "barco_mover": 18.3,
+	"basura": 1.3, "calavera": 4.9, "cinta": -2.2,
+	"click": -0.1, "cofre": 6.6, "cofre_llave": 3.4,
+	"corte": 5.2, "corte_lento": 0.1, "corte_mal": 2.6,
+	"enrollar": 18.7, "estrella": 2.0, "exp": 3.6,
+	"fin_turno": -1.4, "freir": -11.7, "gaviota": 1.7,
+	"guardar": 2.3, "habilidad": 8.4, "levelup": 8.2,
+	"listo": -0.0, "logro": 10.2, "mantener": 18.7,
+	"modo": 5.3, "moneda": -1.8, "monedas": 1.3,
+	"monedas_todo": -2.4, "ok": -0.8, "pantalla": 0.6,
+	"perfecto": 8.2, "potenciador": 8.4, "premio": -4.7,
+	"quemado": 7.5, "recurso": -0.8, "recurso_off": -0.8,
+	"recurso_ok": -0.8, "remover": 12.1, 
+	"soltar": 1.7, "soplete": -19.1, "submenu": -2.2,
+	"tesoro": -1.3, "timon": -0.0, 
+	"velas": 10.5, "zarpar": 5.5,
 }
 
-## Cuánto se mueve el TONO al azar en cada disparo. Es lo que hace que la
-## misma toma no suene idéntica dos veces seguidas; las familias con una sola
-## toma (el soplete, la campana) llevan más porque no tienen otra variedad.
+## AJUSTE GENERAL de los efectos, en dB. El juego entero sonaba alto: los
+## efectos tapaban la música y se comían la partida. Se baja aquí, de una vez,
+## en vez de retocar cuarenta números — las proporciones entre familias ya
+## estaban medidas y lo que sobraba era el conjunto.
+const AJUSTE := -7.0
+
+## Cuánto se mueve el TONO al azar en cada disparo, SOLO en las familias de
+## `VARIAN`. Es lo que hace que el mismo golpe de cuchillo no suene idéntico
+## veinte veces seguidas; fuera de la cocina no se aplica.
 const VAIVEN := 0.06
-const VAIVEN_UNICO := 0.10
 
 ## Cuántas veces seguidas puede sonar la MISMA familia en el mismo fotograma.
 ## La cocina dispara ráfagas (tres golpes de corte muy seguidos) y sin este
@@ -237,16 +398,50 @@ const VOCES := {
 	"capitan_f": ["serio", "hablando", "feliz"],
 }
 
-## TONO FIJO por personaje. El CAPITÁN comparte la voz grave de David (solo
-## hay seis voces masculinas de catálogo y el reparto son siete hombres), así
-## que se le baja el tono para que se lea como otra persona; el Kappa habla
-## con gruñidos de rana y se le baja para que suene grande.
+## TONO FIJO por personaje, y es lo que de verdad separa el reparto. El pack
+## de voces solo trae CUATRO tipos —dos masculinos y dos femeninos— y aquí hay
+## diez personajes, así que dos comparten timbre por fuerza; lo que los hace
+## distintos es la altura. Va aquí y NO horneado en el archivo, para poder
+## afinarlo sin reconvertir 141 clips.
+##
+## El KAPPA y GIGI no son humanos (croares y graznidos generados) y CAI
+## conserva su voz japonesa: los tres van por su cuenta.
 const VOZ_TONO := {
-	"capitan": 0.86,
+	# Masculinos tipo 1
+	"david": 1.00,
+	"pirata": 0.94,
+	"capitan": 0.84,
+	# Masculinos tipo 2. LOS TRES SUBIERON de golpe (el usuario: "el grumete
+	# tiene la voz demasiado grave; Pablo también; Saverio también"). Eran
+	# 1.06 / 0.92 / 1.14: como los tres salen del MISMO tipo de voz del pack,
+	# lo que estaba grave era el tipo entero, así que se suben todos y se
+	# conserva la separación entre ellos, que es lo único que los distingue.
+	# Subir el tono ACORTA además la toma, que aquí viene de perlas.
+	"pablo": 1.22,
+	"saverio": 1.08,
+	"grumete": 1.32,
+	# Femeninas (un solo tipo, por decisión del usuario)
+	"alice": 1.06,
+	"grumete_f": 1.14,
+	"pirata_f": 0.98,
+	"capitan_f": 0.88,
+	# No humanos
 	"kappa": 0.92,
 	"gigi": 1.06,
 }
-const VOZ_DB := -5.0
+## LO QUE SE LE SUMA A CADA PERSONAJE. Sus tomas vienen de sitios distintos
+## —el pack humano casi a cero, Cai y el Kappa generados, Gigi grabado en una
+## sala— y aunque todas están ya igualadas de PICO, la sonoridad seguía
+## variando 8 dB entre unos y otros.
+const VOZ_DB_PERS := {
+	"alice": -11.2, "cai": -5.0, "capitan": -7.5,
+	"capitan_f": -11.1, "david": -8.7, "gigi": -3.4,
+	"grumete": -8.9, "grumete_f": -11.6, "kappa": -6.0,
+	"pablo": -9.1, "pirata": -9.5, "pirata_f": -10.5,
+	"saverio": -9.3,
+}
+
+const VOZ_DB := -7.0
 ## Vaivén de tono de las voces. Va CORTO: una voz humana estirada se nota
 ## enseguida, al revés que un golpe de cuchillo.
 const VOZ_VAIVEN := 0.025
@@ -255,7 +450,16 @@ const VOZ_VAIVEN := 0.025
 
 var _banco: SoundBank = null
 var _voz: AudioStreamPlayer = null
-var _amb: AudioStreamPlayer = null
+## EL AMBIENTE VA EN DOS REPRODUCTORES, igual que la música, para poder
+## cruzarlo consigo mismo al dar la vuelta (ver `_bucle_ambiente`).
+var _amb_pistas: Array[AudioStreamPlayer] = []
+var _amb_viva := 0
+## Reproductores aparte para los sueltos CON FUNDIDO (la gaviota que pasa,
+## el barco viajando por el mapa): un sonido de fondo que entra y sale de
+## golpe se oye como un corte. Son VARIOS porque se solapan de verdad.
+const SUELTOS := 3
+var _sueltos: Array[AudioStreamPlayer] = []
+var _suelto_est: Array = []
 var _voz_ultima: Dictionary = {}
 var _ultimo_disparo: Dictionary = {}
 
@@ -266,6 +470,11 @@ var _ultimo_disparo: Dictionary = {}
 ## un fundido a medias se quedaría congelado con la música a mitad de volumen.
 var _pistas: Array[AudioStreamPlayer] = []
 var _vol := [0.0, 0.0]
+var _tempo := 1.0
+## Qué tema lleva CADA pista. Hace falta porque las dos suenan a la vez
+## mientras se cruzan, y cada una tiene que ir a SU nivel: con un solo dato,
+## durante el cruce el tema entrante sonaba con el ajuste del que se iba.
+var _tema_de := ["", ""]
 var _obj := [0.0, 0.0]
 var _vel := [1.0, 1.0]
 var _viva := 0
@@ -288,6 +497,10 @@ var _mudo := false
 var _amb_vol := 0.0
 var _amb_obj := 0.0
 var _amb_vel := 1.0
+## Volumen de ESTE ambiente sobre `AMB_DB` (ver `ambiente`).
+## Cuánto le queda de volumen a la pista que se va tras dar la vuelta.
+var _amb_saliendo := 0.0
+var _amb_db := 0.0
 var _amb_id := ""
 
 
@@ -317,10 +530,20 @@ func _ready() -> void:
 	_voz.process_mode = Node.PROCESS_MODE_ALWAYS
 	_voz.bus = BUS_VOCES
 	add_child(_voz)
-	_amb = AudioStreamPlayer.new()
-	_amb.process_mode = Node.PROCESS_MODE_ALWAYS
-	_amb.bus = BUS_EFECTOS
-	add_child(_amb)
+	for i in 2:
+		var a := AudioStreamPlayer.new()
+		a.process_mode = Node.PROCESS_MODE_ALWAYS
+		a.bus = BUS_EFECTOS
+		a.volume_db = -60.0
+		add_child(a)
+		_amb_pistas.append(a)
+	for i in SUELTOS:
+		var u := AudioStreamPlayer.new()
+		u.process_mode = Node.PROCESS_MODE_ALWAYS
+		u.bus = BUS_EFECTOS
+		add_child(u)
+		_sueltos.append(u)
+		_suelto_est.append({})
 	aplicar_volumenes()
 	# EL CLIC DE TODOS LOS BOTONES DEL JUEGO, de una vez: en lugar de tocar
 	# los cien sitios que crean botones, se escucha el alta de nodos del árbol
@@ -330,6 +553,17 @@ func _ready() -> void:
 
 
 ## Los tres buses del juego, colgados de Master.
+## LOS BUSES VIVEN EN `default_bus_layout.tres`, NO AQUÍ. Esto es la RED por
+## si ese archivo se pierde o se abre el proyecto sin él.
+##
+## Estuvieron creados solo por código, y en el juego PUBLICADO PARA WEB eso
+## deja el juego COMPLETAMENTE MUDO — medido en el navegador: el contexto de
+## audio vivo, la salida de Godot enchufada y sus sonidos lanzándose, y RMS
+## 0.00000 clavado. El build de escritorio mezcla en software y se entera de
+## un bus nuevo en cualquier momento; el de web reparte los sonidos por un
+## grafo de WebAudio que monta AL ARRANCAR con la disposición que haya, y todo
+## lo que se mandó a un bus creado después no va a ninguna parte. Con el
+## archivo de disposición, los tres buses existen desde el primer fotograma.
 func _crear_buses() -> void:
 	for nombre in [BUS_MUSICA, BUS_EFECTOS, BUS_VOCES]:
 		if AudioServer.get_bus_index(nombre) >= 0:
@@ -376,9 +610,32 @@ func sfx(familia: String, db := 0.0, tono := 1.0) -> void:
 	if ahora - float(_ultimo_disparo.get(familia, -1.0)) < REPOSO:
 		return
 	_ultimo_disparo[familia] = ahora
-	var v := VAIVEN if FAMILIAS[familia].size() > 1 else VAIVEN_UNICO
-	_banco.play(familia, float(VOL.get(familia, 0.0)) + db,
-		tono * randf_range(1.0 - v, 1.0 + v))
+	# El vaivén de tono SOLO en la cocina (ver `VARIAN`): un botón tiene que
+	# sonar exactamente igual siempre, y ahí la variación es el problema, no
+	# la solución.
+	tono *= float(TONO.get(familia, 1.0))
+	if familia in VARIAN:
+		tono *= randf_range(1.0 - VAIVEN, 1.0 + VAIVEN)
+	_banco.play(familia, float(VOL.get(familia, 0.0)) + db + AJUSTE, tono)
+
+
+## Un efecto que tiene que durar EXACTAMENTE `segundos`: se le mueve la
+## velocidad hasta que la toma cunda lo que se le pide. Lo necesita la barra de
+## experiencia, que tarda lo que tarde segun cuanta XP haya que sumar — primero
+## se calcula el viaje de la barra y de ahi sale la velocidad del sonido.
+##
+## El tono se acota para que no acabe en un chirrido ni en un ronquido: si el
+## viaje se sale de la horquilla, se prefiere que el sonido no cuadre del todo
+## a que suene ridiculo.
+func sfx_dura(familia: String, segundos: float, db := 0.0) -> void:
+	if _mudo or not FAMILIAS.has(familia) or segundos <= 0.05:
+		return
+	var ruta := str(FAMILIAS[familia][0])
+	if not ResourceLoader.exists(ruta):
+		return
+	var largo: float = load(ruta).get_length()
+	sfx_suave(familia, db, minf(0.12, segundos * 0.2),
+		clampf(largo / segundos, 0.55, 2.0), segundos)
 
 
 ## Bucle sostenido (el aceite friendo, el soplete, el removido). Se apaga
@@ -387,12 +644,20 @@ func sfx(familia: String, db := 0.0, tono := 1.0) -> void:
 func loop_on(familia: String, db := 0.0, tono := 1.0) -> void:
 	if _mudo or _banco == null or not FAMILIAS.has(familia):
 		return
-	_banco.loop_on(familia, float(VOL.get(familia, 0.0)) + db, tono)
+	_banco.loop_on(familia, float(VOL.get(familia, 0.0)) + db + AJUSTE, tono)
 
 
 func loop_off(familia: String) -> void:
 	if _banco != null:
 		_banco.loop_off(familia)
+
+
+## Pausa o reanuda un bucle POR DONDE IBA (ver `SoundBank.loop_pause`). Lo usa
+## el corte lento: suena mientras el dedo avanza y se queda a medias en cuanto
+## se para, en vez de volver a empezar.
+func loop_pausa(familia: String, pausado: bool) -> void:
+	if _banco != null and not _mudo:
+		_banco.loop_pause(familia, pausado)
 
 
 func loops_off() -> void:
@@ -408,7 +673,8 @@ func loops_off() -> void:
 ## de carteles modales y cada uno se cierra por dos o tres caminos distintos
 ## (su botón, la X, un toque fuera, el guion que lo mata). Colgándose de
 ## `tree_exiting` no hay forma de que a un camino se le olvide el sonido.
-func ventana(nodo: Node, abre := "ventana", cierra := "ventana_off") -> void:
+func ventana(nodo: Node, abre := "recurso",
+		cierra := "recurso_off") -> void:
 	if _mudo:
 		return
 	sfx(abre)
@@ -445,13 +711,13 @@ func voz(personaje: String, expresion := "") -> void:
 	if i == int(_voz_ultima.get(clave, -1)):
 		i = (i + 1) % n
 	_voz_ultima[clave] = i
-	var ruta := "res://sounds/voces/%s/%s_%d.ogg" % [personaje, expresion, i + 1]
+	var ruta := "res://sounds/juego/voces/%s/%s_%d.ogg" % [personaje, expresion, i + 1]
 	if not ResourceLoader.exists(ruta):
 		return
 	# Una voz nueva CORTA a la anterior: el personaje no puede hablarse
 	# encima de sí mismo al pasar de línea a toques.
 	_voz.stream = load(ruta)
-	_voz.volume_db = VOZ_DB
+	_voz.volume_db = VOZ_DB + float(VOZ_DB_PERS.get(personaje, 0.0))
 	_voz.pitch_scale = float(VOZ_TONO.get(personaje, 1.0)) \
 		* randf_range(1.0 - VOZ_VAIVEN, 1.0 + VOZ_VAIVEN)
 	_voz.play()
@@ -473,12 +739,30 @@ func musica(id: String, cruce := CRUCE) -> void:
 		musica_off(cruce)
 		return
 	_tema = id
+	tempo(1.0)
 	var otra := 1 - _viva
+	_tema_de[otra] = id
 	_pistas[otra].stream = load(TEMAS[id])
 	_pistas[otra].play()
 	_fundir(otra, 1.0, cruce)
 	_fundir(_viva, 0.0, cruce)
 	_viva = otra
+
+
+## ACELERA (o frena) EL TEMA QUE SUENA. `pitch_scale` mueve la velocidad Y el
+## tono a la vez, que es justo lo que se busca aquí: en un abordaje, según se
+## acaba el reloj la música se va acelerando y sube de tono, y el jugador
+## siente la prisa antes de mirar el cronómetro.
+##
+## Lo pone `level3d` por fotograma mientras corre un abordaje, y `musica()` lo
+## devuelve a 1.0 al cambiar de tema — si no, el tema siguiente heredaría la
+## prisa del anterior.
+func tempo(f: float) -> void:
+	if _mudo:
+		return
+	_tempo = clampf(f, 0.5, 2.0)
+	for p in _pistas:
+		p.pitch_scale = _tempo
 
 
 func musica_off(cruce := 0.8) -> void:
@@ -491,6 +775,10 @@ func tema_actual() -> String:
 	return _tema
 
 
+func _db_tema(i: int) -> float:
+	return float(TEMAS_DB.get(_tema_de[i], 0.0))
+
+
 func _fundir(i: int, objetivo: float, segundos: float) -> void:
 	_obj[i] = objetivo
 	_vel[i] = 1.0 / maxf(segundos, 0.05)
@@ -500,22 +788,37 @@ func _fundir(i: int, objetivo: float, segundos: float) -> void:
 
 ## El ambiente de fondo (hoy solo el mar de la portada). Va en bucle de motor
 ## —el .ogg viene casado por los extremos— y por el bus de EFECTOS.
-func ambiente(id: String, cruce := 1.2) -> void:
-	if _mudo or id == _amb_id:
+## Segundos de cruce del ambiente consigo mismo al dar la vuelta. El bucle
+## del motor deja un corte audible al volver al principio —el mar no está
+## compuesto para casar—, así que se hace lo mismo que con la música: dos
+## reproductores que se cruzan (ver `_bucle_ambiente`).
+const CRUCE_AMB := 2.5
+
+
+## `db` es el volumen al que suena ESTE ambiente, sobre `AMB_DB`. Lo necesita
+## el mar: en la PORTADA es lo único que se oye —no hay música— y tiene que
+## llenar la pantalla, mientras que en el menú va por debajo del tema, apenas
+## como fondo. Es el mismo bucle sonando a dos alturas, no dos sonidos.
+##
+## Pedir el mismo ambiente con OTRO `db` no lo reinicia: solo mueve el
+## volumen, así que el mar no se corta al llegar al fondeadero.
+func ambiente(id: String, cruce := 1.2, db := 0.0) -> void:
+	if _mudo:
+		return
+	if id == _amb_id:
+		_amb_db = db
 		return
 	if not AMBIENTES.has(id):
 		ambiente_off(cruce)
 		return
 	_amb_id = id
-	# El recurso se DUPLICA antes de marcarle el bucle: `load()` devuelve la
-	# instancia de la caché y ponerle `loop` ahí se lo pondría también a quien
-	# use ese mismo archivo como efecto puntual.
-	var s: AudioStream = load(AMBIENTES[id]).duplicate()
-	if s is AudioStreamOggVorbis:
-		s.loop = true
-	_amb.stream = s
-	_amb.volume_db = -60.0
-	_amb.play()
+	_amb_db = db
+	# SIN `loop` del motor: la vuelta la da `_bucle_ambiente` cruzando la
+	# pista consigo misma, porque el corte seco del final contra el
+	# principio se oye — el mar no está grabado para casar.
+	_amb_pistas[_amb_viva].stream = load(AMBIENTES[id])
+	_amb_pistas[_amb_viva].volume_db = -60.0
+	_amb_pistas[_amb_viva].play()
 	_amb_obj = 1.0
 	_amb_vel = 1.0 / maxf(cruce, 0.05)
 
@@ -542,25 +845,153 @@ func _mover_musica(delta: float) -> void:
 			p.stop()
 			p.volume_db = -60.0
 		else:
-			p.volume_db = MUS_DB + linear_to_db(_vol[i])
+			p.volume_db = MUS_DB + _db_tema(i) + linear_to_db(_vol[i])
 
 
 func _mover_ambiente(delta: float) -> void:
-	if is_equal_approx(_amb_vol, _amb_obj):
-		return
-	_amb_vol = move_toward(_amb_vol, _amb_obj, _amb_vel * delta)
+	if not is_equal_approx(_amb_vol, _amb_obj):
+		_amb_vol = move_toward(_amb_vol, _amb_obj, _amb_vel * delta)
+	var viva := _amb_pistas[_amb_viva]
 	if _amb_vol <= 0.001:
-		_amb.stop()
-		_amb.volume_db = -60.0
-	else:
-		_amb.volume_db = AMB_DB + linear_to_db(_amb_vol)
+		for a in _amb_pistas:
+			a.stop()
+			a.volume_db = -60.0
+		return
+	viva.volume_db = AMB_DB + _amb_db + linear_to_db(_amb_vol)
+	# La OTRA pista es la que se está yendo tras dar la vuelta: baja sola
+	# en `_cruce_amb` segundos y se para.
+	var otra := _amb_pistas[1 - _amb_viva]
+	if otra.playing:
+		_amb_saliendo = maxf(_amb_saliendo - delta / CRUCE_AMB, 0.0)
+		if _amb_saliendo <= 0.001:
+			otra.stop()
+		else:
+			otra.volume_db = AMB_DB + _amb_db \
+				+ linear_to_db(_amb_saliendo * _amb_vol)
+	_bucle_ambiente()
+	_mover_suelto(delta)
 
 
-## EL BUCLE DE LA MÚSICA SE HACE CRUZANDO EL TEMA CONSIGO MISMO, no con el
-## `loop` del recurso: el corte seco del final contra el arranque se oye como
-## un salto aunque el .ogg no deje hueco, y estos temas no están compuestos
-## para casar nota con nota. Cruzando los dos últimos segundos con los dos
-## primeros, la vuelta no se nota.
+## LA VUELTA DEL AMBIENTE SE CRUZA CONSIGO MISMA, igual que la música: a
+## `CRUCE_AMB` del final arranca la otra pista desde cero y las dos se
+## solapan mientras una sube y la otra baja. Con el `loop` del motor el
+## salto del final al principio se oía como un corte en cada vuelta.
+func _bucle_ambiente() -> void:
+	var viva := _amb_pistas[_amb_viva]
+	if _amb_id == "" or not viva.playing or viva.stream == null:
+		return
+	var largo := viva.stream.get_length()
+	if largo <= CRUCE_AMB * 2.0:
+		return
+	if viva.get_playback_position() < largo - CRUCE_AMB:
+		return
+	var otra := _amb_pistas[1 - _amb_viva]
+	if otra.playing:
+		return
+	otra.stream = viva.stream
+	otra.volume_db = -60.0
+	otra.play()
+	# La que sonaba pasa a ser la que se va: `_amb_saliendo` la baja.
+	_amb_saliendo = 1.0
+	_amb_viva = 1 - _amb_viva
+
+
+## Un sonido SUELTO con fundido de entrada y salida (las gaviotas). Un
+## efecto puntual entra de golpe y no pasa nada —es un golpe—, pero un
+## sonido de AMBIENTE que aparece y desaparece a cuchillo se oye como un
+## corte. Va en su propio reproductor para no pelearse con el pool.
+## Un sonido SUELTO con fundido de entrada y de salida. Un efecto puntual
+## puede entrar de golpe —es un golpe—, pero un sonido de AMBIENTE que aparece
+## y desaparece a cuchillo se oye como un corte.
+##
+## `dura` es cuánto tiene que sonar EN TOTAL: con 0 suena la toma entera y se
+## apaga al llegar a su final; con un número, se apaga cuando toque aunque la
+## toma diera para más. Lo usa el crujido del barco viajando por el mapa, que
+## tiene que durar lo que dure el viaje.
+##
+## `tono` mueve la altura. El viaje lo sortea en cada trayecto: es el MISMO
+## crujido y sin eso, cambiando de nivel diez veces seguidas, se oye siempre
+## igual.
+##
+## VAN EN UN POOL de reproductores porque se solapan de verdad: en el mapa el
+## barco viaja mientras pasa una gaviota, y con uno solo se cortaban.
+## `desde` es el SEGUNDO por el que arranca la toma. Lo necesita el crujido
+## del viaje: sus primeras décimas son las más flojas del archivo (-38 dB
+## contra -35 del cuerpo, medido por tramos) y en un salto corto entre dos
+## niveles vecinos no daba tiempo a oír nada.
+func sfx_suave(familia: String, db := 0.0, fundido := 0.6, tono := 1.0,
+		dura := 0.0, desde := 0.0) -> void:
+	if _mudo or not FAMILIAS.has(familia):
+		return
+	var tomas: Array = FAMILIAS[familia]
+	var ruta := str(tomas[randi() % tomas.size()])
+	if not ResourceLoader.exists(ruta):
+		return
+	var i := _suelto_libre()
+	var p := _sueltos[i]
+	p.stream = load(ruta)
+	p.pitch_scale = _pitch_sano(tono)
+	p.volume_db = -60.0
+	p.play(desde)
+	_suelto_est[i] = {
+		"db": float(VOL.get(familia, 0.0)) + db + AJUSTE,
+		"vol": 0.0, "obj": 1.0, "vel": 1.0 / maxf(fundido, 0.05),
+		"queda": dura if dura > 0.0 else -1.0,
+	}
+
+
+## El primer reproductor libre; si están todos ocupados, el que lleve más
+## tiempo sonando (que es el que menos se echará de menos).
+func _suelto_libre() -> int:
+	var viejo := 0
+	var mas := -1.0
+	for i in _sueltos.size():
+		if not _sueltos[i].playing:
+			return i
+		var t := _sueltos[i].get_playback_position()
+		if t > mas:
+			mas = t
+			viejo = i
+	return viejo
+
+
+## Un `pitch_scale` que no sea un número normal revienta el mezclador y puede
+## llevarse por delante TODO el audio, no solo ese sonido (la misma red de
+## seguridad que tiene la pesca).
+func _pitch_sano(v: float) -> float:
+	return clampf(v, 0.4, 2.5) if is_finite(v) else 1.0
+
+
+func _mover_suelto(delta: float) -> void:
+	for i in _sueltos.size():
+		var p := _sueltos[i]
+		if not p.playing:
+			continue
+		var e: Dictionary = _suelto_est[i]
+		# Con `dura` puesta, la cuenta atrás manda; si no, se apaga al acercarse
+		# el final de la toma para que la cola tampoco termine a cuchillo.
+		var caida := 1.0 / float(e["vel"])
+		if float(e["queda"]) >= 0.0:
+			e["queda"] = float(e["queda"]) - delta
+			if float(e["queda"]) <= caida:
+				e["obj"] = 0.0
+		else:
+			var largo := p.stream.get_length() / maxf(p.pitch_scale, 0.01)
+			if largo - p.get_playback_position() < caida:
+				e["obj"] = 0.0
+		e["vol"] = move_toward(float(e["vol"]), float(e["obj"]),
+			float(e["vel"]) * delta)
+		if float(e["vol"]) <= 0.001 and is_equal_approx(float(e["obj"]), 0.0):
+			p.stop()
+			continue
+		p.volume_db = float(e["db"]) + linear_to_db(maxf(float(e["vol"]), 0.001))
+
+
+## LA RED PARA UN TEMA SIN BUCLE PREPARADO: se cruza consigo mismo. Fue el
+## sistema de toda la música hasta que los .ogg se cosieron (ver TEMAS_BUCLE),
+## y se queda porque un tema nuevo entra por aquí sin que nadie tenga que
+## acordarse de nada. Esconde el corte, pero mezcla dos segundos de compases
+## que no se corresponden: si un tema se va a quedar, cósele el bucle.
 ##
 ## Si la otra pista está ocupada (se acaba de cambiar de tema y justo toca la
 ## vuelta), se rebobina la que suena: es un caso rarísimo y una costura suena
@@ -569,7 +1000,24 @@ func _bucle_musica() -> void:
 	if _tema == "":
 		return
 	var p := _pistas[_viva]
-	if not p.playing or p.stream == null:
+	if p.stream == null:
+		return
+	# Un tema COSIDO da la vuelta solo: lo lleva el motor y aquí no hay nada
+	# que hacer.
+	if TEMAS_BUCLE.has(_tema):
+		return
+	# Uno con FINAL suena entero y vuelve a empezar. `_obj` es el volumen al
+	# que va: si está yéndose (cambio de pantalla) no se rearranca.
+	if TEMAS_FINAL.has(_tema):
+		if not p.playing and _obj[_viva] > 0.5:
+			# Vuelve a empezar CON TRANSICIÓN, no de golpe: acaba de morirse
+			# su acorde final y volver a plena fuerza suena a pinchazo.
+			p.play()
+			_vol[_viva] = 0.0
+			p.volume_db = -60.0
+			_fundir(_viva, 1.0, CRUCE_FINAL)
+		return
+	if not p.playing:
 		return
 	var largo := p.stream.get_length()
 	if largo <= CRUCE_BUCLE * 2.0:
@@ -580,6 +1028,7 @@ func _bucle_musica() -> void:
 	if _vol[otra] > 0.02 or _pistas[otra].playing:
 		p.seek(0.0)
 		return
+	_tema_de[otra] = _tema
 	_pistas[otra].stream = p.stream
 	_pistas[otra].play()
 	_fundir(otra, 1.0, CRUCE_BUCLE)
@@ -603,9 +1052,12 @@ func _exit_tree() -> void:
 	if _voz != null:
 		_voz.stop()
 		_voz.stream = null
-	if _amb != null:
-		_amb.stop()
-		_amb.stream = null
+	for a in _amb_pistas:
+		a.stop()
+		a.stream = null
+	for u in _sueltos:
+		u.stop()
+		u.stream = null
 
 
 # ------------------------------------------------------- clic de los botones

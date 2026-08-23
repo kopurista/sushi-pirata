@@ -34,7 +34,6 @@ class_name RecipeData
 ##  - "fail_cancels" en slice_board: cortar deprisa ARRUINA el plato (fugu);
 ##    se pierde la elaboración y entra el cooldown.
 ##
-## "vegetarian": true marca las recetas aptas para clientes vegetarianos.
 ## "patience_mult": escala cuánta paciencia recarga el plato al comerlo
 ##   (client.gd::PATIENCE_FOOD). 1.0 por defecto; makis/futomaki 0.8 (recargan
 ##   x0.2 menos), sopa de miso 1.2, gunkan de tartar 1.1.
@@ -234,7 +233,6 @@ const RECIPES: Dictionary = {
 		"satiety": 1,
 		"cooldown": 3.0,
 		"price": 3,
-		"vegetarian": true,
 		"patience_mult": 0.8,
 		"free_uses": 2,
 		"steps": [
@@ -258,7 +256,6 @@ const RECIPES: Dictionary = {
 		# el más bajo que hay (8 doblones por elaboración, contra los 9 del maki de
 		# aguacate, y con un paso más de trabajo). Ver el calibrado por $/s.
 		"price": 2,
-		"vegetarian": true,
 		"patience_mult": 0.8,
 		"free_uses": 3,
 		"steps": [
@@ -295,7 +292,6 @@ const RECIPES: Dictionary = {
 		"satiety": 1,
 		"cooldown": 3.5,
 		"price": 4,
-		"vegetarian": true,
 		"steps": [
 			{ "type": "tap_ingredient", "ingredient": "arroz" },
 			{ "type": "tap_board", "count": 3 },
@@ -329,7 +325,6 @@ const RECIPES: Dictionary = {
 		"satiety": 1,
 		"cooldown": 5.5,
 		"price": 7,
-		"vegetarian": true,
 		"patience_mult": 1.2,
 		"eat_mult": 1.5,
 		# LIMPIA EL PALADAR como el té verde (todo vuelve a contar como nuevo)
@@ -386,7 +381,6 @@ const RECIPES: Dictionary = {
 		"satiety": 2,
 		"cooldown": 5.0,
 		"price": 5,
-		"vegetarian": true,
 		"steps": [
 			{ "type": "tap_ingredient", "ingredient": "arroz" },
 			{ "type": "tap_board", "count": 3 },
@@ -504,7 +498,6 @@ const RECIPES: Dictionary = {
 		"satiety": 1,
 		"cooldown": 2.0,
 		"price": 1,
-		"vegetarian": true,
 		"snack": true,
 		"take_chance": 0.9,
 		"steps": [
@@ -522,7 +515,6 @@ const RECIPES: Dictionary = {
 		"satiety": 1,
 		"cooldown": 3.0,
 		"price": 2,
-		"vegetarian": true,
 		"snack": true,
 		"take_chance": 0.9,
 		# EL ÚNICO PICOTEO QUE SUMA VARIEDAD. El edamame y el té no tocan la racha
@@ -707,7 +699,6 @@ const RECIPES: Dictionary = {
 		"satiety": 2,
 		"cooldown": 5.0,
 		"price": 10,
-		"vegetarian": true,
 		# Ocupa al cliente MUCHO rato pero le retiene poco: sirve para aparcar
 		# a un cliente pesado sin alargarle la estancia.
 		"eat_mult": 1.8,
@@ -727,7 +718,6 @@ const RECIPES: Dictionary = {
 		"satiety": 1,
 		"cooldown": 2.0,
 		"price": 1,
-		"vegetarian": true,
 		"snack": true,
 		"take_chance": 0.9,
 		"snack_refill": 0.2,
@@ -772,7 +762,6 @@ const RECIPES: Dictionary = {
 		"satiety": 1,
 		"cooldown": 4.0,
 		"price": 3,
-		"vegetarian": true,
 		"only_type": "E",
 		"leaves_seat": true,
 		"tip_always": true,
@@ -795,7 +784,6 @@ const RECIPES: Dictionary = {
 		"satiety": 2,
 		"cooldown": 5.5,
 		"price": 5,
-		"vegetarian": true,
 		"only_type": "A",
 		"leaves_seat": true,
 		"tip_always": true,
@@ -817,7 +805,6 @@ const RECIPES: Dictionary = {
 		"satiety": 3,
 		"cooldown": 7.0,
 		"price": 10,
-		"vegetarian": true,
 		"only_type": "G",
 		"leaves_seat": true,
 		"tip_always": true,
@@ -1145,7 +1132,9 @@ const TYPE_PLURAL: Dictionary = {
 	"E": "grumetes", "A": "piratas", "G": "capitanes",
 }
 ## Cuántas frases como mucho: más de tres y deja de ser una descripción.
-const SUMMARY_MAX := 3
+## Frases del resumen. CUATRO desde que son cortas y con cifras: antes eran
+## parrafos y con tres ya se llenaba la ficha.
+const SUMMARY_MAX := 4
 
 
 static func summary(id: String) -> String:
@@ -1155,60 +1144,72 @@ static func summary(id: String) -> String:
 	var f: Array[String] = []
 
 	if bool(r.get("snack", false)):
-		f.append("**Picoteo**: el cliente lo coge sin soltar el plato que está comiendo, y le alarga el bocado.")
+		# El 0.35 es el `SNACK_EAT_REFILL` de client3d, que no es clase global y
+		# no se puede leer desde aqui; la receta puede pisarlo con `snack_refill`
+		# (el gari lo deja casi a cero).
+		f.append("**Picoteo**: se coge sin soltar el plato en curso y alarga el bocado un **%d%%**."
+			% int(round(float(r.get("snack_refill", 0.35)) * 100.0)))
 	if bool(r.get("variety_snack", false)):
-		f.append("Y, al contrario que los demás picoteos, **sube el multiplicador**.")
+		f.append("Y **sube el multiplicador**, cosa que los demás picoteos no hacen.")
 	if bool(r.get("leaves_seat", false)):
 		var quien := str(TYPE_PLURAL.get(str(r.get("only_type", "")), ""))
-		f.append("**Postre**: al terminarlo el cliente paga, deja propina segura, cobra su multiplicador y **deja la silla libre**%s."
-			% ("" if quien == "" else ". Solo lo cogen los %s" % quien))
+		f.append("**Postre**: propina segura, cobra el multiplicador y **libera la silla**%s."
+			% ("" if quien == "" else " (solo lo cogen los %s)" % quien))
 	if bool(r.get("clears_boredom", false)) and not bool(r.get("snack", false)):
-		f.append("**Limpia el paladar**: todo vuelve a contar como nuevo, pero sin subir el multiplicador.")
+		f.append("**Limpia el paladar**: todo vuelve a contar como nuevo, sin subir el multiplicador.")
 	elif bool(r.get("clears_boredom", false)):
 		f.append("Además **limpia el paladar**: todo vuelve a contar como nuevo.")
 
 	var libres := int(r.get("free_uses", 0))
 	if libres > 0:
-		f.append("**Maestría**: de una sola elaboración salen **%d piezas** — la primera la haces tú y las demás salen ya hechas."
-			% (libres + 1))
+		f.append("**Maestría**: %d piezas por elaboración (haces la primera; las otras %d salen hechas)."
+			% [libres + 1, libres])
 
 	var congela := float(r.get("patience_freeze", 0.0))
 	if congela > 0.0:
 		f.append("**Congela la paciencia** del cliente %d segundos." % int(congela))
 
+	# CON LA CIFRA, no con un adjetivo: "se come un 80% mas despacio" se puede
+	# comparar con otra receta y "muy despacio" no.
 	var comer := float(r.get("eat_mult", 1.0))
-	if comer >= 1.3:
-		f.append("Se come **muy despacio**: aparta al cliente un buen rato.")
-	elif comer <= 0.7:
-		f.append("Se come **deprisa**: el cliente vuelve enseguida a pedir.")
+	if comer >= 1.1:
+		f.append("Se come un **%d%% más despacio**: aparta al cliente ese rato."
+			% int(round((comer - 1.0) * 100.0)))
+	elif comer <= 0.9:
+		f.append("Se come un **%d%% más rápido**: el cliente vuelve antes a pedir."
+			% int(round((1.0 - comer) * 100.0)))
 
 	var llena := float(r.get("patience_mult", 1.0))
-	if llena >= 1.2:
-		f.append("**Llena más** de lo que aparenta para su nivel.")
-	elif llena <= 0.85:
-		f.append("Llena **poco**: es rápido de hacer, no de saciar.")
+	if llena >= 1.05:
+		f.append("Recarga un **%d%% más** de paciencia." % int(round((llena - 1.0) * 100.0)))
+	elif llena <= 0.95:
+		f.append("Recarga un **%d%% menos** de paciencia." % int(round((1.0 - llena) * 100.0)))
 
-	if float(r.get("tip_amount_mult", 1.0)) > 1.0:
-		f.append("Cuando cae propina, cae **más gorda**.")
-	if float(r.get("tip_chance_bonus", 0.0)) > 0.0:
-		f.append("Sube la **probabilidad** de propina.")
+	var cuantia := float(r.get("tip_amount_mult", 1.0))
+	if cuantia > 1.0:
+		f.append("La propina cae un **%d%% más gorda**." % int(round((cuantia - 1.0) * 100.0)))
+	var prob := float(r.get("tip_chance_bonus", 0.0))
+	if prob > 0.0:
+		f.append("**+%d%%** de probabilidad de propina." % int(round(prob * 100.0)))
 
 	# Gestos que el jugador tiene que saber ANTES de meterse en la receta.
 	for step in r.get("steps", []):
 		match str(step.get("type", "")):
 			"slice_board":
 				if int(step.get("fail_penalty", 0)) > 0:
-					f.append("Lleva **corte lento**, y cortarlo con prisa cuesta oro.")
+					f.append("**Corte lento**, y correr cuesta **%d doblones** por fallo."
+						% int(step.get("fail_penalty", 0)))
 				else:
 					f.append("Lleva **corte lento**: de lado a lado y sin correr.")
 			"fry_board":
-				f.append("Hay que **clavar el punto** de fritura: pasarse o quedarse corto cambia lo que paga.")
+				f.append("**Punto de fritura**: clavarlo paga el triple que pasarse.")
 			"drag_choice":
 				f.append("Se **elige el pescado** al prepararlo, y el plato cambia con él.")
 
 	var take: Variant = r.get("take_chance", null)
 	if take is float and float(take) >= 0.85:
-		f.append("Lo coge **cualquier paladar**, sea del tipo que sea.")
+		f.append("Lo coge **cualquier paladar**: %d%% con los tres tipos."
+			% int(round(float(take) * 100.0)))
 
 	if f.is_empty():
 		return ""
