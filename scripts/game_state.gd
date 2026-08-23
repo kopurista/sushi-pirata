@@ -170,6 +170,9 @@ var pending_kappa := false
 ## La escena ya se representó: el trofeo del Kappa deja de esperar por ella
 ## (ver el filtro de BOSS_ITEMS en `_run_achievement_check`).
 var kappa_outro_done := false
+## La escena de la puerta del MAR 2 (la felicitación y el aviso de los vientos)
+## ya se representó.
+var mar2_intro_done := false
 ## Alice ya se ha enrolado, y con ella se abrieron los BONIFICADORES (la escena
 ## del mapa al superar su escenario).
 var alice_intro_done := false
@@ -180,6 +183,7 @@ var skill_counters_intro_done := false
 ## David ya ha explicado el HÁNDICAP del PUERTO (3 vacíos = derrota) dentro de
 ## un puerto. Se cuenta también en el mapa al presentar los tipos, pero la
 ## primera jornada de puerto lo repite con el contador delante.
+var isla_handicap_done := false
 var puerto_handicap_done := false
 ## Y el del ABORDAJE (cada vacío resta 15 s de reloj), la primera vez que se
 ## juega uno.
@@ -2338,8 +2342,10 @@ func save_game() -> void:
 		"alice_saciada": alice_saciada,
 		"pending_kappa": pending_kappa,
 		"kappa_outro_done": kappa_outro_done,
+		"mar2_intro_done": mar2_intro_done,
 		"alice_intro_done": alice_intro_done,
 		"skill_counters_intro_done": skill_counters_intro_done,
+		"isla_handicap_done": isla_handicap_done,
 		"puerto_handicap_done": puerto_handicap_done,
 		"abordaje_handicap_done": abordaje_handicap_done,
 		"col_intro_done": col_intro_done,
@@ -2556,8 +2562,10 @@ func load_game() -> void:
 	# su Kappa se rindió cuando el trofeo caía solo al cerrar el nivel.
 	kappa_outro_done = bool(parsed.get("kappa_outro_done",
 		"diente_kappa" in collectibles))
+	mar2_intro_done = bool(parsed.get("mar2_intro_done", false))
 	alice_intro_done = bool(parsed.get("alice_intro_done", false))
 	skill_counters_intro_done = bool(parsed.get("skill_counters_intro_done", false))
+	isla_handicap_done = bool(parsed.get("isla_handicap_done", false))
 	puerto_handicap_done = bool(parsed.get("puerto_handicap_done", false))
 	abordaje_handicap_done = bool(parsed.get("abordaje_handicap_done", false))
 	col_intro_done = bool(parsed.get("col_intro_done", tutorial_done))
@@ -2669,8 +2677,10 @@ func _new_game() -> void:
 	alice_saciada = false
 	pending_kappa = false
 	kappa_outro_done = false
+	mar2_intro_done = false
 	alice_intro_done = false
 	skill_counters_intro_done = false
+	isla_handicap_done = false
 	puerto_handicap_done = false
 	abordaje_handicap_done = false
 	col_intro_done = false

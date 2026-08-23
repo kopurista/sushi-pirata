@@ -255,6 +255,12 @@ const TIME_BONUS := 3
 const TIME_BONUS_BLOCK := 10.0
 var powerups_claimed := 0
 var pending_powerups := 0
+## Respiro ANTES de abrir el cartel de potenciador. Se pone al ganar uno y
+## corre en `_process`: sin él, `_add_tip` abría el cartel EN LA MISMA llamada
+## en que sumaba la propina, el cartel pausaba el árbol y `_update_hud` nunca
+## llegaba a pintar la barra — el jugador veía saltar el premio con el bote a
+## medio llenar. Con el respiro, primero se VE la barra llegar y luego sale.
+var powerup_delay := 0.0
 var aroma_active := false
 var tip_chance_bonus := 0.0
 var tip_amount_mult := 1.0
@@ -481,7 +487,13 @@ func _ready() -> void:
 			n.offset_bottom += st
 	if GameState.is_adventure():
 		scenery_kind = CampaignData.get_kind(GameState.current_port)
-		if not GameState.is_tutorial():
+		# LOS CASTIGOS POR VACÍO EMPIEZAN EN EL MAR 2 (pedido por el usuario):
+		# el mar 1 es la escuela y allí un cliente que se va sin comer no
+		# cuesta nada — ni oro en la isla, ni calavera en el puerto, ni reloj
+		# en el abordaje. El TUTORIAL va aparte: su marcador del caos necesita
+		# los castigos de oro y los conserva (ver client3d.penaliza_vacio).
+		if not GameState.is_tutorial() \
+				and CampaignData.sea_of(GameState.current_port) >= 2:
 			vacio_pierde = scenery_kind == "puerto"
 			vacio_roba_reloj = scenery_kind == "abordaje"
 	_setup_environment()
@@ -3039,7 +3051,8 @@ func _process(delta: float) -> void:
 		if _try_spawn_client():
 			arrival_queue.pop_front()
 	# Potenciador ganado mientras el jugador sostenia un gesto: sale en cuanto
-	# levanta el dedo.
+	# levanta el dedo (y tras su respiro, para que la barra se vea llegar).
+	powerup_delay = maxf(powerup_delay - delta, 0.0)
 	_try_open_powerup_choice()
 	_update_hud()
 
@@ -3119,7 +3132,17 @@ func _try_spawn_client() -> bool:
 	c.tips_enabled = not no_powerups
 	c.variety_ui = not no_variety_ui
 	# En puertos y abordajes el vacío no cuesta oro: cobra en derrota o reloj.
-	c.penaliza_vacio = not (vacio_pierde or vacio_roba_reloj)
+	# Y EN EL MAR 1 no cobra NADIE (la escuela no castiga el vacío); el
+	# tutorial sí, que su marcador del caos vive de esos castigos.
+	c.penaliza_vacio = not (vacio_pierde or vacio_roba_reloj) \
+			and (GameState.is_tutorial() or not GameState.is_adventure()
+				or CampaignData.sea_of(GameState.current_port) >= 2)
+	# En las islas del mar 2+ el castigo en oro va DOBLADO (pedido por el
+	# usuario): tiene que doler tanto como la calavera del puerto o los 15 s
+	# del abordaje, y con la tarifa de la escuela se ignoraba.
+	if GameState.is_adventure() and not GameState.is_tutorial() \
+			and CampaignData.sea_of(GameState.current_port) >= 2:
+		c.leave_penalty_mult = 2.0
 	# Entra andando por la borda mas cercana a su asiento, rodea el mostrador
 	# y llega a su taburete; al marcharse saldra por esa misma borda.
 	var entry: Vector3 = seats[idx]["entry"]
@@ -3929,10 +3952,15 @@ func _add_tip(amount: int) -> void:
 	GameState.bump_stat("tips_total", amount)
 	# SIN `_check_goal_reached()`: las propinas cuentan para las estrellas al
 	# cerrar la jornada, pero no adelantan el final del turno.
+	var nuevos := false
 	while tips_total >= _tip_threshold(powerups_claimed):
 		powerups_claimed += 1
 		pending_powerups += 1
-	_try_open_powerup_choice()
+		nuevos = true
+	# NO se abre aquí: se deja el respiro para que la barra del bote se pinte
+	# llena ANTES de que el cartel pause el juego (lo abre `_process`).
+	if nuevos:
+		powerup_delay = maxf(powerup_delay, 0.65)
 
 
 ## Saca el cartel de potenciador SOLO si no pilla al jugador en mitad de un
@@ -3944,7 +3972,36 @@ func _try_open_powerup_choice() -> void:
 		return
 	if prep_board.is_gesture_locked():
 		return
+	# El respiro de la barra (ver `powerup_delay`).
+	if powerup_delay > 0.0:
+		return
+	# NI ENCIMA DE UN DIÁLOGO NI DE UN AVISO MODAL: el cartel espera a que el
+	# guion (o la ventana de coleccionable) termine y sale después.
+	if GameState.notices_busy() or _guion_hablando():
+		return
 	_open_powerup_choice()
+
+
+## ¿Está hablando algún guion de este nivel?
+func _guion_hablando() -> bool:
+	for hijo in get_children():
+		if hijo is StoryDirector and hijo.dialog != null \
+				and is_instance_valid(hijo.dialog) and hijo.dialog.is_talking():
+			return true
+	return false
+
+
+## APLAZA el cartel de potenciador: lo cierra y lo vuelve a encolar. Lo llama
+## el guion justo antes de hablar (`story_director._say`): un diálogo encima
+## del cartel eran dos pausas peleando, y al terminar el guion despausaba el
+## árbol con el cartel aún puesto — el juego corría por debajo de la elección.
+func postpone_powerup_choice() -> void:
+	if powerup_panel == null or not powerup_panel.visible:
+		return
+	powerup_panel.visible = false
+	pending_powerups += 1
+	powerup_delay = 0.8
+	get_tree().paused = false
 
 
 ## Alto de cada tarjeta y tamaño del dibujo que la encabeza.

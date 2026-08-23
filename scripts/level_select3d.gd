@@ -49,6 +49,15 @@ const BAND_CENTER_OFF := 140.0
 ## lo que lleve dentro (una isla cuenta menos que la cueva del jefe) entre un
 ## suelo y un techo. Con alto fijo, la mitad de las fichas salían con media
 ## hoja en blanco.
+## GRAFICO PROPIO de la ventana del escenario: pergamino con marco de CUERDA y
+## argollas de laton, distinto del tablon de madera del resto del juego. Su
+## marco mide ~46 texeles a 340 de ancho, asi que el margen 9-slice va a 56
+## para que las argollas de las esquinas caigan enteras dentro.
+const FICHA_TEX := "res://assets/ui/panel_ficha.png"
+const FICHA_MARGIN := 56
+## Lado del aspa que la cierra, cabalgando la esquina de arriba a la derecha.
+const FICHA_ASPA := 76.0
+
 const FICHA_W := 660.0
 const FICHA_H := 900.0
 const FICHA_MIN := 560.0
@@ -60,8 +69,14 @@ const FICHA_EXTRA := 350.0
 ## y centrada del todo la ventana les caía encima.
 const FICHA_BAJADA := 40.0
 
-const SCROLL_MIN := -560.0
-const SCROLL_MAX := CampaignData.MAP_HEIGHT - 300.0
+## El tope de scroll llega hasta la CUEVA menos un margen (ver su MAP_POS).
+## Se mueve con ella: al separar los escenarios, la cueva subio de -700 a
+## -1664 y con el tope viejo se quedaba fuera de alcance.
+## El tope de arriba llega hasta el jefe del MAR 2 (m2_25, y=-7286) con su
+## margen; el de abajo se queda JUSTO bajo el escenario 1 — sin el panel de
+## informacion de antes, bajar mas solo ensenaba un hueco de mar vacio.
+const SCROLL_MIN := -7440.0
+const SCROLL_MAX := CampaignData.MAP_HEIGHT - 560.0
 
 ## EL PLANO DEL MAR TIENE QUE CUBRIR TAMBIÉN EL FONDEADERO DEL MENÚ, que está
 ## muy por debajo del mapa (`main_menu.MENU_ANCHOR`), y el puerto de la portada,
@@ -69,7 +84,10 @@ const SCROLL_MAX := CampaignData.MAP_HEIGHT - 300.0
 ## el mapa y en la portada se veía el borde del agua abajo a la izquierda.
 ## Van en píxeles de mapa y en unidades de mundo respectivamente.
 const SEA_BOTTOM_PX := 5200.0
-const SEA_SIZE := 190.0
+## 290 u: el plano tiene que llegar del fondeadero del menu (abajo del todo)
+## hasta el jefe del mar 2 (y=-7286 px). Con 190 se acababa en -3500 y la
+## mitad norte del mar nuevo flotaba sobre el vacio.
+const SEA_SIZE := 290.0
 
 ## Modelo 3D de cada tipo de nodo y huella horizontal objetivo (u).
 const KIND_MODELS := {
@@ -81,35 +99,36 @@ const KIND_MODELS := {
 ## --- EL NUMERO DEL ESCENARIO, DENTRO DEL DECORADO (ver `_numero_del_nodo`) ---
 ## Escala de la fuente a mundo: tamano en unidades = font_size * NUM_PIXEL.
 const NUM_PIXEL := 0.0042
-## ISLA: tumbado en la arena, hacia la mitad delantera de la playa.
-const ISLA_NUM_CUERPO := 280
-const ISLA_NUM_COLOR := Color(0.52, 0.36, 0.18)
-const ISLA_NUM_Y := 0.52
-const ISLA_NUM_W := 0.30
-## ABORDAJE: pintado en la vela, a media altura del palo.
-const VELA_NUM_CUERPO := 210
-## CREMA, no tinta oscura: las velas de este barco son OSCURAS y furladas,
-## asi que un numero marron se perdia en ellas. Pintado en claro se lee.
-const VELA_NUM_COLOR := Color(0.95, 0.91, 0.80)
-const VELA_NUM_Y := 0.72
-const VELA_NUM_Z := 0.14
-## CUEVA: esculpido en la cara de la roca.
-const CUEVA_NUM_CUERPO := 185
-const CUEVA_NUM_COLOR := Color(0.20, 0.19, 0.18)
-const CUEVA_NUM_Y := 0.62
-const CUEVA_NUM_Z := 0.36
-## PUERTO: el cartel de madera clavado en el muelle.
+## Madera del cartel del nivel (el numero trae la suya horneada).
+const NUM_TEX_MADERA := "res://assets/props/madera_cartel.webp"
+## EL CARTEL DEL NUMERO, el mismo para los cuatro tipos. Va a la DERECHA del
+## escenario y algo hacia la camara, en fracciones de su huella: lo bastante
+## afuera para caer siempre sobre el agua.
+const CARTEL_X := 0.46
 const CARTEL_Z := 0.34
-const CARTEL_X := 0.02
-const CARTEL_ALTO := 0.95
-const CARTEL_ANCHO := 0.78
-const CARTEL_TABLA := 0.50
-const CARTEL_POSTE := 0.09
-const CARTEL_CUERPO := 190
+## Lo que se hunde por debajo del mar. El pivote del nodo esta a −0.10, asi que
+## esto es lo que baja el cartel DESDE ahi: la linea de flotacion cruza los
+## postes a media altura y la tabla queda limpia por encima.
+const CARTEL_CALADO := 0.26
+const CARTEL_ALTO := 1.52
+const CARTEL_ANCHO := 1.30
+const CARTEL_TABLA := 1.08
+const CARTEL_POSTE := 0.10
+## Grosor de la tabla; los postes van a esa distancia POR DETRAS.
+const CARTEL_FONDO := 0.09
+## Reparto de la tabla: el numero arriba y las estrellas debajo, en fracciones
+## de su alto.
+const NUM_EN_TABLA := 0.50
+const NUM_SUBE := 0.18
+const ESTRELLAS_EN_TABLA := 0.29
+const ESTRELLAS_BAJA := 0.31
 
 ## Huella de cada modelo en el mapa. La ISLA es la mas grande porque su numero
 ## va ESCRITO EN LA ARENA: a 2.6 la playa no daba para una cifra legible.
-const KIND_FOOT := { "isla": 3.5, "puerto": 3.0, "abordaje": 2.6, "cueva": 2.8 }
+## Huella de cada modelo en el mapa. TODOS crecieron con el numero metido
+## dentro: la isla porque su cifra va escrita en la playa, y el puerto y el
+## barco porque el cartel y la vela tienen que dar para dos y tres cifras.
+const KIND_FOOT := { "isla": 3.5, "puerto": 3.9, "abordaje": 3.4, "cueva": 3.0 }
 ## Sitio y tamaño de la sombra de la boca de la cueva, en fracciones de su
 ## huella (medido sobre captura, ver `_base_cueva`).
 const BOCA_U := -0.274
@@ -185,6 +204,8 @@ var info_recipes_row: Container
 var info_stars_box: Control
 ## Cómo se cierra la jornada y qué castiga el TIPO de escenario.
 var info_cierre: Label
+## "Fase N", el numero del escenario escrito en claro.
+var info_fase: Label
 ## Bloque del coleccionable que se puede conseguir aquí (si lo hay).
 var info_tesoro: VBoxContainer = null
 var info_tesoro_row: Container = null
@@ -193,6 +214,7 @@ var map_submenu: Control = null
 ## Piezas de la ficha que hay que remedir cuando cambia su contenido.
 var ficha_panel: PanelContainer = null
 var ficha_cuerpo: VBoxContainer = null
+var ficha_aspa: TextureButton = null
 ## Atado al primer puerto: en la primera visita al mapa el "Atrás" no vale
 ## hasta que se zarpa (ver `_guiar_primer_nivel` y `_on_map_back`).
 var _atado_al_puerto := false
@@ -301,8 +323,12 @@ func _setup_sea() -> void:
 	# es el punto más bajo al que llega la cámara (y desde la PORTADA se corre
 	# además PORT_OFF hacia la izquierda). Centrado solo en el mapa, la esquina
 	# inferior izquierda de la portada se salía del agua y se veía el vacío.
-	var hasta := maxf(CampaignData.MAP_HEIGHT, SEA_BOTTOM_PX)
-	mi.position = D_HAT * ((hasta * 0.5 + 640.0) / PPU_Y)
+	# CENTRADO ENTRE LOS DOS TOPES DEL SCROLL, no contra el lienzo del mapa:
+	# con el mar 2 la travesía sube hasta y=-7286 y el centrado viejo dejaba
+	# la mitad norte flotando sobre el vacío (azul liso sin espuma).
+	var abajo := maxf(CampaignData.MAP_HEIGHT, SEA_BOTTOM_PX) + 640.0
+	var arriba := SCROLL_MIN - 640.0
+	mi.position = D_HAT * (((abajo + arriba) * 0.5) / PPU_Y)
 	var mat := ShaderMaterial.new()
 	# EL MAR VA CON `water_ww.gdshader`. Se probó también el "Toon Water Shader"
 	# (`shaders/water_toon.gdshader`, aquí es cambiar estas dos líneas) y se
@@ -385,134 +411,161 @@ func _setup_nodes() -> void:
 		# La mancha es una sombra EN EL AGUA: sube con ella o se hunde.
 		blob.set_meta("y0", blob.position.y)
 		flotantes.append(blob)
-		_numero_del_nodo(kind, pivot, foot, CampaignData.port_index(id) + 1,
-			GameState.is_port_unlocked(id))
+		_cartel_nivel(pivot, foot, CampaignData.port_index(id) + 1,
+			int(GameState.level_stars.get(id, 0)),
+			GameState.is_port_unlocked(id), _lado_del_cartel(id))
 		if not GameState.is_port_unlocked(id):
 			_dim_model(pivot)
 			if base_cueva != null:
 				_dim_model(base_cueva)
 
 
-## EL NUMERO DEL ESCENARIO VA DENTRO DEL DECORADO, no en una chapa delante.
-## Cada tipo lo lleva donde lo llevaria de verdad: la ISLA lo tiene escrito en
-## la arena, el PUERTO en un cartel clavado en el muelle, el ABORDAJE pintado
-## en la vela y la CUEVA esculpido en la roca. Un disco con el numero flotando
-## sobre el nodo se leia como un boton mas de la interfaz; asi el mapa se lee
-## como un sitio.
+## A QUE LADO DEL ESCENARIO VA SU CARTEL. Manda el CANTO DE LA PANTALLA: en el
+## carril de la derecha, un cartel a la derecha se salia de cuadro, asi que ahi
+## se pone a la izquierda. En el carril del medio tambien va a la izquierda,
+## que es donde NO esta el barco (`_ship_anchor` lo manda a la derecha de todo
+## lo que no este en el carril derecho).
+func _lado_del_cartel(id: String) -> float:
+	return -1.0 if CampaignData.map_pos(id).x >= 360.0 else 1.0
+
+
+## EL CARTEL: dos postes y una tabla, construidos aqui y no en un modelo,
+## porque tiene que poder cambiar de numero y de estrellas. Va al lado del
+## escenario, SIEMPRE SOBRE EL AGUA y medio sumergido.
 ##
-## Los cuatro son `Label3D`, no texturas horneadas: el texto sale con la fuente
-## del juego, se puede cambiar el numero sin regenerar nada y no cuesta un
-## `.png` por escenario.
-## OJO CON LA ORIENTACION. La camara mira con yaw 45, asi que:
-##  · un rotulo DE PIE mirando a la camara va a `rotation.y = 45`;
-##  · uno TUMBADO en el suelo va a (-90, 45, 0) — con el -90 su cara apunta
-##    arriba y con el 45 su eje X cae sobre el "derecha" de la pantalla
-##    (`R_HAT`), que es lo que lo hace legible en vez de salir torcido.
-func _numero_del_nodo(kind: String, pivot: Node3D, foot: float, n: int,
-		unlocked: bool) -> void:
-	var alto := float(pivot.get_meta("alto", 1.0))
-	match kind:
-		"isla":
-			# ESCRITO EN LA ARENA: tumbado sobre la playa y en el tono de la
-			# propia arena mojada, sin contorno claro — una cifra con marco
-			# volveria a parecer una chapa.
-			var l := _label3d(n, ISLA_NUM_CUERPO, ISLA_NUM_COLOR,
-				Color(0.30, 0.22, 0.12, 0.55), 22, unlocked)
-			l.rotation_degrees = Vector3(-90.0, 45.0, 0.0)
-			l.position = Vector3(0.0, ISLA_NUM_Y, 0.0) + D_HAT * (foot * ISLA_NUM_W)
-			pivot.add_child(l)
-		"puerto":
-			_cartel_puerto(pivot, foot, alto, n, unlocked)
-		"abordaje":
-			# EN LA VELA: de pie, mirando a la camara, con la tinta oscura de
-			# un numero pintado sobre lona.
-			var lv := _label3d(n, VELA_NUM_CUERPO, VELA_NUM_COLOR,
-				Color(0.22, 0.13, 0.06, 0.9), 18, unlocked)
-			lv.rotation_degrees = Vector3(0.0, 45.0, 0.0)
-			lv.position = Vector3(0.0, alto * VELA_NUM_Y, 0.0) \
-				+ D_HAT * (foot * VELA_NUM_Z)
-			pivot.add_child(lv)
-		"cueva":
-			# ESCULPIDO: letra oscura con un reborde CLARO por debajo, que es
-			# como se lee un bajorrelieve — la luz le entra por el canto de
-			# arriba y la talla queda en sombra.
-			var lc := _label3d(n, CUEVA_NUM_CUERPO, CUEVA_NUM_COLOR,
-				Color(0.62, 0.60, 0.56, 0.85), 20, unlocked)
-			lc.rotation_degrees = Vector3(0.0, 45.0, 0.0)
-			lc.position = Vector3(0.0, alto * CUEVA_NUM_Y, 0.0) \
-				+ D_HAT * (foot * CUEVA_NUM_Z)
-			pivot.add_child(lc)
-
-
-## Un rotulo 3D con la fuente del juego. `alpha_cut` en DISCARD a proposito: el
-## texto no tiene que ordenarse contra el mar ni contra la niebla, y asi no
-## parpadea al pasar un jiron por delante.
-func _label3d(n: int, cuerpo: int, color: Color, borde: Color, ancho: int,
-		unlocked: bool) -> Label3D:
-	var l := Label3D.new()
-	l.text = "%d" % n
-	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
-	if negrita != null:
-		l.font = negrita
-	l.font_size = cuerpo
-	l.pixel_size = NUM_PIXEL
-	l.modulate = color if unlocked else color.lerp(Color(0.42, 0.44, 0.5), 0.75)
-	l.outline_modulate = borde
-	l.outline_size = ancho
-	l.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	l.shaded = false
-	l.double_sided = true
-	l.alpha_cut = Label3D.ALPHA_CUT_DISCARD
-	l.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	# `GeometryBatch.bake` funde la geometria estatica del mapa y LIBERA los
-	# originales: sin esto el numero se iria con ellos.
-	l.add_to_group("no_batch")
-	return l
-
-
-## EL CARTEL DEL PUERTO: dos postes y una tabla, construidos aqui y no en el
-## modelo, porque el `.glb` del puerto es el mismo para los seis y el cartel
-## tiene que poder cambiar de numero. Va en la punta del muelle y de cara a la
-## camara, que es donde se pondria uno de verdad para que lo lea quien llega
-## navegando.
-func _cartel_puerto(pivot: Node3D, foot: float, alto: float, n: int,
-		unlocked: bool) -> void:
+## Y va HACIA ARRIBA en pantalla (−D_HAT), no hacia la camara: el barco del
+## jugador se ancla SIEMPRE por debajo del nodo (`_ship_anchor`, +72 px), asi
+## que subiendo el cartel los dos no pueden pisarse aunque caigan del mismo
+## lado. Con el cartel abajo, el barco lo tapaba en cuanto se seleccionaba el
+## escenario.
+func _cartel_nivel(pivot: Node3D, foot: float, n: int, estrellas: int,
+		unlocked: bool, lado: float) -> void:
 	var cartel := Node3D.new()
 	cartel.rotation_degrees.y = 45.0
-	# HACIA LA CAMARA (+D_HAT): puesto por detras, la roca del faro se lo
-	# comia entero.
-	cartel.position = D_HAT * (foot * CARTEL_Z) \
-		+ R_HAT * (foot * CARTEL_X)
+	# MEDIO SUMERGIDO: la base baja bien por debajo del mar (el pivote del nodo
+	# esta a −0.10, asi que en local hay que bajar otro tanto) y la linea de
+	# flotacion cruza los postes a media altura.
+	cartel.position = R_HAT * (lado * foot * CARTEL_X) \
+		- D_HAT * (foot * CARTEL_Z) + Vector3(0.0, -CARTEL_CALADO, 0.0)
 	pivot.add_child(cartel)
+	# MADERA A MEDIO CAMINO (`madera_cartel.webp`, la del muelle mezclada con su
+	# color medio): con la veta entera el cartel se leia como una mancha rayada
+	# y la cifra se perdia; con un color liso quedaba de plastico.
 	var madera := StandardMaterial3D.new()
-	madera.albedo_color = Color(0.44, 0.28, 0.14) if unlocked \
-			else Color(0.24, 0.25, 0.30)
-	madera.roughness = 0.95
-	for dx in [-CARTEL_ANCHO * 0.34, CARTEL_ANCHO * 0.34]:
+	madera.albedo_texture = load(NUM_TEX_MADERA)
+	madera.albedo_color = Color(0.56, 0.38, 0.20) if unlocked \
+			else Color(0.30, 0.31, 0.36)
+	madera.uv1_triplanar = true
+	madera.uv1_scale = Vector3(0.9, 0.9, 0.9)
+	madera.roughness = 1.0
+	# LOS POSTES VAN DETRAS DE LA TABLA (z negativo, que con el giro de 45 es
+	# "hacia el fondo"): delante se veian cruzando el numero, que es justo lo
+	# que un cartel de verdad no hace.
+	for dx in [-CARTEL_ANCHO * 0.40, CARTEL_ANCHO * 0.40]:
 		var poste := MeshInstance3D.new()
 		var pm := BoxMesh.new()
 		pm.size = Vector3(CARTEL_POSTE, CARTEL_ALTO, CARTEL_POSTE)
 		poste.mesh = pm
 		poste.material_override = madera
-		poste.position = Vector3(dx, CARTEL_ALTO * 0.5, 0.0)
+		poste.position = Vector3(dx, CARTEL_ALTO * 0.5, -CARTEL_FONDO)
 		poste.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		cartel.add_child(poste)
 	var tabla := MeshInstance3D.new()
 	var tm := BoxMesh.new()
-	tm.size = Vector3(CARTEL_ANCHO, CARTEL_TABLA, CARTEL_POSTE * 0.7)
+	tm.size = Vector3(CARTEL_ANCHO, CARTEL_TABLA, CARTEL_FONDO * 1.6)
 	tabla.mesh = tm
 	var tinta := StandardMaterial3D.new()
-	tinta.albedo_color = Color(0.62, 0.42, 0.20) if unlocked \
-			else Color(0.30, 0.31, 0.36)
-	tinta.roughness = 0.95
+	tinta.albedo_texture = load(NUM_TEX_MADERA)
+	tinta.albedo_color = Color(0.72, 0.50, 0.26) if unlocked \
+			else Color(0.34, 0.35, 0.40)
+	tinta.uv1_triplanar = true
+	tinta.uv1_scale = Vector3(0.7, 0.7, 0.7)
+	tinta.roughness = 1.0
 	tabla.material_override = tinta
 	tabla.position = Vector3(0.0, CARTEL_ALTO - CARTEL_TABLA * 0.6, 0.0)
 	tabla.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	cartel.add_child(tabla)
-	var l := _label3d(n, CARTEL_CUERPO, Color(1.0, 0.90, 0.55),
-		Color(0.16, 0.09, 0.03, 0.9), 18, unlocked)
-	l.position = tabla.position + Vector3(0.0, 0.0, CARTEL_POSTE * 0.5)
+	# EL NUMERO, TALLADO EN LA TABLA, y DEBAJO LAS ESTRELLAS conseguidas. Van
+	# aqui y no flotando sobre el nodo (pedido por el usuario): con la hilera
+	# 2D encima, las estrellas de un escenario caian al lado del vecino y no
+	# habia forma de saber de quien eran.
+	var l := _num_quad(n, CARTEL_TABLA * NUM_EN_TABLA, unlocked)
+	l.position = tabla.position + Vector3(0.0, CARTEL_TABLA * NUM_SUBE,
+		CARTEL_FONDO * 0.9)
 	cartel.add_child(l)
+	var e := _estrellas_quad(estrellas, CARTEL_TABLA * ESTRELLAS_EN_TABLA,
+		unlocked)
+	e.position = tabla.position + Vector3(0.0, -CARTEL_TABLA * ESTRELLAS_BAJA,
+		CARTEL_FONDO * 0.9)
+	cartel.add_child(e)
+
+
+## EL NUMERO ES UNA IMAGEN HORNEADA, no texto. `tools/num_map.py` dibuja uno
+## por escenario con la TRAMA de su material (arena, lona, madera o piedra)
+## recortada por la silueta y con el RELIEVE ya pintado —luz por el canto de
+## arriba y sombra por el de abajo—, que es lo que lo hace parecer incrustado.
+##
+## Se intento antes con `TextMesh` (geometria extruida de verdad) y Godot no
+## puede con esta fuente: "Convex decomposing failed. Make sure the font doesn't
+## contain self-intersecting lines", con la Exo 2 tanto Bold como Regular. El
+## numero salia sin malla ninguna.
+## LAS ESTRELLAS DE LA TABLA: la misma hilera de tres del juego, horneada en
+## cuatro versiones (0 a 3 llenas) por `tools/num_map.py`.
+func _estrellas_quad(k: int, alto: float, unlocked: bool) -> MeshInstance3D:
+	var tex: Texture2D = load("res://assets/map/estrellas_%d.png"
+		% clampi(k, 0, 3))
+	var q := QuadMesh.new()
+	var prop := 3.2
+	if tex != null and tex.get_height() > 0:
+		prop = float(tex.get_width()) / float(tex.get_height())
+	q.size = Vector2(alto * prop, alto)
+	var mi := MeshInstance3D.new()
+	mi.mesh = q
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tex
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	m.alpha_scissor_threshold = 0.5
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	if not unlocked:
+		m.albedo_color = Color(0.46, 0.48, 0.54)
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.add_to_group("no_batch")
+	return mi
+
+
+func _num_quad(n: int, alto: float, unlocked: bool) -> MeshInstance3D:
+	var tex: Texture2D = load("res://assets/map/num_%d.png" % n)
+	var q := QuadMesh.new()
+	var prop := 1.0
+	if tex != null and tex.get_height() > 0:
+		prop = float(tex.get_width()) / float(tex.get_height())
+	q.size = Vector2(alto * prop, alto)
+	var mi := MeshInstance3D.new()
+	mi.mesh = q
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tex
+	# ALPHA_SCISSOR y no transparencia normal: el numero no tiene que ordenarse
+	# contra el mar ni contra la niebla de la cueva, y asi no parpadea al pasar
+	# un jiron por delante.
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	m.alpha_scissor_threshold = 0.5
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.roughness = 1.0
+	# SIN SOMBREAR: el relieve viene HORNEADO en la imagen, asi que dejar que
+	# el sol del mapa vuelva a iluminarlo solo servia para aplastarlo — en la
+	# cara en sombra del cartel del puerto el numero desaparecia del todo.
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	# Un escenario bloqueado tiene su numero apagado, como su modelo.
+	if not unlocked:
+		m.albedo_color = Color(0.46, 0.48, 0.54)
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# `GeometryBatch.bake` funde la geometria estatica del mapa y LIBERA los
+	# originales: sin esto el numero se iria con ellos.
+	mi.add_to_group("no_batch")
+	return mi
 
 
 ## EL ISLOTE DE LA CUEVA. Estuvo resuelto con dos discos lisos de color plano y
@@ -940,12 +993,9 @@ func _build_node_overlay(port: Dictionary) -> Dictionary:
 	b.pressed.connect(_select.bind(id, true))
 	root.add_child(b)
 
-	var stars: HBoxContainer = PrepBoard.make_star_row(best, 3, 24, true)
-	# MAS ARRIBA que antes (-104): el numero vive ahora dentro del modelo y
-	# en el barco queda alto, asi que las estrellas le caian encima.
-	stars.position = Vector2(-42, -132)
-	stars.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(stars)
+	# SIN HILERA DE ESTRELLAS FLOTANDO: viven en el CARTEL del escenario, bajo
+	# su numero (ver `_cartel_nivel`). Sueltas sobre el nodo, las de uno caian
+	# al lado del vecino y no habia forma de saber de quien eran.
 
 	# SIN CHAPA CON EL NUMERO: el numero vive ahora DENTRO del decorado del
 	# nodo (ver `_numero_del_nodo`) — escrito en la arena, en el cartel del
@@ -1007,8 +1057,16 @@ func _on_map_back() -> void:
 ## (ver `GameState.map_port`): la tienda y las opciones apuntan su origen para
 ## que "Atrás" devuelva al mapa, no al menú.
 const SUBMENU_H := 132.0
+## Tablon propio del mapa (madera de deriva con amarres de cuerda). Su margen
+## 9-slice cubre los dos amarres, que son lo unico que no se puede estirar.
+const SUBMENU_TEX := "res://assets/ui/submenu_mapa.png"
+const SUBMENU_MARGIN := 76
+## Lo que se deja libre a cada lado: el tablón no ocupa la pantalla entera.
+const SUBMENU_MARGEN := 96.0
+## Tinte de la madera del tablon (se genero en gris de deriva).
+const SUBMENU_TINTE := Color(1.22, 0.94, 0.66)
 const SUBMENU_BOTONES := [
-	["tesoro", "res://assets/ui/daily_cofre.png", "Mapas"],
+	["tesoro", "res://assets/ui/ic_mapa_tesoro.png", "Mapas"],
 	["tienda", "res://assets/ui/ic_tienda.png", "Tienda"],
 	["opciones", "res://assets/ui/ic_opciones.png", "Opciones"],
 ]
@@ -1018,33 +1076,58 @@ func _build_submenu() -> Control:
 	var barra := Control.new()
 	barra.custom_minimum_size = Vector2(0, SUBMENU_H)
 	barra.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# EL TABLON: madera de deriva amarrada con cuerda en los dos extremos
+	# (`submenu_mapa.png`). Es 9-slice SOLO horizontal — los amarres van en los
+	# margenes y la madera del medio es lo unico que se estira.
+	var tablon := NinePatchRect.new()
+	tablon.texture = load(SUBMENU_TEX)
+	tablon.patch_margin_left = SUBMENU_MARGIN
+	tablon.patch_margin_right = SUBMENU_MARGIN
+	tablon.patch_margin_top = 0
+	tablon.patch_margin_bottom = 0
+	# ESTRECHO Y CENTRADO: son tres accesos, no seis, y un tablón de punta a
+	# punta de la pantalla para tres iconos se lee como una barra vacía.
+	tablon.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tablon.offset_left = SUBMENU_MARGEN
+	tablon.offset_right = -SUBMENU_MARGEN
+	tablon.offset_top = 6.0
+	tablon.offset_bottom = -10.0
+	# OTRO COLOR que el gris de deriva con el que se genero: un tono de madera
+	# CALIDA, que es la paleta del juego, y asi no se confunde con la barra
+	# oscura del menu principal ni desaparece contra el azul del mar.
+	tablon.modulate = SUBMENU_TINTE
+	tablon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	barra.add_child(tablon)
+
 	var fila := HBoxContainer.new()
 	fila.set_anchors_preset(Control.PRESET_FULL_RECT)
-	fila.offset_left = 18.0
-	fila.offset_right = -18.0
+	fila.offset_left = SUBMENU_MARGEN + 30.0
+	fila.offset_right = -SUBMENU_MARGEN - 30.0
+	# Los iconos, CENTRADOS en la madera: el tablon tiene su cuerda arriba y
+	# abajo, asi que la banda util no es la caja entera.
 	fila.offset_top = 10.0
-	fila.offset_bottom = -22.0
-	fila.add_theme_constant_override("separation", 14)
+	fila.offset_bottom = -32.0
+	fila.add_theme_constant_override("separation", 6)
 	barra.add_child(fila)
 	for def in SUBMENU_BOTONES:
 		fila.add_child(_boton_submenu(str(def[0]), str(def[1]), str(def[2])))
 	return barra
 
 
-## Un tablón del submenú: icono arriba y rótulo debajo, sobre la madera del
-## juego. El icono va DENTRO del botón (no en su `icon`) para poder ponerlo
-## encima del rótulo: `Button` solo sabe ponerlo al lado.
+## Un acceso del submenu: icono arriba y rotulo debajo, DIRECTAMENTE sobre el
+## tablon. Sin el boton de madera del resto del juego: aqui el fondo ya lo pone
+## el tablon, y un boton dentro de otro se leia como dos marcos encajados.
 func _boton_submenu(id: String, icono: String, rotulo: String) -> Button:
 	var b := Button.new()
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	b.custom_minimum_size = Vector2(0, 100)
-	PrepBoard.skin_button(b)
+	b.custom_minimum_size = Vector2(0, 92)
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 	b.set_meta("snd", "submenu")
 	b.text = ""
+	PrepBoard.add_press_feedback(b, 0.9)
 	var col := VBoxContainer.new()
 	col.set_anchors_preset(Control.PRESET_FULL_RECT)
-	col.offset_top = 8.0
-	col.offset_bottom = -8.0
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
 	col.add_theme_constant_override("separation", 0)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1053,13 +1136,13 @@ func _boton_submenu(id: String, icono: String, rotulo: String) -> Button:
 	ic.texture = load(icono)
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	ic.custom_minimum_size = Vector2(0, 46)
+	ic.custom_minimum_size = Vector2(0, 50)
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(ic)
 	var l := Label.new()
 	l.text = rotulo
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", 21)
+	l.add_theme_font_size_override("font_size", 19)
 	l.add_theme_color_override("font_color", Color(1, 0.96, 0.86))
 	l.add_theme_color_override("font_outline_color", Color(0.13, 0.07, 0.02))
 	l.add_theme_constant_override("outline_size", 7)
@@ -1092,6 +1175,13 @@ func _mapas_del_tesoro() -> void:
 	ui.add_child(_aviso_simple("Mapas del tesoro", texto))
 
 
+## LA VENTANA DEL ESCENARIO. Lleva GRAFICO PROPIO —pergamino con marco de
+## CUERDA y argollas de laton (`panel_ficha.png`)— y no el tablon de madera del
+## resto del juego: es la ventana que se abre desde el mapa y tenia que
+## distinguirse de una pantalla mas (pedido por el usuario).
+##
+## SE CIERRA CON UN ASPA en la esquina, no con un boton de "Cerrar" al pie:
+## abajo solo queda "Viajar", que es lo unico que se hace de verdad aqui.
 func _build_ficha() -> Control:
 	var overlay := Control.new()
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1108,73 +1198,71 @@ func _build_ficha() -> Control:
 	overlay.add_child(velo)
 
 	var panel := PanelContainer.new()
-	# MÁS BAJO que antes (470): con la ficha repartida en dos columnas la misma
-	# información cabe en mucho menos, y el mapa —que es lo que se está mirando
-	# para elegir— recupera un tercio de la pantalla.
-	# CENTRADA Y GRANDE: la ficha ya no comparte sitio con el mapa, así que
-	# puede contarlo todo de una vez y en una sola columna.
 	# CENTRADA POR OFFSETS, no por `position`. `Control.position` es ABSOLUTA
 	# en el espacio del padre, asi que con las anclas al 0.5 hay que escribir
-	# los cuatro offsets: poniendo `position = -tamano/2` solo salia centrada
-	# por casualidad —el padre medía 0 al construirla— y en cuanto se recolocaba
-	# con el padre ya medido, la ventana se iba al cuadrante de arriba a la
-	# izquierda. Es la misma trampa del preset del globo de la barra de nivel.
+	# los cuatro offsets: con `position = -tamano/2` solo salia centrada por
+	# casualidad (el padre medía 0 al construirla) y al recolocarla con el
+	# padre ya medido se iba al cuadrante de arriba a la izquierda.
 	panel.anchor_left = 0.5
 	panel.anchor_top = 0.5
 	panel.anchor_right = 0.5
 	panel.anchor_bottom = 0.5
-	_ficha_offsets(panel, FICHA_H)
 	panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
+	panel.add_child(PrepBoard.make_nine_patch(FICHA_TEX, FICHA_MARGIN))
 	overlay.add_child(panel)
 	ficha_panel = panel
+	_ficha_offsets(panel, FICHA_H)
 
 	var margin := MarginContainer.new()
-	# Los rodillos y las esquinas del pergamino tapaban el texto por los cuatro
-	# lados: hace falta más aire del que parece por el dibujo. Y ABAJO hace
-	# falta más que arriba, que el marco de madera mide ~50 px (PANEL_MARGIN).
+	# El marco de cuerda mide ~46 texeles y las argollas de las esquinas se
+	# meten hacia dentro: hace falta mas aire del que parece por el dibujo.
 	for side in ["left", "right"]:
-		margin.add_theme_constant_override("margin_%s" % side, 52)
+		margin.add_theme_constant_override("margin_%s" % side, 46)
 	margin.add_theme_constant_override("margin_top", 34)
-	margin.add_theme_constant_override("margin_bottom", 46)
+	margin.add_theme_constant_override("margin_bottom", 40)
 	panel.add_child(margin)
 
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 2)
 	margin.add_child(vb)
 
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+
 	info_title = Label.new()
 	info_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	info_title.add_theme_font_size_override("font_size", 30)
-	info_title.add_theme_color_override("font_color", Color(1, 0.82, 0.28))
-	info_title.add_theme_color_override("font_outline_color", Color(0.28, 0.11, 0.03))
-	info_title.add_theme_constant_override("outline_size", 12)
-	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	info_title.add_theme_font_size_override("font_size", 32)
+	info_title.add_theme_color_override("font_color", Color(0.42, 0.24, 0.06))
 	if negrita != null:
 		info_title.add_theme_font_override("font", negrita)
 	vb.add_child(info_title)
 
+	# "Fase N": el numero del escenario, que en el mapa va escrito en la propia
+	# arena o en la vela y aqui hay que poder leerlo en claro.
+	info_fase = Label.new()
+	info_fase.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	info_fase.add_theme_font_size_override("font_size", 22)
+	info_fase.add_theme_color_override("font_color", Color(0.58, 0.40, 0.16))
+	vb.add_child(info_fase)
+
 	info_kind = Label.new()
 	info_kind.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	info_kind.add_theme_font_size_override("font_size", 20)
-	info_kind.add_theme_color_override("font_color", Color(0.55, 0.34, 0.08))
+	info_kind.add_theme_font_size_override("font_size", 19)
+	info_kind.add_theme_color_override("font_color", FADED)
 	vb.add_child(info_kind)
 
+	# ESTRELLAS GRANDES: son lo primero que se mira de un escenario ya jugado.
 	info_stars_box = HBoxContainer.new()
 	(info_stars_box as HBoxContainer).alignment = BoxContainer.ALIGNMENT_CENTER
+	info_stars_box.custom_minimum_size = Vector2(0, 62)
 	vb.add_child(info_stars_box)
 
 	info_desc = Label.new()
 	info_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	info_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info_desc.add_theme_font_size_override("font_size", 18)
-	info_desc.add_theme_color_override("font_color", FADED)
+	info_desc.add_theme_color_override("font_color", Color(0.62, 0.22, 0.12))
 	vb.add_child(info_desc)
 
-	# UNA SOLA COLUMNA, dentro de un SCROLL. Estuvo repartida en dos columnas
-	# estrechas porque la ficha vivía pegada al canto de la pantalla y solo
-	# tenía 372 px de alto; en ventana cabe entera y se lee de arriba abajo,
-	# que es como se lee una ficha.
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -1186,74 +1274,82 @@ func _build_ficha() -> Control:
 	scroll.add_child(cuerpo)
 	ficha_cuerpo = cuerpo
 
-	var quien := _seccion(cuerpo, "La clientela")
-	info_clients_row = _icon_row(quien, "Clientes")
-	info_time = _stat_label(quien)
+	# EL OBJETIVO: como se cierra la jornada y que castiga este tipo.
+	var obj := _seccion(cuerpo, "Objetivo")
 	info_cierre = Label.new()
 	info_cierre.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info_cierre.add_theme_font_size_override("font_size", 17)
-	info_cierre.add_theme_color_override("font_color", FADED)
-	quien.add_child(info_cierre)
+	info_cierre.add_theme_color_override("font_color", DARK)
+	obj.add_child(info_cierre)
+
+	# SIN el rotulo "Clientes:" delante: la seccion ya se llama "La clientela"
+	# y repetirlo en la fila era decir dos veces lo mismo.
+	var quien := _seccion(cuerpo, "La clientela")
+	info_clients_row = _icon_row(quien, "")
+	info_time = _stat_label(quien)
 
 	var carta := _seccion(cuerpo, "La carta")
-	info_recipes_row = _icon_row(carta, "Recetas")
+	info_recipes_row = _icon_row(carta, "")
 
 	var premios := _seccion(cuerpo, "Objetivos y premios")
-	# `goal_box` y `record_box` se cuelgan del PADRE de estas dos etiquetas
-	# (ver `_fill_goal_rows`), así que basta con ponerlas aquí.
 	info_goal = _stat_label(premios)
 	info_record = _stat_label(premios)
 
 	info_tesoro = _seccion(cuerpo, "Tesoro")
-	info_tesoro_row = _icon_row(info_tesoro, "Aquí se consigue")
+	info_tesoro_row = _icon_row(info_tesoro, "")
 
 	sail_button = Button.new()
-	# Con los premios metidos en la línea de su escalón, la columna derecha
-	# perdió una fila entera y el botón puede volver a ser alto: a 62-80 se
-	# veía estrecho, que es justo lo que la placa de oro no aguanta (su 9-slice
-	# pide 108 para no encogerse — ver `skin_start_button`).
 	sail_button.custom_minimum_size = Vector2(282, 100)
 	sail_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	# Placa de oro, igual que el de Arcade: es el botón que arranca la partida.
-	# SIN el desplazamiento del rótulo (ver `skin_start_button`): a esta altura
-	# la placa llena el rectángulo del botón, así que "Viajar" se centra en él.
+	# Placa de oro: es el boton que arranca la partida. SIN desplazamiento del
+	# rotulo (ver `skin_start_button`): a esta altura la placa llena el
+	# rectangulo del boton, asi que "Viajar" se centra en el.
 	PrepBoard.skin_start_button(sail_button, 0.0)
-	# EN NEGRITA DE VERDAD (Exo2-Bold), no con contorno: sobre el oro de la
-	# placa la Regular se leia fina al lado del resto de rotulos del mapa.
 	var gorda := load("res://fonts/static/Exo2-Bold.ttf")
 	if gorda != null:
 		sail_button.add_theme_font_override("font", gorda)
-	# A la medida de la placa: con 30 sobre un botón de 100 de alto el rótulo
-	# nadaba en oro.
 	sail_button.add_theme_font_size_override("font_size", 42)
-	# EN EL MAPA SE VIAJA, no se zarpa: zarpar es lo que se hace al salir
-	# del selector de recetas, y allí suenan las campanas. Aquí, las velas.
 	sail_button.text = "Viajar"
 	sail_button.set_meta("snd", "velas")
 	sail_button.pressed.connect(_on_sail_pressed)
+	vb.add_child(sail_button)
 
-	var pie := HBoxContainer.new()
-	pie.alignment = BoxContainer.ALIGNMENT_CENTER
-	pie.add_theme_constant_override("separation", 14)
-	vb.add_child(pie)
-	var cerrar := Button.new()
-	cerrar.text = "Cerrar"
-	cerrar.custom_minimum_size = Vector2(160, 76)
-	cerrar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	PrepBoard.skin_button(cerrar)
-	cerrar.set_meta("snd", "atras")
-	cerrar.add_theme_font_size_override("font_size", 24)
-	cerrar.pressed.connect(_cerrar_ficha)
-	pie.add_child(cerrar)
-	pie.add_child(sail_button)
+	# EL ASPA, cabalgando la esquina de arriba a la derecha del pergamino.
+	var aspa := TextureButton.new()
+	aspa.texture_normal = load("res://assets/ui/boton_cerrar.png")
+	aspa.ignore_texture_size = true
+	aspa.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	# VA COLGADA DEL OVERLAY, NO DEL PANEL.  es un CONTENEDOR:
+	# estira a todos sus hijos hasta llenarlo, asi que el aspa metida dentro
+	# salia del tamano del pergamino entero, tapandolo. Su sitio lo pone
+	# , que es quien sabe el alto que tiene la ventana.
+	aspa.anchor_left = 0.5
+	aspa.anchor_top = 0.5
+	aspa.anchor_right = 0.5
+	aspa.anchor_bottom = 0.5
+	aspa.set_meta("snd", "atras")
+	aspa.pressed.connect(_cerrar_ficha)
+	PrepBoard.add_press_feedback(aspa, 0.9)
+	overlay.add_child(aspa)
+	ficha_aspa = aspa
 	return overlay
 
 
-## Un bloque de la ficha: su rótulo a la izquierda y debajo su contenido.
+## Un bloque de la ficha: su rotulo y debajo su contenido. Devuelve la CAJA del
+## contenido, y le deja apuntada la seccion entera en un meta: quien quiera
+## esconder el bloque tiene que esconder ESA, no el padre.
+##
+## Costo un fallo feo: `_fill_tesoro` hacia `info_tesoro.get_parent().visible`,
+## y como las tres piezas (separador, rotulo y caja) colgaban del CUERPO, el
+## padre de la caja era el cuerpo entero — los escenarios sin coleccionable
+## abrian la ficha COMPLETAMENTE VACIA.
 func _seccion(padre: VBoxContainer, titulo: String) -> VBoxContainer:
+	var sec := VBoxContainer.new()
+	sec.add_theme_constant_override("separation", 2)
+	padre.add_child(sec)
 	var sep := Control.new()
 	sep.custom_minimum_size = Vector2(0, 10)
-	padre.add_child(sep)
+	sec.add_child(sep)
 	var t := Label.new()
 	t.text = titulo
 	t.add_theme_font_size_override("font_size", 21)
@@ -1261,15 +1357,21 @@ func _seccion(padre: VBoxContainer, titulo: String) -> VBoxContainer:
 	var negrita2 := load("res://fonts/static/Exo2-Bold.ttf")
 	if negrita2 != null:
 		t.add_theme_font_override("font", negrita2)
-	padre.add_child(t)
+	sec.add_child(t)
 	var caja := VBoxContainer.new()
 	caja.add_theme_constant_override("separation", 3)
-	padre.add_child(caja)
+	sec.add_child(caja)
+	caja.set_meta("seccion", sec)
 	return caja
 
 
-## Abre la ficha del escenario. Solo se llama cuando el jugador TOCA un nodo:
-## el mapa se coloca solo al entrar y ahí no hay que abrir nada.
+## Enseña o esconde el BLOQUE entero de una seccion (rotulo incluido).
+func _ver_seccion(caja: Control, on: bool) -> void:
+	var sec: Control = caja.get_meta("seccion", null)
+	if sec != null:
+		sec.visible = on
+
+
 func _abrir_ficha() -> void:
 	if map_info_panel == null:
 		return
@@ -1309,8 +1411,15 @@ func _icon_row(parent: VBoxContainer, titulo: String) -> Container:
 func _row_reset(row: Container) -> void:
 	for c in row.get_children():
 		c.queue_free()
+	# SIN ROTULO cuando la fila no lo pide: en la ficha del escenario las
+	# secciones ya se llaman "La clientela" y "La carta", asi que repetirlo
+	# delante de los iconos era decir dos veces lo mismo — y con el titulo
+	# vacio quedaba un ":" suelto.
+	var titulo := str(row.get_meta("titulo", ""))
+	if titulo == "":
+		return
 	var l := Label.new()
-	l.text = "%s:" % str(row.get_meta("titulo", ""))
+	l.text = "%s:" % titulo
 	l.add_theme_font_size_override("font_size", 17)
 	l.add_theme_color_override("font_color", DARK)
 	row.add_child(l)
@@ -1426,12 +1535,12 @@ func _reward_label(texto: String) -> Label:
 ## renglón se lee entero de izquierda a derecha y la columna derecha pierde una
 ## fila (que es la que le devuelve el alto al botón de Viajar).
 ##
-## UN ESCALÓN YA CONSEGUIDO SE QUEDA SOLO EN SU PREMIO: ni umbral ni estrellas.
-## No es un objetivo, es un recuerdo — las estrellas que se tienen ya salen
-## arriba, bajo el nombre del escenario, y repetir la cifra de oro de algo que
-## se superó hace tres jornadas no ayuda a decidir nada. En un escenario
-## exprimido la columna derecha se queda con lo único que sigue vivo: el récord
-## y lo que dejó.
+## LA LÍNEA ENTERA SIEMPRE (pedido por el usuario, no re-litigar): "tantas
+## monedas ➜ tantas estrellas ➜ esto te llevas", esté el escalón conseguido o
+## no. Se probó a dejar los conseguidos solo con su premio, y en una ventana
+## con sitio de sobra lo que se pierde —cuánto oro pide cada estrella— vale más
+## que los dos renglones que se ahorran: al repetir un escenario, ese umbral es
+## justo lo que hay que volver a batir.
 func _fill_goal_rows(port: Dictionary, id: String, goal: int, goal_money: int,
 		thresholds: Array) -> void:
 	if goal_box == null:
@@ -1455,20 +1564,12 @@ func _fill_goal_rows(port: Dictionary, id: String, goal: int, goal_money: int,
 		fila.add_theme_constant_override("h_separation", 6)
 		fila.add_theme_constant_override("v_separation", 2)
 		goal_box.add_child(fila)
-		if logradas < n:
-			fila.add_child(_money_chip(int(e[1])))
-			var flecha := TextureRect.new()
-			flecha.texture = load("res://assets/ui/ic_siguiente.png")
-			flecha.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			flecha.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			flecha.custom_minimum_size = Vector2(30, 26)
-			fila.add_child(flecha)
-			fila.add_child(PrepBoard.make_star_row(n, 3, 26, true))
+		# SIN FLECHA entre el oro y las estrellas (pedido por el usuario): la
+		# línea ya se lee de izquierda a derecha sola, y con premio o sin él la
+		# flecha solo era un icono más que colocar.
+		fila.add_child(_money_chip(int(e[1])))
+		fila.add_child(PrepBoard.make_star_row(n, 3, 26, true))
 		_premios_de(fila, port, n, goal, logradas)
-		# Un escalón conseguido y SIN premio no deja nada que enseñar: su línea
-		# se queda vacía y solo abriría un hueco en la columna.
-		if fila.get_child_count() == 0:
-			fila.queue_free()
 
 
 ## Los premios de UN escalón, pegados detrás de sus estrellas. Lo ya conseguido
@@ -1573,6 +1674,7 @@ func _update_info(id: String) -> void:
 	# Solo el NOMBRE del puerto, estilizado: el "Nivel N" no aportaba nada que
 	# no dijera ya el cartel del propio nodo en el mapa.
 	info_title.text = str(port.get("name", id))
+	info_fase.text = "Fase %d" % (idx + 1)
 	info_kind.text = CampaignData.kind_name(id)
 	# NIVEL DE COCINERO RECOMENDADO (`chef_rec` del puerto): es lo que permite
 	# distinguir "voy corto de nivel" de "lo estoy jugando mal". SIN el
@@ -1589,7 +1691,8 @@ func _update_info(id: String) -> void:
 
 	for c in info_stars_box.get_children():
 		c.queue_free()
-	info_stars_box.add_child(PrepBoard.make_star_row(best, 3, 30, true))
+	# GRANDES: 52 px de estrella. Son lo primero que se mira de un escenario.
+	info_stars_box.add_child(PrepBoard.make_star_row(best, 3, 52, true))
 
 	var mix: Dictionary = port.get("client_mix", {})
 	# En un abordaje la clientela no tiene cupo: la mezcla solo dice QUIÉN se
@@ -1645,6 +1748,12 @@ func _ficha_offsets(panel: Control, alto: float) -> void:
 	panel.offset_right = FICHA_W * 0.5
 	panel.offset_top = -alto * 0.5 + FICHA_BAJADA
 	panel.offset_bottom = alto * 0.5 + FICHA_BAJADA
+	if ficha_aspa != null:
+		# Cabalgando la esquina de arriba a la derecha del pergamino.
+		ficha_aspa.offset_left = FICHA_W * 0.5 - FICHA_ASPA + 20.0
+		ficha_aspa.offset_right = FICHA_W * 0.5 + 20.0
+		ficha_aspa.offset_top = panel.offset_top - 20.0
+		ficha_aspa.offset_bottom = panel.offset_top - 20.0 + FICHA_ASPA
 
 
 ## CÓMO SE CIERRA LA JORNADA Y QUÉ CASTIGA EL TIPO. Es la información que el
@@ -1654,13 +1763,19 @@ func _ficha_offsets(panel: Control, alto: float) -> void:
 ## contradecirlo.
 func _texto_cierre(id: String) -> String:
 	var sin_fin := CampaignData.unlimited_clients(id)
+	# LOS CASTIGOS POR VACÍO SON DEL MAR 2 EN ADELANTE: la ficha de un
+	# escenario del mar 1 no puede amenazar con un castigo que alli no existe.
+	var castigos := CampaignData.sea_of(id) >= 2
 	match CampaignData.get_kind(id):
 		"isla":
-			return "Acaba cuando se va el último cliente. Quien se marche sin probar bocado te cuesta oro."
+			return "Acaba cuando se va el último cliente. Quien se marche sin probar bocado te cuesta oro." \
+				if castigos else "Acaba cuando se va el último cliente."
 		"puerto":
-			return "Acaba cuando se va el último cliente. Si TRES se marchan sin probar bocado, pierdes la jornada."
+			return "Acaba cuando se va el último cliente. Si TRES se marchan sin probar bocado, pierdes la jornada." \
+				if castigos else "Acaba cuando se va el último cliente."
 		"abordaje":
-			return "Clientela sin fin contra el reloj. Cada cliente que se marcha sin probar bocado te quita 15 s."
+			return "Clientela sin fin contra el reloj. Cada cliente que se marcha sin probar bocado te quita 15 s." \
+				if castigos else "Clientela sin fin contra el reloj."
 		"cueva":
 			return "La guarida del jefe: clientela sin fin hasta que él aparece. Ahí manda su paciencia, no el reloj."
 	return "Clientela sin fin." if sin_fin else ""
@@ -1671,10 +1786,11 @@ func _texto_cierre(id: String) -> String:
 ## desvelar qué es. Ya conseguido sale a plena luz y con su visto.
 func _fill_tesoro(id: String) -> void:
 	var item := CampaignData.collectible_of(id)
-	info_tesoro.get_parent().visible = item != ""
+	_ver_seccion(info_tesoro, item != "")
 	if item == "":
 		return
-	_row_reset(info_tesoro_row)
+	for c in info_tesoro_row.get_children():
+		c.queue_free()
 	var tengo := GameState.has_collectible(item)
 	var tex: Texture2D = CollectibleData.get_icon(item)
 	if tex == null:
@@ -1688,21 +1804,24 @@ func _fill_tesoro(id: String) -> void:
 	ic.size = Vector2(48, 48)
 	# EN SILUETA mientras no se tenga, como en la vitrina: la pieza existe,
 	# pero cuál es se descubre consiguiéndola.
+	# YA CONSEGUIDO: a plena luz y con el VISTO VERDE encima, como las
+	# recompensas. En silueta mientras no se tenga.
 	ic.modulate = Color.WHITE if tengo else Color(0.14, 0.11, 0.09, 0.9)
 	caja.add_child(ic)
-	if not tengo:
-		var q := Label.new()
-		q.text = "?"
-		q.set_anchors_preset(Control.PRESET_FULL_RECT)
-		q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		q.add_theme_font_size_override("font_size", 32)
-		q.add_theme_color_override("font_color", Color(1, 0.88, 0.42))
-		q.add_theme_color_override("font_outline_color", Color(0.12, 0.07, 0.02))
-		q.add_theme_constant_override("outline_size", 8)
-		q.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		caja.add_child(q)
+	if tengo:
+		var visto := TextureRect.new()
+		visto.texture = load("res://assets/ui/ic_hecho.png")
+		visto.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		visto.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		visto.position = Vector2(16, 14)
+		visto.size = Vector2(36, 36)
+		visto.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		caja.add_child(visto)
 	info_tesoro_row.add_child(caja)
+	# CON LA PIEZA YA EN LA VITRINA no hace falta decir cómo se consigue: eso
+	# es una instrucción, y lo que queda ahí es un recuerdo.
+	if tengo:
+		return
 	# RichTextLabel y no Label: la pista trae palabras clave entre `**` y
 	# `format_keywords` devuelve BBCode — con un Label se leían los asteriscos.
 	var como := RichTextLabel.new()
@@ -1852,7 +1971,7 @@ func _guiar_primer_nivel(caja: DialogueBox = null) -> void:
 		# pisan (`level_director._explicar_handicap`): tres clases de parada de
 		# golpe, antes de haber jugado ni una, es una lección que no se puede
 		# aplicar a nada.
-		{ "text": "Las **islas** son tranquilas: poca clientela y con la carta que yo te ponga... pero el que se vaya sin comer te cuesta oro.", "mood": "hablando" },
+		{ "text": "Las **islas** son tranquilas: poca clientela y con la carta que yo te ponga. Perfectas para aprender el oficio.", "mood": "hablando" },
 		{ "text": "Hay otras clases de parada, y ya las verás cuando toque. Dale a **¡Zarpar!** cuando quieras.", "mood": "feliz" },
 	])
 	await caja.finished

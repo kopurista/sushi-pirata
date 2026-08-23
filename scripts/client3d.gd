@@ -72,6 +72,9 @@ const EAT_JITTER := 0.05
 ## le agoto la paciencia como si le pillo el fin del TIEMPO; la unica excepcion
 ## es cerrar el turno por haber alcanzado el objetivo (ver force_leave).
 const LEAVE_PENALTY: Dictionary = { "E": 5, "A": 8, "G": 12 }
+## Multiplicador del castigo por vacío. En las islas del mar 2+ va DOBLADO:
+## el hándicap de la isla tiene que doler tanto como los de los otros tipos.
+var leave_penalty_mult := 1.0
 
 ## Al recibir un plato la paciencia sube (fraccion del maximo) segun el nivel.
 ## Rebajado (antes 0.12/0.30/0.50): cada plato retiene menos al cliente.
@@ -1572,7 +1575,8 @@ func _leave() -> void:
 		if level_ref != null and "empty_leavers" in level_ref:
 			esc = minf(1.0 + EMPTY_LEAVE_STEP * float(level_ref.empty_leavers),
 				EMPTY_LEAVE_CAP)
-		penalty = int(round(int(LEAVE_PENALTY.get(client_type, 0)) * esc))
+		penalty = int(round(int(LEAVE_PENALTY.get(client_type, 0)) * esc
+			* leave_penalty_mult))
 		if penalty > 0:
 			_float_text("-%d" % penalty, Color(1.0, 0.34, 0.28), 0.0, true)
 	finished.emit({

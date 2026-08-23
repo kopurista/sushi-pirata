@@ -1291,8 +1291,22 @@ func _vigilar_tesoro() -> void:
 func _explicar_handicap() -> void:
 	if GameState.is_tutorial() or lv == null:
 		return
+	# LOS CASTIGOS EMPIEZAN EN EL MAR 2: en el mar 1 no hay nada que explicar
+	# (y explicarlo alli era amenazar con un castigo que no existia).
+	if CampaignData.sea_of(GameState.current_port) < 2:
+		return
 	var kind := CampaignData.get_kind(GameState.current_port)
-	if kind == "puerto" and not GameState.puerto_handicap_done:
+	if kind == "isla" and not GameState.isla_handicap_done:
+		GameState.isla_handicap_done = true
+		GameState.save_game()
+		await _say([
+			{ "text": "Ojo, %s: en este mar la clientela es más exigente que en el anterior." % GameState.player_title(), "mood": "serio" },
+			{ "text": "En las **islas**, el que se marche **sin probar bocado** te cuesta ORO del bueno — y cada vacío encarece el siguiente.", "mood": "hablando" },
+			{ "text": "¡QUE NADIE SE VAYA CON LA BARRIGA VACÍA! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+			{ "text": "Un plato de una estrella basta para librarte del castigo. Que nadie se quede a cero.", "mood": "loro_resignado" },
+		])
+		_play()
+	elif kind == "puerto" and not GameState.puerto_handicap_done:
 		GameState.puerto_handicap_done = true
 		GameState.save_game()
 		await _say([

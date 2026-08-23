@@ -180,6 +180,11 @@ func _say(lines: Array, espera := -1.0, congelar := true) -> void:
 	# El reloj se retiene SIEMPRE mientras alguien habla; `congelar` solo decide
 	# si además se para el árbol (a veces interesa ver lo que pasa detrás).
 	lv.clock_hold = true
+	# Si el cartel de potenciador estaba abierto, se APLAZA: se cierra, se
+	# vuelve a encolar y reaparece cuando este dialogo termine (level3d lo
+	# reabre desde su _process). Hablar encima de el era un lio de dos pausas.
+	if lv.has_method("postpone_powerup_choice"):
+		lv.postpone_powerup_choice()
 	get_tree().paused = congelar
 	# Si veníamos de jugar, un respiro antes de hablar (el temporizador corre
 	# aunque el árbol esté en pausa).

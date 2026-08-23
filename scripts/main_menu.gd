@@ -471,6 +471,36 @@ func _presentar_kappa() -> void:
 	# El diente: su ventana la saca NoticeLayer en cuanto se desbloquea.
 	GameState.unlock_collectible("diente_kappa")
 	GameState.save_game()
+	# Y CON EL JEFE RENDIDO SE ABRE EL MAR 2: David lo anuncia y el barco ZARPA
+	# solo hacia la primera cala del mar nuevo, que está más arriba en esta
+	# misma carta (pedido por el usuario).
+	await _presentar_mar_2()
+
+
+## LA PUERTA DEL MAR 2. David felicita, avisa de lo que cambia —los vientos y
+## una clientela que ya castiga al que se va sin comer— y lleva el barco a la
+## primera cala. Una sola vez; si el jugador cerró el juego entre medias, la
+## escena espera al siguiente regreso al mapa (`pending_kappa` ya corrió).
+func _presentar_mar_2() -> void:
+	if GameState.mar2_intro_done:
+		return
+	GameState.mar2_intro_done = true
+	GameState.save_game()
+	var caja := DialogueBox.new()
+	caja.z_index = 200
+	ui_layer.add_child(caja)
+	caja.say([
+		{ "text": "¡Lo has conseguido, %s! El primer mar entero, de la primera cala a la guarida del Kappa." % GameState.player_title(), "mood": "riendo" },
+		{ "text": "Y un cocinero que rinde a un jefe está listo para aguas más bravas. ¡Rumbo al **Mar de los Vientos**!", "mood": "feliz" },
+		{ "text": "Dos avisos antes de zarpar. Uno: allí arriba sopla un **viento** que no has visto en tu vida... ya lo notarás en la cinta.", "mood": "serio" },
+		{ "text": "Y dos: la clientela de ese mar es **exigente**. El que se marche sin probar bocado nos lo hará pagar, de una forma u otra.", "mood": "hablando" },
+		{ "text": "¡AL NORTE! ¡RAAAK! ¡SIEMPRE AL NORTE!", "who": "gigi", "mood": "loro_sorpresa" },
+	])
+	await caja.finished
+	await caja.close_and_free()
+	# El barco navega a la primera cala del mar nuevo con su ficha abierta.
+	if not in_menu:
+		_select("m2_01", true)
 
 
 ## CAI se enrola. Al superar la Isla de Gades quiere pagar con su caña, y David
@@ -1273,6 +1303,11 @@ func _sonar_zarpe(con_velas := true) -> void:
 func _process(delta: float) -> void:
 	# La cuenta atras del cofre del bonus avanza sola: se repinta de tanto
 	# en tanto, no por fotograma (es una cifra en minutos).
+	if daily_chest != null:
+		# SOLO EN EL MENU (pedido por el usuario): en el mapa, en la pesca y en
+		# la portada no pinta nada. `in_menu` ya lo sabe; `menu_blend` descarta
+		# ademas el viaje de ida y vuelta a Aventura.
+		daily_chest.visible = in_menu and menu_blend > 0.98 			and GameState.tutorial_done and not start_mode
 	_daily_tick += delta
 	if _daily_tick >= 20.0:
 		_daily_tick = 0.0
@@ -1620,7 +1655,10 @@ const COFRE_LADO := 58.0
 const COFRE_HUECO := 10.0
 const COFRE_TEX := "res://assets/ui/daily_cofre.png"
 const COFRE_TINTA_TEX := "res://assets/ui/daily_cofre_mapa.png"
-var daily_chest: TextureRect = null
+## Pergamino del mapa del tesoro, medido sobre `daily_mapa.png`.
+const COFRE_FONDO := Color(0.92, 0.84, 0.68)
+var daily_chest: Button = null
+var daily_chest_icon: TextureRect = null
 var daily_chest_label: Label = null
 var daily_chest_tween: Tween = null
 ## Se repinta de tanto en tanto para que la cuenta atrás avance sola.
@@ -1728,62 +1766,109 @@ func _setup_level_bar(st: float) -> void:
 ## Repinta la barra con la XP que toque enseñar (la vigente o la del tween).
 ## El cofre y su cuenta atrás, colgados del canto derecho de la barra.
 func _setup_daily_chest() -> void:
-	daily_chest = TextureRect.new()
-	daily_chest.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	daily_chest.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	daily_chest.position = Vector2(LVL_BAR_W + COFRE_HUECO, -6.0)
+	# PEGADO AL CANTO DERECHO y colgado del `ui_layer`, no de la barra: la
+	# barra viaja al mapa y a la pesca, y el cofre es cosa del MENU (pedido por
+	# el usuario). Su visibilidad la lleva `_process`, que ya sabe si estamos
+	# en el menu o no.
+	daily_chest = Button.new()
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		daily_chest.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	daily_chest.set_meta("snd", "recurso")
 	daily_chest.size = Vector2(COFRE_LADO, COFRE_LADO)
 	daily_chest.pivot_offset = Vector2(COFRE_LADO * 0.5, COFRE_LADO)
-	# INFORMATIVO, no pulsable: el cartel del bonus sale solo al entrar en el
-	# menú, así que el cofre no tiene nada que abrir. Y `MOUSE_FILTER_IGNORE`
-	# evita además que se coma el toque de la barra, que sí lleva a Maestrías.
-	daily_chest.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	level_bar.add_child(daily_chest)
+	daily_chest.pressed.connect(_on_daily_chest)
+	ui_layer.add_child(daily_chest)
+
+	# FONDO CON EL COLOR DEL MAPA: el cofre en tinta sobre el mar azul no se
+	# leia — es un dibujo marron sobre agua marina. Con su cuadro de pergamino
+	# detras se lee como una carta clavada en la esquina.
+	var fondo := Panel.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = COFRE_FONDO
+	sb.set_corner_radius_all(12)
+	sb.set_border_width_all(4)
+	sb.border_color = Color(0.36, 0.22, 0.10)
+	sb.shadow_size = 5
+	sb.shadow_color = Color(0, 0, 0, 0.4)
+	sb.shadow_offset = Vector2(0, 3)
+	fondo.add_theme_stylebox_override("panel", sb)
+	fondo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fondo.offset_left = -5.0
+	fondo.offset_right = 5.0
+	fondo.offset_top = -4.0
+	fondo.offset_bottom = 6.0
+	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fondo.show_behind_parent = true
+	daily_chest.add_child(fondo)
+
+	daily_chest_icon = TextureRect.new()
+	daily_chest_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	daily_chest_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	daily_chest_icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+	daily_chest_icon.offset_left = 4.0
+	daily_chest_icon.offset_right = -4.0
+	daily_chest_icon.offset_top = 3.0
+	daily_chest_icon.offset_bottom = -3.0
+	daily_chest_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	daily_chest.add_child(daily_chest_icon)
 
 	daily_chest_label = Label.new()
-	daily_chest_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	daily_chest_label.offset_top = COFRE_LADO - 2.0
-	daily_chest_label.offset_bottom = COFRE_LADO + 24.0
-	daily_chest_label.offset_left = -14.0
-	daily_chest_label.offset_right = 14.0
+	daily_chest_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	daily_chest_label.offset_top = 6.0
+	daily_chest_label.offset_bottom = 32.0
+	daily_chest_label.offset_left = -18.0
+	daily_chest_label.offset_right = 18.0
 	daily_chest_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	daily_chest_label.add_theme_font_size_override("font_size", 17)
-	daily_chest_label.add_theme_color_override("font_color", Color(0.92, 0.86, 0.72))
+	daily_chest_label.add_theme_color_override("font_color", Color(0.94, 0.88, 0.74))
 	daily_chest_label.add_theme_color_override("font_outline_color",
 		Color(0.10, 0.06, 0.02))
 	daily_chest_label.add_theme_constant_override("outline_size", 6)
 	daily_chest_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	daily_chest.add_child(daily_chest_label)
+	_place_daily_chest()
 	_refresh_daily_chest()
+
+
+## Su sitio: pegado al canto derecho, a la altura de la barra de experiencia.
+func _place_daily_chest() -> void:
+	if daily_chest == null:
+		return
+	daily_chest.position = Vector2(
+		GameState.canvas_size().x - COFRE_LADO - 16.0,
+		LVL_BAR_Y + GameState.safe_top() - 6.0)
+
+
+## TOCARLO ABRE EL MAPA DEL BONUS, haya premio o no: sin premio se abre solo
+## para mirarlo —los cofres ya abiertos cuentan lo que dieron y bajo el
+## siguiente va la cuenta atras—, que es lo que pidio el usuario. Con premio
+## abre el cartel de siempre.
+func _on_daily_chest() -> void:
+	if GameState.notices_busy():
+		return
+	_show_daily(not GameState.daily_available())
 
 
 ## Lo pone a color y lo mece, o lo deja en tinta con lo que falta debajo.
 func _refresh_daily_chest() -> void:
 	if daily_chest == null:
 		return
-	daily_chest.visible = GameState.tutorial_done
-	if not daily_chest.visible:
-		return
 	var hay := GameState.daily_available()
-	daily_chest.texture = load(COFRE_TEX if hay else COFRE_TINTA_TEX)
+	daily_chest_icon.texture = load(COFRE_TEX if hay else COFRE_TINTA_TEX)
 	daily_chest_label.visible = not hay
 	daily_chest_label.text = "" if hay else GameState.daily_wait_text()
 	if daily_chest_tween != null:
 		daily_chest_tween.kill()
 		daily_chest_tween = null
 	daily_chest.rotation = 0.0
-	daily_chest.scale = Vector2.ONE
 	if not hay or not GameState.animations_on():
 		return
 	# SE MECE, como el cofre de hoy en el mapa del tesoro: es la misma pieza
-	# diciendo lo mismo, y un icono quieto al lado de la barra no se mira.
+	# diciendo lo mismo, y un icono quieto en la esquina no se mira.
 	daily_chest_tween = create_tween().set_loops()
-	daily_chest_tween.tween_property(daily_chest, "rotation", 0.16, 0.5) \
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	daily_chest_tween.tween_property(daily_chest, "rotation", -0.16, 1.0) \
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	daily_chest_tween.tween_property(daily_chest, "rotation", 0.0, 0.5) \
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	daily_chest_tween.tween_property(daily_chest, "rotation", 0.16, 0.5) 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	daily_chest_tween.tween_property(daily_chest, "rotation", -0.16, 1.0) 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	daily_chest_tween.tween_property(daily_chest, "rotation", 0.0, 0.5) 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	daily_chest_tween.tween_interval(1.6)
 
 
@@ -2073,12 +2158,9 @@ func _level_bar_spot(en_mapa: bool) -> Vector2:
 		# derecho: así la barra sigue leyéndose como parte de la fila y no como
 		# algo arrinconado.
 		var libre := 16.0 + 150.0 + 16.0
-		# El COFRE cuelga a la derecha de la barra, así que el conjunto que hay
-		# que centrar mide más que la barra sola.
-		return Vector2((libre + ancho - LVL_BAR_W - COFRE_LADO - COFRE_HUECO) * 0.5,
+		return Vector2((libre + ancho - LVL_BAR_W) * 0.5,
 			16.0 + st + PrepBoard.RESOURCE_H + 40.0)
-	return Vector2((ancho - LVL_BAR_W - COFRE_LADO - COFRE_HUECO) * 0.5,
-		LVL_BAR_Y + st)
+	return Vector2((ancho - LVL_BAR_W) * 0.5, LVL_BAR_Y + st)
 
 
 ## PAQUETES de lingotes (dinero real) y de arroz (a cambio de lingotes).
@@ -3241,8 +3323,21 @@ func _draw_daily_route(c: Control) -> void:
 ## cartel: se cobra al TOCAR el cofre. Por eso el cartel no se puede cerrar
 ## hasta entonces (no hay X ni toque fuera), o sería posible saltárselo sin
 ## querer y perder el día.
-func _show_daily() -> void:
+## `consulta` abre el mapa SOLO PARA MIRARLO: no hay premio que cobrar, los
+## cofres ya abiertos cuentan lo que dieron y bajo el siguiente va lo que falta
+## para que vuelva a haber. Se llega aquí tocando el cofre de la barra de
+## experiencia; el cartel normal (sin `consulta`) sale solo al entrar al menú.
+func _show_daily(consulta := false) -> void:
 	var dia := GameState.daily_next_day()
+	# En consulta, lo abierto es lo YA cobrado y el cofre cerrado es el de
+	# mañana — que con la racha completa vuelve a ser el primero.
+	var abiertos := dia - 1
+	var siguiente := dia
+	if consulta:
+		abiertos = GameState.daily_day
+		siguiente = abiertos + 1
+		if siguiente > DailyData.day_count():
+			siguiente = 1
 
 	# Velo a pantalla completa: oscurece el menú y, sobre todo, se traga los
 	# toques. Sin él los botones de detrás siguen respondiendo y se puede
@@ -3284,7 +3379,8 @@ func _show_daily() -> void:
 	ruta.draw.connect(_draw_daily_route.bind(ruta))
 
 	var pie := Label.new()
-	pie.text = "Toca el cofre para abrirlo"
+	pie.text = "Toca un cofre abierto para ver qué dio" if consulta \
+			else "Toca el cofre para abrirlo"
 	pie.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	pie.offset_left = 44.0
 	pie.offset_right = -44.0
@@ -3315,10 +3411,10 @@ func _show_daily() -> void:
 		cofre.set_anchors_preset(Control.PRESET_FULL_RECT)
 		cofre.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var estado := "mapa"
-		if n < dia:
+		if n <= abiertos:
 			estado = "mapa_abierto"
-		elif n == dia:
-			estado = "cerrado"
+		elif n == siguiente:
+			estado = "cerrado" if not consulta else "mapa"
 		cofre.texture = load(DAILY_CHEST_TEX[estado])
 		caja.add_child(cofre)
 
@@ -3337,6 +3433,32 @@ func _show_daily() -> void:
 		num.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		caja.add_child(num)
 
+		if consulta:
+			if n == siguiente:
+				# LA CUENTA ATRÁS, justo debajo del cofre que toca mañana: es
+				# donde el jugador está mirando cuando se pregunta cuánto
+				# falta.
+				var reloj := Label.new()
+				reloj.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+				reloj.offset_top = 22.0
+				reloj.offset_bottom = 54.0
+				reloj.offset_left = -34.0
+				reloj.offset_right = 34.0
+				reloj.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				reloj.text = GameState.daily_wait_text()
+				reloj.add_theme_font_size_override("font_size", 20)
+				reloj.add_theme_color_override("font_color", DAILY_INK)
+				reloj.add_theme_color_override("font_outline_color",
+					Color(0.98, 0.94, 0.84))
+				reloj.add_theme_constant_override("outline_size", 6)
+				reloj.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				caja.add_child(reloj)
+			if n <= abiertos:
+				caja.mouse_filter = Control.MOUSE_FILTER_STOP
+				caja.gui_input.connect(func(e: InputEvent) -> void:
+					if e is InputEventScreenTouch and e.pressed:
+						_ver_premio_dia(n, velo))
+			continue
 		if n != dia:
 			continue
 		# El cofre de HOY: se mece esperando y es lo único que se puede tocar.
@@ -3353,6 +3475,23 @@ func _show_daily() -> void:
 			hecho["on"] = true
 			mecer.kill()
 			_open_daily_chest(velo, panel, caja, cofre, pie))
+
+	if consulta:
+		# EN CONSULTA SÍ SE PUEDE SALIR. El cartel normal no tiene salida a
+		# propósito (hay un premio esperando), pero este es solo para mirar.
+		var cerrar := TextureButton.new()
+		cerrar.texture_normal = load("res://assets/ui/boton_cerrar.png")
+		cerrar.ignore_texture_size = true
+		cerrar.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+		cerrar.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		cerrar.offset_left = -62.0
+		cerrar.offset_right = 14.0
+		cerrar.offset_top = -14.0
+		cerrar.offset_bottom = 62.0
+		cerrar.set_meta("snd", "atras")
+		cerrar.pressed.connect(velo.queue_free)
+		PrepBoard.add_press_feedback(cerrar, 0.9)
+		panel.add_child(cerrar)
 
 	velo.modulate.a = 0.0
 	panel.scale = Vector2(0.7, 0.7)
@@ -3421,6 +3560,73 @@ func _daily_coin_burst(caja: Control) -> void:
 
 
 ## Segundo cartel: TODO lo que ha soltado el cofre, en fichas de icono + cifra.
+## QUÉ DIO EL COFRE DE UN DÍA YA COBRADO. El premio no se guarda en ninguna
+## parte: sale de `DailyData`, que es determinista, así que basta con volver a
+## preguntárselo por el número de día.
+func _ver_premio_dia(n: int, padre: Control) -> void:
+	var dado := DailyData.day(n).duplicate(true)
+	if dado.has("money"):
+		dado["money"] = DailyData.money_for(int(dado["money"]),
+			GameState.chef_level)
+	var fichas: Array[Control] = []
+	for clave in ["money", "rice", "ingots", "bait", "maps", "extras"]:
+		if dado.has(clave):
+			fichas.append(_daily_chip(load(DAILY_ICONS[clave]),
+				"x%d" % int(dado[clave])))
+	for k in dado.get("ingredients", {}):
+		fichas.append(_daily_chip(RecipeData.get_ingredient_texture(str(k)),
+			"x%d" % int(dado["ingredients"][k])))
+	if dado.has("recipe"):
+		fichas.append(_daily_chip(RecipeData.get_dish_texture(str(dado["recipe"])),
+			str(RecipeData.get_recipe(str(dado["recipe"])).get("name", ""))))
+
+	var filas: int = maxi(1, ceili(float(fichas.size()) / DAILY_CHIPS_ROW))
+	var alto := 84.0 + filas * DAILY_ROW_H + 96.0
+	var caja := Control.new()
+	caja.set_anchors_preset(Control.PRESET_CENTER)
+	caja.offset_left = -DAILY_REWARD_W * 0.5
+	caja.offset_right = DAILY_REWARD_W * 0.5
+	caja.offset_top = -alto * 0.5
+	caja.offset_bottom = alto * 0.5
+	caja.pivot_offset = Vector2(DAILY_REWARD_W * 0.5, alto * 0.5)
+	padre.add_child(caja)
+	caja.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
+		PrepBoard.PANEL_MARGIN))
+	PrepBoard.add_panel_banner(caja, "Día %d" % n, 28, 12.0)
+	# CENTRADAS, y en HFlow como el cartel del botín: con una rejilla anclada
+	# a todo lo ancho las fichas se apelotonaban contra el canto izquierdo.
+	var fila := HFlowContainer.new()
+	fila.alignment = FlowContainer.ALIGNMENT_CENTER
+	fila.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fila.offset_top = 76.0
+	fila.offset_bottom = -92.0
+	fila.offset_left = 40.0
+	fila.offset_right = -40.0
+	fila.add_theme_constant_override("h_separation", 14)
+	fila.add_theme_constant_override("v_separation", 8)
+	caja.add_child(fila)
+	for f in fichas:
+		fila.add_child(f)
+	# ESTRECHO, a la medida de la palabra: es un "ya lo he visto", no la
+	# acción principal de la pantalla.
+	var ok := Button.new()
+	ok.text = "Cerrar"
+	ok.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	ok.offset_left = (DAILY_REWARD_W - 190.0) * 0.5
+	ok.offset_right = -(DAILY_REWARD_W - 190.0) * 0.5
+	ok.offset_top = -76.0
+	ok.offset_bottom = -22.0
+	PrepBoard.skin_button(ok)
+	ok.set_meta("snd", "atras")
+	ok.add_theme_font_size_override("font_size", 22)
+	ok.pressed.connect(caja.queue_free)
+	caja.add_child(ok)
+	Audio.ventana(caja)
+	caja.scale = Vector2(0.8, 0.8)
+	caja.create_tween().tween_property(caja, "scale", Vector2.ONE, 0.24) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
 func _show_daily_reward(dado: Dictionary, velo: Control, panel: Control,
 		pie: Label) -> void:
 	var fichas: Array[Control] = []

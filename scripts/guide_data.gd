@@ -79,7 +79,7 @@ const SECTIONS: Array = [
 	{
 		"title": "Tipos de nivel",
 		"icon": "res://assets/ui/ic_aventura.png",
-		"body": "**Islas** y **puertos** no llevan reloj: los acota la clientela. Acaban cuando se va el último cliente o cuando llegas al oro objetivo.\n\nEn las **islas** la carta la manda el diseño del nivel (no eliges recetas), y el cliente que se va **sin comer** te cuesta oro.\n\nEn los **puertos** la carta la eliges tú, pero si **3 clientes** se marchan sin probar bocado la jornada se **pierde**. A cambio, el vacío no cuesta oro.\n\nLos **abordajes** son **contra reloj** y la clientela no se acaba. Cada cliente que se vaya sin comer **resta 15 segundos** al reloj (y tampoco cuesta oro).\n\nLas **cuevas** son las guaridas de los **jefes**: juegan como un abordaje hasta que el jefe se sienta a la barra... y entonces manda él.",
+		"body": "**Islas** y **puertos** no llevan reloj: los acota la clientela. Acaban cuando se va el último cliente o cuando llegas al oro objetivo.\n\nEn las **islas** la carta la manda el diseño del nivel (no eliges recetas). En los **puertos** la carta la eliges tú. Los **abordajes** son **contra reloj** y la clientela no se acaba.\n\n**A partir del MAR 2** la clientela se vuelve exigente y el que se va **sin probar bocado** castiga según el tipo: en la isla cuesta **oro**, en el puerto enciende una de las **3 calaveras** (a la tercera se pierde la jornada) y en el abordaje **resta 15 segundos** al reloj. En el mar 1 no hay castigo: es la escuela.\n\nLas **cuevas** son las guaridas de los **jefes**: juegan como un abordaje hasta que el jefe se sienta a la barra... y entonces manda él.",
 	},
 	{
 		"title": "Arroz",
