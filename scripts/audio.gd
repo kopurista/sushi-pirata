@@ -241,6 +241,10 @@ const FAMILIAS := {
 	# igual que esto son las campanas de ZARPAR (que son del barco) ni el
 	# botón de "¡Empezar!".
 	"fin_turno": [NI_ + "fin_turno.ogg"],
+	# EL VIENTO del mar 2: el bucle (su volumen sigue al anemómetro, ver
+	# level3d._refresh_viento_hud) y la campanilla del aviso de cambio.
+	"viento": [NI_ + "viento.ogg"],
+	"viento_alerta": [NI_ + "viento_alerta.ogg"],
 	# La del CARTEL de resultados, que suena mas aguda con cada una.
 	"estrella": [NI_ + "estrella.ogg"],
 	# Las de la BARRA DEL ORO en partida: la 1a y la 2a comparten toma
@@ -338,6 +342,10 @@ const VOL := {
 	"corte": 5.2, "corte_lento": 0.1, "corte_mal": 2.6,
 	"enrollar": 18.7, "estrella": 2.0, "exp": 3.6,
 	"fin_turno": -1.4, "freir": -11.7, "gaviota": 1.7,
+	# Viento del mar 2: el bucle 6 dB por debajo (suena minutos seguidos) y la
+	# campanilla del aviso con -3 de matiz (es sutil a proposito). Medidos con
+	# audio_nivelar (LK -26.9 y -14.5).
+	"viento": -0.1, "viento_alerta": -9.5,
 	"guardar": 2.3, "habilidad": 8.4, "levelup": 8.2,
 	"listo": -0.0, "logro": 10.2, "mantener": 18.7,
 	"modo": 5.3, "moneda": -1.8, "monedas": 1.3,

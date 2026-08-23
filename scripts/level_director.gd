@@ -66,6 +66,8 @@ func _run() -> void:
 		_play()
 		return
 	match guion:
+		"mar2_viento":
+			await _mar2_viento()
 		"nivel_1":
 			await _nivel_1()
 		"nivel_2":
@@ -1467,6 +1469,29 @@ func _nivel_14() -> void:
 		{ "text": "Así que hoy no hay lección de cocina, %s. Sirve, gana, y ve fijándote en cuáles te faltan." % GameState.player_title(), "mood": "serio" },
 	])
 	_play()
+	_vigilar_basura()
+
+
+# ---------------------------------------------------------------- mar 2 (8)
+# Cala del Banderín: EL VIENTO. La primera vez que la cinta puede cambiar de
+# sentido, así que David presenta las tres piezas — el banderín, el anemómetro
+# y la regla ("zurdo y en rojo = la cinta se gira") — con la isla en calma.
+
+func _mar2_viento() -> void:
+	await _say([
+		{ "text": "¿Notas el aire, %s? En este mar el viento no es un adorno: es un cliente más." % GameState.player_title(), "mood": "serio" },
+		{ "text": "¡MIRA EL BANDERÍN! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+	])
+	if lv.wind_label != null:
+		_focus_node(lv.wind_label, 20.0)
+	await _say([
+		{ "text": "Ese número es el **anemómetro**: la fuerza del viento. En calma está en **verde**; cuando se acerque al vendaval se pondrá **rojo**.", "mood": "hablando" },
+		{ "text": "Y ahora la regla de oro: si el viento sopla **hacia la izquierda** y llega al rojo vivo... **la cinta se da la vuelta**.", "mood": "serio" },
+		{ "text": "Verás un **\"!\"** y oirás la campanilla justo antes. La cinta se frena, se para... y arranca al revés, con todos los platos a bordo.", "mood": "hablando" },
+		{ "text": "No todo es malo: al girar, los platos que nadie quiso pasan OTRA VEZ por delante de todos. El viento quita... y da.", "mood": "feliz" },
+		{ "text": "¡Y EL QUE VA A LA DERECHA NO HACE NADA! ¡RAAAK! ¡ES EL BUENO!", "who": "gigi", "mood": "loro" },
+	])
+	_play("Con viento **zurdo en rojo**, la cinta se gira. ¡Vigila el anemómetro!")
 	_vigilar_basura()
 
 

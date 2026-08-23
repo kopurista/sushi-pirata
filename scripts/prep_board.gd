@@ -294,6 +294,9 @@ var hint_tween: Tween = null
 
 ## Desplazamiento de la cinta del panel (misma velocidad que la de la cubierta).
 var panel_belt_scroll := 0.0
+## Sentido de la cinta dibujada (lo sincroniza level3d con la de cubierta):
+## con el VIENTO del mar 2 la cinta se invierte, y esta se frena y gira igual.
+var belt_dir := 1.0
 
 ## Fondo 9-patch pirata para un Control.
 static func make_nine_patch(tex_path: String, margin: int) -> NinePatchRect:
@@ -1313,7 +1316,7 @@ func _process(delta: float) -> void:
 	if belt_sprite.material != null:
 		var tex := belt_sprite.texture
 		var tile_px: float = tex.get_width() * (belt_sprite.size.y / tex.get_height())
-		panel_belt_scroll += 75.0 * delta / maxf(tile_px, 1.0)
+		panel_belt_scroll += 75.0 * delta * belt_dir / maxf(tile_px, 1.0)
 		belt_sprite.material.set_shader_parameter("scroll_offset", panel_belt_scroll)
 
 	if frying:

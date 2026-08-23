@@ -265,6 +265,43 @@ var aroma_active := false
 var tip_chance_bonus := 0.0
 var tip_amount_mult := 1.0
 var belt_mult := 1.0
+# ----------------------------- EL VIENTO (mar 2) -----------------------------
+# Un vendaval que OSCILA: la velocidad sube y baja hacia objetivos sorteados, y
+# para cambiar de sentido tiene que pasar por 0 (nunca salta de izquierda a
+# derecha en seco). Cuando sopla HACIA LA IZQUIERDA y pasa del umbral, LA CINTA
+# SE INVIERTE — con una transición en la que se va frenando hasta pararse y
+# arranca al revés. El viento hacia la derecha, por fuerte que sople, no toca
+# la cinta (es su sentido natural). Todo sorteado por partida: nunca hay dos
+# jornadas con el mismo viento (pedido por el usuario).
+
+## ¿Este nivel lleva viento? (campo `viento` del puerto, mar 2).
+var wind_on := false
+## Velocidad que marca el anemómetro, en km/h.
+var wind_kmh := 0.0
+## Sentido del viento: +1 derecha (natural), -1 izquierda (el peligroso).
+var wind_dir := 1
+## Objetivo de la racha en curso y pausa entre rachas.
+var wind_target := 0.0
+var wind_dwell := 0.0
+var wind_rate := 10.0
+## Umbral que invierte la cinta y techo del anemómetro POR TIPO de escenario
+## (isla suave, puerto media, abordaje fuerte): el jugador aprende el viento
+## poco a poco, como los hándicaps.
+const WIND_UMBRAL := 40.0
+var wind_max := 46.0
+## Direccion EFECTIVA de la cinta (-1..1): es la que se anima. `belt_dir` pasa
+## por 0 en cada giro — la cinta se frena, se para y arranca al revés.
+var belt_dir := 1.0
+var belt_dir_objetivo := 1.0
+## Segundos que tarda el giro completo de la cinta (1 → -1).
+const BELT_TURN_T := 1.7
+## El "!" del aviso ya ha saltado en esta subida (se rearma al aflojar).
+var _wind_avisado := false
+## HUD del viento.
+var wind_label: Label = null
+var wind_warn: Label = null
+var _banderin_mat: ShaderMaterial = null
+var _cinta_aviso: Label = null
 ## Velocidad BASE de la cinta a la que vuelve belt_mult al expirar el
 ## potenciador. El arcade la toca (estorbo "la cinta acelera" y la mejora "la
 ## cinta va más despacio"); fuera del arcade es 1 y todo queda como siempre.
@@ -487,6 +524,16 @@ func _ready() -> void:
 			n.offset_bottom += st
 	if GameState.is_adventure():
 		scenery_kind = CampaignData.get_kind(GameState.current_port)
+		# EL VIENTO lo declara el puerto (mar 2). Su techo depende del TIPO.
+		wind_on = bool(port_cfg_viento())
+		if wind_on:
+			match scenery_kind:
+				"isla":
+					wind_max = 46.0
+				"puerto":
+					wind_max = 52.0
+				_:
+					wind_max = 60.0
 		# LOS CASTIGOS POR VACÍO EMPIEZAN EN EL MAR 2 (pedido por el usuario):
 		# el mar 1 es la escuela y allí un cliente que se va sin comer no
 		# cuesta nada — ni oro en la isla, ni calavera en el puerto, ni reloj
@@ -2963,13 +3010,23 @@ func _process(delta: float) -> void:
 					_finalize_results()
 		return
 
+	# EL VIENTO corre siempre (también en la preparación: da ambiente y deja
+	# ver el banderín moverse antes de abrir).
+	if wind_on and not ended:
+		_tick_viento(delta)
+
 	# La banda de la cinta avanza a la velocidad real de los platos (tambien
-	# durante la fase de preparacion, pero no congelada).
+	# durante la fase de preparacion, pero no congelada). `belt_dir` es el
+	# sentido con su transición: al girar, la banda se frena y arranca al revés.
 	if not frozen:
-		belt_scroll = fmod(belt_scroll + PLATE_SPEED * belt_mult * delta / band_tile_len, 1.0)
+		belt_scroll = fposmod(belt_scroll + PLATE_SPEED * belt_mult * belt_dir * delta / band_tile_len, 1.0)
 		band_mat.set_shader_parameter("scroll_tiles", belt_scroll)
 		if corner_mat != null:
 			corner_mat.set_shader_parameter("scroll_tiles", belt_scroll)
+
+	# La cinta dibujada en la mesa de preparación gira CON la de cubierta.
+	if prep_board != null and "belt_dir" in prep_board:
+		prep_board.belt_dir = belt_dir
 
 	# Fase de preparacion: el reloj no corre y no vienen clientes.
 	if prep_phase:
@@ -3055,6 +3112,232 @@ func _process(delta: float) -> void:
 	powerup_delay = maxf(powerup_delay - delta, 0.0)
 	_try_open_powerup_choice()
 	_update_hud()
+
+
+# ------------------------------------------------------------------ viento
+
+## ¿El puerto de hoy declara viento?
+func port_cfg_viento() -> bool:
+	if not GameState.is_adventure() or GameState.is_tutorial():
+		return false
+	return bool(CampaignData.get_port(GameState.current_port).get("viento", false))
+
+
+## UN PASO DEL SIMULADOR. El viento persigue objetivos sorteados; al alcanzar
+## uno, respira y sortea el siguiente. Para CAMBIAR DE SENTIDO tiene que pasar
+## por 0: ahí es donde (a veces) se da la vuelta. Los sustos en falso salen
+## solos: un objetivo de 36 km/h hacia la izquierda enciende el aviso y se
+## queda sin llegar al umbral.
+func _tick_viento(delta: float) -> void:
+	if wind_dwell > 0.0:
+		wind_dwell -= delta
+	elif absf(wind_kmh - wind_target) < 0.5:
+		wind_dwell = randf_range(0.7, 3.2)
+		_nuevo_objetivo_viento()
+	else:
+		wind_kmh = move_toward(wind_kmh, wind_target, wind_rate * delta)
+		if wind_kmh <= 0.05 and wind_target <= 0.05:
+			# En la calma es donde el viento puede darse la vuelta.
+			if randf() < 0.55:
+				wind_dir = -wind_dir
+
+	# ¿Toca invertir la cinta? Solo el viento FUERTE hacia la IZQUIERDA. La
+	# vuelta a la normalidad lleva histéresis: si girase justo en el umbral,
+	# una racha oscilando ahí haría bailar la cinta sin parar.
+	var quiere := -1.0 if (wind_dir < 0 and wind_kmh >= WIND_UMBRAL) else 1.0
+	if quiere < 0.0:
+		pass
+	elif belt_dir_objetivo < 0.0 and wind_dir < 0 \
+			and wind_kmh >= WIND_UMBRAL * 0.85:
+		quiere = -1.0
+	if quiere != belt_dir_objetivo:
+		belt_dir_objetivo = quiere
+		_cinta_gira(quiere < 0.0)
+	belt_dir = move_toward(belt_dir, belt_dir_objetivo, 2.0 * delta / BELT_TURN_T)
+
+	# EL AVISO "!" — cuando el viento zurdo se acerca al umbral y sube. Puede
+	# ser un susto en falso, y esa es la gracia: obliga a mirar el anemómetro.
+	if wind_dir < 0 and wind_kmh >= WIND_UMBRAL * 0.78 and belt_dir_objetivo > 0.0:
+		if not _wind_avisado:
+			_wind_avisado = true
+			_aviso_viento()
+	elif wind_kmh < WIND_UMBRAL * 0.6:
+		_wind_avisado = false
+
+	_refresh_viento_hud()
+
+
+func _nuevo_objetivo_viento() -> void:
+	# Un tercio de las rachas vuelven a la calma (que es el único camino para
+	# cambiar de sentido); el resto sopla a algo entre flojo y el techo.
+	if randf() < 0.36:
+		wind_target = 0.0
+	else:
+		wind_target = randf_range(8.0, wind_max)
+	wind_rate = randf_range(7.0, 16.0)
+
+
+## EL GIRO DE LA CINTA. Los platos en marcha RECUPERAN SU SEGUNDA OPORTUNIDAD
+## (se olvidan todos los rechazos): el dado de "¿lo cojo?" se tira una vez por
+## cliente y plato, y sin este olvido un plato invertido era un plato muerto —
+## el viento tiene que quitar Y dar.
+func _cinta_gira(invertida: bool) -> void:
+	for p in get_tree().get_nodes_in_group("plates"):
+		_forget_declined(p.get_instance_id())
+	_texto_cinta("¡La cinta cambia de sentido!" if invertida
+		else "La cinta vuelve a su sentido")
+	Audio.sfx("viento_alerta", -4.0, 0.8 if invertida else 1.1)
+
+
+## El "!" y su campanilla sutil: el viento se acerca al umbral.
+func _aviso_viento() -> void:
+	Audio.sfx("viento_alerta")
+	if wind_warn == null:
+		return
+	wind_warn.visible = true
+	wind_warn.pivot_offset = wind_warn.size * 0.5
+	var tw := create_tween()
+	tw.tween_property(wind_warn, "scale", Vector2(1.5, 1.5), 0.12)
+	tw.tween_property(wind_warn, "scale", Vector2.ONE, 0.2)
+	tw.tween_interval(2.2)
+	tw.tween_callback(func() -> void:
+		if wind_warn != null and belt_dir_objetivo > 0.0:
+			wind_warn.visible = false)
+
+
+## Texto flotante SOBRE LA CINTA de cubierta, para que el cambio se lea ahí
+## donde pasa. Sube un poco y se desvanece.
+func _texto_cinta(texto: String) -> void:
+	if _cinta_aviso != null and is_instance_valid(_cinta_aviso):
+		_cinta_aviso.queue_free()
+	var l := Label.new()
+	l.text = texto
+	l.add_theme_font_size_override("font_size", 30)
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		l.add_theme_font_override("font", negrita)
+	l.add_theme_color_override("font_color", Color(1.0, 0.92, 0.55))
+	l.add_theme_color_override("font_outline_color", Color.BLACK)
+	l.add_theme_constant_override("outline_size", 10)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	l.offset_top = GameState.canvas_size().y - 588.0 - 210.0
+	$HUD.add_child(l)
+	_cinta_aviso = l
+	var tw := l.create_tween()
+	tw.tween_interval(1.4)
+	tw.tween_property(l, "offset_top", l.offset_top - 40.0, 0.9)
+	tw.parallel().tween_property(l, "modulate:a", 0.0, 0.9)
+	tw.tween_callback(l.queue_free)
+
+
+## EL ANEMÓMETRO (bajo el botón de Salir) y el BANDERÍN 3D del mástil.
+func _setup_viento() -> void:
+	# El número. Verde en calma y ROJO según se acerca al umbral (lo pinta
+	# `_refresh_viento_hud`, que también lo engorda).
+	wind_label = Label.new()
+	wind_label.add_theme_font_size_override("font_size", 24)
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		wind_label.add_theme_font_override("font", negrita)
+	wind_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	wind_label.add_theme_constant_override("outline_size", 8)
+	wind_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	$HUD.add_child(wind_label)
+	var y := 176.0 + GameState.safe_top()
+	if exit_button != null and is_instance_valid(exit_button):
+		y = exit_button.position.y + exit_button.size.y + 10.0
+	wind_label.position = Vector2(20.0, y)
+	# El "!" del aviso, pegado al número.
+	wind_warn = Label.new()
+	wind_warn.text = "!"
+	wind_warn.add_theme_font_size_override("font_size", 40)
+	if negrita != null:
+		wind_warn.add_theme_font_override("font", negrita)
+	wind_warn.add_theme_color_override("font_color", Color(1.0, 0.25, 0.2))
+	wind_warn.add_theme_color_override("font_outline_color", Color(1, 0.96, 0.85))
+	wind_warn.add_theme_constant_override("outline_size", 8)
+	wind_warn.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wind_warn.position = wind_label.position + Vector2(150.0, -8.0)
+	wind_warn.visible = false
+	$HUD.add_child(wind_warn)
+	_montar_banderin()
+	# El bucle del viento arranca en silencio; el volumen lo lleva el HUD.
+	Audio.loop_on("viento", -80.0)
+	_refresh_viento_hud()
+
+
+## Color, grosor y cifra del anemómetro + banderín + volumen del bucle.
+func _refresh_viento_hud() -> void:
+	if wind_label != null:
+		var f := clampf(wind_kmh / WIND_UMBRAL, 0.0, 1.0)
+		var flecha := "←" if wind_dir < 0 else "→"
+		wind_label.text = "%s %d km/h" % [flecha, roundi(wind_kmh)]
+		# De verde (calma) a rojo (umbral); el cuerpo crece con el peligro.
+		wind_label.add_theme_color_override("font_color",
+			Color(0.35, 0.9, 0.4).lerp(Color(1.0, 0.22, 0.16), f))
+		wind_label.add_theme_font_size_override("font_size", 24 + int(f * 6.0))
+	if _banderin_mat != null:
+		_banderin_mat.set_shader_parameter("fuerza",
+			clampf(wind_kmh / wind_max, 0.0, 1.0))
+	if _banderin != null and is_instance_valid(_banderin):
+		# La tela apunta ADONDE VA el viento: a la derecha de pantalla en el
+		# sentido natural, a la izquierda con el zurdo.
+		_banderin.scale.x = absf(_banderin.scale.x) * float(wind_dir)
+	# El bucle del viento sube con la velocidad (por debajo de 6 km/h calla).
+	var v := clampf((wind_kmh - 6.0) / (wind_max - 6.0), 0.0, 1.0)
+	Audio.loop_on("viento", -80.0 if v <= 0.0 else lerpf(-26.0, 0.0, v))
+
+
+var _banderin: MeshInstance3D = null
+
+
+## El MÁSTIL DEL BANDERÍN: un poste alto en la esquina superior del encuadre
+## con el gallardete al viento. Es la señal DIEGÉTICA del sistema: el
+## anemómetro da el número y la tela lo cuenta de un vistazo.
+func _montar_banderin() -> void:
+	# Coordenadas de PANTALLA (u = derecha, w = hacia la cámara), las mismas
+	# de la cueva: el poste va arriba a la derecha del encuadre, fuera del
+	# pasillo de paseo.
+	# Medido en captura: a w=-5.9 el mástil se salía por el canto de arriba y
+	# solo asomaba la puntita de la tela.
+	var u := 3.45
+	var w := -4.15
+	var x := (u + w) * 0.70710678
+	var z := (w - u) * 0.70710678
+	var alto := 3.1
+	var palo := MeshInstance3D.new()
+	var cil := CylinderMesh.new()
+	cil.top_radius = 0.07
+	cil.bottom_radius = 0.09
+	cil.height = alto
+	palo.mesh = cil
+	var mat_palo := StandardMaterial3D.new()
+	mat_palo.albedo_color = Color(0.52, 0.36, 0.2)
+	palo.material_override = mat_palo
+	palo.position = Vector3(x, alto * 0.5, z)
+	palo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(palo)
+	var quad := QuadMesh.new()
+	quad.size = Vector2(1.15, 0.5)
+	quad.center_offset = Vector3(1.15 * 0.5, 0.0, 0.0)
+	# Más subdivisiones = la onda del shader se ve curva y no a tramos.
+	quad.subdivide_width = 16
+	quad.subdivide_depth = 2
+	_banderin = MeshInstance3D.new()
+	_banderin.mesh = quad
+	_banderin_mat = ShaderMaterial.new()
+	_banderin_mat.shader = load("res://shaders/banderin.gdshader")
+	_banderin_mat.set_shader_parameter("tela",
+		load("res://assets/props/banderin.png"))
+	_banderin_mat.set_shader_parameter("fuerza", 0.0)
+	_banderin.material_override = _banderin_mat
+	_banderin.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_banderin.position = Vector3(x, alto - 0.32, z)
+	# +X local cae sobre el "derecha" de la pantalla (R_HAT).
+	_banderin.rotation_degrees.y = 45.0
+	add_child(_banderin)
 
 
 # ---------------------------------------------------------------- clientes
@@ -6050,6 +6333,8 @@ func _apply_hud_layout() -> void:
 		get_viewport().size_changed.connect(_place_skill_counters)
 	_setup_vacios_puerto.call_deferred()
 	_setup_skill_counters.call_deferred()
+	if wind_on:
+		_setup_viento.call_deferred()
 	# Sin potenciadores (la escuela), el BOTE entero desaparece del marcador:
 	# una barra azul que nunca sube solo generaría preguntas.
 	if tip_bar != null and is_instance_valid(tip_bar) \

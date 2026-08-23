@@ -56,6 +56,26 @@ var forget_each_lap := false
 var variety_bonus := false
 ## Vueltas ya completadas (para saber cuándo toca el olvido o el cubo).
 var _laps_done := 0
+## Pasadas por el punto de la papelera (el plato nace ahí; nacer no cuenta).
+var _pases := 0
+## Progreso del punto de la papelera sobre el camino (donde nació el plato).
+var _papelera_progress := -1.0
+
+
+## ¿El tramo `desde` → `hasta` cruza el punto de la papelera? Se mira en
+## coordenadas RELATIVAS a ese punto: al avanzar, la posición relativa solo
+## puede dar un salto grande envolviéndose (de casi L a casi 0, o al revés
+## marchando atrás), y ese salto ES el cruce. Robusto con pasos pequeños y con
+## los dos sentidos de la cinta.
+func _cruza_papelera(desde: float, hasta: float) -> bool:
+	if _papelera_progress < 0.0:
+		_papelera_progress = desde
+		return false
+	var r0 := fposmod(desde - _papelera_progress, belt_length)
+	var r1 := fposmod(hasta - _papelera_progress, belt_length)
+	if hasta > desde:
+		return r1 < r0 - belt_length * 0.5
+	return r1 > r0 + belt_length * 0.5
 
 
 func _ready() -> void:
@@ -122,26 +142,35 @@ func _process(delta: float) -> void:
 	var mult := 1.0
 	if level_ref != null and "belt_mult" in level_ref:
 		mult = level_ref.belt_mult
+	# EL VIENTO puede invertir la cinta: `belt_dir` es el sentido con su
+	# transición (pasa por 0 en cada giro, así que la cinta se frena de verdad).
+	if level_ref != null and "belt_dir" in level_ref:
+		mult *= level_ref.belt_dir
 	var step := speed * mult * delta
+	var antes := progress
 	progress += step
-	traveled += step
-	if belt_length > 0.0 and traveled >= float(_laps_done + 1) * belt_length:
-		_laps_done += 1
-		if _laps_done < max_laps:
-			# "Segunda vuelta" (rango IV): la vuelta nueva borra los rechazos,
-			# o el plato daría sus vueltas extra sin que nadie pudiera cogerlo
-			# (el dado se tira UNA vez por cliente y plato).
+	traveled += absf(step)
+	# EL CUBO CUENTA PASADAS POR LA PAPELERA, no vueltas (rediseño del viento,
+	# pedido por el usuario): el plato nace EN el punto del cubo, puede pasar
+	# por delante UNA vez, y a la SEGUNDA pasada cae — da igual el sentido en
+	# que llegue. La habilidad de las vueltas extra suma pasadas perdonadas.
+	# Con la cinta invertible las vueltas dejaron de existir como concepto: un
+	# plato puede ir y volver sin completar ninguna.
+	if belt_length > 0.0 and absf(step) > 0.0 and _cruza_papelera(antes, progress):
+		_pases += 1
+		if _pases <= max_laps:
+			# Pasada perdonada. "Segunda vuelta" (rango IV): borra los rechazos
+			# al pasar, o el plato seguiría dando pasadas sin que nadie pudiera
+			# cogerlo (el dado se tira UNA vez por cliente y plato).
 			if forget_each_lap and level_ref != null \
 					and level_ref.has_method("_forget_declined"):
 				level_ref._forget_declined(get_instance_id())
 			return
-		# "Nada se tira" (potenciador): en vez de caer al cubo, el plato empieza
-		# otra vuelta Y se le OLVIDA a todo el mundo que lo dejó pasar, o daría
-		# vueltas eternas sin que nadie pudiera cogerlo.
+		# "Nada se tira" (potenciador): la cuenta vuelve a cero Y se le olvida
+		# a todo el mundo que lo dejó pasar.
 		if level_ref != null and "no_waste_timer" in level_ref \
 				and level_ref.no_waste_timer > 0.0:
-			traveled = 0.0
-			_laps_done = 0
+			_pases = 0
 			level_ref._forget_declined(get_instance_id())
 		else:
 			_tirar_a_la_basura()
