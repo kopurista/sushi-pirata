@@ -565,6 +565,8 @@ func _ready() -> void:
 	prep_board.dish_served.connect(_on_player_dish_served)
 	prep_board.craft_event.connect(_on_craft_event)
 	prep_board.money_penalty.connect(_on_money_penalty)
+	# Un corte fallado es un "error" que rompe la cadena del SUSHI RUSH.
+	prep_board.money_penalty.connect(func(_c: int) -> void: note_rush_fail())
 	prep_board.storage_changed.connect(_on_storage_changed)
 	prep_board.helper_used.connect(helper_cheer)
 	retry_button.pressed.connect(_on_retry_pressed)
@@ -686,8 +688,12 @@ func _ready() -> void:
 		# El barco pide DOS llaves: que el puerto lo permita (es la novedad del
 		# nivel 4 y antes no pinta nada) y que el jugador lleve puesto su
 		# bonificador. Si falta cualquiera de las dos, su botón ni aparece.
+		# `boat_lesson`: el guion ESTRENA el barco (Nach en m2_18), así que el
+		# botón sale aunque el bonificador todavía no se tenga — la lección es
+		# justo esa.
 		prep_board.hide_boat = not (bool(port.get("boat", false)) \
-				and GameState.has_perk("barco"))
+				and (GameState.has_perk("barco")
+					or bool(port.get("boat_lesson", false))))
 		prep_board.hide_combo = not bool(port.get("combo", false))
 		# Los botones ya se construyeron en el _ready de la tabla, así que hay
 		# que repasarlos SIEMPRE: haciéndolo solo cuando se ocultaban los
@@ -719,12 +725,15 @@ func _ready() -> void:
 		var hay_tesoro: bool = not (port.get("collectible_client", {}) as Dictionary).is_empty()
 		# Y el HÁNDICAP del tipo: el primer puerto y el primer abordaje de la
 		# partida lo explican aunque el escenario no tenga guion propio.
-		var toca_handicap: bool = not GameState.is_tutorial() and (
-			(scenery_kind == "puerto" and not GameState.puerto_handicap_done)
+		var toca_handicap: bool = not GameState.is_tutorial() 				and CampaignData.sea_of(GameState.current_port) >= 2 and (
+			(scenery_kind == "isla" and not GameState.isla_handicap_done)
+			or (scenery_kind == "puerto" and not GameState.puerto_handicap_done)
 			or (scenery_kind == "abordaje" and not GameState.abordaje_handicap_done))
-		if (str(port.get("director", "")) != "" \
-				and (not ya_narrado or boss_id != "")) or toca_contadores \
-				or toca_handicap or hay_tesoro:
+		# El guion de MIKU (m2_14) corre TAMBIEN en repeticiones mientras el
+		# SUSHI RUSH no se haya aprendido: su barco solo se puede servir
+		# volviendo con el bonificador puesto, y sin escena no habria trato.
+		var miku_pendiente: bool = str(port.get("director", "")) == "mar2_miku" 				and not GameState.sushi_rush_unlocked
+		if (str(port.get("director", "")) != "" 				and (not ya_narrado or boss_id != "" or miku_pendiente)) 				or toca_contadores or toca_handicap or hay_tesoro:
 			var guia := preload("res://scripts/level_director.gd").new()
 			guia.name = "LevelDirector"
 			add_child.call_deferred(guia)
@@ -3014,6 +3023,7 @@ func _process(delta: float) -> void:
 	# ver el banderín moverse antes de abrir).
 	if wind_on and not ended:
 		_tick_viento(delta)
+	_tick_rush(delta)
 
 	# La banda de la cinta avanza a la velocidad real de los platos (tambien
 	# durante la fase de preparacion, pero no congelada). `belt_dir` es el
@@ -3112,6 +3122,168 @@ func _process(delta: float) -> void:
 	powerup_delay = maxf(powerup_delay - delta, 0.0)
 	_try_open_powerup_choice()
 	_update_hud()
+
+
+# -------------------------------------------------------------- SUSHI RUSH
+# La habilidad de MIKU (m2_14): encadena RUSH_CHAIN platos SIN FALLO — cada
+# plato que un cliente come y que NO había probado suma; un plato repetido, un
+# plato al cubo o un corte fallado ROMPEN la cadena — y se enciende el rush:
+# los platos elegidos se hacen SOLOS y el enfriamiento cae a RUSH_COOLDOWN.
+# Dura hasta que un plato se repite o cae a la basura. Mientras está activo,
+# cuelga el cartel de "SUSHI RUSH" balanceándose, la pantalla vibra y entran
+# las líneas de acción de la pesca.
+
+const RUSH_CHAIN := 10
+const RUSH_COOLDOWN := 0.45
+
+var rush_chain := 0
+var rush_active := false
+var _rush_sign: Control = null
+var _rush_lines: ColorRect = null
+var _rush_shake := 0.0
+
+
+## Un plato COME-Y-CUENTA (lo llama client3d al terminar cada plato, con si el
+## cliente lo había probado ya). Los picoteos y postres cuentan como el resto:
+## la cadena es de platos ENTREGADOS, no de principales.
+func note_rush_plate(nuevo: bool) -> void:
+	if not GameState.sushi_rush_unlocked or arcade:
+		return
+	if not nuevo:
+		_rush_break()
+		return
+	if rush_active:
+		return
+	rush_chain += 1
+	if rush_chain >= RUSH_CHAIN:
+		_rush_on()
+
+
+## Un plato al cubo (o un corte fallado) rompe la cadena — y apaga el rush.
+func note_rush_fail() -> void:
+	if not GameState.sushi_rush_unlocked:
+		return
+	_rush_break()
+
+
+func _rush_break() -> void:
+	rush_chain = 0
+	if rush_active:
+		_rush_off()
+
+
+func _rush_on() -> void:
+	rush_active = true
+	if prep_board != null:
+		prep_board.rush = true
+	Audio.sfx("habilidad")
+	_montar_rush_sign()
+	_montar_rush_lines()
+
+
+func _rush_off() -> void:
+	rush_active = false
+	if prep_board != null:
+		prep_board.rush = false
+	if _rush_sign != null and is_instance_valid(_rush_sign):
+		var s := _rush_sign
+		_rush_sign = null
+		var tw := s.create_tween()
+		tw.tween_property(s, "position:y", s.position.y - 160.0, 0.4) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+		tw.tween_callback(s.queue_free)
+	if _rush_lines != null and is_instance_valid(_rush_lines):
+		var l := _rush_lines
+		_rush_lines = null
+		var tw2 := l.create_tween()
+		tw2.tween_property(l, "modulate:a", 0.0, 0.5)
+		tw2.tween_callback(l.queue_free)
+
+
+## EL CARTEL COLGANTE: una tabla que cae desde el borde de arriba colgada de
+## dos cuerdas y se BALANCEA mientras el rush está vivo. Va aparte del cartel
+## de fase a propósito (otro sitio, otro diseño): esto es un estado, no una
+## cuenta atrás.
+func _montar_rush_sign() -> void:
+	if _rush_sign != null:
+		return
+	var raiz := Control.new()
+	raiz.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	raiz.z_index = 95
+	$HUD.add_child(raiz)
+	var w := 320.0
+	var alto := 86.0
+	raiz.position = Vector2((GameState.canvas_size().x - w) * 0.5, -alto - 60.0)
+	raiz.size = Vector2(w, alto + 60.0)
+	# El PIVOTE arriba y centrado: el balanceo es un péndulo desde las cuerdas.
+	raiz.pivot_offset = Vector2(w * 0.5, 0.0)
+	for lado in [-1.0, 1.0]:
+		var cuerda := ColorRect.new()
+		cuerda.color = Color(0.82, 0.72, 0.5)
+		cuerda.size = Vector2(6.0, 62.0)
+		cuerda.position = Vector2(w * 0.5 + lado * w * 0.32 - 3.0, 0.0)
+		cuerda.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		raiz.add_child(cuerda)
+	var tabla := Control.new()
+	tabla.position = Vector2(0.0, 58.0)
+	tabla.size = Vector2(w, alto)
+	tabla.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	raiz.add_child(tabla)
+	var fondo := PrepBoard.make_nine_patch(PrepBoard.PERK_TEX,
+		PrepBoard.PERK_MARGIN)
+	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tabla.add_child(fondo)
+	var l := Label.new()
+	l.text = "SUSHI RUSH"
+	l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.add_theme_font_size_override("font_size", 34)
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		l.add_theme_font_override("font", negrita)
+	l.add_theme_color_override("font_color", Color(0.32, 0.16, 0.03))
+	l.add_theme_color_override("font_outline_color", Color(1, 0.93, 0.68))
+	l.add_theme_constant_override("outline_size", 6)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tabla.add_child(l)
+	_rush_sign = raiz
+	# Cae desde arriba con rebote y se queda meciéndose (el balanceo vive en
+	# `_process`, que es quien puede moverlo también con el árbol vivo).
+	var tw := raiz.create_tween()
+	tw.tween_property(raiz, "position:y", 0.0, 0.5) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+## Las líneas de acción de la pesca, a pantalla completa y suaves.
+func _montar_rush_lines() -> void:
+	if _rush_lines != null:
+		return
+	var l := ColorRect.new()
+	l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.z_index = 90
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://shaders/action_lines.gdshader")
+	mat.set_shader_parameter("center", Vector2(0.5, 0.45))
+	l.material = mat
+	l.modulate.a = 0.0
+	$HUD.add_child(l)
+	_rush_lines = l
+	var tw := l.create_tween()
+	tw.tween_property(l, "modulate:a", 0.55, 0.4)
+
+
+## El balanceo del cartel y la vibración de cámara, por fotograma.
+func _tick_rush(delta: float) -> void:
+	if not rush_active:
+		return
+	if _rush_sign != null and is_instance_valid(_rush_sign):
+		_rush_sign.rotation = sin(elapsed * 2.2) * 0.055
+	_rush_shake += delta
+	if cam != null:
+		cam.h_offset = sin(_rush_shake * 31.0) * 0.02
+		cam.v_offset = cos(_rush_shake * 27.0) * 0.02
 
 
 # ------------------------------------------------------------------ viento
@@ -3647,6 +3819,11 @@ func _reto_cumplido() -> bool:
 				if int(cuenta[id]) >= n:
 					return true
 			return false
+		"mismo_caro":
+			# N veces el plato MAS CARO de la carta de hoy (el del capitan del
+			# mapa, m2_05). El plato objetivo es el mismo que canta el guion.
+			var caro := GameState.plato_mas_caro_de_la_carta()
+			return comidos.count(caro) >= n
 		"receta":
 			return str(cfg.get("recipe", "")) in comidos
 		"postre_solo":
@@ -3700,6 +3877,15 @@ func _entregar_tesoro() -> void:
 	if treasure_given:
 		return
 	treasure_given = true
+	# El capitán del MAPA (m2_05) paga con un mapa del tesoro, no con pieza de
+	# vitrina: suma al contador persistente y se anuncia con un toast.
+	if bool(collectible_client.get("mapa", false)):
+		GameState.treasure_maps += 1
+		GameState.save_game()
+		GameState._ensure_notices().toast_achievement(
+			load("res://assets/ui/col_mapa_tesoro.png"), Color(1, 0.9, 0.6),
+			"¡Mapa del tesoro!", "El capitán ha pagado con un mapa")
+		return
 	var pieza := str(collectible_client.get("item", ""))
 	if pieza != "":
 		GameState.unlock_collectible(pieza)
@@ -4266,6 +4452,9 @@ func _try_open_powerup_choice() -> void:
 
 
 ## ¿Está hablando algún guion de este nivel?
+## (los enganches del rush viven donde ocurre cada suceso: el plato comido en
+## client3d._apply_meal_patience, el cubo en _on_plate_discarded y el corte
+## fallado en la señal money_penalty de la tabla.)
 func _guion_hablando() -> bool:
 	for hijo in get_children():
 		if hijo is StoryDirector and hijo.dialog != null \
@@ -4532,6 +4721,8 @@ func _forget_declined(plate_id: int) -> void:
 ## Un plato desechado (una vuelta entera sin que nadie lo coja) cuesta una parte
 ## de su precio (WASTE_PENALTY).
 func _on_plate_discarded(recipe_id: String, plate: Node3D = null) -> void:
+	# Un plato al cubo rompe la cadena del SUSHI RUSH (y apaga el rush).
+	note_rush_fail()
 	# El plato volcándose en el cubo. Suena aunque el castigo esté perdonado
 	# ("Nada se tira"): lo que se oye es el plato cayendo, no la multa.
 	Audio.sfx("basura")
@@ -4617,6 +4808,12 @@ func _end_level() -> void:
 	if GameState.is_tutorial():
 		return
 	ended = true
+	# El SUSHI RUSH muere con el turno (y la cámara vuelve a su sitio).
+	if rush_active:
+		_rush_off()
+	if cam != null:
+		cam.h_offset = 0.0
+		cam.v_offset = 0.0
 	# UN CARTEL DE POTENCIADOR ABIERTO MUERE CON EL TURNO: pausaba el árbol y,
 	# con el nivel acabándose por debajo, el juego se quedaba clavado en la
 	# elección — el jugador ya no tiene partida en la que gastar lo elegido.

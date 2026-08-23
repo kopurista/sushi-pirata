@@ -68,6 +68,10 @@ func _run() -> void:
 	match guion:
 		"mar2_viento":
 			await _mar2_viento()
+		"mar2_miku":
+			await _mar2_miku()
+		"mar2_nach":
+			await _mar2_nach()
 		"nivel_1":
 			await _nivel_1()
 		"nivel_2":
@@ -1493,6 +1497,150 @@ func _mar2_viento() -> void:
 	])
 	_play("Con viento **zurdo en rojo**, la cinta se gira. ¡Vigila el anemómetro!")
 	_vigilar_basura()
+
+
+# --------------------------------------------------------------- mar 2 (14)
+# Jardín de Miku: la maestra de Alice aparece de repente en mitad del nivel y
+# pide POR FAVOR un barco de sushi. La primera visita el jugador no puede
+# montarlo (el bonificador llega en m2_18), así que Miku emplaza a volver; al
+# volver con él y servírselo, enseña el SUSHI RUSH. Este guion corre en CADA
+# visita mientras el Rush no esté aprendido (filtro propio en level3d).
+
+## Plato del encargo de Miku y de Nach: el barco combinado.
+const PLATO_BARCO := "moriawase"
+
+var _miku: Node3D = null
+
+
+func _mar2_miku() -> void:
+	# La escena es el punto: no se juega en mudo mientras el trato siga vivo.
+	_mudo = false
+	await _say([
+		{ "text": "Qué isla más cuidada... setos podados, farolillos, ni una mala hierba. Aquí vive alguien con MANO.", "mood": "hablando" },
+	])
+	_play()
+	_vigilar_basura()
+	await _tras_la_preparacion()
+
+	# --- MIKU aparece (es el cliente especial, entra la última) ---
+	await _esperar(func() -> bool:
+		return lv.ended or _cliente_who("miku") != null)
+	if lv.ended:
+		return
+	_miku = _cliente_who("miku")
+	if _miku == null:
+		return
+	await _pausa(1.0)
+	if not is_instance_valid(_miku) or lv.ended:
+		return
+	# El barco es SUYO mientras dura la escena, y no lo deja pasar nunca.
+	lv.exclusive_dishes[PLATO_BARCO] = "miku"
+	_miku.eager_dish = PLATO_BARCO
+	_focus_client(_miku)
+	# ¿Se puede montar el barco HOY? Lo dice el botón de la tabla, que ya
+	# resuelve las dos llaves (el puerto lo permite y el bonificador va puesto).
+	var puede: bool = not lv.prep_board.hide_boat
+	await _say([
+		{ "text": "Buenas tardes. ¿Molesto? Huele de maravilla desde el muelle.", "who": "miku", "mood": "hablando" },
+		{ "text": "¡Una clienta con delantal! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "Cocinera, de hecho. Y hoy me apetece algo muy concreto: un **barco de sushi**, por favor. Platos variados, en su bandeja.", "who": "miku", "mood": "feliz" },
+	])
+	if puede:
+		await _say([
+			{ "text": "Ya sabes montarlo, %s: cuatro platos guardados, dos clases distintas, y el botón del barco bajo las cajas." % GameState.player_title(), "mood": "hablando" },
+		])
+		_play("El encargo de Miku: un **barco de sushi** (guarda 4 platos de 2 clases).")
+	else:
+		await _say([
+			{ "text": "¿Una bandeja combinada? Eso... todavía no sabemos montarlo, señora.", "mood": "sorprendido" },
+			{ "text": "Oh, no pasa nada. Volveré otro día... o volved vosotros cuando sepáis. Las cosas buenas se esperan.", "who": "miku", "mood": "feliz" },
+			{ "text": "¡APÚNTALO, RAAAK! ¡LA DEL DELANTAL QUIERE BARCO!", "who": "gigi", "mood": "loro" },
+		])
+		_play()
+		return
+
+	# --- El barco servido: el trato ---
+	await _esperar(func() -> bool:
+		return lv.ended or not is_instance_valid(_miku) \
+			or PLATO_BARCO in _miku.eaten_ids)
+	if lv.ended or not is_instance_valid(_miku) \
+			or not PLATO_BARCO in _miku.eaten_ids:
+		return
+	if GameState.sushi_rush_unlocked:
+		return
+	GameState.sushi_rush_unlocked = true
+	GameState.save_game()
+	_focus_client(_miku)
+	await _say([
+		{ "text": "...Delicioso. El arroz en su punto, y la bandeja montada con cariño. Hacía años que no comía así.", "who": "miku", "mood": "feliz" },
+		{ "text": "Un trato es un trato: os enseño mi secreto. Lo llamo **SUSHI RUSH**.", "who": "miku", "mood": "hablando" },
+		{ "text": "Encadena **10 platos seguidos sin un solo fallo** — sin repetirle plato a nadie, sin tirar ninguno al cubo, sin cortes malos.", "who": "miku", "mood": "serio" },
+		{ "text": "Cuando lo logres, las manos van solas: los platos **se montan al instante** y el fogón casi no descansa... hasta que falles uno.", "who": "miku", "mood": "feliz" },
+		{ "text": "¡¿LAS MANOS SOLAS?! ¡RAAAK! ¡BRUJERÍA!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "Técnica, loro. Años de técnica. Gracias por la comida... y saludad a Alice de mi parte.", "who": "miku", "mood": "hablando" },
+	])
+	_play("¡SUSHI RUSH aprendido! Encadena **10 platos sin fallo** para encenderlo.")
+
+
+# --------------------------------------------------------------- mar 2 (18)
+# Fondeadero de Nach: el capitán Nach, viejo amigo de Alice, ve a su pequeña
+# enrolada en nuestro barco y decide enseñarnos el BARCO COMBINADO. Pide que
+# el primero se lo sirvamos a ÉL. Superar el puerto abre su bonificador.
+
+var _nach: Node3D = null
+
+
+func _mar2_nach() -> void:
+	await _say([
+		{ "text": "**Fondeadero de Nach**. El dueño es un viejo capitán con más orgullo que barco... y dicen que hoy come aquí.", "mood": "hablando" },
+	])
+	_play()
+	_vigilar_basura()
+	await _tras_la_preparacion()
+
+	await _esperar(func() -> bool:
+		return lv.ended or _cliente_who("nach") != null)
+	if lv.ended:
+		return
+	_nach = _cliente_who("nach")
+	if _nach == null:
+		return
+	await _pausa(1.0)
+	if not is_instance_valid(_nach) or lv.ended:
+		return
+	lv.exclusive_dishes[PLATO_BARCO] = "nach"
+	_nach.eager_dish = PLATO_BARCO
+	_focus_client(_nach)
+	await _say([
+		{ "text": "Vaya, vaya. Conque este es el barquito del que habla todo el mar.", "who": "nach", "mood": "serio" },
+		{ "text": "¡¿Capitán Nach?!", "who": "alice", "mood": "sorprendido" },
+		{ "text": "¡ALICE! ¡La pequeña del fogón de Miku! ¿Enrolada aquí? Já... entonces esta cocina vale la pena.", "who": "nach", "mood": "riendo" },
+		{ "text": "Me enseñó a atar nudos cuando era niña. Y a robar mochis de la despensa.", "who": "alice", "mood": "feliz" },
+		{ "text": "¡LO DEL MOCHI NO SE CUENTA! Ejem. Cocinero: por la pequeña, hoy os regalo un secreto de capitán.", "who": "nach", "mood": "hablando" },
+		{ "text": "El **BARCO COMBINADO**: guarda **4 platos** en tus cajas — de **2 clases distintas** por lo menos — y pulsa el botón del barco, bajo las cajas.", "who": "nach", "mood": "serio" },
+		{ "text": "Sale una bandeja que no rechaza NADIE, paga sus platos y una prima por variedad. Y el primero... me lo sirves A MÍ, que para eso lo enseño.", "who": "nach", "mood": "riendo" },
+		{ "text": "¡QUÉ MORRO! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+	])
+	_play("El encargo de Nach: móntale un **barco de sushi** (4 platos, 2 clases).")
+
+	await _esperar(func() -> bool:
+		return lv.ended or not is_instance_valid(_nach) \
+			or PLATO_BARCO in _nach.eaten_ids)
+	if lv.ended or not is_instance_valid(_nach) \
+			or not PLATO_BARCO in _nach.eaten_ids:
+		return
+	# El bonificador se entrega AQUÍ, con la escena (como el ayudante de
+	# Alice): el combo de las cajas acaba de hacerse montando este barco, y
+	# esperar a la compuerta del puerto dejaba la lección sin premio inmediato.
+	GameState.unlock_perk("barco")
+	_focus_client(_nach)
+	await _say([
+		{ "text": "¡JÁ! ¡Mirad qué bandeja! Ni en los banquetes del Rey del Coral. Aprobado, cocinero.", "who": "nach", "mood": "riendo" },
+		{ "text": "Desde hoy, el **barco de sushi** es tuyo: lo llevas de bonificador donde el puerto lo permita.", "mood": "feliz" },
+		{ "text": "Y una cosa más, pequeña... Miku anda por estos mares. Si la ves, dile que Nach sigue debiéndole una partida de cartas.", "who": "nach", "mood": "hablando" },
+		{ "text": "...Lo haré.", "who": "alice", "mood": "callado" },
+	])
+	_play()
 
 
 # ------------------------------------------------------------------- nivel 15

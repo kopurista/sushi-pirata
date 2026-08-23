@@ -1081,11 +1081,11 @@ const PORTS: Array = [
 		"goal_stars": 2,
 		"star_money": [64, 112, 178],
 		"fixed_recipes": ["futomaki_salmon", "nigiri_inari", "edamame", "mochi"],
-		# MIKU aparece en mitad del nivel y pide un BARCO DE SUSHI (el guion
-		# habilita el barco aunque el bonificador aun no se tenga). Servirselo
-		# ensena el SUSHI RUSH; sin el bonificador toca volver otro dia.
+		# MIKU aparece en mitad del nivel y pide un BARCO DE SUSHI. La primera
+		# vez NO se puede montar (su bonificador llega en m2_18): toca volver
+		# con el puesto — el guion corre en cada visita hasta que el trato se
+		# cierra (ver el filtro de level3d) y servirselo ensena el SUSHI RUSH.
 		"boat": true,
-		"boat_lesson": true,
 		"special_client": { "who": "miku", "type": "G" },
 		"late_type": "G",
 		"director": "mar2_miku",

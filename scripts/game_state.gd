@@ -173,6 +173,10 @@ var kappa_outro_done := false
 ## La escena de la puerta del MAR 2 (la felicitación y el aviso de los vientos)
 ## ya se representó.
 var mar2_intro_done := false
+## EL SUSHI RUSH, la habilidad que enseña MIKU (m2_14) a cambio de un barco de
+## sushi: encadenando `level3d.RUSH_CHAIN` platos sin fallo, los platos salen
+## solos y el enfriamiento cae, hasta que un plato se repite o cae al cubo.
+var sushi_rush_unlocked := false
 ## Alice ya se ha enrolado, y con ella se abrieron los BONIFICADORES (la escena
 ## del mapa al superar su escenario).
 var alice_intro_done := false
@@ -932,6 +936,24 @@ func reroll_shop() -> bool:
 	roll_shop_stock()
 	save_game()
 	return true
+
+
+## El plato MÁS CARO de la carta elegida hoy (ni postres ni picoteos): el
+## antojo de la fase 3 del Kappa y el encargo del capitán del mapa (m2_05).
+## Vive aquí para que el guion y el resolvedor del reto no puedan divergir.
+func plato_mas_caro_de_la_carta() -> String:
+	var mejor := ""
+	var precio := -1
+	for id in selected_recipes:
+		var r: Dictionary = RecipeData.RECIPES.get(id, {})
+		if bool(r.get("leaves_seat", false)) or bool(r.get("snack", false)):
+			continue
+		if int(r.get("price", 0)) > precio:
+			precio = int(r.get("price", 0))
+			mejor = str(id)
+	if mejor == "" and not selected_recipes.is_empty():
+		mejor = str(selected_recipes[0])
+	return mejor
 
 
 # --- Potenciadores permanentes ---------------------------------------------
@@ -2343,6 +2365,7 @@ func save_game() -> void:
 		"pending_kappa": pending_kappa,
 		"kappa_outro_done": kappa_outro_done,
 		"mar2_intro_done": mar2_intro_done,
+		"sushi_rush_unlocked": sushi_rush_unlocked,
 		"alice_intro_done": alice_intro_done,
 		"skill_counters_intro_done": skill_counters_intro_done,
 		"isla_handicap_done": isla_handicap_done,
@@ -2563,6 +2586,7 @@ func load_game() -> void:
 	kappa_outro_done = bool(parsed.get("kappa_outro_done",
 		"diente_kappa" in collectibles))
 	mar2_intro_done = bool(parsed.get("mar2_intro_done", false))
+	sushi_rush_unlocked = bool(parsed.get("sushi_rush_unlocked", false))
 	alice_intro_done = bool(parsed.get("alice_intro_done", false))
 	skill_counters_intro_done = bool(parsed.get("skill_counters_intro_done", false))
 	isla_handicap_done = bool(parsed.get("isla_handicap_done", false))
@@ -2678,6 +2702,7 @@ func _new_game() -> void:
 	pending_kappa = false
 	kappa_outro_done = false
 	mar2_intro_done = false
+	sushi_rush_unlocked = false
 	alice_intro_done = false
 	skill_counters_intro_done = false
 	isla_handicap_done = false

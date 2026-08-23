@@ -20,7 +20,8 @@ const OUT := {
 	#   "E_f": "grumete_fem_rig", "A_f": "pirata_fem_rig",
 	#   "G_f": "capitan_fem_rig", "P": "pablo_rig", "K": "kappa_rig",
 	#   "C": "cai_rig", "AL": "alice_rig",
-	"K": "kappa_rig",
+	"MI": "miku_rig",
+	"NA": "nach_rig",
 }
 const SIZE := 192
 ## Encuadre en fracciones de la ALTURA TOTAL del personaje, no del hueso de la

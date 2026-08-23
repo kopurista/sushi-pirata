@@ -236,6 +236,10 @@ var mastery_bonus: Dictionary = {}
 var cooldown_l1_mult := 1.0
 
 var instant_recipes: int = 0
+## SUSHI RUSH activo (la habilidad de Miku): los platos salen SOLOS y el
+## enfriamiento se multiplica por RUSH_COOLDOWN_MULT. Lo enciende level3d.
+var rush := false
+const RUSH_COOLDOWN_MULT := 0.45
 ## "Doble plato": la siguiente receta produce 2 platos.
 var double_next: bool = false
 var cooldown_mult: float = 1.0
@@ -1542,6 +1546,11 @@ func _start_prep(id: String) -> void:
 	ready_eat_mult = 0.0
 	extras_chosen.clear()
 	current_recipe = id
+	# SUSHI RUSH: mientras dura, todo plato elegido sale hecho en el acto (y no
+	# gasta ni potenciador ni maestría ni golpe de vista).
+	if rush:
+		_finish_prep(false)
+		return
 	if instant_recipes > 0:
 		instant_recipes -= 1
 		_finish_prep(false)
@@ -3774,6 +3783,9 @@ func _apply_cooldown(recipe_id: String) -> void:
 			* cooldown_perm_mult * skill_cd_mult
 	if int(data.get("level", 1)) == 1:
 		cd *= cooldown_l1_mult
+	# SUSHI RUSH: el enfriamiento cae a la mitad de la mitad mientras dure.
+	if rush:
+		cd *= RUSH_COOLDOWN_MULT
 	cooldowns[recipe_id] = cd
 
 

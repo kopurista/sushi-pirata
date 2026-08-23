@@ -120,6 +120,18 @@ const SPEAKERS := {
 		"dir": "res://assets/characters/kappa", "file": "kappa",
 		"name": "Kappa", "side": "right", "plate": "left", "mood": "serio",
 	},
+	# MAR 2 --- MIKU, la maestra de Alice: chef japonesa, gafas y flequillo,
+	# muy buena persona. Enseña el SUSHI RUSH a cambio de un barco de sushi.
+	"miku": {
+		"dir": "res://assets/characters/miku", "file": "miku",
+		"name": "Miku", "side": "right", "plate": "left", "mood": "serio",
+	},
+	# --- NACH, capitán pirata orgulloso (calvo, solo bigote). Conoce a Alice
+	# y enseña el bonificador del barco combinado.
+	"nach": {
+		"dir": "res://assets/characters/nach", "file": "nach",
+		"name": "Nach", "side": "right", "plate": "left", "mood": "serio",
+	},
 }
 
 ## Hablante de un CLIENTE por tipo y género: "pirata" o "pirata_f". Se pasa el

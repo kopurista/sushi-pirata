@@ -82,6 +82,13 @@ const MODELS := {
 	"alice": {
 		MALE: "res://assets/models/alice_rig.glb",
 	},
+	# MAR 2: la maestra de Alice y el capitan que ensena el barco combinado.
+	"miku": {
+		MALE: "res://assets/models/miku_rig.glb",
+	},
+	"nach": {
+		MALE: "res://assets/models/nach_rig.glb",
+	},
 }
 
 ## Iconos de cabeza del HUD (tools/head_icons.gd los saca de estos modelos).
@@ -94,6 +101,8 @@ const HEADS := {
 	"kappa": { MALE: "res://assets/ui/head_K.png" },
 	"cai": { MALE: "res://assets/ui/head_C.png" },
 	"alice": { MALE: "res://assets/ui/head_AL.png" },
+	"miku": { MALE: "res://assets/ui/head_MI.png" },
+	"nach": { MALE: "res://assets/ui/head_NA.png" },
 }
 
 ## Tipo de cliente (el de client_mix / TAKE_CHANCES) -> personaje.

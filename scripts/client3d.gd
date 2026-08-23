@@ -281,6 +281,9 @@ var always_drain := false
 var variety_ui := true
 ## Piso de probabilidad con el que el jefe coge cualquier plato no-postre.
 const BOSS_TAKE := 0.95
+## Plato que este cliente coge SEGURO en cuanto le pase por delante (los
+## encargos de guion: el barco de Miku y el de Nach). "" = ninguno.
+var eager_dish := ""
 ## Recorte de la PROBABILIDAD de propina del jefe. Come tantos platos (18+ por
 ## duelo, con las reglas de capitán subiendo al 50%) que a tarifa normal
 ## regaba el bote de propinas: paga como cuatro capitanes sin esto.
@@ -956,6 +959,9 @@ func _scan_belt(snack_only: bool = false) -> void:
 			chance = maxf(chance, BOSS_TAKE)
 		if guaranteed_next and not snack_only:
 			chance = 1.0
+		# El encargo de guion no se deja pasar nunca.
+		if eager_dish != "" and str(plate.recipe_id) == eager_dish:
+			chance = 1.0
 		if snack_only and snack_sure:
 			chance = 1.0
 		# DESPRECIO FORZADO (la clase del dado del nivel 1): el guion pide que
@@ -1133,6 +1139,13 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 		* float(recipe.get("patience_mult", 1.0))
 	if _primer_plato == "":
 		_primer_plato = current_id
+	# SUSHI RUSH: la cadena se cuenta AQUI, antes de que las ramas de abajo
+	# muten `tried` — un plato "nuevo" alarga la cadena y un repetido la rompe.
+	# Los picoteos, los postres y un extra puesto nunca la rompen.
+	if level_ref != null and level_ref.has_method("note_rush_plate"):
+		level_ref.note_rush_plate(_es_nuevo(current_id, current_satiety)
+			or recipe.get("leaves_seat", false) or recipe.get("snack", false)
+			or not current_extras.is_empty())
 	if recipe.get("leaves_seat", false) or recipe.get("snack", false):
 		if recipe.get("clears_boredom", false):
 			_limpiar_paladar()

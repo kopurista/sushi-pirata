@@ -517,6 +517,129 @@ justo al volver de un nivel.
 primera vez que se entra en ellos (`logros_intro_done` /
 `inventario_intro_done`), no desde un nivel.
 
+## EL MAR 2: EL MAR DE LOS VIENTOS (25 escenarios, montado el 23-8-2026)
+
+**La campaña sigue en el MISMO lienzo del mapa, hacia arriba**: los 25
+escenarios `m2_01..m2_25` (todos con `"sea": 2` en `CampaignData`) continúan
+por encima de la cueva, con los carriles alternando en ciclo [C,I,C,D] y el
+paso a 215 px. La cueva del Kappa se acercó al 19 (`MAP_POS` de `nivel_15` a
+−1026) y el tope de scroll (`SCROLL_MIN` −7440) llega hasta la jefa del 25.
+**El plano del mar se centra ENTRE los topes de scroll** (`SEA_SIZE` 290): con
+la medida del mar 1 el norte del mapa era azul liso sin oleaje. Y la cámara ya
+no baja del hueco vacío bajo el escenario 1 (`SCROLL_MAX`).
+
+**LOS CASTIGOS POR VACÍO SON DEL MAR 2 EN ADELANTE, no del tipo a secas**
+(rediseño pedido por el usuario): en el mar 1 NO hay ninguno — ni el oro de la
+isla, ni las calaveras del puerto, ni los −15 s del abordaje (level3d los
+compuerta con `CampaignData.sea_of(id) >= 2`, y con ellos
+`client3d.penaliza_vacio`). El mar 1 es la escuela y el 2 es donde el juego
+empieza a cobrar. Consecuencias:
+- David ya NO explica castigos en el mar 1: `_explicar_handicap` se compuerta
+  con `sea_of >= 2` y gana una rama de ISLA (`isla_handicap_done`), porque
+  ahora el castigo de la isla también se estrena ahí. La intro del mapa
+  tampoco amenaza con el oro perdido.
+- **En las islas del mar 2 el vacío cuesta EL DOBLE** (`c.leave_penalty_mult
+  = 2.0`, aplicado por level3d al crear al cliente).
+- Al vencer al Kappa, `main_menu._presentar_mar_2()` (encadenada tras la
+  escena del diente): David felicita, avisa de los VIENTOS y de la clientela
+  exigente, y el barco viaja solo a `m2_01` (`mar2_intro_done`).
+
+**EL VIENTO** (`level3d`, bloque `wind_*`; lo llevan los escenarios con
+`viento: true`): el hándicap nuevo del mar. Un simulador por fotograma
+(`_tick_viento`) mueve `wind_kmh` hacia objetivos sorteados
+(`_nuevo_objetivo_viento`, 36% de calma), y **para cambiar de dirección tiene
+que pasar por 0**: no hay bandazos imposibles, y hay amagos que se quedan a
+las puertas del umbral a propósito (imprevisible por diseño, distinto en cada
+partida).
+- **El UMBRAL es 40 km/h** (`WIND_UMBRAL`) con histéresis (×0.85 para
+  soltarse, o la cinta aleteaba en el borde). El TOPE depende del tipo
+  (`wind_max`: isla 46 / puerto 52 / abordaje 60): la intensidad del viento es
+  del tipo de escenario, como los hándicaps.
+- **Viento FUERTE hacia la IZQUIERDA = la cinta SE DA LA VUELTA** (con calma o
+  viento a la derecha va como siempre). La transición es frenar-parar-invertir
+  (`belt_dir` interpola pasando por 0, `BELT_TURN_T` 1.7 s), y arrastra
+  también la banda de la tabla (`prep_board.belt_dir`, sincronizada por
+  fotograma) y el shader (`fposmod(... * belt_dir ...)`).
+- **El giro da SEGUNDA OPORTUNIDAD**: `_cinta_gira` borra los `declined` de
+  todos los clientes (el dado se tira una sola vez por plato, así que sin ese
+  olvido el plato rechazado seguiría muerto en la otra dirección).
+- **El HUD es un anemómetro** (`_setup_viento`/`_refresh_viento_hud`): flecha
+  ←/→ y km/h en VERDE con calma que va a ROJO y engordando
+  (cuerpo 24 + f·6) según se acerca al umbral. Antes del giro sale un **"!"**
+  con su sonido (`_aviso_viento`, familias `viento`/`viento_alerta` en
+  `Audio`; el bucle del viento sube de −26 a 0 dB con la fuerza, vía
+  `Audio.loop_on`, que mueve el volumen sin reiniciar el bucle).
+- **Y un BANDERÍN de verdad en cubierta** (`_montar_banderin`, textura de
+  `tools/banderin_tex.py`, shader `shaders/banderin.gdshader`): ondea por
+  vértice con amplitud proporcional a la fuerza, CUELGA en calma (planchado
+  parecía de hojalata) y **apunta a donde sopla** (se voltea con `scale.x`).
+- **La PAPELERA cuenta PASADAS, no vueltas** (`plate3d._cruza_papelera`, en
+  coordenadas RELATIVAS al cubo para que valga en las dos direcciones): el
+  plato sobrevive a la primera pasada por el cubo y cae en la segunda, así
+  que el cubo sigue estando siempre en el mismo sitio aunque la cinta cambie
+  de sentido. `no_waste` reinicia las pasadas.
+
+**MIKU** (`assets/characters/miku`, hablante `miku`, 4 moods; modelo
+`miku_rig.glb`): la maestra de Alice — cocinera japonesa de ~35 años, gafas,
+flequillo, amable y artística. Aparece de clienta en **m2_14 (Jardín de
+Miku)**, pide POR FAVOR un **barco de sushi** y su plato es exclusivo suyo
+(`exclusive_dishes` + `client3d.eager_dish`, que pone su dado a 1.0 para ese
+plato). **La primera visita NO se puede montar** (el bonificador llega en
+m2_18, y m2_14 NO lleva `boat_lesson` a propósito): Miku emplaza a volver, y
+el guion corre en CADA visita hasta cerrar el trato — el filtro de montaje de
+level3d deja pasar `mar2_miku` mientras `sushi_rush_unlocked` sea falso.
+Al servírselo enseña el **SUSHI RUSH** (ver abajo).
+
+**NACH** (`assets/characters/nach`, hablante `nach`, 4 moods; modelo
+`nach_rig.glb`): capitán pirata calvo con BIGOTE (sin barba), ~45, orgulloso,
+viejo amigo de Alice — le enseñó nudos (y a robar mochis) de niña. En
+**m2_18 (Fondeadero de Nach)** el puerto lleva `boat_lesson: true`: el botón
+del barco SALE SIN el bonificador (level3d lo cuenta en `hide_boat`), Nach
+explica el barco combinado y pide que el primero se lo sirvan A ÉL
+(`eager_dish` otra vez). **El bonificador se entrega EN LA ESCENA**
+(`unlock_perk("barco")` al comérselo), no en la compuerta del puerto: el
+combo de las cajas acaba de hacerse montando ese barco y aplazar el premio
+dejaba la lección sin remate. El `unlocks_perk: "barco"` del puerto queda de
+red por si el turno se cierra antes.
+
+**EL SUSHI RUSH** (level3d `note_rush_plate`/`note_rush_fail`, `RUSH_CHAIN`
+10; lo enseña Miku, compuerta `GameState.sushi_rush_unlocked`): encadenar
+**10 platos entregados sin fallo** — sin repetirle plato a nadie, sin cubo,
+sin corte fallado — enciende el modo: los platos **se montan al instante**
+(`prep_board.rush`: `_finish_prep` inmediato) y el enfriamiento baja a
+`RUSH_COOLDOWN_MULT` (0.45), hasta el primer fallo.
+- **La cadena se cuenta en `client3d._apply_meal_patience`, ANTES de que las
+  ramas muten `tried`** (después, el plato recién apuntado ya no es "nuevo" y
+  la cadena no subía nunca — pasó, y la sonda lo cazó). Los picoteos, los
+  postres y un plato con EXTRA cuentan a favor; el repetido de verdad rompe.
+- Los fallos entran por dos ganchos: `_on_plate_discarded` (cubo) y la señal
+  `money_penalty` (corte fallado).
+- **El cartel es una chapa de latón COLGADA de lo alto con dos cuerdas**
+  (`_montar_rush_sign`, la misma `PERK_TEX`; pivote arriba, entra cayendo con
+  `TRANS_BACK` y se mece con `sin(elapsed*2.2)`), distinta a propósito de la
+  tablilla de fase. Mientras dura: líneas de acción a media luz
+  (`_montar_rush_lines`, el shader de la pesca) y un temblor sutil de cámara
+  (`cam.h_offset/v_offset` en `_tick_rush`). Todo se apaga en `_rush_off` y
+  también en `_end_level`.
+- En ARCADE no corre (`note_rush_plate` sale con `arcade`).
+
+**La ventana de POTENCIADOR respira y se aparta** (mismo lote): se abre con
+`powerup_delay` 0.65 s tras cruzar el umbral (que la barra se vea llenarse
+ANTES del cartel), y `_try_open_powerup_choice` espera a `notices_busy()` y a
+`_guion_hablando()`; `story_director._say` llama a
+`lv.postpone_powerup_choice()`, así que un diálogo la cierra y reaparece al
+terminar.
+
+**El cliente del tesoro del mar 2 puede pagar con MAPA** (`collectible_client`
+con `mapa: true`, el capitán de m2_05): en vez de pieza de vitrina suma
+`GameState.treasure_maps` y avisa con un toast (no hay ficha que abrir). Y el
+reto nuevo **`mismo_caro`** (N veces el plato más caro de la carta) se
+resuelve con `GameState.plato_mas_caro_de_la_carta()` — el mismo criterio que
+la fase 3 del Kappa: ni postres ni picoteos.
+
+**m2_25 (Fosa de la Sirena) es la JEFA y está EN OBRA**: el puerto lleva
+`boss: "sirena"` de reserva y su pelea NO está diseñada todavía.
+
 ## Guiones narrados (la campaña ES el tutorial)
 
 - **LA ENSEÑANZA VA INTEGRADA EN LOS NIVELES 1-10** (rediseño del 14-8-2026):
