@@ -324,6 +324,17 @@ var eat_duration: float = 1.0
 var snack_taken := false
 ## Segundos que la paciencia se queda CONGELADA (la deja el unagi glaseado).
 var patience_frozen: float = 0.0
+
+# --- CANTO DE SIRENA (mar 2) ---
+## Atontado: mira al mar y NO coge ni un plato (el dado se APLAZA, no se
+## falla: `_scan_belt` sale sin tirar nada). La paciencia sigue bajando.
+var atontado := false
+## Despertado por el jugador con un TOQUE: inmune hasta que acabe ESTE canto.
+var canto_despierto := false
+## Inmune al canto global (la propia sirena, que es quien canta).
+var canto_inmune := false
+## Las notas "~" flotando sobre la cabeza del atontado (viven en world_ui).
+var _notas: Label = null
 var tips_earned: int = 0
 var current_price: int = 0
 var current_satiety: int = 0
@@ -496,6 +507,9 @@ const PAT_BAJO := 0.25
 const COMER_AZUL := Color(0.24, 0.60, 0.96)
 ## Congelada por el unagi: azul claro, para que se vea que está parada.
 const PAT_HIELO := Color(0.55, 0.85, 1.0)
+## La barra tenida de VIOLETA mientras el cliente esta ATONTADO por el canto
+## de sirena (mar 2): el jugador tiene que ver de un vistazo quien esta ido.
+const PAT_CANTO := Color(0.72, 0.5, 0.95)
 
 var _patience_fill: StyleBoxFlat = null
 
@@ -547,6 +561,51 @@ func hide_bars() -> void:
 		_bubble.visible = false
 
 
+## CANTO DE SIRENA: entrar y salir del trance. Lo llama level3d por fotograma
+## mientras suena el canto (y el guion de la jefa, a dedo).
+func set_atontado(v: bool) -> void:
+	if atontado == v:
+		return
+	atontado = v
+	patience_bar_update()
+	if v:
+		if _notas == null and _world_ui() != null:
+			_notas = Label.new()
+			_notas.text = "~ ~"
+			_notas.add_theme_font_size_override("font_size", 30)
+			_notas.add_theme_color_override("font_color", Color(0.82, 0.6, 1.0))
+			_notas.add_theme_color_override("font_outline_color", Color(0.18, 0.08, 0.3))
+			_notas.add_theme_constant_override("outline_size", 8)
+			_notas.z_index = 2
+			_notas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_world_ui().add_child(_notas)
+			var base := _head_screen() + Vector2(24, -52)
+			_notas.position = base
+			_notas.pivot_offset = Vector2(20, 15)
+			var tw := _notas.create_tween().set_loops()
+			tw.tween_property(_notas, "position:y", base.y - 6.0, 0.7) 				.set_trans(Tween.TRANS_SINE)
+			tw.parallel().tween_property(_notas, "rotation_degrees", 9.0, 0.7) 				.set_trans(Tween.TRANS_SINE)
+			tw.tween_property(_notas, "position:y", base.y + 4.0, 0.7) 				.set_trans(Tween.TRANS_SINE)
+			tw.parallel().tween_property(_notas, "rotation_degrees", -9.0, 0.7) 				.set_trans(Tween.TRANS_SINE)
+	elif _notas != null:
+		_notas.queue_free()
+		_notas = null
+
+
+## El TOQUE del jugador rompe el trance: despierto hasta el fin de ESTE canto.
+func despertar() -> void:
+	if not atontado:
+		return
+	canto_despierto = true
+	set_atontado(false)
+	# Sacudida de cabeza: un bote rapido del cuerpo, para que el toque se vea.
+	if _body != null:
+		var tw := create_tween()
+		tw.tween_property(_body, "rotation_degrees:z", 7.0, 0.07)
+		tw.tween_property(_body, "rotation_degrees:z", -7.0, 0.1)
+		tw.tween_property(_body, "rotation_degrees:z", 0.0, 0.09)
+
+
 func _make_bars() -> void:
 	_patience_bar = ProgressBar.new()
 	_patience_bar.show_percentage = false
@@ -596,6 +655,7 @@ func _place_bars() -> void:
 	var p := _head_screen() + Vector2(-38, -10)
 	_patience_bar.position = p
 	_eat_bar.position = p
+
 
 
 ## Ancho del bocadillo con n platos dentro (el primero entero, franja por
@@ -654,7 +714,7 @@ func _icon_pos(age: int, n: int) -> Vector2:
 
 
 func _exit_tree() -> void:
-	for nodo in [_patience_bar, _eat_bar, _mult_badge, _bubble]:
+	for nodo in [_patience_bar, _eat_bar, _mult_badge, _bubble, _notas]:
 		if nodo != null and is_instance_valid(nodo):
 			nodo.queue_free()
 
@@ -692,6 +752,9 @@ func patience_bar_update() -> void:
 		return
 	if patience_frozen > 0.0:
 		_patience_fill.bg_color = PAT_HIELO
+		return
+	if atontado:
+		_patience_fill.bg_color = PAT_CANTO
 		return
 	_patience_fill.bg_color = _patience_color(
 		clampf(patience / maxf(patience_max, 0.001), 0.0, 1.0))
@@ -875,6 +938,10 @@ func _pose_sit_idle() -> void:
 	if _anim != null:
 		_anim.reset()
 		_anim.sit_idle(_t)
+		# El atontado del canto gira la cabeza hacia lo lejos (ACUMULA sobre
+		# la pose sentada, por eso va despues de sit_idle).
+		if atontado:
+			_anim.embobado(_t)
 
 
 # ------------------------------------------------------------ coger platos
@@ -890,6 +957,11 @@ func ya_sentado() -> bool:
 
 
 func _scan_belt(snack_only: bool = false) -> void:
+	# CANTO DE SIRENA: el atontado no mira la cinta. OJO — salir AQUI es lo
+	# que hace que el dado se APLACE y no se falle: el plato ni se apunta en
+	# `declined`, asi que al despertar puede cogerlo en la siguiente pasada.
+	if atontado:
+		return
 	for plate in get_tree().get_nodes_in_group("plates"):
 		if plate.taken:
 			continue

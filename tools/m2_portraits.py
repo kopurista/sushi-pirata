@@ -36,6 +36,24 @@ PERSONAJES = {
             "sorprendido": "sorprendido.webp",
         },
     },
+    # LA SIRENA (la jefa del mar 2): seis moods — "cantando" es el suyo propio,
+    # con los ojos cerrados y las notas flotando, y sale cada vez que canta.
+    # Su concepto ya viene DE CINTURA PARA ARRIBA, asi que el 1.32 pensado
+    # para cuerpos enteros la dejaba en primerisimo plano: escala propia.
+    "sirena": {
+        "alto": 0.80,
+        "bolsas": True,
+        "origen": Path("_gen/sirena"),
+        "destino": Path("assets/characters/sirena"),
+        "moods": {
+            "serio": "serio.webp",
+            "hablando": "hablando.webp",
+            "cantando": "cantando.webp",
+            "enfadado": "enfadado.webp",
+            "feliz": "feliz.webp",
+            "sorprendido": "sorprendido.webp",
+        },
+    },
 }
 
 CANVAS = (544, 704)
@@ -78,6 +96,49 @@ def quitar_fondo(im: Image.Image) -> Image.Image:
     return im
 
 
+def quitar_bolsas(im: Image.Image) -> Image.Image:
+    """Transparenta el blanco ENCERRADO entre mechones (la sirena).
+
+    La inundacion desde los bordes no llega a las bolsas de fondo que el pelo
+    encierra, y sobre el velo oscuro del dialogo salian como rayas blancas.
+    Se borran solo las islas casi blancas cuyo CENTROIDE cae FUERA de la caja
+    central de la cara: la esclerotica de los ojos y los dientes viven ahi
+    dentro y no se tocan (medido: ojos en x 0.41-0.58, y 0.35 del lienzo)."""
+    w, h = im.size
+    px = im.load()
+    vist = [[False] * w for _ in range(h)]
+    for y in range(h):
+        for x in range(w):
+            if vist[y][x]:
+                continue
+            r, g, b, a = px[x, y]
+            if a == 0 or min(r, g, b) < BLANCO_MIN:
+                continue
+            cola = deque([(x, y)])
+            vist[y][x] = True
+            isla = [(x, y)]
+            cx = cy = 0
+            while cola:
+                ax, ay = cola.popleft()
+                cx += ax
+                cy += ay
+                for nx, ny in ((ax - 1, ay), (ax + 1, ay),
+                               (ax, ay - 1), (ax, ay + 1)):
+                    if 0 <= nx < w and 0 <= ny < h and not vist[ny][nx]:
+                        rr, gg, bb, aa = px[nx, ny]
+                        if aa > 0 and min(rr, gg, bb) >= BLANCO_MIN:
+                            vist[ny][nx] = True
+                            cola.append((nx, ny))
+                            isla.append((nx, ny))
+            n = len(isla)
+            fx, fy = cx / n / w, cy / n / h
+            if 0.33 <= fx <= 0.67 and 0.20 <= fy <= 0.62:
+                continue  # cara: ojos y dientes se quedan
+            for ax, ay in isla:
+                px[ax, ay] = (0, 0, 0, 0)
+    return im
+
+
 def bbox_alfa(im: Image.Image):
     return im.split()[3].point(lambda a: 255 if a >= 40 else 0).getbbox()
 
@@ -86,6 +147,8 @@ def componer(nombre: str, cfg: dict) -> None:
     cfg["destino"].mkdir(parents=True, exist_ok=True)
     limpias = {m: quitar_fondo(Image.open(cfg["origen"] / a))
                for m, a in cfg["moods"].items()}
+    if cfg.get("bolsas", False):
+        limpias = {m: quitar_bolsas(im) for m, im in limpias.items()}
     caja_serio = bbox_alfa(limpias["serio"])
     caja = list(caja_serio)
     for im in limpias.values():
@@ -93,7 +156,7 @@ def componer(nombre: str, cfg: dict) -> None:
         caja = [min(caja[0], b[0]), min(caja[1], b[1]),
                 max(caja[2], b[2]), max(caja[3], b[3])]
     caja = tuple(caja)
-    escala = CANVAS[1] * ALTO_SUJETO / (caja_serio[3] - caja_serio[1])
+    escala = CANVAS[1] * cfg.get("alto", ALTO_SUJETO)         / (caja_serio[3] - caja_serio[1])
     for mood in cfg["moods"]:
         im = limpias[mood].crop(caja)
         im = im.resize((round(im.width * escala), round(im.height * escala)),
@@ -106,7 +169,11 @@ def componer(nombre: str, cfg: dict) -> None:
 
 
 def main() -> None:
+    import sys
+    pedidos = sys.argv[1:]
     for nombre, cfg in PERSONAJES.items():
+        if pedidos and nombre not in pedidos:
+            continue
         componer(nombre, cfg)
 
 

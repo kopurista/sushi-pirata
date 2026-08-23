@@ -82,6 +82,19 @@ const SECTIONS: Array = [
 		"body": "**Islas** y **puertos** no llevan reloj: los acota la clientela. Acaban cuando se va el último cliente o cuando llegas al oro objetivo.\n\nEn las **islas** la carta la manda el diseño del nivel (no eliges recetas). En los **puertos** la carta la eliges tú. Los **abordajes** son **contra reloj** y la clientela no se acaba.\n\n**A partir del MAR 2** la clientela se vuelve exigente y el que se va **sin probar bocado** castiga según el tipo: en la isla cuesta **oro**, en el puerto enciende una de las **3 calaveras** (a la tercera se pierde la jornada) y en el abordaje **resta 15 segundos** al reloj. En el mar 1 no hay castigo: es la escuela.\n\nLas **cuevas** son las guaridas de los **jefes**: juegan como un abordaje hasta que el jefe se sienta a la barra... y entonces manda él.",
 	},
 	{
+		"title": "El canto de sirena",
+		"icon": "res://assets/ui/head_SI.png",
+		"body": "En el **Mar de las Sirenas** (el mar 2), a ratos suena un **canto** que sale del agua. Mientras dura, el cliente que **espera** se atonta: mira al mar, **no coge ni un plato** y su paciencia sigue bajando.
+
+El que está **comiendo** se libra: la comida puede más que el canto. Antes de cada canto suena un aviso — es el momento de poner un plato en cada boca, y de guardar en las **cajas** lo que no puedas servir.
+
+A un cliente atontado se le despierta **tocándolo**: vuelve en sí hasta que acabe ese canto.
+
+Los platos que pasan de largo delante de un atontado **no se pierden**: cuando despierta, puede cogerlos en la siguiente vuelta.
+
+El canto aprieta según el tipo de escenario: suave en las **islas**, medio en los **puertos** y fuerte en los **abordajes**.",
+	},
+	{
 		"title": "Arroz",
 		"icon": "res://assets/ui/ic_arroz.png",
 		"body": "El **arroz** es la energía del juego: cada jornada gasta **1 saco**, y sin sacos no se puede zarpar.\n\nSe repone solo: **1 saco cada hora y media** de tiempo real, hasta un máximo de **20**. El reloj corre aunque cierres el juego.\n\nSi sales de un nivel durante los segundos de **preparación**, el saco se te devuelve. Si sales con la partida en marcha, no.\n\nTambién se compran sacos con **lingotes de oro**.",

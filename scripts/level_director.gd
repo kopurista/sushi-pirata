@@ -68,6 +68,12 @@ func _run() -> void:
 	match guion:
 		"mar2_viento":
 			await _mar2_viento()
+		"mar2_sirena":
+			await _mar2_sirena()
+		"mar2_sirena_jefa":
+			await _mar2_sirena_jefa()
+		"mar2_despertar":
+			await _mar2_despertar()
 		"mar2_miku":
 			await _mar2_miku()
 		"mar2_nach":
@@ -1499,6 +1505,96 @@ func _mar2_viento() -> void:
 	_vigilar_basura()
 
 
+## ¿Hay algún cliente atontado por el canto sentado a la barra?
+func _hay_atontado() -> Node3D:
+	for c in lv.seat_clients:
+		if c != null and is_instance_valid(c) and c.atontado:
+			return c
+	return null
+
+
+# ---------------------------------------------------------------- mar 2 (8)
+# Cala del Arrullo: el CANTO DE SIRENA se presenta aquí. David no suelta la
+# teoría de golpe: la primera línea siembra la sospecha, y la lección de
+# verdad llega CON el primer aviso sonando — el canto se explica mientras
+# ocurre, que es cuando se puede mirar. El truco de DESPERTAR con un toque no
+# se cuenta aquí a propósito: es la lección de m2_10 (ver _mar2_despertar).
+
+
+func _mar2_sirena() -> void:
+	await _say([
+		{ "text": "Qué agua más quieta... y qué silencio. En este mar, el silencio es que ALGO está cogiendo aire.", "mood": "serio" },
+	])
+	_play()
+	_vigilar_basura()
+	await _tras_la_preparacion()
+
+	# La lección llega con el PRIMER AVISO: 2 s antes de que arranque el canto.
+	await _esperar(func() -> bool:
+		return lv.ended or lv.canto_aviso > 0.0 or lv.canto_activo)
+	if lv.ended:
+		return
+	await _say([
+		{ "text": "¡RAAAK! ¡¿QUIÉN CANTA?!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "Una **sirena**... Escúchame rápido: mientras suene ese canto, el que ESPERA se **atonta** — mira al mar y no coge NI UN plato.", "mood": "serio" },
+		{ "text": "Y su paciencia sigue bajando, claro. Pero el que está **comiendo** se libra: la comida puede más que el canto.", "mood": "hablando" },
+		{ "text": "Así que ya sabes: cuando avise el canto, un plato a cada boca. Y lo que no puedas servir... a las **cajas**, para soltarlo cuando calle.", "mood": "hablando" },
+	])
+	_play("Con el **canto** sonando, el que espera se atonta: dale de comer ANTES.")
+
+	# Y cuando el canto atonta al primero, la coletilla con el foco puesto.
+	await _esperar(func() -> bool:
+		return lv.ended or _hay_atontado() != null)
+	if lv.ended:
+		return
+	var ido := _hay_atontado()
+	if ido != null and is_instance_valid(ido):
+		_focus_client(ido)
+		await _say([
+			{ "text": "¿Lo ves? Ido del todo. Se le pasará cuando el canto calle... si para entonces le queda paciencia.", "mood": "hablando" },
+		])
+	_play("Con el **canto** sonando, el que espera se atonta: dale de comer ANTES.")
+
+
+# ---------------------------------------------------------------- mar 2 (10)
+# Puerto de la Caracola: el TRUCO contra el canto — a un atontado se le
+# despierta con un TOQUE, y ya no recae hasta el canto siguiente. Se enseña
+# dos niveles después de estrenar el canto, cuando el jugador ya ha sufrido
+# un par de jornadas viendo a la clientela embobada sin poder hacer nada.
+
+
+func _mar2_despertar() -> void:
+	await _say([
+		{ "text": "Puerto de la Caracola. Aquí el canto aprieta más... y por eso hoy te enseño un truco de a bordo.", "mood": "hablando" },
+	])
+	_play()
+	_vigilar_basura()
+	await _tras_la_preparacion()
+
+	await _esperar(func() -> bool:
+		return lv.ended or _hay_atontado() != null)
+	if lv.ended:
+		return
+	var ido := _hay_atontado()
+	if ido != null and is_instance_valid(ido):
+		_focus_client(ido)
+	await _say([
+		{ "text": "¡Ahí! ¿Ves a ese, embobado mirando al mar? **Tócalo**: un buen meneo y vuelve en sí.", "mood": "hablando" },
+		{ "text": "¡DESPIERTA, DORMILÓN! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "Despierto se queda hasta que acabe ESTE canto. Con el siguiente, vuelta a empezar.", "mood": "serio" },
+	])
+	_play("**Toca** al cliente atontado para despertarlo.")
+
+	await _esperar(func() -> bool:
+		return lv.ended or lv.despertados > 0)
+	if lv.ended:
+		return
+	await _say([
+		{ "text": "¡Eso es! Un canto bien toreado no te roba ni un doblón.", "mood": "feliz" },
+	])
+	_play()
+
+
 # --------------------------------------------------------------- mar 2 (14)
 # Jardín de Miku: la maestra de Alice aparece de repente en mitad del nivel y
 # pide POR FAVOR un barco de sushi. La primera visita el jugador no puede
@@ -1641,6 +1737,408 @@ func _mar2_nach() -> void:
 		{ "text": "...Lo haré.", "who": "alice", "mood": "callado" },
 	])
 	_play()
+
+
+# --------------------------------------------------------------- mar 2 (25)
+# Fosa de la Sirena: la JEFA del mar 2 convierte el CANTO en arma. Sale al
+# ganarse la 2ª estrella (la señal que el jugador ya conoce del Kappa), su
+# cara es la 3ª y comparte las cinco calaveras y el decomiso de fase — pero a
+# diferencia del Kappa, LA CLIENTELA SIGUE LLEGANDO: es la presa de su canto.
+# Tres fases:
+#  · F1 — el banquete entre cantos: SIRENA_PLATOS platos, con ella cantando a
+#    ratos (mientras canta ni ella ni nadie que espere coge un plato).
+#  · F2 — el canto dirigido: le canta a UN cliente, que queda atontado SIN
+#    canto de fondo; hay que DESPERTARLO con el toque y darle de comer.
+#    SIRENA_PRESAS rescates; una presa que se marche es calavera.
+#  · F3 — el gran canto: canta casi sin parar y solo come en los SILENCIOS.
+#    SIRENA_FINAL platos; el dado aplazado hace que los platos servidos en
+#    pleno canto sigan vivos en la cinta para el silencio siguiente.
+# La victoria: se emociona, deja su LÁGRIMA (BOSS_ITEMS via stat boss_sirena)
+# y se zambulle de vuelta a la fosa.
+
+const SIRENA_ALTO := 2.2
+const SIRENA_PLATOS := 8
+const SIRENA_PRESAS := 3
+const SIRENA_FINAL := 5
+const SIRENA_RECUPERA := [0.75, 0.50, 0.30]
+const SIRENA_PREMIO_F1 := 0.75
+const SIRENA_PREMIO_F2 := 0.50
+## Los relojes del canto por fase: F1 respira (silencios largos), F3 aprieta.
+const SIRENA_F1_SILENCIO := Vector2(11.0, 15.0)
+const SIRENA_F1_CANTO := 6.0
+const SIRENA_F3_SILENCIO := Vector2(3.2, 4.2)
+const SIRENA_F3_CANTO := 8.0
+## La presa despierta que no come en este plazo recibe otro canto dirigido.
+const SIRENA_RECANTO := 7.0
+
+var _bucle_canto := false
+## Generacion del bucle: el bucle viejo, dormido en un await cuando se paro,
+## despertaria con `_bucle_canto` ya en true por la fase SIGUIENTE y cantarian
+## dos a la vez. Cada arranque sube la generacion y el bucle solo sigue si la
+## suya sigue vigente.
+var _bucle_gen := 0
+
+
+func _sirena_jefa() -> Node3D:
+	for c in lv.seat_clients:
+		if c is Node3D and is_instance_valid(c) and c.who_override == "sirena":
+			return c
+	return null
+
+
+## El bucle de canto de una fase: silencio sorteado → aviso (2 s) → canto.
+## Corre en paralelo al sondeo de la fase; `_bucle_canto` lo apaga. Con el
+## árbol en pausa (diálogos) sus relojes se congelan solos.
+func _cantar_bucle(silencio: Vector2, canto: float) -> void:
+	_bucle_gen += 1
+	var gen := _bucle_gen
+	while _bucle_canto and gen == _bucle_gen 			and is_instance_valid(lv) and not lv.ended:
+		await _pausa(randf_range(silencio.x, silencio.y))
+		if not _bucle_canto or gen != _bucle_gen or lv.ended:
+			return
+		lv._aviso_canto()
+		await _pausa(2.0)
+		if not _bucle_canto or gen != _bucle_gen or lv.ended:
+			return
+		lv._empezar_canto(canto)
+		await _pausa(canto + 0.2)
+
+
+func _parar_canto() -> void:
+	_bucle_canto = false
+	if lv.canto_activo:
+		lv._terminar_canto()
+
+
+func _mar2_sirena_jefa() -> void:
+	_cortes = _mudo
+	_mudo = false
+	if _cortes:
+		await _say([
+			{ "text": "La fosa otra vez... y esta vez el canto no me da miedo. Casi me lo sé.", "mood": "hablando" },
+			{ "text": "¡QUE NO TE OIGA DECIR ESO! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+		])
+	else:
+		await _say([
+			{ "text": "La Fosa de la Sirena... Todo este mar cantaba, %s, y lo que cantaba VIVE aquí abajo." % GameState.player_title(), "mood": "serio" },
+			{ "text": "¡EL AGUA HACE BURBUJAS! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+		])
+	_play()
+	await _tras_la_preparacion()
+
+	# LA JEFA SALE AL GANARSE LA 2ª ESTRELLA, como el Kappa: la señal está en
+	# la propia barra del oro.
+	var umbral: int = int(lv.star_money[1]) if lv.star_money.size() >= 2 else 95
+	await _esperar(func() -> bool:
+		return lv.ended or lv._score_money() >= umbral)
+	if lv.ended:
+		return
+
+	# --- ENTRA LA SIRENA ---
+	# El reloj se para (desde aquí manda su paciencia). A DIFERENCIA del
+	# Kappa, la barra NO se vacía y la clientela SIGUE llegando: son la presa
+	# de su canto, y la fosa se queda con su público. La cola de llegadas se
+	# ALARGA porque la de serie solo cubría los 2:30 del reloj y el duelo
+	# puede correr mucho más allá.
+	lv.timed = false
+	lv._apply_hud_layout()
+	for i in 16:
+		lv.arrival_queue.append(lv.elapsed + 14.0 + i * 16.0)
+	if _cortes:
+		await _say([
+			{ "text": "Ahí sube. Derechos, que la señora canta con público.", "mood": "hablando" },
+		])
+	else:
+		await _say([
+			{ "text": "¡ALGO SUBE DE LA FOSA! ¡RAAAAAK!", "who": "gigi", "mood": "loro_grito" },
+			{ "text": "¡La **SIRENA**! Tapaos los oídos... ¡no, mejor COCINAD!", "mood": "gritando" },
+		])
+	for i in lv.seats.size():
+		if lv.seats[i]["entry"] == lv.ENTRY:
+			lv.first_seats.append(i)
+	lv.special_who = "sirena"
+	lv.special_type = "G"
+	lv.special_spawned = false
+	lv.special_height = SIRENA_ALTO
+	lv.forced_types.append("G")
+	lv._try_spawn_client()
+	var jefa := _sirena_jefa()
+	if jefa == null:
+		await _esperar(func() -> bool:
+			lv.forced_types.append("G")
+			return lv._try_spawn_client() and _sirena_jefa() != null)
+		jefa = _sirena_jefa()
+	jefa.make_boss()
+	lv.boss_hud_on()
+	jefa.plate_served.connect(_on_kappa_plato)
+	jefa.boss_starved.connect(_on_kappa_hambre)
+	await _pausa(1.2)
+	_focus_client(jefa)
+	if _cortes:
+		await _say([
+			{ "text": "Buenas noches, cocina. He vuelto... a CENAR, como prometí. Aunque igual canto un poco. Costumbres.", "who": "sirena", "mood": "feliz" },
+			{ "text": "**%d platos**, para abrir boca. Ya sabéis cómo va esto." % SIRENA_PLATOS, "who": "sirena", "mood": "hablando" },
+		])
+	else:
+		await _say([
+			{ "text": "Conque vosotros sois los que llenan MI mar de olores...", "who": "sirena", "mood": "serio" },
+			{ "text": "Voy a probar esa cocina. **%d platos**... y si me haces esperar, CANTO. Y cuando yo canto, tu clientela es mía." % SIRENA_PLATOS, "who": "sirena", "mood": "hablando" },
+			{ "text": "Su cara es tu **tercera estrella**, y las **cinco calaveras** de siempre. Sirve ANTES de que abra la boca, cocinero.", "mood": "serio" },
+		])
+	var aviso1 := "¡**%d platos** para la Sirena — y sirve ANTES de cada canto!" % SIRENA_PLATOS
+	_play(aviso1)
+
+	# --- FASE 1: el banquete entre cantos ---
+	_bucle_canto = true
+	_cantar_bucle(SIRENA_F1_SILENCIO, SIRENA_F1_CANTO)
+	if not await _fase_sirena(jefa, SIRENA_PLATOS, aviso1):
+		_parar_canto()
+		return
+	_parar_canto()
+	jefa.boss_patience_add(SIRENA_PREMIO_F1)
+	_focus_client(jefa)
+	if _cortes:
+		await _say([
+			{ "text": "Mmm. Sigue igual de rico. ¿Jugamos a lo de la otra vez?", "who": "sirena", "mood": "feliz" },
+			{ "text": "Le canto a uno de los tuyos... y tú lo despiertas y le das de comer. **%d veces**." % SIRENA_PRESAS, "who": "sirena", "mood": "cantando" },
+		])
+	else:
+		await _say([
+			{ "text": "No está mal... para ser cocina de superficie. Juguemos a algo.", "who": "sirena", "mood": "feliz" },
+			{ "text": "Voy a cantarle a UNO de tus clientes, solo para él. Despiértalo si puedes... y dale de comer delante de mí. **%d veces**." % SIRENA_PRESAS, "who": "sirena", "mood": "cantando" },
+			{ "text": "¡TRAMPOSA! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+			{ "text": "El truco de siempre: **tócalo** para despertarlo, y a la boca. Si se nos va de la barra, calavera.", "mood": "serio" },
+		])
+	var aviso2 := "Fase 2: **despierta** al cliente que ella atonte y dale de comer (x%d)." % SIRENA_PRESAS
+	_play(aviso2)
+
+	# --- FASE 2: el canto dirigido ---
+	if not await _fase_presas(jefa, aviso2):
+		return
+	jefa.boss_patience_add(SIRENA_PREMIO_F2)
+	_focus_client(jefa)
+	if _cortes:
+		await _say([
+			{ "text": "Y el final que ya conoces: el **gran canto**. Solo como en los silencios. **%d platos**." % SIRENA_FINAL, "who": "sirena", "mood": "hablando" },
+		])
+	else:
+		await _say([
+			{ "text": "Me estás gustando, humano. Última prueba: el **gran canto**.", "who": "sirena", "mood": "serio" },
+			{ "text": "Cantaré casi sin parar... y solo comeré en los **silencios**. **%d platos**. A ver ese pulso." % SIRENA_FINAL, "who": "sirena", "mood": "cantando" },
+			{ "text": "¡Ojo! Los platos que pasen de largo mientras canta NO se pierden: siguen en la cinta. ¡Suéltalos y espera al silencio!", "mood": "hablando" },
+		])
+	var aviso3 := "Fase 3: el gran canto — ¡**%d platos**, solo come en los SILENCIOS!" % SIRENA_FINAL
+	_play(aviso3)
+
+	# --- FASE 3: el gran canto ---
+	_bucle_canto = true
+	_cantar_bucle(SIRENA_F3_SILENCIO, SIRENA_F3_CANTO)
+	if not await _fase_sirena(jefa, SIRENA_FINAL, aviso3):
+		_parar_canto()
+		return
+	_parar_canto()
+
+	# --- VICTORIA ---
+	lv.boss_done = true
+	lv.goal_reached = true
+	lv.boss_star_win()
+	lv.boss_chip_set(0)
+	_focus_client(jefa)
+	await _say([
+		{ "text": "...", "who": "sirena", "mood": "sorprendido" },
+		{ "text": "Nadie... nadie había cocinado así para mí. En mil años de fosa, NADIE se había quedado a terminar el menú.", "who": "sirena", "mood": "feliz" },
+		{ "text": "Toma. Una **lágrima de sirena**. No preguntes cómo la he sacado sin llorar.", "who": "sirena", "mood": "hablando" },
+		{ "text": "Volveré. A cenar... no a cantar.", "who": "sirena", "mood": "feliz" },
+	])
+	await _sirena_se_zambulle(jefa)
+	await _say([
+		{ "text": "¡Se rinde! ¡Y con propina de leyenda! ¡Este mar entero es tuyo, %s!" % GameState.player_title(), "mood": "riendo" },
+		{ "text": "¡QUE ALGUIEN SEQUE LA BARRA! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+	])
+	_play()
+	lv._end_level()
+
+
+## Una fase de PLATOS de la Sirena (F1 y F3): N platos cualesquiera, con las
+## hambrunas por medio. El mismo sondeo de eaten_ids que _fase_kappa; aparte
+## porque sus fallos hablan con SU voz y su propia escalera de recuperacion.
+func _fase_sirena(jefa: Node3D, objetivo: int, aviso: String) -> bool:
+	_oro_fase = 0
+	_prop_fase = 0
+	_hambre = false
+	var progreso := 0
+	var vistos: int = jefa.eaten_ids.size()
+	lv.boss_chip_set(objetivo)
+	while true:
+		await _esperar(func() -> bool:
+			return lv.ended or lv.boss_lost or _hambre \
+				or not is_instance_valid(jefa) \
+				or jefa.eaten_ids.size() > vistos)
+		if lv.ended or lv.boss_lost or not is_instance_valid(jefa):
+			return false
+		if _hambre:
+			_hambre = false
+			if not await _hambruna_sirena(jefa, aviso):
+				return false
+			continue
+		vistos += 1
+		progreso += 1
+		lv.boss_chip_set(objetivo - progreso)
+		if progreso >= objetivo:
+			return true
+	return false
+
+
+## FASE 2 — el canto dirigido: la Sirena elige una PRESA entre los sentados y
+## la atonta SIN canto de fondo; hay que despertarla con el toque y que coma.
+## La presa que se marcha cuesta calavera. La paciencia de la JEFA se RETIENE
+## mientras dura: la fase mira a la barra, y que ella se muriera de hambre a
+## la vez seria pelear en dos frentes.
+func _fase_presas(jefa: Node3D, aviso: String) -> bool:
+	jefa.patience_hold = true
+	var salvados := 0
+	lv.boss_chip_set(SIRENA_PRESAS)
+	while salvados < SIRENA_PRESAS:
+		var presa := _elegir_presa()
+		if presa == null:
+			await _esperar(func() -> bool:
+				return lv.ended or lv.boss_lost or _elegir_presa() != null)
+			if lv.ended or lv.boss_lost:
+				jefa.patience_hold = false
+				return false
+			presa = _elegir_presa()
+		presa.canto_despierto = false
+		presa.set_atontado(true)
+		var base: int = presa.eaten_ids.size()
+		var reloj := 0.0
+		while true:
+			await _pausa(0.25)
+			reloj += 0.25
+			if lv.ended or lv.boss_lost or not is_instance_valid(jefa):
+				if is_instance_valid(jefa):
+					jefa.patience_hold = false
+				return false
+			if not is_instance_valid(presa) or not presa.ya_sentado() \
+					or presa.state == presa.State.LEAVING:
+				# La presa se nos fue de la barra: calavera y otra presa.
+				if not await _fallo_sirena(jefa,
+						("Uy... ese se me ha ido cantado. Perdona." if _cortes
+						else "¿Lo ves? MÍO. Se ha ido con mi canto en la cabeza... y tú lo has dejado ir."),
+						aviso):
+					return false
+				break
+			if presa.eaten_ids.size() > base:
+				salvados += 1
+				lv.boss_chip_set(SIRENA_PRESAS - salvados)
+				break
+			# La presa despierta que no come vuelve a caer en el canto.
+			if not presa.atontado and presa.state == presa.State.WAITING \
+					and reloj >= SIRENA_RECANTO:
+				reloj = 0.0
+				presa.canto_despierto = false
+				presa.set_atontado(true)
+	jefa.patience_hold = false
+	return true
+
+
+## La presa del canto dirigido: un cliente sentado, esperando, que no sea la
+## propia jefa. Se prefiere al de MAS paciencia (que el rescate de un
+## moribundo no dependa de la suerte del sorteo).
+func _elegir_presa() -> Node3D:
+	var mejor: Node3D = null
+	var mejor_p := -1.0
+	for c in lv.seat_clients:
+		if c == null or not is_instance_valid(c) or c.boss:
+			continue
+		if not c.ya_sentado() or c.state != c.State.WAITING or c.atontado:
+			continue
+		if c.patience > mejor_p:
+			mejor_p = c.patience
+			mejor = c
+	return mejor
+
+
+## La Sirena sin paciencia: calavera, decomiso y recupera cada vez menos.
+func _hambruna_sirena(jefa: Node3D, aviso := "") -> bool:
+	_hambres += 1
+	var quedan: int = lv.boss_lose_skull()
+	lv.boss_forfeit(_oro_fase, _prop_fase)
+	_oro_fase = 0
+	_prop_fase = 0
+	if quedan <= 0:
+		await _derrota_sirena()
+		return false
+	var frac: float = SIRENA_RECUPERA[mini(_hambres - 1, SIRENA_RECUPERA.size() - 1)]
+	jefa.boss_patience_set(frac)
+	_focus_client(jefa)
+	await _say([{ "text": ("Disculpa... el estómago me está cantando a MÍ. ¿Un poco más de ritmo?"
+			if _cortes else "Tengo **HAMBRE**, humano. ¿Quieres oírme cantar DE VERDAD?"),
+		"who": "sirena", "mood": "enfadado" }])
+	_play(aviso)
+	return true
+
+
+## Un fallo de fase de la Sirena: calavera, decomiso y su frase.
+func _fallo_sirena(jefa: Node3D, frase: String, aviso := "") -> bool:
+	var quedan: int = lv.boss_lose_skull()
+	lv.boss_forfeit(_oro_fase, _prop_fase)
+	_oro_fase = 0
+	_prop_fase = 0
+	if quedan <= 0:
+		await _derrota_sirena()
+		return false
+	_focus_client(jefa)
+	await _say([{ "text": frase, "who": "sirena", "mood": "enfadado" }])
+	_play(aviso)
+	return true
+
+
+## La quinta calavera: la Sirena se vuelve a la fosa y la jornada se pierde.
+func _derrota_sirena() -> void:
+	if _cortes:
+		await _say([
+			{ "text": "Me voy con hambre... Otro día cantamos, cocinero.", "who": "sirena", "mood": "serio" },
+			{ "text": "Se acabó por hoy. Volvemos: ya sabemos cómo respira.", "mood": "triste" },
+		])
+	else:
+		await _say([
+			{ "text": "QUÉ DECEPCIÓN. Me vuelvo a mi fosa... y tu clientela se viene un rato conmigo.", "who": "sirena", "mood": "enfadado" },
+			{ "text": "La hemos perdido... El gran canto no perdona. ¡Volveremos con la lección aprendida!", "mood": "triste" },
+		])
+	_play()
+	lv._end_level()
+
+
+## LA VICTORIA SE VE: la Sirena se despide y SE ZAMBULLE de vuelta a la fosa —
+## gira hacia delante y se hunde bajo el suelo de roca (el plano es opaco, asi
+## que lo que baja de y=0 desaparece), con un "~" de remolino detras.
+func _sirena_se_zambulle(jefa: Node3D) -> void:
+	var idx: int = lv.seat_clients.find(jefa)
+	if idx >= 0:
+		lv.seat_clients[idx] = null
+	jefa.set_process(false)
+	jefa.hide_bars()
+	var tw := create_tween()
+	tw.tween_property(jefa, "rotation_degrees:x", -75.0, 0.45) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(jefa, "position:y", jefa.position.y - 2.6, 0.6) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	await tw.finished
+	var olas := Label.new()
+	olas.text = "~ ~ ~"
+	olas.add_theme_font_size_override("font_size", 34)
+	olas.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
+	olas.add_theme_color_override("font_outline_color", Color.BLACK)
+	olas.add_theme_constant_override("outline_size", 8)
+	olas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lv.world_ui.add_child(olas)
+	olas.position = lv.cam.unproject_position(jefa.global_position + Vector3.UP * 2.4) \
+		- Vector2(34.0, 0.0)
+	var ot := olas.create_tween()
+	ot.tween_property(olas, "modulate:a", 0.0, 1.6)
+	ot.tween_callback(olas.queue_free)
+	jefa.visible = false
+	await _pausa(0.5)
 
 
 # ------------------------------------------------------------------- nivel 15

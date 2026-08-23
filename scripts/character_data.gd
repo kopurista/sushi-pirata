@@ -89,6 +89,12 @@ const MODELS := {
 	"nach": {
 		MALE: "res://assets/models/nach_rig.glb",
 	},
+	# LA SIRENA, la jefa del mar 2. Su rig tiene las "piernas" dentro de la
+	# cola (21% del alto): `CharacterAnim.legs_ok` las deja en paz, asi que
+	# NADA con el vaiven del cuerpo en vez de andar, que es lo que toca.
+	"sirena": {
+		MALE: "res://assets/models/sirena_rig.glb",
+	},
 }
 
 ## Iconos de cabeza del HUD (tools/head_icons.gd los saca de estos modelos).
@@ -103,6 +109,7 @@ const HEADS := {
 	"alice": { MALE: "res://assets/ui/head_AL.png" },
 	"miku": { MALE: "res://assets/ui/head_MI.png" },
 	"nach": { MALE: "res://assets/ui/head_NA.png" },
+	"sirena": { MALE: "res://assets/ui/head_SI.png" },
 }
 
 ## Tipo de cliente (el de client_mix / TAKE_CHANCES) -> personaje.

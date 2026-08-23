@@ -517,7 +517,7 @@ justo al volver de un nivel.
 primera vez que se entra en ellos (`logros_intro_done` /
 `inventario_intro_done`), no desde un nivel.
 
-## EL MAR 2: EL MAR DE LOS VIENTOS (25 escenarios, montado el 23-8-2026)
+## EL MAR 2: EL MAR DE LAS SIRENAS (25 escenarios, montado el 23-8-2026)
 
 **La campaña sigue en el MISMO lienzo del mapa, hacia arriba**: los 25
 escenarios `m2_01..m2_25` (todos con `"sea": 2` en `CampaignData`) continúan
@@ -544,40 +544,52 @@ empieza a cobrar. Consecuencias:
   escena del diente): David felicita, avisa de los VIENTOS y de la clientela
   exigente, y el barco viaja solo a `m2_01` (`mar2_intro_done`).
 
-**EL VIENTO** (`level3d`, bloque `wind_*`; lo llevan los escenarios con
-`viento: true`): el hándicap nuevo del mar. Un simulador por fotograma
-(`_tick_viento`) mueve `wind_kmh` hacia objetivos sorteados
-(`_nuevo_objetivo_viento`, 36% de calma), y **para cambiar de dirección tiene
-que pasar por 0**: no hay bandazos imposibles, y hay amagos que se quedan a
-las puertas del umbral a propósito (imprevisible por diseño, distinto en cada
-partida).
-- **El UMBRAL es 40 km/h** (`WIND_UMBRAL`) con histéresis (×0.85 para
-  soltarse, o la cinta aleteaba en el borde). El TOPE depende del tipo
-  (`wind_max`: isla 46 / puerto 52 / abordaje 60): la intensidad del viento es
-  del tipo de escenario, como los hándicaps.
-- **Viento FUERTE hacia la IZQUIERDA = la cinta SE DA LA VUELTA** (con calma o
-  viento a la derecha va como siempre). La transición es frenar-parar-invertir
-  (`belt_dir` interpola pasando por 0, `BELT_TURN_T` 1.7 s), y arrastra
-  también la banda de la tabla (`prep_board.belt_dir`, sincronizada por
-  fotograma) y el shader (`fposmod(... * belt_dir ...)`).
-- **El giro da SEGUNDA OPORTUNIDAD**: `_cinta_gira` borra los `declined` de
-  todos los clientes (el dado se tira una sola vez por plato, así que sin ese
-  olvido el plato rechazado seguiría muerto en la otra dirección).
-- **El HUD es un anemómetro** (`_setup_viento`/`_refresh_viento_hud`): flecha
-  ←/→ y km/h en VERDE con calma que va a ROJO y engordando
-  (cuerpo 24 + f·6) según se acerca al umbral. Antes del giro sale un **"!"**
-  con su sonido (`_aviso_viento`, familias `viento`/`viento_alerta` en
-  `Audio`; el bucle del viento sube de −26 a 0 dB con la fuerza, vía
-  `Audio.loop_on`, que mueve el volumen sin reiniciar el bucle).
-- **Y un BANDERÍN de verdad en cubierta** (`_montar_banderin`, textura de
-  `tools/banderin_tex.py`, shader `shaders/banderin.gdshader`): ondea por
-  vértice con amplitud proporcional a la fuerza, CUELGA en calma (planchado
-  parecía de hojalata) y **apunta a donde sopla** (se voltea con `scale.x`).
-- **La PAPELERA cuenta PASADAS, no vueltas** (`plate3d._cruza_papelera`, en
-  coordenadas RELATIVAS al cubo para que valga en las dos direcciones): el
-  plato sobrevive a la primera pasada por el cubo y cae en la segunda, así
-  que el cubo sigue estando siempre en el mismo sitio aunque la cinta cambie
-  de sentido. `no_waste` reinicia las pasadas.
+**EL VIENTO SE GUARDA PARA EL MAR 3** (decidido por el usuario): el sistema
+entero está hecho, medido y committeado —anemómetro, banderín, la cinta que se
+da la vuelta con viento zurdo fuerte, la papelera por pasadas— y espera
+dormido a que un puerto vuelva a declarar `viento: true` (nadie lo lleva hoy).
+Sus lecciones viven en el bloque `wind_*` de level3d y en `_mar2_viento` (el
+guion, también dormido); la papelera por PASADAS de `plate3d._cruza_papelera`
+se queda ACTIVA para todos, que es dirección-agnóstica y no cambia nada con
+la cinta normal.
+
+**EL CANTO DE SIRENA** (`level3d`, bloque `canto_*`; lo llevan los escenarios
+con `sirena: true` — 15 de los 25, de m2_08 en adelante, menos Miku y la
+víspera): el hándicap del mar 2. A ratos suena un canto: aviso de 2 s
+(`_aviso_canto`, "~ ¡La sirena canta! ~" sobre la cinta + sfx) y después el
+canto en sí (6-14 s). Mientras dura, el cliente que ESPERA se **atonta**:
+mira al mar (giro de cabeza en `CharacterAnim.embobado`, ACUMULA tras
+sit_idle), notas "~ ~" flotando sobre su cabeza, barra teñida de VIOLETA
+(`PAT_CANTO`) — y **no coge NI UN plato mientras su paciencia sigue bajando**.
+Cuatro reglas que costaron pensarse:
+- **El dado se APLAZA, no se falla**: `_scan_belt` sale por arriba con
+  `atontado`, así que el plato ni se apunta en `declined` — al despertar puede
+  cogerlo en la vuelta siguiente. Fallarlo habría matado el plato para ese
+  cliente para siempre (la misma trampa que ya resolvió `_cinta_gira`).
+- **El que COME se libra**: el canto solo atonta al que espera de brazos
+  cruzados, así que anticiparse (un plato a cada boca antes del canto) es la
+  jugada buena — y las CAJAS son el almacén para soltar al callarse.
+- **El TOQUE despierta** (`level3d._unhandled_input` → `client3d.despertar`):
+  tocar al atontado lo saca del trance hasta el fin de ESE canto
+  (`canto_despierto`), con sacudida de cabeza. Al JEFE no se le despierta
+  (`c.boss` se salta): la que canta es ella.
+- **La frecuencia y el largo los pone el TIPO** (isla 46-70 s de espera y
+  6-9 de canto / puerto 34-55 y 8-12 / abordaje 26-42 y 10-14, donde además
+  hay reloj y cada canto se come un trozo del turno).
+Se presenta en m2_08 (`_mar2_sirena`: la lección llega CON el primer aviso
+sonando, no como teoría) y el truco del despertar dos niveles después, en
+m2_10 (`_mar2_despertar`) — el jugador sufre un par de jornadas viendo a la
+clientela embobada antes de que le den la herramienta. Audio: familias
+`sirena_canto` (bucle, entra con `Audio.loop_on`) y `sirena_aviso`. Los
+NOMBRES de los escenarios cantan con el mar (Cala del Arrullo, Arrecife del
+Coro, Puerto de la Caracola, Flota del Silencio...): al mover el viento al
+mar 3 se renombró todo lo que olía a vendaval.
+
+**LAS NOTAS DEL ATONTADO SE COLOCAN AL CREARLAS, no desde `_place_bars`**:
+las barras solo se colocan al sentarse (la cámara es fija), así que las notas
+nacidas a mitad de canto se quedaban en la esquina 0,0. El vaivén va en un
+tween de VALORES ABSOLUTOS en bucle (nada de as_relative, la lección de la
+flecha del diálogo).
 
 **MIKU** (`assets/characters/miku`, hablante `miku`, 4 moods; modelo
 `miku_rig.glb`): la maestra de Alice — cocinera japonesa de ~35 años, gafas,
@@ -637,8 +649,62 @@ reto nuevo **`mismo_caro`** (N veces el plato más caro de la carta) se
 resuelve con `GameState.plato_mas_caro_de_la_carta()` — el mismo criterio que
 la fase 3 del Kappa: ni postres ni picoteos.
 
-**m2_25 (Fosa de la Sirena) es la JEFA y está EN OBRA**: el puerto lleva
-`boss: "sirena"` de reserva y su pelea NO está diseñada todavía.
+**LA JEFA: LA SIRENA (m2_25, Fosa de la Sirena)** — su duelo convierte el
+canto en arma (`level_director._mar2_sirena_jefa`, sobre la maquinaria del
+Kappa: sale a la 2ª estrella, su cara es la 3ª —`level3d._boss_face_path`
+elige head_K/head_SI por `boss_id`, estaba clavada a head_K—, cinco calaveras
+compartidas, decomiso de fase y escalera de recuperación 75/50/30). Lo que la
+separa del Kappa:
+- **LA CLIENTELA SIGUE LLEGANDO** durante el duelo (la barra no se vacía y la
+  cola de llegadas se ALARGA a mano al entrar ella, porque la de serie solo
+  cubría los 2:30 del reloj): son la presa de su canto.
+- **F1 — el banquete entre cantos**: `SIRENA_PLATOS` (8) platos, con ella
+  cantando a ratos (`_cantar_bucle`, silencios de 11-15 s y cantos de 6).
+  Mientras canta, ni ella ni nadie que espere coge un plato.
+- **F2 — el canto dirigido**: le canta a UNA presa (la de MÁS paciencia,
+  `_elegir_presa`: que el rescate no dependa del sorteo), que queda atontada
+  SIN canto de fondo; hay que despertarla con el TOQUE y darle de comer.
+  `SIRENA_PRESAS` (3) rescates; la presa que se marcha es calavera; la
+  despierta que no come en `SIRENA_RECANTO` (7 s) recae. La paciencia de la
+  JEFA se RETIENE mientras dura (pelear en dos frentes no era el reto).
+- **F3 — el gran canto**: canta casi sin parar (silencios de 3.2-4.2 s,
+  cantos de 8) y solo come en los silencios. `SIRENA_FINAL` (5) platos — el
+  dado aplazado hace que lo servido en pleno canto siga VIVO en la cinta
+  para el silencio siguiente, y el guion lo dice.
+- **EL BUCLE DE CANTO LLEVA GENERACIÓN** (`_bucle_gen`): el bucle de F1,
+  dormido en un await cuando se paró, despertaba con `_bucle_canto` ya en
+  true por la F3 y cantaban DOS a la vez. Cada arranque sube la generación y
+  el viejo se descubre caducado al despertar.
+- **VICTORIA**: se emociona ("nadie se había quedado a terminar el menú"),
+  deja su **lágrima de sirena** (cae sola por `BOSS_ITEMS` vía la stat
+  `boss_sirena`) y **se ZAMBULLE** (`_sirena_se_zambulle`: gira hacia delante
+  y se hunde bajo el suelo de roca, que es opaco, con un "~ ~ ~" flotando).
+- Al repetir el escenario habla EN CORTÉS (`_cortes`, como el Kappa): vuelve
+  "a cenar, como prometí".
+**SU ARTE**: retratos 2D en `assets/characters/sirena` (hablante `sirena`, 6
+moods con `cantando` propio — ojos cerrados y notas al aire). El concepto
+salió de `generateWithStyle` con la técnica del reparto y una pasada de
+`editImage` para el cel plano (la lección de Alice: el estilo gira el diseño,
+la tinta la pone editImage encima); la ira se queda VERDE mar, como el Kappa.
+`tools/m2_portraits.py` la compone con DOS perillas nuevas: `alto` 0.80 (su
+concepto ya viene de cintura para arriba y el 1.32 de los cuerpos enteros la
+dejaba en primerísimo plano) y `bolsas` (transparenta el blanco ENCERRADO
+entre mechones — la inundación desde los bordes no llega, y sobre el velo
+oscuro salían rayas blancas; los ojos y los dientes viven en la caja central
+de la cara y no se tocan). Modelo `sirena_rig.glb` (52 huesos,
+humanoid_template_hands): **las "piernas" quedan dentro de la COLA** (21% del
+alto, bajo `MIN_LEG_FRAC`), así que `legs_ok` las deja en paz y NADA con el
+vaivén del cuerpo en vez de andar — que es justo lo que toca. **El primer
+modelo vino SIN CARA** (el concepto low poly la traía en blanco y una jefa de
+2.2 u sin ojos cantaba): se le pintó al concepto con editImage y se rehizo la
+cadena entera. `head_SI` con `FRAME_OVERRIDE` 0.24 + `DROP_OVERRIDE` 0.08
+(la melena baja la caja del modelo; con el encuadre general salía un BUSTO
+entero que en la fila de cabezas se leía como una segunda sirena de pie — se
+perdió un rato persiguiendo una "duplicada" que era su propia chapa de
+especial). Voces generadas (vocalise femenino, 18 tomas por
+`voz_split`+`voces_afinar`; serio y cantando salieron de una pieza a la
+primera y se regeneraron pidiendo DOS segundos de silencio entre tomas).
+La GUÍA lleva su sección ("El canto de sirena").
 
 ## Guiones narrados (la campaña ES el tutorial)
 

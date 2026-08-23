@@ -245,6 +245,9 @@ const FAMILIAS := {
 	# level3d._refresh_viento_hud) y la campanilla del aviso de cambio.
 	"viento": [NI_ + "viento.ogg"],
 	"viento_alerta": [NI_ + "viento_alerta.ogg"],
+	# El CANTO DE SIRENA (mar 2): el bucle del canto y su aviso previo.
+	"sirena_canto": [NI_ + "sirena_canto.ogg"],
+	"sirena_aviso": [NI_ + "sirena_aviso.ogg"],
 	# La del CARTEL de resultados, que suena mas aguda con cada una.
 	"estrella": [NI_ + "estrella.ogg"],
 	# Las de la BARRA DEL ORO en partida: la 1a y la 2a comparten toma
@@ -346,6 +349,7 @@ const VOL := {
 	# campanilla del aviso con -3 de matiz (es sutil a proposito). Medidos con
 	# audio_nivelar (LK -26.9 y -14.5).
 	"viento": -0.1, "viento_alerta": -9.5,
+	"sirena_canto": -8.8, "sirena_aviso": -13.4,
 	"guardar": 2.3, "habilidad": 8.4, "levelup": 8.2,
 	"listo": -0.0, "logro": 10.2, "mantener": 18.7,
 	"modo": 5.3, "moneda": -1.8, "monedas": 1.3,
@@ -398,6 +402,8 @@ const VOCES := {
 		"sorprendido", "triste"],
 	"kappa": ["serio", "hablando", "feliz", "enfadado", "furioso",
 		"colerico", "dormido"],
+	"sirena": ["serio", "hablando", "cantando", "enfadado", "feliz",
+		"sorprendido"],
 	"grumete": ["serio", "hablando", "feliz"],
 	"grumete_f": ["serio", "hablando", "feliz"],
 	"pirata": ["serio", "hablando", "feliz", "nervioso"],
@@ -435,6 +441,8 @@ const VOZ_TONO := {
 	"capitan_f": 0.88,
 	# No humanos
 	"kappa": 0.92,
+	# La SIRENA es generada (vocalise): su altura ya es la suya.
+	"sirena": 1.02,
 	"gigi": 1.06,
 }
 ## LO QUE SE LE SUMA A CADA PERSONAJE. Sus tomas vienen de sitios distintos
@@ -445,7 +453,7 @@ const VOZ_DB_PERS := {
 	"alice": -11.2, "cai": -5.0, "capitan": -7.5,
 	"capitan_f": -11.1, "david": -8.7, "gigi": -3.4,
 	"grumete": -8.9, "grumete_f": -11.6, "kappa": -6.0,
-	"pablo": -9.1, "pirata": -9.5, "pirata_f": -10.5,
+	"pablo": -9.1, "pirata": -9.5, "pirata_f": -10.5, "sirena": -7.8,
 	"saverio": -9.3,
 }
 

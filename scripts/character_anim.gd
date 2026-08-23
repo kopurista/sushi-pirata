@@ -594,6 +594,15 @@ func sit_idle(t: float) -> void:
 	_fist("R")
 
 
+## CANTO DE SIRENA (mar 2): el cliente atontado gira la cabeza hacia lo
+## lejos y la mece despacio, como quien escucha algo que nadie mas oye. Se
+## llama DESPUES de sit_idle y ACUMULA sobre esa pose (reset() ya paso).
+func embobado(t: float) -> void:
+	_yaw("Neck", 30.0 + sin(t * 0.8) * 8.0)
+	_yaw("Head", 14.0)
+	_pitch("Head", -7.0)
+
+
 ## Coloca la MANO de ese brazo sobre un punto del espacio del esqueleto,
 ## resolviendo hombro y codo. Es el mismo problema de dos huesos que la
 ## pierna, pero en el espacio: la pierna solo cabecea, mientras que el brazo

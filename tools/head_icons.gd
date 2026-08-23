@@ -19,9 +19,9 @@ const OUT := {
 	#   "E": "grumete_rig", "A": "pirata_rig", "G": "capitan_rig",
 	#   "E_f": "grumete_fem_rig", "A_f": "pirata_fem_rig",
 	#   "G_f": "capitan_fem_rig", "P": "pablo_rig", "K": "kappa_rig",
-	#   "C": "cai_rig", "AL": "alice_rig",
-	"MI": "miku_rig",
-	"NA": "nach_rig",
+	#   "C": "cai_rig", "AL": "alice_rig", "MI": "miku_rig",
+	#   "NA": "nach_rig",
+	"SI": "sirena_rig",
 }
 const SIZE := 192
 ## Encuadre en fracciones de la ALTURA TOTAL del personaje, no del hueso de la
@@ -34,17 +34,17 @@ const FRAME_F := 0.34
 ## por arriba.
 ## El Kappa del rediseño es larguirucho: la cabeza (pico y plato incluidos)
 ## es ~un cuarto del alto, no la mitad del cabezón antiguo.
-const FRAME_OVERRIDE := { "P": 0.44, "K": 0.30, "AL": 0.22 }
+const FRAME_OVERRIDE := { "P": 0.44, "K": 0.30, "AL": 0.22, "SI": 0.24 }
 ## Centro del encuadre bajando desde la coronilla (incluye gorro/sombrero).
 const HEAD_DROP_F := 0.13
 ## Ajuste del centro por icono, cuando la coronilla no está donde parece. La
 ## melena de Alice le baja mucho la caja, así que su cara queda MÁS ARRIBA de
 ## lo que dice la regla general.
-const DROP_OVERRIDE := { "AL": 0.10 }
+const DROP_OVERRIDE := { "AL": 0.10, "SI": 0.08 }
 ## Y ajuste de LUZ por icono: la piel de Alice es muy pálida y con la luz
 ## general se le quemaba la cara a blanco liso, sin ojos ni boca (la misma
 ## lección que `chef_portraits.gd`, donde las caras claras se pasaban de luz).
-const LIGHT_OVERRIDE := { "AL": 0.5 }
+const LIGHT_OVERRIDE := { "AL": 0.5, "SI": 0.55 }
 
 var _pending: Array = []
 var _t := 0.0

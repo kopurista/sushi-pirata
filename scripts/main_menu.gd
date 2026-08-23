@@ -491,8 +491,8 @@ func _presentar_mar_2() -> void:
 	ui_layer.add_child(caja)
 	caja.say([
 		{ "text": "¡Lo has conseguido, %s! El primer mar entero, de la primera cala a la guarida del Kappa." % GameState.player_title(), "mood": "riendo" },
-		{ "text": "Y un cocinero que rinde a un jefe está listo para aguas más bravas. ¡Rumbo al **Mar de los Vientos**!", "mood": "feliz" },
-		{ "text": "Dos avisos antes de zarpar. Uno: allí arriba sopla un **viento** que no has visto en tu vida... ya lo notarás en la cinta.", "mood": "serio" },
+		{ "text": "Y un cocinero que rinde a un jefe está listo para aguas más bravas. ¡Rumbo al **Mar de las Sirenas**!", "mood": "feliz" },
+		{ "text": "Dos avisos antes de zarpar. Uno: en esas aguas se oye un **canto**... y al que lo escucha de brazos cruzados se le va el santo al cielo. Ya lo verás.", "mood": "serio" },
 		{ "text": "Y dos: la clientela de ese mar es **exigente**. El que se marche sin probar bocado nos lo hará pagar, de una forma u otra.", "mood": "hablando" },
 		{ "text": "¡AL NORTE! ¡RAAAK! ¡SIEMPRE AL NORTE!", "who": "gigi", "mood": "loro_sorpresa" },
 	])

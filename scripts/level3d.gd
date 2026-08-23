@@ -524,7 +524,8 @@ func _ready() -> void:
 			n.offset_bottom += st
 	if GameState.is_adventure():
 		scenery_kind = CampaignData.get_kind(GameState.current_port)
-		# EL VIENTO lo declara el puerto (mar 2). Su techo depende del TIPO.
+		# EL VIENTO lo declara el puerto (aparcado para el MAR 3; el codigo
+		# entero se queda esperando a que un puerto vuelva a declararlo).
 		wind_on = bool(port_cfg_viento())
 		if wind_on:
 			match scenery_kind:
@@ -534,6 +535,23 @@ func _ready() -> void:
 					wind_max = 52.0
 				_:
 					wind_max = 60.0
+		# EL CANTO DE SIRENA lo declara el puerto (mar 2). La frecuencia y el
+		# largo del canto los pone el TIPO, como la intensidad del viento:
+		# isla suave, puerto media, abordaje fuerte (alli ademas hay reloj y
+		# cada canto se come un trozo del turno).
+		canto_on = bool(CampaignData.get_port(GameState.current_port) 				.get("sirena", false)) and not GameState.is_tutorial()
+		if canto_on:
+			match scenery_kind:
+				"isla":
+					canto_gap = Vector2(46.0, 70.0)
+					canto_dur = Vector2(6.0, 9.0)
+				"puerto":
+					canto_gap = Vector2(34.0, 55.0)
+					canto_dur = Vector2(8.0, 12.0)
+				_:
+					canto_gap = Vector2(26.0, 42.0)
+					canto_dur = Vector2(10.0, 14.0)
+			canto_espera = randf_range(16.0, 28.0)
 		# LOS CASTIGOS POR VACÍO EMPIEZAN EN EL MAR 2 (pedido por el usuario):
 		# el mar 1 es la escuela y allí un cliente que se va sin comer no
 		# cuesta nada — ni oro en la isla, ni calavera en el puerto, ni reloj
@@ -3023,6 +3041,10 @@ func _process(delta: float) -> void:
 	# ver el banderín moverse antes de abrir).
 	if wind_on and not ended:
 		_tick_viento(delta)
+	# EL CANTO solo con la barra abierta: en la preparación no hay a quién
+	# atontar (y un canto forzado por el guion de la jefa corre igual).
+	if (canto_on or canto_activo) and not ended and not prep_phase:
+		_tick_canto(delta)
 	_tick_rush(delta)
 
 	# La banda de la cinta avanza a la velocidad real de los platos (tambien
@@ -3347,6 +3369,120 @@ func _nuevo_objetivo_viento() -> void:
 	else:
 		wind_target = randf_range(8.0, wind_max)
 	wind_rate = randf_range(7.0, 16.0)
+
+
+# ---------------------------------------------------------- canto de sirena
+# El hándicap del MAR 2: a ratos suena un canto y los clientes que ESPERAN se
+# atontan mirando al mar — no cogen NI UN plato mientras dura (su dado se
+# APLAZA: `client3d._scan_belt` sale sin tirar, así que el plato sigue vivo
+# para cuando despierten) y su paciencia sigue bajando. El que COME se libra:
+# la comida es lo único que puede más que el canto, y por eso anticiparse
+# (un plato a cada boca antes del canto) es la jugada buena. A un atontado se
+# le DESPIERTA CON UN TOQUE (`_unhandled_input` → `client3d.despertar`), y ya
+# no recae hasta el canto siguiente.
+# La JEFA del mar (m2_25) usa este mismo aparato a dedo: su guion llama a
+# `_empezar_canto`/`_terminar_canto` sin planificador (canto_on false).
+
+## ¿Este nivel lleva el canto? (campo `sirena` del puerto, mar 2).
+var canto_on := false
+## Ahora mismo SUENA el canto (los atontados se refrescan por fotograma).
+var canto_activo := false
+## Cuenta atrás del aviso previo ("~ ¡La sirena canta! ~"): 2 s de margen
+## para colocar platos, el gemelo del "!" del viento.
+var canto_aviso := 0.0
+## Lo que queda de canto / hasta el próximo aviso.
+var canto_t := 0.0
+var canto_espera := 0.0
+## Horquillas por TIPO de escenario (espera entre cantos y duración).
+var canto_gap := Vector2(46.0, 70.0)
+var canto_dur := Vector2(6.0, 9.0)
+## Cuántos cantos han sonado ya (lo sondean las lecciones del director).
+var canto_total := 0
+## Cuántos atontados ha despertado el jugador (ídem).
+var despertados := 0
+
+
+func _tick_canto(delta: float) -> void:
+	if canto_activo:
+		canto_t -= delta
+		_aplicar_canto()
+		if canto_t <= 0.0:
+			_terminar_canto()
+	elif canto_on:
+		if canto_aviso > 0.0:
+			canto_aviso -= delta
+			if canto_aviso <= 0.0:
+				_empezar_canto()
+		else:
+			canto_espera -= delta
+			if canto_espera <= 0.0:
+				canto_aviso = 2.0
+				_aviso_canto()
+
+
+## El aviso previo: la señal para REPARTIR PLATOS ya — quien esté comiendo
+## cuando arranque el canto se libra de él.
+func _aviso_canto() -> void:
+	Audio.sfx("sirena_aviso")
+	_texto_cinta("~ ¡La sirena canta! ~")
+
+
+func _empezar_canto(dur := -1.0) -> void:
+	canto_activo = true
+	canto_t = dur if dur > 0.0 else randf_range(canto_dur.x, canto_dur.y)
+	canto_total += 1
+	Audio.loop_on("sirena_canto", -4.0)
+
+
+func _terminar_canto() -> void:
+	canto_activo = false
+	canto_espera = randf_range(canto_gap.x, canto_gap.y)
+	Audio.loop_off("sirena_canto")
+	for c in seat_clients:
+		if c != null and is_instance_valid(c):
+			c.set_atontado(false)
+			c.canto_despierto = false
+
+
+## Por fotograma mientras suena: atonta a los que esperan (los despertados y
+## los inmunes no) y suelta a quien haya dejado de esperar (p. ej. el que un
+## guion sentó a comer a dedo).
+func _aplicar_canto() -> void:
+	for c in seat_clients:
+		if c == null or not is_instance_valid(c):
+			continue
+		if c.state == c.State.WAITING and c.ya_sentado() 				and not c.canto_despierto and not c.canto_inmune:
+			c.set_atontado(true)
+		elif c.atontado and c.state != c.State.WAITING:
+			c.set_atontado(false)
+
+
+## EL TOQUE QUE DESPIERTA: un dedo sobre (o cerca de) un cliente atontado le
+## rompe el trance hasta el fin de este canto. Va en _unhandled_input para no
+## robarle nada a la interfaz: si el toque cayó en un botón, no llega aquí.
+func _unhandled_input(event: InputEvent) -> void:
+	if not (event is InputEventScreenTouch and event.pressed):
+		return
+	if ended or prep_phase or cam == null:
+		return
+	var mejor: Node3D = null
+	var mejor_d := 95.0
+	for c in seat_clients:
+		if c == null or not is_instance_valid(c) or not c.atontado:
+			continue
+		# Al JEFE no se le despierta: la que canta es ella, y su "trance" es
+		# la mecánica de sus fases, no un cliente embobado que rescatar.
+		if c.boss:
+			continue
+		var pp: Vector2 = cam.unproject_position(
+			c.global_position + Vector3.UP * c._height * 0.6)
+		var d: float = pp.distance_to(event.position)
+		if d < mejor_d:
+			mejor_d = d
+			mejor = c
+	if mejor != null:
+		mejor.despertar()
+		despertados += 1
 
 
 ## EL GIRO DE LA CINTA. Los platos en marcha RECUPERAN SU SEGUNDA OPORTUNIDAD
@@ -4811,6 +4947,9 @@ func _end_level() -> void:
 	# El SUSHI RUSH muere con el turno (y la cámara vuelve a su sitio).
 	if rush_active:
 		_rush_off()
+	# Y el canto también: nadie se queda atontado sobre el cartel de fin.
+	if canto_activo:
+		_terminar_canto()
 	if cam != null:
 		cam.h_offset = 0.0
 		cam.v_offset = 0.0
@@ -6231,12 +6370,22 @@ var boss_fails := 0
 ## ENTRA EL JEFE: la 3ª estrella pasa a ser su cara (la gana el duelo, no el
 ## oro — la cifra del objetivo se esconde con ella), aparece su CHAPA con los
 ## platos que faltan y las CINCO calaveras del duelo.
+## La cara del JEFE de este nivel (la estrella de la meta y su chip): cada
+## jefe trae la suya, y con head_K clavado la Sirena salia con cara de Kappa.
+func _boss_face_path() -> String:
+	const CARAS := {
+		"kappa": "res://assets/ui/head_K.png",
+		"sirena": "res://assets/ui/head_SI.png",
+	}
+	return CARAS.get(boss_id, "res://assets/ui/head_K.png")
+
+
 func boss_hud_on() -> void:
 	# La cara en la estrella de la meta.
 	if not star_marks.is_empty():
 		boss_star_face = true
 		var n: TextureRect = star_marks.back()["nodo"]
-		n.texture = load("res://assets/ui/head_K.png")
+		n.texture = load(_boss_face_path())
 		n.modulate = Color(1, 1, 1)
 		if money_meta != null:
 			money_meta.visible = false
@@ -6253,7 +6402,7 @@ func boss_hud_on() -> void:
 		var ic := TextureRect.new()
 		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		ic.texture = load("res://assets/ui/head_K.png")
+		ic.texture = load(_boss_face_path())
 		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		ic.set_anchors_preset(Control.PRESET_FULL_RECT)
 		ic.offset_left = 7.0

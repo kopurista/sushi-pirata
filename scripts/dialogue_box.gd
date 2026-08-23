@@ -132,6 +132,12 @@ const SPEAKERS := {
 		"dir": "res://assets/characters/nach", "file": "nach",
 		"name": "Nach", "side": "right", "plate": "left", "mood": "serio",
 	},
+	# --- LA SIRENA, la jefa del mar 2: orgullosa y de voz hipnótica. Seis
+	# moods, y "cantando" (ojos cerrados, notas al aire) es el suyo propio.
+	"sirena": {
+		"dir": "res://assets/characters/sirena", "file": "sirena",
+		"name": "Sirena", "side": "right", "plate": "left", "mood": "serio",
+	},
 }
 
 ## Hablante de un CLIENTE por tipo y género: "pirata" o "pirata_f". Se pasa el
