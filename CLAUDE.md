@@ -2207,17 +2207,24 @@ primera vez que se entra en ellos (`logros_intro_done` /
     disco a propósito (`seen_medals` viaja con el siguiente save natural).
   · El TOAST es la banda de `notice_layer.gd`: baja de arriba, se va sola y es
     `MOUSE_FILTER_IGNORE` en todo — notificación, no cartel.
-  · **LO QUE PAGA UNA MEDALLA CRECE CON EL NIVEL DEL COCINERO** (pedido
-    por el usuario): `MEDAL_REWARDS` (8/15/30) es lo que vale en el nivel
-    1 y `GameState.medal_reward(tier)` le aplica `medal_level_mult()` —
-    +`MEDAL_LEVEL_STEP` (2%) por nivel, con TOPE en `MEDAL_LEVEL_MAX`
-    (×5, que se alcanza en el nivel 201). El tope no es un adorno: el
-    reclamo es ACUMULATIVO y con ~170 logros de tres metales, sin techo
-    bastaba con guardárselos todos hasta el nivel 450 para cobrar de
-    golpe más oro que la campaña entera. MEDIDO: el mismo lote paga 220
-    doblones en el nivel 1 y 656 en el 100. El cartel del cofre CANTA el
-    multiplicador ("x1,82 por tu nivel de cocinero") y crece 34 px para
-    ese renglón; en el nivel 1 no sale, porque no hay nada que decir.
+  · **LO QUE PAGA UNA MEDALLA CRECE CON EL NIVEL DEL COCINERO** (pedido por
+    el usuario): `MEDAL_REWARDS` (8/15/30) es lo que vale en el nivel 1 y
+    `GameState.medal_reward(id, tier)` le aplica `medal_level_mult()` —
+    +`MEDAL_LEVEL_STEP` (4%) por nivel, con tope `MEDAL_LEVEL_MAX` (×10,
+    alcanzado en el 226).
+    **Y CUENTA EL NIVEL AL QUE SE GANÓ, NO EL DE CUANDO SE COBRA**
+    (`GameState.medal_levels`, id → [bronce, plata, oro], apuntado en
+    `_run_achievement_check` en el mismo sitio donde salta el toast). Esa
+    es la pieza que sostiene el resto: guardarse las medallas sin reclamar
+    no renta NADA, porque el precio se congela el día que se consiguen. Y
+    como el farmeo deja de existir, el multiplicador puede ser generoso —
+    antes iba al 2% con tope ×5 justamente porque se podían acumular.
+    MEDIDO: el mismo lote ganado en el nivel 10 paga 299 doblones tanto si
+    se cobra en el 10 como en el 200; ganado ya en el 200, paga 1.972.
+    Las medallas de un guardado anterior a este apunte no llevan nivel:
+    esas cobran al de HOY, que es lo justo con quien ya las tenía.
+    **El cartel NO enseña el multiplicador** (lo retiró el usuario): la
+    cuenta no se explica, solo se cobra.
   · **Reclamo**: `claimed_medals` (id → 0..3) y `MEDAL_REWARDS` 25/50/100 por
     bronce/plata/oro. Si de un logro hay bronce Y plata sin reclamar, caen las
     dos de golpe. El botón "Reclamar todo" de `achievements_screen` (en el
@@ -2466,6 +2473,15 @@ primera vez que se entra en ellos (`logros_intro_done` /
     savegame con el respaldo clave a clave. Si el usuario ha jugado mientras
     tanto, ahí se ve —y entonces NO se restaura a ciegas, que se le borraría la
     partida: se mira qué claves tocó la sonda y se devuelven solo esas.
+  · **Y NUNCA SE RESTAURA A CIEGAS CON EL JUEGO ABIERTO.** Pasó el
+    23-8-2026: se lanzó el juego para el usuario, este jugó (nivel 16 → 22)
+    y su partida viva reescribió el savegame; una sonda posterior lo
+    "restauró" con un `cp` de la copia de antes y se llevó por delante la
+    partida real — que solo sobrevivió en la MEMORIA del proceso abierto,
+    a la espera de su siguiente `save_game()`. Antes de restaurar: `tasklist
+    | grep -i godot` y un diff contra la copia; con el juego abierto, la
+    copia se hace JUSTO antes de la sonda y lo único que se devuelve son
+    las claves que la sonda tocó. El juego NO guarda al cerrarse.
 - `scripts/options_screen.gd` — Opciones (raíz **Node3D**, fondo `SceneBackdrop`)
   en CUATRO pestañas (el Perfil se mudó a `profile_screen`): **Gráficos**
   (bloques Alta / Media / Baja / Personalizado, con "Aplicar cambios"),
@@ -3196,7 +3212,96 @@ primera vez que se entra en ellos (`logros_intro_done` /
   que lo borra y deja solo la espuma; además la animación rompería la
   continuidad de bordes y el mar tileado saldría con costuras. Por eso el
   movimiento del agua va por shader (deriva + dos senos cruzados).
-- **EL PANEL DEL NIVEL VA EN DOS COLUMNAS** (`level_select3d._build_info_panel`,
+- **EL NÚMERO DEL ESCENARIO VIVE DENTRO DEL DECORADO**
+  (`level_select3d._numero_del_nodo`, pedido por el usuario): escrito en la
+  ARENA de la isla, en un CARTEL clavado en el muelle del puerto, pintado en la
+  VELA del abordaje y ESCULPIDO en la roca de la cueva. Antes era una chapa
+  redonda flotando delante del nodo, y una chapa con un número se lee como un
+  botón más de la interfaz; así el mapa se lee como un sitio.
+  · Los cuatro son **`Label3D`**, no texturas horneadas: sale con la fuente del
+    juego, el número se cambia sin regenerar nada y no cuesta un `.png` por
+    escenario. Van al grupo `no_batch` (`GeometryBatch.bake` libera los
+    originales) y con `alpha_cut` en DISCARD, para que no haya que ordenarlos
+    contra el mar ni contra la niebla.
+  · **LA ORIENTACIÓN LA MANDA LA CÁMARA (yaw 45)**: un rótulo DE PIE mirando a
+    la cámara va a `rotation.y = 45`, y uno TUMBADO en el suelo a
+    `(-90, 45, 0)` — el -90 pone su cara hacia arriba y el 45 hace que su eje X
+    caiga sobre el "derecha" de la pantalla (`R_HAT`); sin ese segundo giro el
+    número sale torcido sobre la arena.
+  · **Y "DELANTE" ES `+D_HAT`**: el eje que va hacia la cámara es el mismo que
+    baja por la pantalla. Con el signo cambiado, el cartel del puerto se quedó
+    detrás de la roca del faro y el número de la cueva dentro de la piedra.
+  · **LA ISLA CRECIÓ A PROPÓSITO** (`KIND_FOOT` 2.6 → 3.5): a la huella de
+    antes la playa no daba para una cifra legible. Y el número no va en el
+    centro sino en la banda de arena DE DELANTE (`ISLA_NUM_W`): en el medio lo
+    partían el parche de hierba y la roca.
+  · **EL NÚMERO DE LA VELA VA EN CREMA, no en tinta**: las velas de
+    `map_enemigo.glb` son oscuras y están furladas, así que un número marrón se
+    perdía en ellas.
+  · **LA ALTURA SE MIDE, no se deduce**: el `.glb` de cada nodo es UNA malla
+    fundida, así que no se puede preguntar por "la arena" ni por "la vela". El
+    pivote apunta su alto ya escalado (`set_meta("alto")`) y el sitio de cada
+    número sale de una fracción de ese alto, comprobada en captura. El primer
+    intento dejó el número de la isla ENTERRADO en la arena y solo se veía una
+    mota oscura.
+- **LA FICHA DEL ESCENARIO ES UNA VENTANA, no la franja de abajo**
+  (`level_select3d._build_ficha`, pedido por el usuario): se abre al TOCAR un
+  nodo (`_select` con `animate`, que es la señal de que ha sido el jugador) y
+  con la pantalla entera para ella cabe TODO en una sola columna con secciones
+  —la clientela, la carta, los objetivos con sus premios, el récord y el
+  tesoro— en vez de repartirse en dos columnas apretadas contra el canto.
+  · **SE AJUSTA A LO QUE LLEVA DENTRO** (`_ajustar_ficha`): el alto sale del
+    `get_combined_minimum_size()` del cuerpo entre un suelo y un techo. Con
+    alto fijo, media hoja en blanco en las fichas cortas.
+  · **Y SE CENTRA POR OFFSETS, no por `position`.** `Control.position` es
+    ABSOLUTA en el espacio del padre: con las anclas al 0.5 hay que escribir
+    los cuatro offsets. Poniendo `position = -tamaño/2` salía centrada solo por
+    casualidad (el padre medía 0 al construirla) y en cuanto se recolocaba con
+    el padre ya medido, la ventana se iba al cuadrante de arriba a la
+    izquierda. Es la misma trampa del preset que ya costó el globo de la barra
+    de nivel.
+  · **DICE CÓMO SE CIERRA LA JORNADA** (`_texto_cierre`), que es información
+    que solo estaba en la guía: un abordaje no se juega como una isla y el
+    panel no lo decía en ninguna parte.
+  · **Y EL TESORO QUE SE PUEDE SACAR DE AHÍ**, con una INTERROGACIÓN encima
+    mientras no se tenga (`_fill_tesoro` + `CampaignData.collectible_of`, el
+    inverso de `port_for_collectible`): dice que en ese escenario hay algo que
+    llevarse sin desvelar qué es. El requisito se redacta con el MISMO
+    `collectible_how` que canta el cliente en el nivel, y se pinta con
+    **RichTextLabel** porque trae palabras clave entre `**`.
+- **LA FRANJA DE ABAJO DEL MAPA ES UN SUBMENÚ PROPIO** (`_build_submenu`), y
+  con un diseño DISTINTO al del menú principal (pedido por el usuario): allí
+  son cinco iconos sobre una barra de madera oscura y aquí son TRES TABLONES
+  anchos con icono y rótulo. Son dos sitios distintos y tienen que sentirse
+  distintos. Llevan a los **mapas del tesoro** (las misiones secundarias, que
+  todavía no existen: el botón lo dice él mismo y de paso enseña cuántos se
+  llevan acumulados en `GameState.treasure_maps`), a la **tienda** y a
+  **opciones**.
+  · **LAS DOS PANTALLAS VUELVEN AL MAPA**, no al menú (`GameState.shop_from` /
+    `options_from`, el mismo patrón que `skills_from`): a las dos se llega
+    también desde el menú principal, así que el destino del "Atrás" lo apunta
+    quien abre la pantalla. Con `GameState.map_port` puesto, el barco aparece
+    justo donde se dejó.
+  · La FICHA no entra en `_map_ui_fade` ni se enciende en
+    `_set_map_ui_visible`: es una ventana modal y encenderla con el resto del
+    mapa la sacaba sola.
+- **EL COFRE DEL BONUS DIARIO, JUNTO A LA BARRA DE EXPERIENCIA**
+  (`main_menu._setup_daily_chest`, pedido por el usuario): a COLOR y meciéndose
+  cuando hay premio que cobrar, y en TINTA —el mismo dibujo del mapa del
+  tesoro, `daily_cofre_mapa.png`— con la cuenta atrás debajo cuando el de hoy
+  ya está cobrado. La cuenta la da `GameState.daily_wait_text()`: el bonus se
+  renueva al cambiar el DÍA del aparato, así que lo que falta es lo que queda
+  hasta la medianoche local.
+  · Va colgado de la BARRA, así que viaja con ella al mapa y a la pesca, y por
+    eso `_level_bar_spot` centra "barra + cofre" y no la barra sola.
+  · Es INFORMATIVO, no pulsable (`MOUSE_FILTER_IGNORE`): el cartel del bonus
+    sale solo al entrar en el menú, así que no tiene nada que abrir — y de paso
+    no se come el toque de la barra, que sí lleva a Maestrías.
+  · Se repinta cada 20 s desde el `_process` del menú (es una cifra en minutos,
+    no hace falta por fotograma) y en el acto al cobrar (`_daily_done`), o el
+    jugador cerraría el cartel con el premio ya en la mano y el icono seguiría
+    diciendo que queda algo.
+- **(HISTÓRICO) EL PANEL DEL NIVEL FUE UNA FRANJA EN DOS COLUMNAS** (hoy es la VENTANA de arriba; lo que sigue explica por qué está como está,
   372 px de alto contra los 470 que tuvo): arriba y centrado lo que IDENTIFICA
   el escenario —nombre, tipo, nivel recomendado y estrellas—, y debajo la ficha
   repartida: a la IZQUIERDA lo que uno se va a encontrar (clientela, carta y

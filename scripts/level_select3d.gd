@@ -1085,9 +1085,11 @@ func _on_submenu(id: String) -> void:
 ## el botón está desde ya para que se sepa que van a estar, y lo dice él mismo
 ## en vez de quedarse mudo (un botón que no hace nada se lee como roto).
 func _mapas_del_tesoro() -> void:
-	var cartel := _aviso_simple("Mapas del tesoro",
-		"Aquí guardarás los mapas que encuentres en tus viajes. Todavía no has\nconseguido ninguno.")
-	ui.add_child(cartel)
+	var n := GameState.treasure_maps
+	var texto := "Aquí guardarás los mapas que encuentres en tus viajes. Todavía no tienes ninguno."
+	if n > 0:
+		texto = ("Tienes %d mapa%s guardado%s. Sus islas siguen por descubrir: pronto podrás salir a buscarlas.") % [n, "" if n == 1 else "s", "" if n == 1 else "s"]
+	ui.add_child(_aviso_simple("Mapas del tesoro", texto))
 
 
 func _build_ficha() -> Control:
@@ -1111,10 +1113,17 @@ func _build_ficha() -> Control:
 	# para elegir— recupera un tercio de la pantalla.
 	# CENTRADA Y GRANDE: la ficha ya no comparte sitio con el mapa, así que
 	# puede contarlo todo de una vez y en una sola columna.
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.custom_minimum_size = Vector2(FICHA_W, FICHA_H)
-	panel.size = Vector2(FICHA_W, FICHA_H)
-	panel.position = Vector2(-FICHA_W * 0.5, -FICHA_H * 0.5)
+	# CENTRADA POR OFFSETS, no por `position`. `Control.position` es ABSOLUTA
+	# en el espacio del padre, asi que con las anclas al 0.5 hay que escribir
+	# los cuatro offsets: poniendo `position = -tamano/2` solo salia centrada
+	# por casualidad —el padre medía 0 al construirla— y en cuanto se recolocaba
+	# con el padre ya medido, la ventana se iba al cuadrante de arriba a la
+	# izquierda. Es la misma trampa del preset del globo de la barra de nivel.
+	panel.anchor_left = 0.5
+	panel.anchor_top = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_bottom = 0.5
+	_ficha_offsets(panel, FICHA_H)
 	panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
 	overlay.add_child(panel)
@@ -1624,10 +1633,18 @@ func _ajustar_ficha() -> void:
 	await get_tree().process_frame
 	if ficha_panel == null or not is_instance_valid(ficha_panel):
 		return
-	var alto := clampf(ficha_cuerpo.get_combined_minimum_size().y + FICHA_EXTRA,
-		FICHA_MIN, FICHA_MAX)
-	ficha_panel.size = Vector2(FICHA_W, alto)
-	ficha_panel.position = Vector2(-FICHA_W * 0.5, -alto * 0.5 + FICHA_BAJADA)
+	_ficha_offsets(ficha_panel, clampf(
+		ficha_cuerpo.get_combined_minimum_size().y + FICHA_EXTRA,
+		FICHA_MIN, FICHA_MAX))
+
+
+## Centra la ventana con las anclas al 0.5 y le da el alto pedido.
+func _ficha_offsets(panel: Control, alto: float) -> void:
+	panel.custom_minimum_size = Vector2(FICHA_W, alto)
+	panel.offset_left = -FICHA_W * 0.5
+	panel.offset_right = FICHA_W * 0.5
+	panel.offset_top = -alto * 0.5 + FICHA_BAJADA
+	panel.offset_bottom = alto * 0.5 + FICHA_BAJADA
 
 
 ## CÓMO SE CIERRA LA JORNADA Y QUÉ CASTIGA EL TIPO. Es la información que el

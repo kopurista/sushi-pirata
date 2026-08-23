@@ -124,6 +124,11 @@ func _despedir() -> void:
 	caja.say([_pick(DESPEDIDAS)])
 	await caja.finished
 	caja.queue_free()
+	# VUELVE A DONDE SE ENTRO: al submenu del MAPA se llega tambien desde
+	# ahi, y devolver siempre al menu sacaba al jugador de la travesia.
+	if GameState.shop_from != "":
+		GameState.transition = GameState.shop_from
+		GameState.shop_from = ""
 	GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45)
 
 

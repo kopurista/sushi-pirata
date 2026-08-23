@@ -259,6 +259,10 @@ var fish_best: Dictionary = {}
 ## LOGROS: medallas ya RECLAMADAS (id -> 0..3) y ya ANUNCIADAS con su toast
 ## (id -> 0..3). Lo CONSEGUIDO no se guarda: se deduce siempre de `stats`.
 var claimed_medals: Dictionary = {}
+## Nivel de cocinero al que se gano cada medalla: id -> [bronce, plata,
+## oro], con 0 en las que aun no estan. De aqui sale lo que paga cada una
+## (`medal_reward`), asi que acumular sin reclamar no renta nada.
+var medal_levels: Dictionary = {}
 var seen_medals: Dictionary = {}
 ## Contadores de toda la vida del jugador, de los que salen los LOGROS
 ## (ver achievement_data.gd). Clave -> entero. Los que empiezan por "best_"
@@ -734,6 +738,20 @@ func _yesterday() -> String:
 	var t := Time.get_unix_time_from_system() - 86400
 	var d := Time.get_date_dict_from_unix_time(int(t))
 	return "%04d-%02d-%02d" % [d.year, d.month, d.day]
+
+
+## CUANTO FALTA PARA EL PROXIMO BONUS, ya escrito ("7h 21m"). El bonus se
+## renueva al cambiar el DIA del aparato (`_today`), asi que lo que falta es lo
+## que queda hasta la medianoche local. Lo enseña el icono del cofre del menu
+## cuando el de hoy ya esta cobrado.
+func daily_wait_text() -> String:
+	var d := Time.get_datetime_dict_from_system()
+	var faltan := 86400 - (int(d.hour) * 3600 + int(d.minute) * 60 + int(d.second))
+	var h := faltan / 3600
+	var m := (faltan % 3600) / 60
+	if h > 0:
+		return "%dh %02dm" % [h, m]
+	return "%dm" % maxi(m, 1)
 
 
 ## ¿Queda premio por cobrar hoy?
@@ -1694,30 +1712,53 @@ func achievement_value(a: Dictionary) -> int:
 const MEDAL_REWARDS := [8, 15, 30]
 ## Y ESE PAGO CRECE CON EL NIVEL DEL COCINERO (pedido por el usuario): la base
 ## de arriba es lo que vale una medalla en el nivel 1, y cada nivel le suma
-## MEDAL_LEVEL_STEP. Un logro reclamado tarde vale más que reclamado pronto,
-## que es lo que se busca: premia seguir cocinando.
+## MEDAL_LEVEL_STEP.
 ##
-## El TOPE (MEDAL_LEVEL_MAX) no es un adorno: el reclamo es ACUMULATIVO —hay
-## ~160 logros de tres metales— y sin techo bastaba con guardárselos todos
-## hasta el nivel 450 para cobrar de golpe más oro del que da la campaña
-## entera. Con ×5 se llega al tope en el nivel 201 y una medalla de oro paga
-## 150, un pelín por encima de lo que pagaba la tabla vieja sin escalar.
-const MEDAL_LEVEL_STEP := 0.02
-const MEDAL_LEVEL_MAX := 5.0
+## PERO CUENTA EL NIVEL AL QUE SE GANÓ LA MEDALLA, no el de cuando se cobra
+## (`medal_levels`, apuntado en `_run_achievement_check`). Esa es la pieza que
+## sostiene todo lo demás: guardarse las medallas sin reclamar no renta nada,
+## porque el precio se congela el día que se consiguen. Y como el farmeo deja
+## de existir, el multiplicador puede ser GENEROSO de verdad — 4% por nivel y
+## tope ×10 — en vez del 2% tímido que hacía falta cuando se podían acumular.
+const MEDAL_LEVEL_STEP := 0.04
+const MEDAL_LEVEL_MAX := 10.0
 
 
-## Multiplicador de recompensa por el nivel del cocinero (1.0 en el nivel 1).
-func medal_level_mult() -> float:
-	return minf(1.0 + float(maxi(chef_level - 1, 0)) * MEDAL_LEVEL_STEP,
+## Multiplicador de recompensa al nivel de cocinero que se le pase.
+func medal_level_mult(nivel: int) -> float:
+	return minf(1.0 + float(maxi(nivel - 1, 0)) * MEDAL_LEVEL_STEP,
 		MEDAL_LEVEL_MAX)
 
 
-## Lo que paga HOY una medalla de ese metal (1 bronce, 2 plata, 3 oro), ya
-## escalado por el nivel. Lo usan el cobro y la ficha, para que nadie tenga
-## que repetir la cuenta.
-func medal_reward(tier: int) -> int:
+## Nivel al que se ganó esa medalla. Las de un guardado ANTERIOR a este apunte
+## no lo tienen: esas cobran al nivel de hoy, que es lo más justo con quien ya
+## las tenía conseguidas (lo contrario sería pagárselas al nivel 1).
+func medal_level_of(id: String, tier: int) -> int:
+	var arr: Array = medal_levels.get(id, [])
+	var i := tier - 1
+	if i >= 0 and i < arr.size() and int(arr[i]) > 0:
+		return int(arr[i])
+	return chef_level
+
+
+## Apunta el nivel al que se acaba de ganar una medalla. Solo la primera vez:
+## una medalla no se gana dos veces.
+func note_medal_level(id: String, tier: int) -> void:
+	var arr: Array = medal_levels.get(id, [0, 0, 0])
+	while arr.size() < 3:
+		arr.append(0)
+	var i := tier - 1
+	if i >= 0 and i < 3 and int(arr[i]) <= 0:
+		arr[i] = chef_level
+	medal_levels[id] = arr
+
+
+## Lo que paga una medalla de ese metal (1 bronce, 2 plata, 3 oro), al nivel
+## que la ganó. Lo usan los dos cobros, para que nadie repita la cuenta.
+func medal_reward(id: String, tier: int) -> int:
 	var base: int = int(MEDAL_REWARDS[clampi(tier - 1, 0, MEDAL_REWARDS.size() - 1)])
-	return maxi(int(round(base * medal_level_mult())), base)
+	var mult := medal_level_mult(medal_level_of(id, tier))
+	return maxi(int(round(base * mult)), base)
 ## El coleccionable "cartel de recompensa" cae al llegar a este botín de vida.
 const CARTEL_BOUNTY := 1000000
 ## Vueltas al timón del menú que piden el coleccionable "timón".
@@ -2036,6 +2077,9 @@ func _run_achievement_check() -> void:
 			continue
 		seen_medals[id] = earned
 		for tier in range(seen + 1, earned + 1):
+			# EL NIVEL AL QUE SE GANA, congelado aquí mismo: es lo que decidirá
+			# su pago cuando se reclame, hoy o dentro de cien niveles.
+			note_medal_level(id, tier)
 			# EL ICONO DEL LOGRO, no la moneda de siempre: así el aviso se lee de
 			# un vistazo sin tener que leer el nombre.
 			_ensure_notices().toast_achievement(AchievementData.icon_for(a),
@@ -2082,7 +2126,7 @@ func claim_achievement(id: String) -> int:
 		return 0
 	var total := 0
 	for tier in range(claimed + 1, earned + 1):
-		total += medal_reward(tier)
+		total += medal_reward(id, tier)
 	claimed_medals[id] = earned
 	# Reclamado implica visto: que el toast no anuncie lo ya cobrado.
 	seen_medals[id] = maxi(int(seen_medals.get(id, 0)), earned)
@@ -2103,7 +2147,7 @@ func claim_achievement_rewards() -> Dictionary:
 		if earned <= claimed:
 			continue
 		for tier in range(claimed + 1, earned + 1):
-			out["total"] = int(out["total"]) + medal_reward(tier)
+			out["total"] = int(out["total"]) + medal_reward(id, tier)
 			var metal := str(AchievementData.MEDALS[tier - 1])
 			out[metal] = int(out[metal]) + 1
 		claimed_medals[id] = earned
@@ -2273,6 +2317,7 @@ func save_game() -> void:
 		"fish_album": fish_album,
 		"fish_best": fish_best,
 		"claimed_medals": claimed_medals,
+		"medal_levels": medal_levels,
 		"seen_medals": seen_medals,
 		"player_gender": player_gender,
 		"player_hand": player_hand,
@@ -2463,6 +2508,13 @@ func load_game() -> void:
 	var seen_dict: Dictionary = parsed.get("seen_medals", {})
 	for k in seen_dict.keys():
 		seen_medals[str(k)] = int(seen_dict[k])
+	medal_levels = {}
+	var niv_dict: Dictionary = parsed.get("medal_levels", {})
+	for k in niv_dict.keys():
+		var fila: Array = []
+		for v in niv_dict[k]:
+			fila.append(int(v))
+		medal_levels[str(k)] = fila
 	# Guardado de ANTES de las notificaciones: lo ya conseguido se da por VISTO
 	# (nada de un aluvión de toasts retroactivos al arrancar), pero NO por
 	# reclamado — esas recompensas quedan pendientes en el botón "Reclamar".
@@ -2598,6 +2650,7 @@ func _new_game() -> void:
 	fish_best = {}
 	claimed_medals = {}
 	seen_medals = {}
+	medal_levels = {}
 	# SIN recetas de inicio y con el tutorial pendiente: las 4 primeras las
 	# entrega David al terminar su clase (complete_tutorial). Olvidar poner
 	# tutorial_done a false aquí hacía que borrar la partida NO relanzara la

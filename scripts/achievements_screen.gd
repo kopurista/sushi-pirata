@@ -89,7 +89,7 @@ func _setup_ui() -> void:
 	hueco.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar.add_child(hueco)
 	# "Reclamar todo": cobra de golpe TODAS las medallas pendientes (lo que
-	# pague hoy cada metal segun el nivel, ver `GameState.medal_reward`
+	# pague cada metal segun el nivel al que se GANO, ver `medal_reward`
 	# por bronce/plata/oro). Cada tarjeta se puede cobrar por separado tocándola.
 	claim_btn = Button.new()
 	claim_btn.text = "Reclamar todo"
@@ -468,13 +468,8 @@ func _open_claim() -> void:
 	overlay.add_child(veil)
 	create_tween().tween_property(veil, "color:a", 0.6, 0.25)
 
-	# EL CARTEL CRECE SI HAY QUE CANTAR EL MULTIPLICADOR: la recompensa de
-	# una medalla sube con el nivel del cocinero (`GameState.medal_reward`) y
-	# eso hay que verlo, o el jugador no sabe que le pagan mas por seguir
-	# subiendo. En el nivel 1 el multiplicador es 1 y el renglon no sale.
-	var mult := GameState.medal_level_mult()
 	var pw := 520.0
-	var ph := 600.0 + (34.0 if mult > 1.0 else 0.0)
+	var ph := 600.0
 	var panel := Control.new()
 	var cs := GameState.canvas_size()
 	panel.position = Vector2((cs.x - pw) * 0.5, (cs.y - ph) * 0.5)
@@ -540,20 +535,8 @@ func _open_claim() -> void:
 	detail.modulate.a = 0.0
 	panel.add_child(detail)
 
-	var nivel: Label = null
-	if mult > 1.0:
-		nivel = Label.new()
-		# Con COMA decimal, que el juego habla en español.
-		nivel.text = "x%s por tu nivel de cocinero" % String.num(mult, 2).replace(".", ",")
-		nivel.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		nivel.add_theme_font_size_override("font_size", 21)
-		nivel.add_theme_color_override("font_color", Color(0.2, 0.45, 0.12))
-		nivel.set_anchors_preset(Control.PRESET_TOP_WIDE)
-		nivel.offset_top = 468.0
-		nivel.offset_bottom = 500.0
-		nivel.modulate.a = 0.0
-		panel.add_child(nivel)
-
+	# (SIN renglón del multiplicador: el usuario lo retiró. Lo que paga una
+	# medalla depende del nivel al que se GANÓ, y esa cuenta no se enseña.)
 	var seguir := Button.new()
 	seguir.text = "Continuar"
 	PrepBoard.skin_button(seguir)
@@ -561,8 +544,8 @@ func _open_claim() -> void:
 	seguir.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	seguir.offset_left = 150.0
 	seguir.offset_right = -150.0
-	seguir.offset_top = 486.0 + (34.0 if mult > 1.0 else 0.0)
-	seguir.offset_bottom = 552.0 + (34.0 if mult > 1.0 else 0.0)
+	seguir.offset_top = 486.0
+	seguir.offset_bottom = 552.0
 	seguir.modulate.a = 0.0
 	panel.add_child(seguir)
 	seguir.pressed.connect(func() -> void:
@@ -603,8 +586,6 @@ func _open_claim() -> void:
 	tw.set_parallel()
 	tw.tween_property(loot, "modulate:a", 1.0, 0.25)
 	tw.tween_property(detail, "modulate:a", 1.0, 0.25).set_delay(0.1)
-	if nivel != null:
-		tw.tween_property(nivel, "modulate:a", 1.0, 0.25).set_delay(0.15)
 	tw.tween_property(seguir, "modulate:a", 1.0, 0.25).set_delay(0.2)
 
 

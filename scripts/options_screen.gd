@@ -110,7 +110,13 @@ func _setup_ui() -> void:
 	# único botón del juego con icono propio, para no confundirlo con
 	# un botón normal más.
 	var back := PrepBoard.make_back_button()
+	# VUELVE A DONDE SE ENTRO: a Opciones se llega desde el menu y desde el
+	# submenu del MAPA, y devolver siempre al menu sacaba al jugador de la
+	# travesia (el mismo patron que Maestrias con `skills_from`).
 	back.pressed.connect(func() -> void:
+		if GameState.options_from != "":
+			GameState.transition = GameState.options_from
+			GameState.options_from = ""
 		GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45))
 	bar.add_child(back)
 	# El rótulo va sobre su CINTA de tela (PrepBoard.make_title):

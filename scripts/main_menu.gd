@@ -1074,7 +1074,9 @@ func _enter_map(animate: bool) -> void:
 
 ## Enciende o apaga la interfaz del mapa con un fundido.
 func _map_ui_fade(show: bool) -> void:
-	for node in [map_top_bar, map_info_panel]:
+	# La FICHA no entra aqui: es una ventana modal que solo se abre al tocar un
+	# escenario, asi que encenderla con el resto del mapa la sacaria sola.
+	for node in [map_top_bar, map_submenu]:
 		if node == null:
 			continue
 		node.modulate.a = 0.0 if show else 1.0
@@ -1110,8 +1112,12 @@ func _update_camera() -> void:
 func _set_map_ui_visible(on: bool) -> void:
 	if map_top_bar != null:
 		map_top_bar.visible = on
-	if map_info_panel != null:
-		map_info_panel.visible = on
+	if map_submenu != null:
+		map_submenu.visible = on
+	# La ficha se APAGA siempre y no se enciende nunca desde aqui: se abre al
+	# tocar un escenario y se cierra sola.
+	if map_info_panel != null and not on:
+		map_info_panel.visible = false
 	for id in node_overlays:
 		node_overlays[id]["root"].visible = on
 
@@ -1265,6 +1271,12 @@ func _sonar_zarpe(con_velas := true) -> void:
 
 
 func _process(delta: float) -> void:
+	# La cuenta atras del cofre del bonus avanza sola: se repinta de tanto
+	# en tanto, no por fotograma (es una cifra en minutos).
+	_daily_tick += delta
+	if _daily_tick >= 20.0:
+		_daily_tick = 0.0
+		_refresh_daily_chest()
 	_tick_ambiente(delta)
 	super._process(delta)
 	# La cuenta atrás del arroz corre SIEMPRE (también en el mapa) y una vez por
@@ -1598,6 +1610,21 @@ var level_bar_badge_host: Control = null
 var level_star: TextureRect = null
 var level_plus: Label = null
 var level_plus_tween: Tween = null
+
+## EL COFRE DEL BONUS DIARIO, a la derecha de la barra de experiencia. A COLOR
+## y meciéndose cuando hay premio que cobrar; en TINTA —el mismo dibujo pasado
+## por `inkify`, el que usa el mapa del tesoro— con la cuenta atrás debajo
+## cuando el de hoy ya está cobrado. Va colgado de la barra para que viaje con
+## ella al mapa y a la pesca.
+const COFRE_LADO := 58.0
+const COFRE_HUECO := 10.0
+const COFRE_TEX := "res://assets/ui/daily_cofre.png"
+const COFRE_TINTA_TEX := "res://assets/ui/daily_cofre_mapa.png"
+var daily_chest: TextureRect = null
+var daily_chest_label: Label = null
+var daily_chest_tween: Tween = null
+## Se repinta de tanto en tanto para que la cuenta atrás avance sola.
+var _daily_tick := 0.0
 var home_lvl_y := 0.0
 ## XP que la barra está ENSEÑANDO (la mueve el tween de la animación).
 var _xp_shown := 0.0
@@ -1663,6 +1690,8 @@ func _setup_level_bar(st: float) -> void:
 	level_plus.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	estrella.add_child(level_plus)
 
+	_setup_daily_chest()
+
 	level_bar_label = Label.new()
 	level_bar_label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	level_bar_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1697,6 +1726,67 @@ func _setup_level_bar(st: float) -> void:
 
 
 ## Repinta la barra con la XP que toque enseñar (la vigente o la del tween).
+## El cofre y su cuenta atrás, colgados del canto derecho de la barra.
+func _setup_daily_chest() -> void:
+	daily_chest = TextureRect.new()
+	daily_chest.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	daily_chest.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	daily_chest.position = Vector2(LVL_BAR_W + COFRE_HUECO, -6.0)
+	daily_chest.size = Vector2(COFRE_LADO, COFRE_LADO)
+	daily_chest.pivot_offset = Vector2(COFRE_LADO * 0.5, COFRE_LADO)
+	# INFORMATIVO, no pulsable: el cartel del bonus sale solo al entrar en el
+	# menú, así que el cofre no tiene nada que abrir. Y `MOUSE_FILTER_IGNORE`
+	# evita además que se coma el toque de la barra, que sí lleva a Maestrías.
+	daily_chest.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	level_bar.add_child(daily_chest)
+
+	daily_chest_label = Label.new()
+	daily_chest_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	daily_chest_label.offset_top = COFRE_LADO - 2.0
+	daily_chest_label.offset_bottom = COFRE_LADO + 24.0
+	daily_chest_label.offset_left = -14.0
+	daily_chest_label.offset_right = 14.0
+	daily_chest_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	daily_chest_label.add_theme_font_size_override("font_size", 17)
+	daily_chest_label.add_theme_color_override("font_color", Color(0.92, 0.86, 0.72))
+	daily_chest_label.add_theme_color_override("font_outline_color",
+		Color(0.10, 0.06, 0.02))
+	daily_chest_label.add_theme_constant_override("outline_size", 6)
+	daily_chest_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	daily_chest.add_child(daily_chest_label)
+	_refresh_daily_chest()
+
+
+## Lo pone a color y lo mece, o lo deja en tinta con lo que falta debajo.
+func _refresh_daily_chest() -> void:
+	if daily_chest == null:
+		return
+	daily_chest.visible = GameState.tutorial_done
+	if not daily_chest.visible:
+		return
+	var hay := GameState.daily_available()
+	daily_chest.texture = load(COFRE_TEX if hay else COFRE_TINTA_TEX)
+	daily_chest_label.visible = not hay
+	daily_chest_label.text = "" if hay else GameState.daily_wait_text()
+	if daily_chest_tween != null:
+		daily_chest_tween.kill()
+		daily_chest_tween = null
+	daily_chest.rotation = 0.0
+	daily_chest.scale = Vector2.ONE
+	if not hay or not GameState.animations_on():
+		return
+	# SE MECE, como el cofre de hoy en el mapa del tesoro: es la misma pieza
+	# diciendo lo mismo, y un icono quieto al lado de la barra no se mira.
+	daily_chest_tween = create_tween().set_loops()
+	daily_chest_tween.tween_property(daily_chest, "rotation", 0.16, 0.5) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	daily_chest_tween.tween_property(daily_chest, "rotation", -0.16, 1.0) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	daily_chest_tween.tween_property(daily_chest, "rotation", 0.0, 0.5) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	daily_chest_tween.tween_interval(1.6)
+
+
 func _refresh_level_bar() -> void:
 	if level_bar == null:
 		return
@@ -1983,9 +2073,12 @@ func _level_bar_spot(en_mapa: bool) -> Vector2:
 		# derecho: así la barra sigue leyéndose como parte de la fila y no como
 		# algo arrinconado.
 		var libre := 16.0 + 150.0 + 16.0
-		return Vector2((libre + ancho - LVL_BAR_W) * 0.5,
+		# El COFRE cuelga a la derecha de la barra, así que el conjunto que hay
+		# que centrar mide más que la barra sola.
+		return Vector2((libre + ancho - LVL_BAR_W - COFRE_LADO - COFRE_HUECO) * 0.5,
 			16.0 + st + PrepBoard.RESOURCE_H + 40.0)
-	return Vector2((ancho - LVL_BAR_W) * 0.5, LVL_BAR_Y + st)
+	return Vector2((ancho - LVL_BAR_W - COFRE_LADO - COFRE_HUECO) * 0.5,
+		LVL_BAR_Y + st)
 
 
 ## PAQUETES de lingotes (dinero real) y de arroz (a cambio de lingotes).
@@ -3420,6 +3513,10 @@ func _show_daily_reward(dado: Dictionary, velo: Control, panel: Control,
 ## de salir, que hasta ahora no existía a propósito.
 func _daily_done(velo: Control, panel: Control, pie: Label) -> void:
 	panel.modulate = Color.WHITE
+	# El cofre de la barra pasa a TINTA con su cuenta atrás en el acto: si
+	# esperara al siguiente repintado, el jugador cerraría el cartel con el
+	# premio ya cobrado y el icono seguiría diciendo que queda algo.
+	_refresh_daily_chest()
 	var ultimo := GameState.daily_day >= DailyData.day_count()
 	pie.text = "¡Racha completa! Mañana vuelve a empezar." if ultimo \
 			else "¡Vuelve mañana para seguir la racha!"
