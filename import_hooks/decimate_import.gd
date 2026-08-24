@@ -81,6 +81,7 @@ const BUDGETS := {
 	"miku_rig": 6000,
 	"nach_rig": 6000,
 	"sirena_rig": 6000,
+	"maki_aguacate_mejorado": 2500,
 }
 
 ## Tope de pasadas. Cada `generate_lods` recorta ~50%, así que 6 pasadas dan de
