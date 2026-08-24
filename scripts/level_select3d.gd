@@ -218,11 +218,17 @@ var map_submenu: Control = null
 ## EL BOTON DE VOLVER AL BARCO (ver `_build_boton_barco`).
 var boton_barco: Button = null
 var _barco_visible := false
+## Hacia donde queda el barco: arriba (el jugador explora el sur del mapa) o
+## abajo. Decide en que canto se pega el bocadillo y hacia donde va su rabo.
+var _barco_arriba := false
 var _barco_tween: Tween = null
 ## Lo lejos que hay que irse para que salga: mas de un paso de la travesia,
 ## para que no asome por un empujoncito del dedo.
 const BARCO_LEJOS := 420.0
 const BARCO_BTN := 104.0
+## Alto de la banda de arriba del mapa (ver `_build_top_bar`): por debajo de
+## ella se pega el bocadillo cuando el barco queda al norte.
+const TOP_BAR_H := 190.0
 ## Piezas de la ficha que hay que remedir cuando cambia su contenido.
 var ficha_panel: PanelContainer = null
 var ficha_cuerpo: VBoxContainer = null
@@ -1011,23 +1017,21 @@ func _build_boton_barco() -> Button:
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 	var globo := TextureRect.new()
+	globo.name = "Globo"
 	globo.texture = load("res://assets/ui/bocadillo_barco.png")
 	globo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	globo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	globo.set_anchors_preset(Control.PRESET_FULL_RECT)
 	globo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(globo)
-	# El barco va dentro del CIRCULO, que ocupa la parte de arriba del
-	# bocadillo (el rabo se lleva el ultimo cuarto).
+	# El barco va dentro del CIRCULO, que ocupa el lado del bocadillo
+	# CONTRARIO al rabo (`_orientar_boton_barco` lo recoloca al voltearse).
 	var ic := TextureRect.new()
+	ic.name = "Barco"
 	ic.texture = load("res://assets/ui/ic_barco.png")
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	ic.offset_left = BARCO_BTN * 0.19
-	ic.offset_right = -BARCO_BTN * 0.19
-	ic.offset_top = BARCO_BTN * 0.19
-	ic.offset_bottom = BARCO_BTN * 0.81
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(ic)
 	PrepBoard.add_press_feedback(b)
@@ -1044,28 +1048,61 @@ func _build_boton_barco() -> Button:
 func _actualizar_boton_barco() -> void:
 	if boton_barco == null or not is_instance_valid(boton_barco):
 		return
-	var lienzo := GameState.canvas_size()
-	var y0 := lienzo.y - SUBMENU_H - boton_barco.size.y - 18.0
 	var lejos: bool = absf(cam_center - ship_px.y) > BARCO_LEJOS
-	if lejos == _barco_visible:
+	# EN EL MAPA, MAS `y` ES MAS ABAJO (el escenario 1 es el de mas y, ver
+	# CampaignData.MAP_POS): con el barco en una `y` MENOR que la camara, el
+	# barco queda por ARRIBA y el bocadillo se va al canto de arriba con el
+	# rabo vuelto (pedido por el usuario).
+	var arriba: bool = ship_px.y < cam_center
+	if lejos == _barco_visible and (not lejos or arriba == _barco_arriba):
 		return
 	_barco_visible = lejos
+	_barco_arriba = arriba
 	if _barco_tween != null and _barco_tween.is_valid():
 		_barco_tween.kill()
-	if lejos:
-		boton_barco.position = Vector2((lienzo.x - boton_barco.size.x) * 0.5, y0)
-		boton_barco.visible = true
-		var ent := create_tween()
-		ent.tween_property(boton_barco, "modulate:a", 1.0, 0.22)
-		_barco_tween = create_tween().set_loops()
-		_barco_tween.tween_property(boton_barco, "position:y", y0 - 12.0, 0.7) \
-			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		_barco_tween.tween_property(boton_barco, "position:y", y0, 0.7) \
-			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	else:
+	if not lejos:
 		var sal := create_tween()
 		sal.tween_property(boton_barco, "modulate:a", 0.0, 0.18)
 		sal.tween_callback(func() -> void: boton_barco.visible = false)
+		return
+	var y0 := _orientar_boton_barco(arriba)
+	if not boton_barco.visible:
+		boton_barco.visible = true
+		create_tween().tween_property(boton_barco, "modulate:a", 1.0, 0.22)
+	# El vaiven va SIEMPRE hacia el centro de la pantalla, o sea al reves
+	# segun el canto en el que este pegado.
+	var d := 12.0 if arriba else -12.0
+	_barco_tween = create_tween().set_loops()
+	_barco_tween.tween_property(boton_barco, "position:y", y0 + d, 0.7) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_barco_tween.tween_property(boton_barco, "position:y", y0, 0.7) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+## Pega el bocadillo al canto que toca y le da la vuelta al rabo. Devuelve la
+## `y` de reposo (la del vaiven). El GLOBO se voltea con `flip_v` y el BARCO
+## no: el dibujo del barco tiene que seguir derecho, asi que lo unico que
+## cambia es a que mitad del bocadillo se ancla (la del circulo).
+func _orientar_boton_barco(arriba: bool) -> float:
+	var lienzo := GameState.canvas_size()
+	var alto: float = boton_barco.size.y
+	var y0: float = (GameState.safe_top() + TOP_BAR_H + 10.0) if arriba \
+		else (lienzo.y - SUBMENU_H - alto - 18.0)
+	boton_barco.position = Vector2((lienzo.x - boton_barco.size.x) * 0.5, y0)
+	var globo: TextureRect = boton_barco.get_node("Globo")
+	globo.flip_v = arriba
+	var ic: TextureRect = boton_barco.get_node("Barco")
+	ic.set_anchors_preset(Control.PRESET_BOTTOM_WIDE if arriba
+		else Control.PRESET_TOP_WIDE)
+	ic.offset_left = BARCO_BTN * 0.19
+	ic.offset_right = -BARCO_BTN * 0.19
+	if arriba:
+		ic.offset_top = -BARCO_BTN * 0.81
+		ic.offset_bottom = -BARCO_BTN * 0.19
+	else:
+		ic.offset_top = BARCO_BTN * 0.19
+		ic.offset_bottom = BARCO_BTN * 0.81
+	return y0
 
 
 ## Overlay 2D de un nodo: botón táctil transparente, estrellas conseguidas y

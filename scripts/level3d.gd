@@ -459,7 +459,10 @@ var time_gap: Control = null
 @onready var phase_label: Label = $HUD/PhaseLabel
 @onready var prep_board: Control = $HUD/PrepBoard
 @onready var powerup_panel: Panel = $HUD/PowerupPanel
-@onready var powerup_options: VBoxContainer = $HUD/PowerupPanel/VBox/Options
+## OJO: es un `BoxContainer` PELADO y no un VBox, porque el cartel cambia de
+## orientacion (`_montar_cartel_potenciadores`): VBoxContainer y HBoxContainer
+## llevan la suya CLAVADA (`is_fixed`) y `vertical = ...` falla en ellos.
+@onready var powerup_options: BoxContainer = $HUD/PowerupPanel/VBox/Options
 @onready var results_panel: Panel = $HUD/ResultsPanel
 @onready var stars_label: Label = $HUD/ResultsPanel/VBox/StarsLabel
 var stars_row: HBoxContainer = null
@@ -2868,19 +2871,32 @@ func _skin_panels() -> void:
 	_setup_phase_sign()
 	_restyle_results_panel()
 	if ResourceLoader.exists(PrepBoard.PANEL_TEX):
-		for p in [powerup_panel, results_panel]:
-			p.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-			p.add_child(prep_board.make_nine_patch(
-				PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
+		results_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+		results_panel.add_child(prep_board.make_nine_patch(
+			PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
+	# EL CARTEL DE POTENCIADORES TIENE ARTE PROPIO (pedido por el usuario): la
+	# caja de madera oscura con oro del bote de propinas, ni el pergamino del
+	# resto de ventanas ni el tablón de los botones. Ver `POT_PANEL_TEX`.
+	powerup_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	powerup_panel.add_child(prep_board.make_nine_patch(
+		POT_PANEL_TEX, POT_PANEL_MARGIN))
 	# El rótulo es un TITULAR grande DENTRO del cartel, no una cinta: el panel
 	# ya lleva cuerdas en las cuatro esquinas y una tela encima lo cargaba.
 	$HUD/ResultsPanel/VBox/TitleLabel.visible = false
 	var dark := Color(0.26, 0.16, 0.08)
 	# `earn_label` NO va aquí: `_restyle_results_panel` ya le pone su crema
 	# claro y este bucle, que corre después, se lo pisaba y lo dejaba marrón.
-	for l in [$HUD/ResultsPanel/VBox/TitleLabel, score_label,
-			$HUD/PowerupPanel/VBox/Title]:
+	for l in [$HUD/ResultsPanel/VBox/TitleLabel, score_label]:
 		l.add_theme_color_override("font_color", dark)
+	# El título del cartel de potenciadores va sobre MADERA OSCURA, así que
+	# es crema con reborde, no la tinta parda del resto de ventanas.
+	var pot_title: Label = $HUD/PowerupPanel/VBox/Title
+	pot_title.add_theme_color_override("font_color", Color(1, 0.93, 0.78))
+	pot_title.add_theme_color_override("font_outline_color", Color(0.20, 0.11, 0.03))
+	pot_title.add_theme_constant_override("outline_size", 8)
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		pot_title.add_theme_font_override("font", negrita)
 	stars_label.add_theme_color_override("font_color", Color(0.78, 0.55, 0.08))
 	stars_label.visible = false
 	stars_row = HBoxContainer.new()
@@ -4344,6 +4360,7 @@ func _open_upgrade_choice() -> void:
 		return
 	for i in mini(3, pool.size()):
 		powerup_options.add_child(_make_upgrade_card(pool[i]))
+	_montar_cartel_potenciadores(true)
 	powerup_panel.visible = true
 	Audio.sfx("potenciador")
 	get_tree().paused = true
@@ -4615,6 +4632,12 @@ func postpone_powerup_choice() -> void:
 ## Alto de cada tarjeta y tamaño del dibujo que la encabeza.
 const POWERUP_CARD_H := 148.0
 const POWERUP_ICON := 104.0
+## Arte EXCLUSIVO del cartel de potenciadores (`tools/ui2_prep.build_potenciadores`):
+## la caja de madera oscura con oro del bote y las cartas de pergamino.
+const POT_PANEL_TEX := "res://assets/ui/pot_panel.png"
+const POT_PANEL_MARGIN := 44
+const POT_CARTA_TEX := "res://assets/ui/pot_carta.png"
+const POT_CARTA_MARGIN := 30
 
 
 ## Tres tarjetas: DIBUJO + TÍTULO, y nada más. Antes cada opción era un párrafo
@@ -4635,6 +4658,7 @@ func _open_powerup_choice() -> void:
 	ids.shuffle()
 	for i in mini(3, ids.size()):
 		powerup_options.add_child(_make_powerup_card(str(ids[i])))
+	_montar_cartel_potenciadores(false)
 	powerup_panel.visible = true
 	Audio.sfx("potenciador")
 	get_tree().paused = true
@@ -4672,56 +4696,99 @@ func _armar_powerups() -> void:
 const POWERUP_ARM := 0.55
 
 
+## UNA TARJETA DE POTENCIADOR, EN VERTICAL (rediseño pedido por el usuario):
+## NOMBRE arriba, DIBUJO en medio y DESCRIPCIÓN debajo, en ese orden. Las tres
+## van una junto a otra, así que se comparan de un vistazo: antes eran filas
+## horizontales (dibujo a la izquierda, texto a la derecha) y con el juego
+## parado se leían como tres renglones de menú.
+##
+## La carta tiene su propia textura (`POT_CARTA_TEX`, pergamino con marco de
+## oro sobre la madera del panel), no el tablón de `skin_button`: lo que se
+## elige aquí no es un botón más de la interfaz.
 func _make_powerup_card(id: String) -> Button:
 	var data := PowerupData.get_powerup(id)
+	return _card_vertical(str(data.get("name", id)), str(data.get("icon", "")),
+		str(data.get("desc", "")), _on_powerup_chosen.bind(id))
+
+
+func _card_vertical(nombre: String, icono_ruta: String, desc: String,
+		al_pulsar: Callable) -> Button:
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(0, POWERUP_CARD_H)
-	prep_board.skin_button(b)
-	b.pressed.connect(_on_powerup_chosen.bind(id))
-	var margen := (POWERUP_CARD_H - POWERUP_ICON) * 0.5
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	b.add_child(PrepBoard.make_nine_patch(POT_CARTA_TEX, POT_CARTA_MARGIN))
+	PrepBoard.add_press_feedback(b)
+	b.pressed.connect(al_pulsar)
+
+	var col := VBoxContainer.new()
+	col.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	col.offset_left = 14.0
+	col.offset_right = -14.0
+	col.offset_top = 14.0
+	col.offset_bottom = -14.0
+	col.add_theme_constant_override("separation", 6)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(col)
+
+	var titulo := Label.new()
+	titulo.text = nombre
+	titulo.add_theme_font_size_override("font_size", 22)
+	titulo.add_theme_color_override("font_color", Color(0.30, 0.18, 0.06))
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		titulo.add_theme_font_override("font", negrita)
+	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	titulo.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	titulo.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	titulo.custom_minimum_size = Vector2(0, 62)
+	titulo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(titulo)
+
 	var icono := TextureRect.new()
 	# EXPAND_IGNORE_SIZE antes de asignar la textura, o el mínimo salta al
 	# tamaño nativo del dibujo y deforma la tarjeta.
 	icono.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icono.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	var ruta: String = str(data.get("icon", ""))
-	if ResourceLoader.exists(ruta):
-		icono.texture = load(ruta)
-	icono.position = Vector2(margen, margen)
-	icono.size = Vector2(POWERUP_ICON, POWERUP_ICON)
+	if ResourceLoader.exists(icono_ruta):
+		icono.texture = load(icono_ruta)
+	icono.custom_minimum_size = Vector2(0, POWERUP_ICON)
+	icono.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	icono.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.add_child(icono)
-	# NOMBRE ARRIBA Y UNA LÍNEA DE QUÉ HACE DEBAJO. La tarjeta llegó a ser solo
-	# dibujo + título para que no hubiera nada que leer con el juego parado,
-	# pero se pasó de frenada: con tres nombres sueltos se elegía A CIEGAS. La
-	# descripción va en cuerpo pequeño y a media tinta, así que se lee de un
-	# vistazo o se ignora, pero está.
-	var texto := VBoxContainer.new()
-	texto.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	texto.offset_left = margen * 2.0 + POWERUP_ICON
-	texto.offset_right = -margen
-	texto.offset_top = margen * 0.5
-	texto.offset_bottom = -margen * 0.5
-	texto.alignment = BoxContainer.ALIGNMENT_CENTER
-	texto.add_theme_constant_override("separation", 2)
-	texto.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.add_child(texto)
-	var titulo := Label.new()
-	titulo.text = str(data.get("name", id))
-	titulo.add_theme_font_size_override("font_size", 27)
-	titulo.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	titulo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	texto.add_child(titulo)
-	var desc := str(data.get("desc", ""))
-	if desc != "":
-		var l := Label.new()
-		l.text = desc
-		l.add_theme_font_size_override("font_size", 17)
-		l.add_theme_color_override("font_color", Color(1, 0.94, 0.82, 0.78))
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		texto.add_child(l)
+	col.add_child(icono)
+
+	var l := Label.new()
+	l.text = desc
+	l.add_theme_font_size_override("font_size", 17)
+	l.add_theme_color_override("font_color", Color(0.42, 0.28, 0.14))
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(0, 74)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(l)
 	return b
+
+
+## COLOCA EL CARTEL según lo que lleve dentro. Los POTENCIADORES van en tres
+## cartas VERTICALES, una al lado de otra (panel ancho y bajo); las MEJORAS
+## del arcade siguen en filas horizontales —sus rótulos son frases enteras y
+## en una carta estrecha no se leerían— y piden el panel alto de siempre.
+func _montar_cartel_potenciadores(filas: bool) -> void:
+	powerup_options.vertical = filas
+	# El rótulo dice lo que se está eligiendo: el cartel es el mismo, pero el
+	# bote de propinas y la mejora de oleada del arcade no son lo mismo.
+	var t: Label = $HUD/PowerupPanel/VBox/Title
+	t.text = "¡Mejora de oleada! Elige una" if filas 		else "¡Bote lleno! Elige un potenciador"
+	powerup_options.add_theme_constant_override("separation", 18 if filas else 12)
+	var vb: Control = $HUD/PowerupPanel/VBox
+	vb.offset_left = 66.0 if filas else 30.0
+	vb.offset_right = -66.0 if filas else -30.0
+	var alto := 700.0 if filas else 508.0
+	var medio: float = GameState.canvas_size().y * 0.5
+	powerup_panel.offset_top = medio - alto * 0.5
+	powerup_panel.offset_bottom = medio + alto * 0.5
 
 
 ## Entrada del cartel de potenciador: aparece de golpe desde pequeño con

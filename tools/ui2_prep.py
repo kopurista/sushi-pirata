@@ -967,8 +967,70 @@ def build_ic_barco() -> None:
     save(img, "ic_barco")
 
 
+def build_potenciadores() -> None:
+    """EL CARTEL DE POTENCIADORES: su panel y sus cartas, EXCLUSIVOS suyos.
+
+    El momento del bote de propinas tiene arte propio (pedido por el usuario):
+    ni el pergamino de `panel.png` ni el tablon de `boton_madera.png`, que son
+    el fondo de media interfaz. Aqui manda la MADERA OSCURA con oro — la
+    caja del bote — y encima tres CARTAS de pergamino claro, que es lo que
+    hace que se lean como algo que se elige y no como tres botones mas.
+
+    Van DIBUJADAS y no generadas, como las chapas del multiplicador y la
+    barra: son formas geometricas con marco, y a mano salen limpias y con el
+    9-slice cayendo donde tiene que caer.
+
+    · `pot_panel.png`  — 9-slice, margen POT_PANEL_MARGIN (44). Madera
+      oscura, doble filete de oro por dentro y remaches en las esquinas.
+    · `pot_carta.png`  — 9-slice, margen POT_CARTA_MARGIN (30). Cara de
+      pergamino con marco de madera y filete dorado; VERTICAL, para que
+      dentro quepan nombre / dibujo / descripcion en ese orden.
+    """
+    S = 8
+    # --- el panel ---
+    W = H = 260
+    img = Image.new("RGBA", (W * S, H * S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    r = 34 * S
+    d.rounded_rectangle([0, 0, W * S - 1, H * S - 1], r, fill=POT_MADERA_BORDE)
+    d.rounded_rectangle([6 * S, 6 * S, (W - 6) * S, (H - 6) * S], r - 5 * S,
+                        fill=POT_MADERA)
+    # Doble filete de oro: el acento del set, hacia dentro.
+    d.rounded_rectangle([15 * S, 15 * S, (W - 15) * S, (H - 15) * S],
+                        r - 13 * S, outline=BADGE_ORO, width=3 * S)
+    d.rounded_rectangle([21 * S, 21 * S, (W - 21) * S, (H - 21) * S],
+                        r - 18 * S, outline=POT_ORO_OSCURO, width=1 * S)
+    # Remaches en las cuatro esquinas, DENTRO del margen 9-slice (44) para que
+    # no los estire la banda central.
+    for cx, cy in [(30, 30), (W - 30, 30), (30, H - 30), (W - 30, H - 30)]:
+        d.ellipse([(cx - 6) * S, (cy - 6) * S, (cx + 6) * S, (cy + 6) * S],
+                  fill=BADGE_ORO, outline=POT_MADERA_BORDE, width=2 * S)
+        d.ellipse([(cx - 2) * S, (cy - 3) * S, (cx + 2) * S, (cy + 1) * S],
+                  fill=BADGE_BRILLO)
+    save(img.resize((W, H), Image.LANCZOS), "pot_panel")
+
+    # --- la carta ---
+    W, H = 180, 260
+    img = Image.new("RGBA", (W * S, H * S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    r = 22 * S
+    d.rounded_rectangle([0, 0, W * S - 1, H * S - 1], r, fill=POT_MADERA_BORDE)
+    d.rounded_rectangle([5 * S, 5 * S, (W - 5) * S, (H - 5) * S], r - 4 * S,
+                        fill=BADGE_ORO)
+    d.rounded_rectangle([9 * S, 9 * S, (W - 9) * S, (H - 9) * S], r - 7 * S,
+                        fill=CREMA)
+    # Sombra interior arriba: le da hueco a la cara de la carta.
+    d.rounded_rectangle([9 * S, 9 * S, (W - 9) * S, (H - 9) * S], r - 7 * S,
+                        outline=POT_SOMBRA, width=2 * S)
+    save(img.resize((W, H), Image.LANCZOS), "pot_carta")
+
+
 # Paleta del set (madera oscura de contorno, oro de acento, crema).
 CREMA = (246, 231, 198, 255)
+POT_MADERA = (92, 58, 28, 255)
+POT_MADERA_BORDE = (52, 31, 13, 255)
+POT_ORO_OSCURO = (150, 104, 26, 255)
+POT_SOMBRA = (206, 184, 146, 255)
 BADGE_BORDE = (74, 46, 20, 255)
 BADGE_ORO = (242, 193, 78, 255)
 BADGE_BRILLO = (255, 226, 145, 255)

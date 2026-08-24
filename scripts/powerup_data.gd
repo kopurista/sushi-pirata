@@ -38,85 +38,85 @@ class_name PowerupData
 const POWERUPS: Dictionary = {
 	"cinta_rapida": {
 		"name": "Cinta rápida",
-		"desc": "La cinta vuela durante 20 s.",
+		"desc": "La cinta vuela 20 s",
 		"icon": "res://assets/ui/pot_cinta.png",
 	},
 	"aroma": {
 		"name": "Aroma irresistible",
-		"desc": "Ya casi nadie deja pasar su plato favorito.",
+		"desc": "Casi nadie deja pasar su favorito",
 		"icon": "res://assets/ui/pot_aroma.png",
 	},
 	"receta_instantanea": {
 		"name": "Recetas instantáneas",
-		"desc": "Las 3 siguientes recetas se hacen solas.",
+		"desc": "Las 3 siguientes, al instante",
 		"icon": "res://assets/ui/pot_instantanea.png",
 	},
 	"clientes_pacientes": {
 		"name": "Clientes pacientes",
-		"desc": "+20% de paciencia para todos, y para los que vengan.",
+		"desc": "+20% de paciencia, también a los que vengan",
 		"icon": "res://assets/ui/pot_paciencia.png",
 	},
 	"menos_cooldown": {
 		"name": "Cocina sin esperas",
-		"desc": "Los enfriamientos casi desaparecen durante 25 s.",
+		"desc": "Sin enfriamientos 25 s",
 		"icon": "res://assets/ui/pot_sin_esperas.png",
 	},
 	"mas_propinas": {
 		"name": "Lluvia de propinas",
-		"desc": "Propinas más probables y más gordas durante 30 s.",
+		"desc": "Más propinas y más gordas 30 s",
 		"icon": "res://assets/ui/pot_propinas.png",
 	},
 	"clientes_extra": {
 		"name": "Más clientela",
-		"desc": "Se sientan 3 clientes de más.",
+		"desc": "Se sientan 3 clientes más",
 		"icon": "res://assets/ui/pot_clientela.png",
 	},
 	"tiempo_extra_prep": {
 		"name": "Tiempo muerto",
-		"desc": "Todo se detiene 10 s para que cocines tranquilo.",
+		"desc": "Todo parado 10 s",
 		"icon": "res://assets/ui/pot_tiempo_muerto.png",
 	},
 	"mas_almacen": {
 		"name": "Más almacén",
-		"desc": "Una caja más, y cada una guarda 5 platos.",
+		"desc": "Una caja más y pilas de 5",
 		"icon": "res://assets/ui/pot_almacen.png",
 	},
 	"doble_plato": {
 		"name": "Doble plato",
-		"desc": "La siguiente receta saca 2 platos de golpe.",
+		"desc": "La siguiente receta saca 2 platos",
 		"icon": "res://assets/ui/pot_doble.png",
 	},
 	# Solo se sortea en los ABORDAJES: son los únicos niveles con reloj (ver
 	# level3d._open_powerup_choice, que lo saca de la lista donde no hay tiempo).
 	"horas_extra": {
 		"name": "Horas extra",
-		"desc": "Un minuto más de turno.",
+		"desc": "+1 minuto de turno",
 		"icon": "res://assets/ui/pot_reloj.png",
 	},
 	# --- Potenciadores de HASTÍO Y VARIEDAD (ver client3d) ---
 	"variedad_extra": {
 		"name": "Variedad para todos",
-		"desc": "+1 de variedad a todos los clientes sentados.",
+		"desc": "+1 de variedad a los sentados",
 		"icon": "res://assets/ui/pot_variedad.png",
 	},
 	"sobremesa": {
 		"name": "Sobremesa dulce",
-		"desc": "El próximo postre cobra el doble.",
+		"desc": "El próximo postre paga el doble",
 		"icon": "res://assets/ui/pot_sobremesa.png",
 	},
 	"todo_picoteo": {
 		"name": "Manos libres",
-		"desc": "Durante 30 s cogen un plato de más sin soltar el que comen.",
+		"desc": "30 s picando sin soltar el plato",
 		"icon": "res://assets/ui/pot_picoteo.png",
 	},
 	"sin_basura": {
 		"name": "Nada se tira",
-		"desc": "Durante 1 min ningún plato cae al cubo: dan otra vuelta.",
+		"desc": "1 min sin cubo: dan otra vuelta",
 		"icon": "res://assets/ui/pot_sin_basura.png",
 	},
 	"doble_variedad": {
 		"name": "Doble variedad",
-		"desc": "Durante 15 s todos los multiplicadores valen el doble.",
+		"desc": "15 s con el multiplicador al doble",
 		"icon": "res://assets/ui/pot_doble_mult.png",
 	},
 }

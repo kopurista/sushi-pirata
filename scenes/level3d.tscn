@@ -294,9 +294,10 @@ theme_override_font_sizes/font_size = 30
 text = "¡Bote lleno! Elige un potenciador"
 horizontal_alignment = 1
 
-[node name="Options" type="VBoxContainer" parent="HUD/PowerupPanel/VBox"]
+[node name="Options" type="BoxContainer" parent="HUD/PowerupPanel/VBox"]
 layout_mode = 2
 size_flags_vertical = 3
+vertical = true
 theme_override_constants/separation = 18
 
 [node name="ResultsPanel" type="Panel" parent="HUD"]

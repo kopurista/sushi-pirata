@@ -649,7 +649,27 @@ transformando), con más precio y mejor dado en TODOS los tipos
 variedad y el hastío (id propio), y el cooldown sigue siendo el de la base
 (vía `ready_base`, el mismo camino que el aburi). La primera es el **maki de
 aguacate supremo** (mayonesa japonesa + cebolla frita, $5), premio de 3★ de
-m2_01; el resto de recetas y mejoras las encargará el usuario aparte.
+m2_01. **HOY SON 13 CORONAS** (tanda del 24-8-2026, pedida por el usuario:
+"no más recetas sueltas — mejoras que suben el precio y ganan mecánicas"):
+además del maki, nigiri de salmón→con ikura, nigiri de pulpo→con nori, bol
+de arroz→con nori, **onigiri→YAKI ONIGIRI** (el yaki dejó de ser receta con
+plancha: se corona con soja y sale tostado — sus `YAKI_WINDOWS` se borraron),
+maki de pepino→al sésamo (frescura), nigiri de atún→**zuke** (marinado),
+caldo dashi→**dashi ahumado** (contagio), fugu→**del valiente** (riesgo),
+nigiri de caballa→**shime saba** (+20% al siguiente dado), tempura→dorada
+(frescura), nigiri de anguila→**unagi doble** (maridaje con dashi) y sashimi
+de atún rojo→**del patrón** (talla). Reglas que salieron de la tanda:
+- **Una corona puede ser de UNO o DOS ingredientes**: los botones y la
+  transformación recorren la lista. Y en `_update_upgrade_buttons` los
+  botones visibles SE APILAN desde arriba cada vez — con 8+ ingredientes de
+  corona en el catálogo, el hueco fijo por ingrediente dejaba agujeros.
+- **La corona respeta el precio de FRITURA** (`_transformar_plato`): un plato
+  cuyo `ready_price` viene del punto clavado (la tempura dorada) recibe el
+  DELTA de precio de la mejora en vez de que la cifra de ficha le pise el
+  mérito del soplete.
+- **Las coronas de caballa, tempura, anguila y atún rojo NO tienen puerto**:
+  son premios RESERVADOS para el mar 3 (el recetario ya las insinúa en
+  silueta). Las demás caen en m2 (ver el reparto en campaign_data).
 - **La tabla** (`prep_board`): dos botones dorados por ingrediente en el
   CANTO de la mesa del lado del pulgar (derecha; izquierda con
   `player_hand == "L"`), a media altura para no pisar los extras de arriba.
@@ -673,20 +693,85 @@ m2_01; el resto de recetas y mejoras las encargará el usuario aparte.
   `GameState.unlocked_upgrades`, desbloquea la receta mejorada (así sus
   ingredientes entran al surtido de Saverio) y regala `PORT_GIFT` usos de los
   dos ingredientes de coronación.
-- **La presenta ALICE en el mapa** (`main_menu._presentar_mejora`, bandera
-  `pending_mejora_intro`): el mar nuevo aprieta y su consejo es cocinar
-  mejor — el truco se lo enseñó su maestra Miku.
+- **La presenta ALICE en el mapa** (`main_menu._presentar_mejora(base_id)`,
+  cola persistente `GameState.pending_mejoras` — la bandera vieja
+  `pending_mejora_intro` migra sola al cargar): la PRIMERA vez da la lección
+  del sistema entero (`mejora_intro_done`) y las siguientes solo cantan la
+  corona nueva, con los nombres sacados de los DATOS de la mejora — la
+  escena vale para cualquier corona sin escribir nada. OJO: `_new_game` NO
+  reseteaba `unlocked_upgrades` (borrar la partida arrastraba las coronas
+  del guardado anterior); arreglado con la cola.
 - La ficha del mapa enseña como premio el plato YA coronado
   (`_premios_de` con `RecipeData.upgrade_of`).
 - El sprite del plato mejorado salió por `editImage` sobre el CONCEPTO del
   maki (assets/models/source, que trae alfa de verdad) y se recortó al
   encuadre del sprite base; su `.glb` por la cadena de siempre.
 
+**LA TANDA DE RECETAS DEL MAR 2 (24-8-2026)**: 13 recetas visibles nuevas —
+tsukemono (gari: limpia paladar +1 mult, no alarga bocado), bol de arroz
+(picoteo EXTRA: no gasta el turno de picoteo), ensalada de wakame (+50% de
+bocado, cooldown 9), gunkan de shiitake (bocado x0,4), nigiri de caballa
+(+10% al dado del siguiente plato), nigiri de besugo flambeado (punto en
+1,5 s que escala la PROPINA vía variantes ocultas `BESUGO_WINDOWS`, el truco
+de la tempura), nigiri de pargo (paga 12 pero dado bajo en los tres tipos),
+gunkan de jurel (bocado x1,5), barbo oloroso ahumado (+3 mult al comensal,
+−3 a los vecinos), takoyaki de pulpo (COMPARTIDO: 2 clientes), gyozas
+(frescura), toro de aleta amarilla (talla + propina x1,3) y tataki de atún
+rojo (maridaje con los caldos). El edamame pasó a pagar **1 suelto / 3
+picoteado** (`snack_price`). Reparto de premios en m2_02..m2_24 (cabecera de
+campaign_data); **el "gari" fantasma de la carta de m2_20 (receta que no
+existía) es ahora edamame**.
+**LAS MECÁNICAS NUEVAS DE RECETA** (todas campos de datos; ver la cabecera de
+`recipe_data.gd` y su implementación en `client3d._scan_belt` /
+`_apply_meal_patience` / `_start_eating`):
+- `snack_price` · `extra_snack` (turno de picoteo APARTE, con su
+  `extra_snack_taken`) · `next_take_bonus` (se limpia al coger plato) ·
+  `neighbor_mult` (el olor: `level3d.aplicar_olor_vecinos`, vecino = taburete
+  a <3 u — dentro de un lado distan 1,8 y doblando esquina 2,69; el
+  siguiente ya está a 4,2) · `servings` (plato compartido:
+  `plate3d.consume_serving()` — el que lo coge lo apunta en su `declined` y
+  el plato se queda MENGUADO; si existe `<id>_medio.glb` se cambia a él, y
+  si no se encoge x0,72. El takoyaki tiene su `takoyaki_pulpo_medio.glb`;
+  el primero salió con las bolas ROJAS y hubo que regenerar el intermedio
+  blindando "golden-brown, NOT red" en el prompt).
+- **frescura** (x1,3 recién servido → x0,7 al final de la vuelta, sobre
+  `plate.traveled / belt_length`) y **marinado** (el camino inverso): el
+  precio viaja con la cinta, pedido por el usuario como "paga más cuanto
+  menos clientela recorra" — los 8 asientos reparten una vuelta, así que la
+  fracción de vuelta ES el ordinal del cliente.
+- **contagio** (fracción de la paciencia máxima que pierde/gana TODA la mesa
+  cuando alguien lo come; `level3d.aplicar_contagio`) — distinto del olor:
+  paciencia y mesa entera, no multiplicador y vecinos.
+- **maridaje** ({con, bono}: si el ÚLTIMO `eaten_ids` del cliente está en la
+  lista, el plato paga el bono y canta "¡Maridaje!").
+- **talla** ("<pez>": el precio escala con `GameState.fish_best` hasta +50% —
+  la pesca alimenta la carta).
+- **riesgo** (el que FALLA el dado pierde `RIESGO_DESPRECIO` (8%) de
+  paciencia; el que lo coge la rellena ENTERA).
+`RecipeData.summary()` describe las once mecánicas solo con datos, así que
+el recetario y la ventana de receta nueva no pueden mentir.
+**EL RECETARIO ENSEÑA PORCENTAJES Y CORONAS** (pedido por el usuario):
+la ficha de cada receta pone el % exacto junto a la frase de cada tipo
+("Es de sus favoritos · 95%") y una sección **"Versión mejorada"**
+(`inventory_screen._build_upgrade_block`): ganada, con dibujo, coronación,
+precio y sus preferencias; sin ganar, la silueta y una frase.
+**ASSETS de la tanda**: sprites por el pipeline de siempre (createImage Low
+Poly → inundación+recorte); las CORONAS por `editImage` sobre el sprite base
+APLASTADO A BLANCO y subido a la rama tmp-rig (raw.githubusercontent, la vía
+de rigModel — ojo: el repo es `kopurista/sushi-pirata`, no "sushi"); las
+variantes de punto del besugo son TINTES por PIL del sprite base. Los 15
+`.glb` nuevos por la cadena completa (10.000 caras, glb_prepare, presupuesto
+2500 — **el nigiri_besugo a 9000**: a 2500 el simplificador lo dejó en 32
+triángulos, la trampa del sunomono). Las mejoradas de nigiri/bol REUTILIZAN
+la malla base con `"model"` a propósito: a tamaño de cinta la corona no se
+ve, y generar 13 mallas más no pagaba su peso.
+
 **RECOMPENSAS DEL MAR 2 (regla pedida por el usuario)**: los premios de los
 escenarios son RECETAS y MEJORAS — los sacos de arroz NO se dan como
 recompensa (salvo excepciones) y los lingotes solo en niveles importantes o
 especiales (hoy: Miku m2_14, Nach m2_18 y la jefa m2_25). Los huecos de 3★
-del resto del mar quedan a la espera de las recetas nuevas.
+del mar 2 quedaron LLENOS con la tanda del 24-8-2026; las cuatro coronas
+sin puerto esperan al mar 3.
 **Y UNA ISLA CON CAPITANES EN LA MEZCLA LLEVA UN 3★ EN SU CARTA CERRADA**
 (la lección de m2_02: un capitán con carta de 1-2★ mira la cinta toda la
 jornada): ahí entran por `alt_recipes` el tsuke don o el futomaki, los dos
@@ -1247,9 +1332,16 @@ La GUÍA lleva su sección ("El canto de sirena").
   dentro (`bocadillo_barco.png` dibujado en ui2_prep + `ic_barco.png`, que es
   el primer fotograma del propio `barco_anim.webp`); al tocarlo, la cámara
   vuelve de un viaje a donde está.
-  · **VA SIEMPRE EN EL MISMO SITIO** (abajo, centrado sobre el submenú) y no
-    persiguiendo al barco: es un botón que se pulsa, y uno que cambia de sitio
-    se falla. El rabo hacia abajo lo ata al canto en vez de dejarlo flotando.
+  · **SE PEGA AL CANTO POR EL QUE QUEDA EL BARCO Y VUELVE EL RABO**
+    (`_orientar_boton_barco`): con el barco al SUR va abajo con el rabo hacia
+    abajo, y explorando el sur —con el barco al norte— salta al canto de
+    arriba con el rabo vuelto (`flip_v` del globo; el dibujo del BARCO no se
+    voltea, solo se ancla a la otra mitad del bocadillo). **En el mapa, más
+    `y` es más ABAJO** (el escenario 1 es el de más `y`, ver `MAP_POS`), así
+    que "el barco está arriba" es `ship_px.y < cam_center`.
+  · Centrado a lo ancho y pegado a un canto: es un botón que se pulsa, y uno
+    que flotara persiguiendo al barco se fallaría. El vaivén va siempre hacia
+    el centro de la pantalla, o sea al revés según el canto.
   · El vaivén va en un tween de VALORES ABSOLUTOS en bucle (nada de
     `as_relative`: la lección de la flecha del diálogo).
   · **No entra en `_map_ui_fade`**: lo encienden y lo apagan su propia
@@ -1375,6 +1467,30 @@ La GUÍA lleva su sección ("El canto de sirena").
   así que de tres opciones sorteadas lo normal era que dos fueran
   indistinguibles. La cabecera del archivo lista cuáles se cayeron y por qué:
   **leerla antes de reintroducir ninguno**.
+  **EL CARTEL VA EN TRES CARTAS VERTICALES Y TIENE ARTE PROPIO** (rediseño
+  del 24-8-2026, pedido por el usuario): cada tarjeta lleva **NOMBRE arriba,
+  DIBUJO en medio y DESCRIPCIÓN debajo** (`level3d._card_vertical`), y las
+  tres van una al lado de otra, así que se comparan de un vistazo — antes
+  eran filas horizontales (dibujo a la izquierda, texto a la derecha) y con
+  el juego parado se leían como tres renglones de menú. Las `desc` de
+  `PowerupData` se reescribieron CORTAS Y CON LA CIFRA ("La cinta vuela 20
+  s", "1 min sin cubo: dan otra vuelta"): en una carta estrecha una frase
+  larga no se lee.
+  · **Su panel y sus cartas son EXCLUSIVOS** (`pot_panel.png` y
+    `pot_carta.png`, dibujados en `ui2_prep.build_potenciadores`): la caja de
+    madera oscura con oro y remaches del bote de propinas, y encima cartas de
+    pergamino con marco dorado. Ni el pergamino de `panel.png` ni el tablón
+    de `boton_madera.png`, que son el fondo de media interfaz: lo que se
+    elige aquí no es un botón más. El TÍTULO va en crema con reborde (sobre
+    la madera oscura, la tinta parda del resto de ventanas no se leía).
+  · **EL CONTENEDOR ES UN `BoxContainer` PELADO, no un VBox**: el mismo
+    cartel sirve para las MEJORAS del arcade, que siguen en FILAS (sus
+    rótulos son frases enteras y en una carta estrecha no se leerían), así
+    que la orientación se cambia por código — y `VBoxContainer` /
+    `HBoxContainer` llevan la suya CLAVADA (`is_fixed`), así que
+    `vertical = ...` FALLA en ellos sin decir nada útil. `_montar_cartel_potenciadores`
+    cambia además el alto del panel (508 en cartas, 700 en filas) y el
+    rótulo, que decía "¡Bote lleno!" también en el arcade.
   El **cartel de elección SIGUE PAUSANDO EL JUEGO ENTERO** (cinta, reloj,
   paciencia y bocados): lo que se recortó es lo que hay que LEER, no el tiempo
   para leerlo. Cada opción es una tarjeta con **DIBUJO + TÍTULO y nada más**
