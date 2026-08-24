@@ -1359,6 +1359,12 @@ func _process(delta: float) -> void:
 			cd.visible = false
 			b.disabled = state != State.IDLE and state != State.READY
 			b.modulate = Color.WHITE if not b.disabled else Color(0.75, 0.75, 0.75)
+		# SIN REPETIR (mar 3): la que acabas de hacer se ve apagada hasta que
+		# elabores otra. Va APAGADA PERO VIVA (`disabled` no se toca) para que
+		# el toque conteste "¡Esa acabas de hacerla!" en vez de quedarse mudo,
+		# igual que los botones de mejora sin género.
+		if receta_vetada(id) and cooldowns[id] <= 0.0:
+			b.modulate = Color(0.62, 0.5, 0.42)
 		# En el tutorial solo se puede tocar la receta que el guion permite;
 		# las demás quedan apagadas hasta que David las presente.
 		if not allowed_recipes.is_empty() and not id in allowed_recipes:
@@ -1539,6 +1545,15 @@ func _current_stage_id() -> String:
 func _start_prep(id: String) -> void:
 	if state != State.IDLE or cooldowns[id] > 0.0:
 		return
+	# SIN REPETIR (hándicap de PUERTO del mar 3): la receta que acabas de
+	# elaborar queda bloqueada hasta que hagas otra. Es el hastío llevado a
+	# la COCINA — obliga a rotar la carta de verdad en vez de apoyarse en el
+	# plato favorito. Contesta con palabras, que un botón mudo se lee como roto.
+	if sin_repetir and id == ultima_receta:
+		_flash_message("¡Esa acabas de hacerla!", Color(1.0, 0.55, 0.3))
+		Audio.sfx("recurso_off")
+		return
+	ultima_receta = id
 	# Restos de la elaboración anterior que no deben contaminar esta.
 	fry_dish = ""
 	choice_dish = ""
@@ -1673,6 +1688,16 @@ var hide_storage := false
 ## y avisa por `serve_blocked` para que Gigi lo explique en vez de dejar al
 ## jugador tocando un plato que no reacciona.
 var block_serve := false
+## HÁNDICAP DE ISLA DEL MAR 3: la cinta tiene TOPE de platos. Lo refresca
+## `level3d` por fotograma; con la cinta llena, servir se rechaza y el plato
+## se queda en la tabla (el jugador decide qué sale y qué espera).
+var belt_full := false
+## HÁNDICAP DE PUERTO DEL MAR 3: no se pueden hacer DOS recetas iguales
+## seguidas — la que acabas de elaborar queda bloqueada hasta que hagas otra.
+## Es el hastío llevado a la COCINA: obliga a rotar de verdad la carta.
+var sin_repetir := false
+## La última receta elaborada, para el hándicap de arriba ("" = ninguna).
+var ultima_receta := ""
 signal serve_blocked
 ## Mientras un guion ESTÁ ENSEÑANDO un gesto, equivocarse no cuesta dinero (el
 ## corte del salmón que explica David en el nivel 5). El aviso y el destello
@@ -2632,9 +2657,17 @@ func _transformar_plato(mejora: Dictionary) -> void:
 	for ing in mejora.get("ingredients", []):
 		for i in dishes.size():
 			GameState.consume_upgrade_ingredient(str(ing))
+	# Un plato con precio de FRITURA (la tempura dorada: ready_price trae el
+	# punto clavado) conserva ese merito: la corona le suma su DELTA de
+	# precio en vez de pisarlo con la cifra de ficha.
+	var delta := int(RecipeData.get_recipe(str(mejora.get("id", ""))).get("price", 0)) \
+		- int(RecipeData.get_recipe(ready_recipe).get("price", 0))
 	ready_recipe = str(mejora.get("id", ready_recipe))
 	upgrade_added.clear()
 	var precio := int(RecipeData.get_recipe(ready_recipe).get("price", 0))
+	if ready_price > 0:
+		ready_price += delta
+		precio = ready_price
 	_flash_message("¡Mejorado! $%d" % precio, Color(1.0, 0.86, 0.35))
 	Audio.sfx("recurso_ok")
 	for d in dishes:
@@ -2672,6 +2705,10 @@ func _mejora_con_genero(mejora: Dictionary) -> bool:
 func _update_upgrade_buttons() -> void:
 	var mejora := _mejora_actual()
 	var completo := _mejora_con_genero(mejora) if not mejora.is_empty() else false
+	# Los botones se APILAN desde arriba cada vez: con varias mejoras en el
+	# catálogo, cada ingrediente tiene el suyo y quedarse en su hueco fijo
+	# dejaría agujeros (una mejora de nori solo ensenaria el tercer boton).
+	var vis := 0
 	for id in upgrade_buttons:
 		var b: Button = upgrade_buttons[id]
 		var aplica: bool = not mejora.is_empty() \
@@ -2679,6 +2716,8 @@ func _update_upgrade_buttons() -> void:
 		b.visible = aplica and not tutorial_mode
 		if not aplica:
 			continue
+		b.position.y = 92.0 + vis * 76.0
+		vis += 1
 		var puesto: bool = upgrade_added.get(id, false)
 		b.disabled = false
 		b.get_node("Check").visible = puesto
@@ -3137,6 +3176,15 @@ func _serve_dish(d: Control) -> void:
 	# se entera para poder explicar por qué.
 	if block_serve:
 		serve_blocked.emit()
+		d.position = _dish_rest_position(dishes.find(d))
+		return
+	# CINTA LLENA (hándicap de ISLA del mar 3): con el tope alcanzado el
+	# plato NO se pierde — se queda esperando en la tabla, y es el jugador
+	# quien decide qué sale primero. El aviso es lo que lo separa de un
+	# botón roto.
+	if belt_full:
+		_flash_message("¡Cinta llena!", Color(1.0, 0.55, 0.3))
+		Audio.sfx("recurso_off")
 		d.position = _dish_rest_position(dishes.find(d))
 		return
 	dishes.erase(d)
@@ -3974,7 +4022,7 @@ func _apply_cooldown(recipe_id: String) -> void:
 	# y la maestría "Fuego constante". La mejora de partida del arcade rebaja
 	# además los platos de 1★.
 	var data := RecipeData.get_recipe(recipe_id)
-	var cd: float = data.cooldown * cooldown_mult \
+	var cd: float = RecipeData.cooldown_of(recipe_id) * cooldown_mult \
 			* cooldown_perm_mult * skill_cd_mult
 	if int(data.get("level", 1)) == 1:
 		cd *= cooldown_l1_mult
@@ -3982,6 +4030,13 @@ func _apply_cooldown(recipe_id: String) -> void:
 	if rush:
 		cd *= RUSH_COOLDOWN_MULT
 	cooldowns[recipe_id] = cd
+
+
+## ¿Esta receta está vetada AHORA MISMO por el hándicap de "sin repetir"?
+## Lo miran el arranque y el pintado del botón, para que lo que se ve y lo
+## que se puede pulsar no puedan discrepar.
+func receta_vetada(id: String) -> bool:
+	return sin_repetir and id == ultima_receta
 
 
 func _update_ui() -> void:

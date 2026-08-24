@@ -533,6 +533,54 @@ crecieron con ellos. La cueva del Kappa se acercó al 19 (`MAP_POS` de `nivel_15
 la medida del mar 1 el norte del mapa era azul liso sin oleaje. Y la cámara ya
 no baja del hueco vacío bajo el escenario 1 (`SCROLL_MAX`).
 
+**EL RITMO DEL JUEGO SE FRENÓ A PROPÓSITO** (25-8-2026, pedido por el
+usuario: "que el juego no se convierta en hacer recetas continuamente sin
+pararse a mirar qué se hace"). Tres perillas, no una:
+`RecipeData.RITMO_COOLDOWN` (**1.4**), `client3d.RITMO_PACIENCIA` (**1.5**) y
+`client3d.RITMO_BOCADO` (**1.35**). Resultado medido: cooldowns L1 2,1-12,6 s ·
+L2 6,3-8,4 · L3 9,1-12,6; paciencia **45-60 s** (era 30-40); bocado del grumete
+9,5/16,2/24,3 s (era 7/12/18).
+- **NO VAN UNIFORMES, Y ESA ES LA CLAVE**: el tiempo de GESTOS del jugador es
+  fijo (son sus manos), así que escalarlo todo por el mismo factor dejaría el
+  juego idéntico y solo más largo. Creciendo más lo del CLIENTE (×1.5) que lo
+  de la COCINA (×1.4) es como el jugador gana holgura de verdad para leer la
+  barra antes de decidir.
+- **NI EL RELOJ DEL ABORDAJE NI LOS `star_money` HUBO QUE RECALIBRARLOS**, y
+  la razón es de fondo: con CUATRO recetas en la carta el jugador ROTA, así
+  que mientras el cooldown esté por debajo de ~4× el tiempo de gestos NO
+  recorta la producción. Lo que recorta es la posibilidad de SPAMEAR una sola
+  receta — que es exactamente lo que se buscaba.
+- El cooldown va por `RecipeData.cooldown_of(id)`, nunca leyendo el campo a
+  pelo: lo usan la tabla, la ficha del recetario y el selector, y si alguno
+  lo leyera crudo la ficha mentiría. El JEFE escala con `RITMO_PACIENCIA`
+  también (si su barra no creciera con la de todos, su duelo se volvería el
+  doble de duro al frenar el juego) y los `CHAOS_EXITS` del tutorial se
+  ajustan solos, porque `_drenaje_para` calcula el drenaje del `patience_max`
+  REAL.
+
+**LOS HÁNDICAPS DEL MAR 3 SE SUMAN A LOS DEL 2** (decidido por el usuario;
+cada mar aprieta por su lado y el TIPO sigue mandando cuál te toca). Gateados
+por `CampaignData.sea_of(id) >= 3` en el mismo bloque que los del mar 2:
+- **ISLA → TOPE DE PLATOS EN LA CINTA** (`level3d.cinta_max`, `CINTA_MAX_ISLA`
+  **6**). level3d empuja `prep_board.belt_full` por fotograma contando el grupo
+  "plates", y con la cinta llena `_serve_dish` RECHAZA el servicio: el plato NO
+  se pierde, se queda esperando en la tabla y canta "¡Cinta llena!". Son SEIS y
+  no ocho a propósito — con uno por asiento el tope no se alcanzaría nunca y el
+  hándicap no existiría.
+- **PUERTO → NO SE PUEDEN HACER DOS RECETAS IGUALES SEGUIDAS**
+  (`prep_board.sin_repetir` + `ultima_receta`): la que acabas de elaborar queda
+  bloqueada hasta que hagas otra. Es el hastío llevado a la COCINA. El botón se
+  ve apagado pero VIVO (`disabled` sin tocar), para que el toque conteste "¡Esa
+  acabas de hacerla!" en vez de quedarse mudo — la misma regla que los botones
+  de mejora sin género.
+- **ABORDAJE → LA CINTA VA AL DOBLE** (`belt_base` 2.0): el plato pasa por
+  delante de cada boca la mitad de tiempo, así que fallar el sitio se paga.
+- **PENDIENTE cuando existan los escenarios del mar 3**: `level_director.
+  _explicar_handicap` solo cubre los del mar 2 y sus banderas
+  (`isla_handicap_done` y compañía) ya estarán gastadas, así que hará falta
+  una rama nueva por tipo o el jugador se encuentra la regla sin que nadie se
+  la haya contado.
+
 **LOS CASTIGOS POR VACÍO SON DEL MAR 2 EN ADELANTE, no del tipo a secas**
 (rediseño pedido por el usuario): en el mar 1 NO hay ninguno — ni el oro de la
 isla, ni las calaveras del puerto, ni los −15 s del abordaje (level3d los
@@ -678,6 +726,25 @@ de atún rojo→**del patrón** (talla). Reglas que salieron de la tanda:
   `_transformar_plato`: cambia `ready_recipe`, el sprite del plato (bote de
   celebración), cobra 1 uso de cada ingrediente POR PLATO en la tabla (el
   "plato doble" corona los dos) y canta "¡Mejorado! $N".
+- **LOS INGREDIENTES DE CORONACIÓN VALEN 2-3 DOBLONES, Y NO ES UN CAPRICHO**
+  (medido el 25-8-2026): se gastan **por PLATO**, no por jornada como el resto
+  de la despensa, así que con los precios de un ingrediente normal (10 el
+  extra, 23 las huevas) **once de las trece coronas PERDÍAN dinero** — el maki
+  supremo costaba 22 coronar para subir 2 el precio. Reglas que salieron de
+  ahí: **(a)** un ingrediente de coronación nuevo entra en el escalón de 2;
+  **(b)** ninguna corona usa un ingrediente COMPARTIDO y caro — tienen gemelo
+  barato propio (`soja_cocina` frente al extra `soja`, `nori_tira` frente al
+  alga de los makis, `huevas_capelan` frente a las huevas de 23,
+  `vinagre_arroz` y `sal_yuzu` frente al jengibre y el wasabi); **(c)** el
+  salto de precio es **+4 o +5**, así que toda corona queda en neto ≥ 0 y
+  encima trae el "cuenta como plato nuevo" y su mecánica. Hay sonda que
+  imprime la tabla de netos: al tocar una corona, volver a pasarla.
+- **Y LA CORONA YA NO PREMIA CON "MEJOR DADO"** (pedido por el usuario): lo
+  llevaban las TRECE, con lo que ninguna se distinguía y además es un premio
+  invisible (nadie ve una probabilidad). Ahora cada corona sube el precio y
+  estrena UNA mecánica; el dado solo lo tocan las dos cuyo papel ES el dado —
+  la FAMA del nigiri de salmón y la universalidad del yaki onigiri (90/80/80,
+  el único plato que los tres tipos cogen casi igual).
 - **EL CONSUMO ES POR ELABORACIÓN, no por jornada** (regla del usuario): los
   ingredientes de coronación se cobran en CADA transformación. Un ingrediente
   que además viva en recetas normales (las huevas de salmón del gunkan) sigue
@@ -706,6 +773,15 @@ de atún rojo→**del patrón** (talla). Reglas que salieron de la tanda:
 - El sprite del plato mejorado salió por `editImage` sobre el CONCEPTO del
   maki (assets/models/source, que trae alfa de verdad) y se recortó al
   encuadre del sprite base; su `.glb` por la cadena de siempre.
+
+**EL REPARTO DE ESTRENOS: UNA MECÁNICA POR MAR** (decidido por el usuario):
+el mar 2 estrena las **CORONAS** y el **picoteo extra**, y el **plato
+COMPARTIDO** (`servings`, el takoyaki) se guarda para el **MAR 3** — tres
+mecánicas nuevas en el mismo mar no se aprenden. Por eso el takoyaki NO tiene
+puerto que lo regale todavía (su hueco de m2_10 lo ocupa la corona de la
+caballa), igual que las cuatro coronas reservadas. La regla general: en el mar
+que ESTRENA una mecánica la llevan 1-2 platos; en los siguientes, hasta un
+tercio de la carta.
 
 **LA TANDA DE RECETAS DEL MAR 2 (24-8-2026)**: 13 recetas visibles nuevas —
 tsukemono (gari: limpia paladar +1 mult, no alarga bocado), bol de arroz
@@ -748,6 +824,20 @@ existía) es ahora edamame**.
   la pesca alimenta la carta).
 - **riesgo** (el que FALLA el dado pierde `RIESGO_DESPRECIO` (8%) de
   paciencia; el que lo coge la rellena ENTERA).
+- **fama / fama_max** (idea del usuario, 25-8-2026): **LA REPUTACIÓN DEL
+  PLATO**. Cada plato de esa receta SERVIDO en la jornada sube su propio dado
+  un `fama` (0,5%), con tope `fama_max`. Es la respuesta al "mejor dado" plano:
+  aquí el dado **mejora mientras juegas** (a los 20 platos, el nigiri de salmón
+  lo coge el 100% de los grumetes). Va por RECETA y por JORNADA
+  (`level3d.platos_receta`, que cuenta en `_on_dish_served`), **no por
+  cliente** — y ahí está su gracia: **la fama premia servir mucho del mismo
+  plato y el hastío castiga repetírselo al mismo comensal**, así que la jugada
+  buena es repartirlo entre bocas. Hoy la llevan el nigiri de salmón (0,5% /
+  +10%) y su corona (1% / +15%).
+- **LA TALLA ESCALA HASTA EL DOBLE** (`client3d.TALLA_MAX` 1.0, no 0.5): el
+  atún de aleta amarilla y el atún rojo son ÉPICOS, o sea horquilla de álbum
+  **60-150 cm**, así que el toro va a base 10 y con el récord al máximo paga
+  **20** — el plato mejor pagado del juego, y no se compra: se pesca.
 `RecipeData.summary()` describe las once mecánicas solo con datos, así que
 el recetario y la ventana de receta nueva no pueden mentir.
 **EL RECETARIO ENSEÑA PORCENTAJES Y CORONAS** (pedido por el usuario):
@@ -765,6 +855,32 @@ variantes de punto del besugo son TINTES por PIL del sprite base. Los 15
 triángulos, la trampa del sunomono). Las mejoradas de nigiri/bol REUTILIZAN
 la malla base con `"model"` a propósito: a tamaño de cinta la corona no se
 ve, y generar 13 mallas más no pagaba su peso.
+
+**CADA RECETA TIENE UN PAPEL, Y NINGUNA SE QUEDA SIN ÉL** (pase del
+25-8-2026, pedido por el usuario: "que todas aporten y sean igual de
+interesantes"). Había **siete platos con la ficha vacía** —solo precio y
+cooldown— y cuatro coronas cuyo único premio era el dado. Los papeles que se
+repartieron, todos con mecánicas que YA existían (ninguna nueva salvo la
+fama): nigiri de salmón → **fama**; gunkan de wakame → **el barato que llena**
+(`patience_mult` 1,25, el plato de rescate); nigiri de gamba ebi → **el único
+1★ que toca el bote** (`tip_chance_bonus` 3%); nigiri de atún → **vale DOBLE
+en la racha** (`variety_worth` 2, como el barco); nigiri de tofu frito →
+**congela 3 s** (la versión barata y temprana del unagi, que era el único plato
+con esa mecánica); gunkan de ikura → **propina** (+5%, lo pide el ingrediente
+más caro de la despensa); chirashi → **el plato que resucita**
+(`patience_mult` 1,5, la recarga más alta del juego). Al añadir una receta,
+la pregunta no es qué precio tiene: es **qué papel ocupa que no ocupe otra**.
+
+**EL NIGIRI DE PARGO PAGA 20 Y ES LA APUESTA DE LA CARTA** (subido de 12 por
+el usuario): dado bajo en los tres tipos (10/55/35) y precio de 3★ en un plato
+de 2★. MEDIDO: con la barra llena de grumetes se lo lleva alguien el 57% de
+las veces (valor esperado 9,7 → 3,1 $/s) y con una mezcla normal el 96%
+(19,1 → 6,2 $/s), muy por encima del objetivo de 2,0 de su nivel. **La causa
+es estructural: un plato recibe OCHO tiradas de dado, una por asiento**, así
+que con la mesa llena casi nada se desperdicia. Si algún día hay que apretarlo,
+las dos palancas son bajarle más el dado o darle `riesgo` (que su desprecio
+cueste paciencia a la mesa) — NO bajarle el precio, que es lo que lo hace una
+apuesta.
 
 **RECOMPENSAS DEL MAR 2 (regla pedida por el usuario)**: los premios de los
 escenarios son RECETAS y MEJORAS — los sacos de arroz NO se dan como

@@ -49,7 +49,12 @@ const SECTIONS: Array = [
 	{
 		"title": "Picoteo",
 		"icon": "res://assets/dishes/edamame.webp",
-		"body": "Los platos de **picoteo** (el edamame, el té verde) se pueden coger **sin soltar** el plato que se esté comiendo.\n\nNo interrumpen el bocado: lo **alargan**. Y como la paciencia no baja mientras se come, alargar el bocado es justo lo que retiene a un cliente en la silla.\n\nPagan un doblón extra. Repetir el mismo picoteo rinde cada vez menos, así que inundar la cinta de edamame no compensa.",
+		"body": "Los platos de **picoteo** (el edamame, el té verde...) se pueden coger **sin soltar** el plato que se esté comiendo — uno por bocado.\n\nNo interrumpen el bocado: lo **alargan**. Y como la paciencia no baja mientras se come, alargar el bocado es justo lo que retiene a un cliente en la silla. Cada picoteo alarga lo suyo: la **ensalada de wakame** un 50%, el edamame un 35%, el **tsukemono** nada (lo suyo es limpiar el paladar y subir un punto de multiplicador).\n\nEl **edamame** paga 3 doblones picoteado y solo 1 comido como plato suelto: su sitio es acompañar. Y el **bol de arroz** no gasta el turno de picoteo — entra ADEMÁS del picoteo normal, en cualquier orden.\n\nRepetir el mismo picoteo rinde cada vez menos, así que inundar la cinta de edamame no compensa.",
+	},
+	{
+		"title": "Coronar platos",
+		"icon": "res://assets/dishes/maki_aguacate_mejorado.webp",
+		"body": "Algunas recetas tienen una **versión mejorada** que se gana en la aventura (el premio de 3 estrellas de ciertos escenarios).\n\nCon la corona ganada, al terminar el plato aparecen sus **ingredientes de coronación** junto a la tabla: échaselos y el plato se **transforma** — más precio, mejor dado con TODOS los clientes, y para el paladar cuenta como un plato **distinto** de su base.\n\nLos ingredientes de coronar se compran donde Saverio y se gastan **por plato coronado**. El enfriamiento sigue siendo el de la receta base.\n\nLa ficha de cada receta en el recetario enseña su versión mejorada y lo que hace.",
 	},
 	{
 		"title": "Postres",
@@ -79,7 +84,9 @@ const SECTIONS: Array = [
 	{
 		"title": "Tipos de nivel",
 		"icon": "res://assets/ui/ic_aventura.png",
-		"body": "**Islas** y **puertos** no llevan reloj: los acota la clientela. Acaban cuando se va el último cliente o cuando llegas al oro objetivo.\n\nEn las **islas** la carta la manda el diseño del nivel (no eliges recetas). En los **puertos** la carta la eliges tú. Los **abordajes** son **contra reloj** y la clientela no se acaba.\n\n**A partir del MAR 2** la clientela se vuelve exigente y el que se va **sin probar bocado** castiga según el tipo: en la isla cuesta **oro**, en el puerto enciende una de las **3 calaveras** (a la tercera se pierde la jornada) y en el abordaje **resta 15 segundos** al reloj. En el mar 1 no hay castigo: es la escuela.\n\nLas **cuevas** son las guaridas de los **jefes**: juegan como un abordaje hasta que el jefe se sienta a la barra... y entonces manda él.",
+		"body": "**Islas** y **puertos** no llevan reloj: los acota la clientela. Acaban cuando se va el último cliente o cuando llegas al oro objetivo.\n\nEn las **islas** la carta la manda el diseño del nivel (no eliges recetas). En los **puertos** la carta la eliges tú. Los **abordajes** son **contra reloj** y la clientela no se acaba.\n\n**A partir del MAR 2** la clientela se vuelve exigente y el que se va **sin probar bocado** castiga según el tipo: en la isla cuesta **oro**, en el puerto enciende una de las **3 calaveras** (a la tercera se pierde la jornada) y en el abordaje **resta 15 segundos** al reloj. En el mar 1 no hay castigo: es la escuela.\n\n**A partir del MAR 3** cada tipo aprieta además por su lado: en la **isla** la cinta tiene **tope de platos** (con la cinta llena hay que esperar para servir), en el **puerto** no puedes preparar **dos recetas iguales seguidas** (la que acabas de hacer se bloquea hasta que hagas otra) y en el **abordaje** la cinta va al **doble de rápido**.
+
+Las **cuevas** son las guaridas de los **jefes**: juegan como un abordaje hasta que el jefe se sienta a la barra... y entonces manda él.",
 	},
 	{
 		"title": "El canto de sirena",

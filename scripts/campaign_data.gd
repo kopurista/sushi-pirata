@@ -1045,7 +1045,11 @@ const PORTS: Array = [
 		"director": "mar2_despertar",
 		"goal_stars": 2,
 		"star_money": [64, 112, 178],
-		"reward_recipes_3": ["takoyaki_pulpo"],
+		# EL PLATO COMPARTIDO SE GUARDA PARA EL MAR 3 (decidido por el
+		# usuario): el mar 2 ya estrena las CORONAS y el picoteo extra, y tres
+		# mecánicas nuevas en el mismo mar no se aprenden. Aquí entra en su
+		# hueco la corona de la caballa, cuya base se gana en m2_04.
+		"reward_upgrade_3": "nigiri_caballa",
 	},
 	{
 		"id": "m2_11",
@@ -1230,6 +1234,7 @@ const PORTS: Array = [
 		"goal_stars": 2,
 		"star_money": [58, 100, 160],
 		"reward_upgrade_3": "nigiri_atun",
+		# (la corona de la caballa se mudó a m2_10 al aparcar el compartido)
 	},
 	{
 		"id": "m2_22",

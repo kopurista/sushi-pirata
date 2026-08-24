@@ -194,6 +194,16 @@ const VARIETY_MAX_PERK := 10
 const MULT_FIRST := 2
 const MULT_LAST := 20
 const MULT_BADGE := 40.0
+## EL RITMO DEL JUEGO (ver RecipeData.RITMO_COOLDOWN). Estas dos son las que
+## de verdad quitan la prisa: con la barra de paciencia y el bocado más largos
+## el jugador deja de jugar en pánico y puede pararse a LEER la barra —los
+## bocadillos, las chapas, quién está en rojo— antes de decidir.
+## No van uniformes con el cooldown a propósito: el tiempo de GESTOS del
+## jugador es fijo (son sus manos), así que escalarlo todo por igual dejaría
+## el juego idéntico y solo más largo. Al crecer más lo del CLIENTE que lo de
+## la COCINA, el jugador gana holgura de verdad.
+const RITMO_PACIENCIA := 1.5
+const RITMO_BOCADO := 1.35
 ## Cada plato comido acelera el drenaje de paciencia en este factor.
 const PATIENCE_DRAIN_PER_PLATE := 0.025
 ## Mientras NO ha comido nada, la paciencia baja a esta fracción del ritmo
@@ -205,6 +215,14 @@ const END_BITE_SPEED := 5.0
 ## Doblones extra que deja un plato de PICOTEO ("snack" en recipe_data, como el
 ## edamame) cuando el cliente lo coge SIN dejar de comer el plato que tenia.
 const SNACK_BONUS := 1
+## Fraccion de la paciencia maxima que pierde el cliente que DESPRECIA un
+## plato de RIESGO (el fugu del valiente): mirarlo y no atreverse molesta.
+const RIESGO_DESPRECIO := 0.08
+## Cuanto llega a escalar el precio de un plato con "talla" al tener el
+## RECORD MAXIMO de su especie: x2 (el toro pasa de 10 a 20 doblones). No es
+## una perilla suelta — es lo que hace que valga la pena pescar el ejemplar
+## grande y no solo llenar el album.
+const TALLA_MAX := 1.0
 ## El picoteo RELLENA LA BARRA DE COMER (no la de paciencia): alarga la comida
 ## en curso esta fraccion de su duracion. Mientras come, la paciencia no se
 ## drena, asi que alargar el bocado es lo que retiene al cliente en la mesa.
@@ -322,6 +340,13 @@ var eat_duration: float = 1.0
 ## Un cliente solo pica UN plato de picoteo por cada plato que se está
 ## comiendo: se marca al cogerlo y se limpia al empezar el plato siguiente.
 var snack_taken := false
+## El PICOTEO EXTRA ("extra_snack", el bol de arroz) lleva su turno APARTE: no
+## gasta el del picoteo normal — se puede comer un edamame Y un bol en el
+## mismo bocado, en cualquier orden — pero él también es uno por bocado.
+var extra_snack_taken := false
+## Bono al dado del SIGUIENTE plato que le pase (lo deja el nigiri de
+## caballa, "next_take_bonus"). Se limpia al coger un plato.
+var next_take_bonus := 0.0
 ## Segundos que la paciencia se queda CONGELADA (la deja el unagi glaseado).
 var patience_frozen: float = 0.0
 
@@ -428,7 +453,7 @@ func _ready() -> void:
 		skill_take_floor = GameState.skill_value("fama") / 100.0
 		paladar_rank = GameState.skill_rank("paladar_generoso")
 	# Paciencia base ajustada a partidas de 2:30.
-	patience_max = randf_range(30.0, 40.0) * patience_scale
+	patience_max = randf_range(30.0, 40.0) * patience_scale * RITMO_PACIENCIA
 	patience = patience_max
 	_height = height_override if height_override > 0.0 \
 			else float(TYPE_HEIGHTS.get(client_type, 1.75))
@@ -526,7 +551,9 @@ func make_boss(eat := 0.32, drain := 1.55, max_patience := 55.0) -> void:
 	boss = true
 	boss_eat_scale = eat
 	drain_scale = drain
-	patience_max = max_patience
+	# El jefe va con el mismo ritmo que el resto: si su barra no creciera con
+	# la de todos, su duelo se volvería el doble de duro al ralentizar el juego.
+	patience_max = max_patience * RITMO_PACIENCIA
 	patience = patience_max
 	if _patience_bar != null:
 		_patience_bar.max_value = patience_max
@@ -997,7 +1024,11 @@ func _scan_belt(snack_only: bool = false) -> void:
 		var todo_picoteo: bool = level_ref != null \
 				and "snack_all_timer" in level_ref \
 				and level_ref.snack_all_timer > 0.0
-		if snack_only and (snack_taken \
+		# El bol de arroz ("extra_snack") gasta su propio turno, no el del
+		# picoteo normal — asi entra ADEMAS del edamame, en cualquier orden.
+		var pico_gastado: bool = extra_snack_taken \
+			if data.get("extra_snack", false) else snack_taken
+		if snack_only and (pico_gastado \
 				or not (data.get("snack", false) or todo_picoteo)):
 			continue
 		# El barco se cataloga por lo que lleva dentro, no por su receta.
@@ -1017,6 +1048,16 @@ func _scan_belt(snack_only: bool = false) -> void:
 			chance = float(forced.get(client_type, chance))
 		elif forced != null:
 			chance = float(forced)
+		# FAMA DEL PLATO ("fama"): cada plato de esta receta ya servido en la
+		# jornada sube su propio dado, con tope "fama_max". Va por RECETA y
+		# por JORNADA (level3d.platos_receta), no por cliente — de ahi la
+		# tension con el hastio, que es por cliente: la fama premia servir
+		# mucho de lo mismo, el hastio castiga repetirselo al mismo comensal.
+		var fama := float(data.get("fama", 0.0))
+		if fama > 0.0 and level_ref != null and "platos_receta" in level_ref:
+			var servidos: int = int(level_ref.platos_receta.get(plate.recipe_id, 0))
+			chance += minf(fama * servidos, float(data.get("fama_max", 0.10)))
+		chance = minf(chance, 1.0)
 		if _aroma_active() and plate_satiety == FAVORITE_TIER.get(client_type, 0):
 			chance = maxf(chance, 0.95)
 		# "Fama del cocinero": SUELO de probabilidad, no un 100% — el capitán
@@ -1036,6 +1077,10 @@ func _scan_belt(snack_only: bool = false) -> void:
 			chance = 1.0
 		if snack_only and snack_sure:
 			chance = 1.0
+		# "next_take_bonus" (la caballa): el plato anterior le abrio el
+		# apetito y el dado del siguiente va con bono.
+		if not snack_only and next_take_bonus > 0.0:
+			chance = minf(chance + next_take_bonus, 1.0)
 		# DESPRECIO FORZADO (la clase del dado del nivel 1): el guion pide que
 		# ESTE plato se deje pasar, y avisa al nivel para que le ponga el foco.
 		if level_ref != null and "forzar_desprecio" in level_ref \
@@ -1047,17 +1092,42 @@ func _scan_belt(snack_only: bool = false) -> void:
 		if randf() < chance:
 			var rid: String = plate.recipe_id
 			var plate_pos: Vector3 = plate.global_position
-			plate.taken = true
-			plate.queue_free()
+			# Un plato COMPARTIDO ("servings", el takoyaki) se queda en la
+			# cinta con una racion menos; este cliente ya no lo vuelve a
+			# mirar (a declined), pero el resto conserva su dado.
+			if plate.consume_serving():
+				declined.append(pid)
 			if snack_only:
 				_eat_snack(rid, data)
 				return
+			next_take_bonus = 0.0
 			guaranteed_next = false
 			# El plato puede traer su propio precio (barco combinado).
 			var base_price: int = plate.price_override if plate.price_override > 0 \
 				else int(data.get("price", 0))
 			# "Buen precio": cada plato paga un poco más de lo que dice su ficha.
 			current_price = int(round(base_price * pay_mult * skill_price))
+			# FRESCURA / MARINADO: el precio viaja con la cinta. Recien servido
+			# la frescura paga x1,3 y cae a x0,7 al final de la vuelta; el
+			# marinado hace el camino contrario (reposar le sienta bien).
+			if plate.belt_length > 0.0:
+				var recorrido: float = clampf(plate.traveled / plate.belt_length, 0.0, 1.0)
+				if data.get("frescura", false):
+					current_price = int(round(current_price * (1.3 - 0.6 * recorrido)))
+				elif data.get("marinado", false):
+					current_price = int(round(current_price * (0.7 + 0.6 * recorrido)))
+			# TALLA: el precio crece con el RECORD de pesca de su especie
+			# (fish_best guarda la talla 0..1): hasta el DOBLE (TALLA_MAX).
+			if data.has("talla"):
+				current_price = int(round(current_price * (1.0
+					+ TALLA_MAX * float(GameState.fish_best.get(str(data["talla"]), 0.0)))))
+			# MARIDAJE: si el ULTIMO plato que comio esta en la lista, este
+			# paga el bono — la carta se juega en parejas.
+			var mar: Dictionary = data.get("maridaje", {})
+			if not mar.is_empty() and not eaten_ids.is_empty() \
+					and str(eaten_ids.back()) in mar.get("con", []):
+				current_price += int(mar.get("bono", 0))
+				_float_text("¡Maridaje!", Color(1.0, 0.86, 0.2), -50.0)
 			current_satiety = plate_satiety
 			current_id = rid
 			current_extras = plate.extras.duplicate()
@@ -1065,6 +1135,10 @@ func _scan_belt(snack_only: bool = false) -> void:
 			current_lucky = plate.variety_bonus
 			_start_eating(plate_pos)
 			return
+		# RIESGO: dejar pasar el plato de valientes cuesta paciencia.
+		if data.get("riesgo", false) and not snack_only:
+			patience = maxf(patience - patience_max * RIESGO_DESPRECIO, 0.0)
+			patience_bar_update()
 		declined.append(pid)
 
 
@@ -1074,7 +1148,10 @@ func _scan_belt(snack_only: bool = false) -> void:
 ## menos (mismo decaimiento que el aburrimiento), asi que no compensa inundar
 ## la cinta de edamame.
 func _eat_snack(recipe_id: String, data: Dictionary) -> void:
-	snack_taken = true
+	if data.get("extra_snack", false):
+		extra_snack_taken = true
+	else:
+		snack_taken = true
 	var reps := 0
 	for id in eaten_ids:
 		if id == recipe_id:
@@ -1096,8 +1173,14 @@ func _eat_snack(recipe_id: String, data: Dictionary) -> void:
 	# picoteos, tampoco SUMA.
 	if data.get("clears_boredom", false):
 		_limpiar_paladar()
-	var price: int = int(round(data.get("price", 0) * pay_mult * skill_price)) \
-		+ SNACK_BONUS
+	# "snack_price": el picoteo puede pagar OTRO precio comido como picoteo
+	# (el edamame: 1 suelto, 3 acompañando). Sin él, price + SNACK_BONUS.
+	var price: int
+	if data.has("snack_price"):
+		price = int(round(float(data["snack_price"]) * pay_mult * skill_price))
+	else:
+		price = int(round(data.get("price", 0) * pay_mult * skill_price)) \
+			+ SNACK_BONUS
 	# EL PICOTEO QUE SÍ SUMA VARIEDAD ("variety_snack", hoy solo el sunomono):
 	# cobra el bono de oro del multiplicador VIGENTE y sube un punto la primera
 	# vez que se prueba, igual que un plato normal. Los demás picoteos ni suman
@@ -1119,8 +1202,10 @@ func _eat_snack(recipe_id: String, data: Dictionary) -> void:
 func _start_eating(plate_global: Vector3) -> void:
 	state = State.EATING
 	_eat_t = 0.0
-	# Plato nuevo: vuelve a tener derecho a un picoteo y al ritmo normal.
+	# Plato nuevo: vuelve a tener derecho a un picoteo (y a un bol) y al
+	# ritmo normal.
 	snack_taken = false
+	extra_snack_taken = false
 	bite_speed = bite_base
 	# SOJA: el bocado corre más. Como la paciencia NO baja mientras se come,
 	# acortar el bocado devuelve al cliente a la espera antes de tiempo — esa
@@ -1133,7 +1218,8 @@ func _start_eating(plate_global: Vector3) -> void:
 	# "eat_mult": algunos platos (p. ej. la sopa de miso) se comen mas despacio.
 	# `slow_eat` lo usa el guion del TUTORIAL para que un plato concreto dure
 	# lo suficiente como para explicar otra receta mientras el cliente come.
-	eat_duration = base * randf_range(1.0 - EAT_JITTER, 1.0 + EAT_JITTER) \
+	eat_duration = base * RITMO_BOCADO \
+			* randf_range(1.0 - EAT_JITTER, 1.0 + EAT_JITTER) \
 			* _eat_mult_of(recipe) * slow_eat * boss_eat_scale
 	eat_timer = eat_duration
 	_eat_bar.max_value = eat_duration
@@ -1143,6 +1229,23 @@ func _start_eating(plate_global: Vector3) -> void:
 	# La comida recarga paciencia según el nivel del plato, escalada por el
 	# sistema de HASTÍO Y VARIEDAD (ver _apply_meal_patience).
 	_apply_meal_patience(recipe)
+	# EL OLOR DEL BARBO ("neighbor_mult"): al empezar a comerlo, los vecinos
+	# de silla pierden multiplicador. Lo reparte el nivel, que sabe de sillas.
+	var olor := int(recipe.get("neighbor_mult", 0))
+	if olor != 0 and level_ref != null \
+			and level_ref.has_method("aplicar_olor_vecinos"):
+		level_ref.aplicar_olor_vecinos(self, olor)
+	# CONTAGIO (el dashi ahumado): reconforta tanto al que lo come que al
+	# RESTO de la mesa se le hace la espera mas larga (o mas corta, si el
+	# valor fuera positivo). Fraccion de la paciencia maxima de cada uno.
+	var contagio := float(recipe.get("contagio", 0.0))
+	if contagio != 0.0 and level_ref != null \
+			and level_ref.has_method("aplicar_contagio"):
+		level_ref.aplicar_contagio(self, contagio)
+	# RIESGO: el valiente que lo coge rellena la paciencia ENTERA.
+	if recipe.get("riesgo", false):
+		patience = patience_max
+		patience_bar_update()
 
 	# El plato (modelo 3D) viaja de la cinta al mostrador, delante del cliente.
 	_held_dish = Node3D.new()
@@ -1544,6 +1647,10 @@ func _finish_plate() -> void:
 	# gratis; es lo que hace que rente un plato que se come en un suspiro.
 	patience_frozen = maxf(patience_frozen,
 		float(recipe.get("patience_freeze", 0.0)))
+	# "next_take_bonus" (la caballa): el siguiente plato que le pase tira el
+	# dado con este bono, hasta que coja uno.
+	if float(recipe.get("next_take_bonus", 0.0)) > 0.0:
+		next_take_bonus = float(recipe.get("next_take_bonus", 0.0))
 	_stop_eating_anim()
 	_eat_bar.visible = false
 	# "leaves_seat": los postres despiden al cliente COBRANDO su multiplicador

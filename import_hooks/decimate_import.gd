@@ -82,6 +82,23 @@ const BUDGETS := {
 	"nach_rig": 6000,
 	"sirena_rig": 6000,
 	"maki_aguacate_mejorado": 2500,
+	# Tanda del mar 2 (24-8-2026).
+	"tsukemono": 2500,
+	"bol_arroz": 2500,
+	"ensalada_wakame": 2500,
+	"gunkan_shiitake": 2500,
+	"nigiri_caballa": 2500,
+	# El nigiri de besugo es geometria MUY simple y con 2.500 el simplificador
+	# lo dejaba en 32 triangulos (la trampa del sunomono): medido y subido.
+	"nigiri_besugo": 9000,
+	"nigiri_pargo": 2500,
+	"gunkan_jurel": 2500,
+	"barbo_ahumado": 2500,
+	"takoyaki_pulpo": 2500,
+	"takoyaki_pulpo_medio": 2500,
+	"gyozas": 2500,
+	"toro_aleta": 2500,
+	"tataki_atun_rojo": 2500,
 }
 
 ## Tope de pasadas. Cada `generate_lods` recorta ~50%, así que 6 pasadas dan de

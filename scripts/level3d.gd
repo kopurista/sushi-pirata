@@ -265,6 +265,12 @@ var aroma_active := false
 var tip_chance_bonus := 0.0
 var tip_amount_mult := 1.0
 var belt_mult := 1.0
+## HÁNDICAP DE ISLA DEL MAR 3: platos como mucho a la vez en la cinta (0 = sin
+## tope). Con el tope alcanzado, la tabla no deja servir y el plato espera.
+var cinta_max := 0
+## Cuántos caben cuando el hándicap está puesto. Son SEIS y no ocho: con ocho
+## (uno por asiento) el tope no se alcanzaría nunca y el hándicap no existiría.
+const CINTA_MAX_ISLA := 6
 # ----------------------------- EL VIENTO (mar 2) -----------------------------
 # Un vendaval que OSCILA: la velocidad sube y baja hacia objetivos sorteados, y
 # para cambiar de sentido tiene que pasar por 0 (nunca salta de izquierda a
@@ -564,6 +570,25 @@ func _ready() -> void:
 				and CampaignData.sea_of(GameState.current_port) >= 2:
 			vacio_pierde = scenery_kind == "puerto"
 			vacio_roba_reloj = scenery_kind == "abordaje"
+		# LOS HÁNDICAPS DEL MAR 3 SE SUMAN A LOS DEL 2 (cada mar aprieta por
+		# su lado, y el TIPO sigue mandando cuál te toca):
+		#  · ISLA     → la cinta tiene TOPE de platos (`cinta_max`): producir
+		#               a lo loco deja de valer, hay que elegir qué sale.
+		#  · PUERTO   → NO se pueden hacer dos recetas iguales seguidas
+		#               (`sin_repetir`): la carta hay que rotarla de verdad.
+		#  · ABORDAJE → la cinta va al DOBLE (`belt_base` 2.0): el plato pasa
+		#               por delante de cada boca la mitad de tiempo, así que
+		#               fallar el sitio se paga.
+		if not GameState.is_tutorial() \
+				and CampaignData.sea_of(GameState.current_port) >= 3:
+			match scenery_kind:
+				"isla":
+					cinta_max = CINTA_MAX_ISLA
+				"puerto":
+					prep_board.sin_repetir = true
+				"abordaje":
+					belt_base = 2.0
+					belt_mult = maxf(belt_mult, belt_base)
 	_setup_environment()
 	_setup_camera()
 	_setup_scenery()
@@ -3067,6 +3092,11 @@ func _process(delta: float) -> void:
 	# sentido con su transición: al girar, la banda se frena y arranca al revés.
 	if not frozen:
 		belt_scroll = fposmod(belt_scroll + PLATE_SPEED * belt_mult * belt_dir * delta / band_tile_len, 1.0)
+	# CINTA LLENA (hándicap de isla del mar 3): la tabla necesita saberlo para
+	# rechazar el servicio, y se lo decimos desde aquí porque el recuento es
+	# del NIVEL. Con `cinta_max` a 0 (todo lo demás) nunca se enciende.
+	if cinta_max > 0 and prep_board != null:
+		prep_board.belt_full = get_tree().get_nodes_in_group("plates").size() >= cinta_max
 		band_mat.set_shader_parameter("scroll_tiles", belt_scroll)
 		if corner_mat != null:
 			corner_mat.set_shader_parameter("scroll_tiles", belt_scroll)
@@ -4923,8 +4953,16 @@ func _add_extra_clients() -> void:
 
 # ------------------------------------------------------------------ platos
 
+## FAMA DEL PLATO: cuántos platos de cada receta han salido a la cinta en
+## ESTA jornada. Lo lee `client3d._scan_belt` para subir el dado de las
+## recetas con "fama" (el nigiri de salmón y su corona). Es de la jornada:
+## nace vacío con el nivel y muere con él.
+var platos_receta: Dictionary = {}
+
+
 func _on_dish_served(recipe_id: String, price_override: int = 0, extras: Array = [],
 		level_override: int = 0, eat_mult_override: float = 0.0) -> void:
+	platos_receta[recipe_id] = int(platos_receta.get(recipe_id, 0)) + 1
 	var p: PathFollow3D = PLATE3D.new()
 	p.recipe_id = recipe_id
 	# El barco combinado vale lo que valen los platos que lleva dentro.

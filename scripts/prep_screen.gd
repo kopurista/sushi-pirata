@@ -896,7 +896,8 @@ func _puntuar_receta(id: String) -> float:
 	# Las recetas con MAESTRÍA sueltan varias piezas por elaboración: su precio
 	# es POR PIEZA, así que rinden mucho más de lo que dice la ficha.
 	var piezas := 1.0 + float(r.get("free_uses", 0))
-	var enfriamiento := maxf(float(r.get("cooldown", 4.0)), 1.0)
+	var enfriamiento := maxf(float(r.get("cooldown", 4.0))
+		* RecipeData.RITMO_COOLDOWN, 1.0)
 	# Cuánto la va a querer la clientela que viene.
 	var querida := 0.0
 	for t in mix:

@@ -54,6 +54,9 @@ var forget_each_lap := false
 ## Plato marcado por "Golpe de suerte": sube un punto extra de multiplicador
 ## al cliente que lo coja (lo lee client3d._scan_belt).
 var variety_bonus := false
+## Raciones que le quedan al plato ("servings" de la receta, el takoyaki):
+## cada cliente que lo coge come UNA, y solo la última se lo lleva de la cinta.
+var servings: int = 1
 ## Vueltas ya completadas (para saber cuándo toca el olvido o el cubo).
 var _laps_done := 0
 ## Pasadas por el punto de la papelera (el plato nace ahí; nacer no cuenta).
@@ -90,6 +93,7 @@ func _ready() -> void:
 	# "model" permite que una variante reaproveche la malla de otra receta (la
 	# tempura pasada usa la de la tempura buena, solo que tostada con "tint").
 	var data := RecipeData.get_recipe(recipe_id)
+	servings = int(data.get("servings", 1))
 	var model_id: String = str(data.get("model", recipe_id))
 	var path := "res://assets/models/%s.glb" % model_id
 	if ResourceLoader.exists(path):
@@ -174,6 +178,38 @@ func _process(delta: float) -> void:
 			level_ref._forget_declined(get_instance_id())
 		else:
 			_tirar_a_la_basura()
+
+
+## Un cliente se lleva UNA ración. Con raciones de sobra el plato SIGUE en la
+## cinta (menguado, para que se vea que está empezado) y devuelve true; con la
+## última el cliente se lo lleva entero y devuelve false. Los platos normales
+## (servings 1) pasan siempre por la segunda rama: es el "cogerlo" de siempre.
+func consume_serving() -> bool:
+	servings -= 1
+	if servings > 0:
+		_menguar()
+		return true
+	taken = true
+	queue_free()
+	return false
+
+
+## El plato empezado: si existe el modelo "<id>_medio.glb" se cambia a él; si
+## no, el de siempre se encoge, que desde esta cámara ya se lee como
+## "queda menos".
+func _menguar() -> void:
+	var dish: Node3D = null
+	for c in get_children():
+		if c is Node3D:
+			dish = c
+			break
+	var path := "res://assets/models/%s_medio.glb" % recipe_id
+	if ResourceLoader.exists(path):
+		if dish != null:
+			dish.queue_free()
+		_spawn_dish(load(path))
+	elif dish != null:
+		dish.scale *= 0.72
 
 
 ## El plato cae al cubo de la esquina en vez de desaparecer de golpe: se para,

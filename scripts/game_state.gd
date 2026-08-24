@@ -238,8 +238,13 @@ var ingredients: Dictionary = {}
 var unlocked_perks: Array[String] = []
 ## MEJORAS DE RECETA ganadas (ids de la receta BASE, ver RecipeData.UPGRADES).
 var unlocked_upgrades: Array[String] = []
-## La escena de Alice presentando la PRIMERA mejora (m2_01) espera en el mapa.
-var pending_mejora_intro := false
+## COLA de mejoras ganadas pendientes de presentar en el mapa (ids de la
+## receta BASE): Alice las canta de una en una. La primera vez da ademas la
+## leccion del sistema entero (mejora_intro_done).
+var pending_mejoras: Array[String] = []
+## ¿Alice ya explico QUE ES coronar un plato? Con la leccion dada, las mejoras
+## siguientes se anuncian en corto, sin repetir el sistema.
+var mejora_intro_done := false
 var perk_uses: Dictionary = {}
 ## Nivel de MEJORA de cada bonificador (1..PerkData.MAX_LEVEL). Se sube con
 ## doblones desde la pantalla de Bonificadores; los usos NO se compran.
@@ -1573,7 +1578,7 @@ func complete_port(port_id: String, stars: int) -> Array:
 				# Y despensa de estreno de sus dos ingredientes.
 				for ing in mejora.get("ingredients", []):
 					ingredients[ing] = get_ingredient_uses(ing) + PORT_GIFT
-			pending_mejora_intro = true
+			pending_mejoras.append(mejora_base)
 		var lingotes := int(port.get("reward_ingots_3", 0))
 		if lingotes > 0:
 			ingots += lingotes
@@ -2391,7 +2396,8 @@ func save_game() -> void:
 		"ingredients": ingredients,
 		"unlocked_perks": unlocked_perks,
 		"unlocked_upgrades": unlocked_upgrades,
-		"pending_mejora_intro": pending_mejora_intro,
+		"pending_mejoras": pending_mejoras,
+		"mejora_intro_done": mejora_intro_done,
 		"perk_uses": perk_uses,
 		"perk_level": perk_level,
 		"shop_stock": shop_stock,
@@ -2495,7 +2501,15 @@ func load_game() -> void:
 		ingredients[str(k)] = int(ing_dict[k])
 	unlocked_perks = _to_string_array(parsed.get("unlocked_perks", []))
 	unlocked_upgrades = _to_string_array(parsed.get("unlocked_upgrades", []))
-	pending_mejora_intro = bool(parsed.get("pending_mejora_intro", false))
+	pending_mejoras = _to_string_array(parsed.get("pending_mejoras", []))
+	# Guardados de cuando solo existia la mejora del maki: su bandera vieja
+	# (un bool) se convierte en la cola nueva.
+	if bool(parsed.get("pending_mejora_intro", false)) and pending_mejoras.is_empty():
+		pending_mejoras.append("maki_aguacate")
+	# Y la leccion del sistema se da por dada si ya habia una mejora ganada
+	# sin escena pendiente (la de Alice corrio en su dia).
+	mejora_intro_done = bool(parsed.get("mejora_intro_done",
+		not unlocked_upgrades.is_empty() and pending_mejoras.is_empty()))
 	perk_uses = {}
 	var perk_dict: Dictionary = parsed.get("perk_uses", {})
 	for k in perk_dict.keys():
@@ -2789,6 +2803,9 @@ func _new_game() -> void:
 	pablo_shop_done = false
 	menu_intro_done = false
 	map_intro_done = false
+	unlocked_upgrades = []
+	pending_mejoras = []
+	mejora_intro_done = false
 	narrated_ports = []
 	# Los usos iniciales SOLO en partida nueva (si se diera también al cargar,
 	# se rellenarían gratis en cada arranque).
