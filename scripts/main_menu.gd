@@ -285,11 +285,12 @@ func _menu_popups() -> void:
 		await get_tree().create_timer(0.7).timeout
 		await _presentar_kappa()
 		return
-	# LA PRIMERA MEJORA DE RECETA la presenta ALICE (pedido por el usuario):
-	# se la enseno su maestra Miku, y es su consejo para un mar mas duro.
-	if GameState.pending_mejora_intro:
+	# LAS MEJORAS DE RECETA las presenta ALICE (pedido por el usuario): se las
+	# enseno su maestra Miku. La primera trae la leccion del sistema entero;
+	# las siguientes se cantan en corto, de una en una si cayeron varias.
+	while not GameState.pending_mejoras.is_empty():
 		await get_tree().create_timer(0.7).timeout
-		await _presentar_mejora()
+		await _presentar_mejora(GameState.pending_mejoras[0])
 	# PABLO PAGA LO QUE COMIÓ. La promesa se hace en su nivel y el pago se cobra
 	# AQUÍ, con las tres cajas de recursos a la vista: es la primera vez que el
 	# jugador oye hablar de los lingotes y David puede señalarle el contador de
@@ -453,23 +454,45 @@ func _presentar_alice() -> void:
 const KAPPA_LINGOTES := 2
 
 
-## ALICE PRESENTA LA PRIMERA MEJORA DE RECETA (el premio de 3 estrellas de
-## m2_01): el mar nuevo aprieta y su consejo es afinar la cocina — empezando
-## por el truco que le enseno Miku, coronar el maki de aguacate.
-func _presentar_mejora() -> void:
-	GameState.pending_mejora_intro = false
+## ALICE PRESENTA CADA MEJORA DE RECETA ganada (reward_upgrade_3): la
+## PRIMERA vez da la leccion del sistema entero — coronar, que le enseno su
+## maestra Miku — y las siguientes solo cantan la corona nueva. Los nombres
+## salen de los DATOS de la mejora, asi que la escena vale para cualquiera.
+func _presentar_mejora(base_id: String) -> void:
+	GameState.pending_mejoras.erase(base_id)
+	var primera := not GameState.mejora_intro_done
+	GameState.mejora_intro_done = true
 	GameState.save_game()
+	var mejora := RecipeData.upgrade_of(base_id)
+	var base: Dictionary = RecipeData.get_recipe(base_id)
+	var up: Dictionary = RecipeData.get_recipe(str(mejora.get("id", "")))
+	var nombre_base := str(base.get("name", base_id)).to_lower()
+	var nombre_up := str(up.get("name", "")).to_lower()
+	var ings: Array = mejora.get("ingredients", [])
+	var nombres: Array[String] = []
+	for ing in ings:
+		nombres.append("**%s**" % str(RecipeData.get_ingredient(ing).get("name", ing)).to_lower())
+	var lista := " y ".join(nombres)
+	var cuantos := "dos ingredientes nuevos" if nombres.size() > 1 \
+		else "un ingrediente nuevo"
 	var caja := DialogueBox.new()
 	caja.z_index = 200
 	ui_layer.add_child(caja)
-	caja.say([
-		{ "text": "%s... ¿puedo decirte algo? Este mar no es como el primero. La clientela aprieta, y el canto... el canto no perdona." % GameState.player_title(), "who": "alice", "mood": "serio" },
-		{ "text": "Así que toca cocinar MEJOR. Y sé por dónde empezar: mi maestra me enseñó a **coronar** platos.", "who": "alice", "mood": "hablando" },
-		{ "text": "Mira: cuando termines un **maki de aguacate**, verás dos ingredientes nuevos junto a la tabla — **mayonesa japonesa** y **cebolla frita**.", "who": "alice", "mood": "hablando" },
-		{ "text": "Échaselos por encima y tendrás el **maki de aguacate supremo**: paga más, lo quiere TODO el mundo... y para el paladar de un cliente es un plato NUEVO.", "who": "alice", "mood": "feliz" },
-		{ "text": "¡RAAAK! ¡LA NIÑA SABE COCINA FINA!", "who": "gigi", "mood": "loro" },
-		{ "text": "Los ingredientes de coronar se compran donde Saverio, como todo. Ya te he dejado unos usos para estrenar.", "who": "alice", "mood": "feliz" },
-	])
+	if primera:
+		caja.say([
+			{ "text": "%s... ¿puedo decirte algo? Este mar no es como el primero. La clientela aprieta, y el canto... el canto no perdona." % GameState.player_title(), "who": "alice", "mood": "serio" },
+			{ "text": "Así que toca cocinar MEJOR. Y sé por dónde empezar: mi maestra me enseñó a **coronar** platos.", "who": "alice", "mood": "hablando" },
+			{ "text": "Mira: cuando termines un **%s**, verás %s junto a la tabla — %s." % [nombre_base, cuantos, lista], "who": "alice", "mood": "hablando" },
+			{ "text": "Échaselo por encima y tendrás el **%s**: paga más, lo quiere TODO el mundo... y para el paladar de un cliente es un plato NUEVO." % nombre_up, "who": "alice", "mood": "feliz" },
+			{ "text": "¡RAAAK! ¡LA NIÑA SABE COCINA FINA!", "who": "gigi", "mood": "loro" },
+			{ "text": "Los ingredientes de coronar se compran donde Saverio, como todo. Ya te he dejado unos usos para estrenar.", "who": "alice", "mood": "feliz" },
+		])
+	else:
+		caja.say([
+			{ "text": "¡%s! Mi maestra me enseñó otra **corona**, y te la he apuntado en el recetario." % GameState.player_title(), "who": "alice", "mood": "feliz" },
+			{ "text": "Cuando termines un **%s**, remátalo con %s: tendrás el **%s**, que paga más y para el cliente cuenta como plato nuevo." % [nombre_base, lista, nombre_up], "who": "alice", "mood": "hablando" },
+			{ "text": "¡RAAAK! ¡MÁS COCINA FINA!", "who": "gigi", "mood": "loro" },
+		])
 	await caja.finished
 	await caja.close_and_free()
 
@@ -1132,6 +1155,12 @@ func _enter_map(animate: bool) -> void:
 func _map_ui_fade(show: bool) -> void:
 	# La FICHA no entra aqui: es una ventana modal que solo se abre al tocar un
 	# escenario, asi que encenderla con el resto del mapa la sacaria sola.
+	# El BOTON DEL BARCO no entra en el fundido: lo enciende y lo apaga su
+	# propia vigilancia (`_actualizar_boton_barco`), que mira lo lejos que
+	# anda la camara. Aqui solo se esconde al salir del mapa.
+	if not show and boton_barco != null:
+		boton_barco.visible = false
+		_barco_visible = false
 	for node in [map_top_bar, map_submenu]:
 		if node == null:
 			continue
@@ -1166,6 +1195,9 @@ func _update_camera() -> void:
 
 
 func _set_map_ui_visible(on: bool) -> void:
+	if boton_barco != null and not on:
+		boton_barco.visible = false
+		_barco_visible = false
 	if map_top_bar != null:
 		map_top_bar.visible = on
 	if map_submenu != null:

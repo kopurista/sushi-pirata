@@ -522,9 +522,12 @@ primera vez que se entra en ellos (`logros_intro_done` /
 **La campaña sigue en el MISMO lienzo del mapa, hacia arriba**: los 25
 escenarios `m2_01..m2_25` (todos con `"sea": 2` en `CampaignData`) continúan
 por encima de la cueva, con los carriles alternando en ciclo [C,I,C,D] y el
-paso a **268 px** (estuvo en 215 y con los modelos crecidos se tocaban y los
-carteles no tenían sitio — pedido por el usuario; `SCROLL_MIN` −8712 y
-`SEA_SIZE` 340 crecieron con él). La cueva del Kappa se acercó al 19 (`MAP_POS` de `nivel_15` a
+paso a **368 px**. **EL PASO CRECIÓ DOS VECES y va +100 px por mar**: 215 →
+268 (los modelos crecidos se tocaban) → 368, porque con los CARTELES puestos
+la travesía se seguía leyendo apretada aunque los nodos ya no se rozaran (el
+mar 1 subió a la vez de 212 a 312). `SCROLL_MIN` (−13112), `SEA_SIZE` (440) y
+la subdivisión del mar (64, o las olas se estiran al agrandar el plano)
+crecieron con ellos. La cueva del Kappa se acercó al 19 (`MAP_POS` de `nivel_15` a
 −1026) y el tope de scroll (`SCROLL_MIN` −7440) llega hasta la jefa del 25.
 **El plano del mar se centra ENTRE los topes de scroll** (`SEA_SIZE` 290): con
 la medida del mar 1 el norte del mapa era azul liso sin oleaje. Y la cámara ya
@@ -1237,6 +1240,20 @@ La GUÍA lleva su sección ("El canto de sirena").
   · Con la tienda ya abierta, **Gigi canta lo que falta y para qué receta**,
     con un cartel de tres salidas — Jugar, Visitar tienda y una X que devuelve
     al mapa.
+- **EL BOCADILLO DE "VOLVER AL BARCO"** (`level_select3d._build_boton_barco`
+  / `_actualizar_boton_barco`, pedido por el usuario): en cuanto la cámara se
+  aleja del barco más de `BARCO_LEJOS` (420 px, más de un paso de travesía)
+  aparece meciéndose un bocadillo REDONDO con el rabo hacia abajo y el barco
+  dentro (`bocadillo_barco.png` dibujado en ui2_prep + `ic_barco.png`, que es
+  el primer fotograma del propio `barco_anim.webp`); al tocarlo, la cámara
+  vuelve de un viaje a donde está.
+  · **VA SIEMPRE EN EL MISMO SITIO** (abajo, centrado sobre el submenú) y no
+    persiguiendo al barco: es un botón que se pulsa, y uno que cambia de sitio
+    se falla. El rabo hacia abajo lo ata al canto en vez de dejarlo flotando.
+  · El vaivén va en un tween de VALORES ABSOLUTOS en bucle (nada de
+    `as_relative`: la lección de la flecha del diálogo).
+  · **No entra en `_map_ui_fade`**: lo encienden y lo apagan su propia
+    vigilancia y `_set_map_ui_visible(false)` al salir del mapa.
 - **EL MAPA RECUERDA DONDE ESTABA** (`GameState.map_port`, de sesión; lo
   apunta `level_select3d._select` y lo lee `_puerto_de_partida`): volver de
   Maestrías, de la tienda o del selector y encontrarse el barco en otro
@@ -5977,6 +5994,19 @@ que no hay problema.
   pausaba el árbol y, con el nivel acabándose por debajo, el juego se quedaba
   clavado en la elección. Se cierra, se despausa y los pendientes se descartan
   — ya no hay partida en la que gastarlos.
+- **LAS TARJETAS DE POTENCIADOR SE ARMAN CON RETARDO** (`POWERUP_ARM` 0.55 s,
+  `level3d._armar_powerups`; pedido por el usuario): el cartel sale en mitad
+  de la partida y el jugador puede estar dando golpes en la tabla a toda
+  velocidad — sin esto, el toque que llevaba en el aire elegía por él un
+  potenciador que no había leído. Es la misma medida que el plato de la tabla
+  (`prep_board.DISH_ARM`) y que los botones que nacen bajo el dedo.
+  **Y SE VE**: mientras no están vivas, las tarjetas van a media luz (alfa
+  0.55) y se encienden al armarse, así que el retardo se lee como "espera,
+  que están llegando" y no como un toque perdido. El temporizador va en modo
+  SIEMPRE (`create_timer(t, true, false, true)`): el árbol está en pausa
+  mientras el cartel está puesto.
+  · **MEDIRLO PIDE UN TOQUE DE VERDAD** (`Input.parse_input_event`): emitir
+    `pressed` a mano se salta el `disabled` del botón y no prueba nada.
 - **El cartel de potenciador NO interrumpe un gesto sostenido**: si el jugador
   está manteniendo / removiendo / cortando lento / friendo / arrastrando
   (`prep_board.is_gesture_locked()`), la elección se aplaza y `_process` la

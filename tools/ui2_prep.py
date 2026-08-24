@@ -911,7 +911,64 @@ def build_bubble() -> None:
     save(ImageOps.mirror(img), "bocadillo_esp")
 
 
+def build_bocadillo_barco() -> None:
+    """EL BOCADILLO DE "VOLVER AL BARCO" del mapa (`bocadillo_barco.png`).
+
+    Un bocadillo REDONDO con el rabo hacia ABAJO, del set del juego: crema de
+    pergamino, contorno de madera oscura y un aro de oro por dentro. Va
+    DIBUJADO y no generado por lo mismo que las chapas del multiplicador: una
+    forma geometrica simple sale mas limpia a mano, y asi el aro y el rabo
+    caen donde tienen que caer sin recortar nada.
+
+    El icono del barco NO va horneado: lo pone el juego encima
+    (`level_select3d._build_boton_barco` con `ic_aventura.png`), asi que si
+    ese icono cambia el bocadillo no hay que rehacerlo.
+    """
+    S = 8
+    D = 104            # lado del lienzo (el circulo) en pixeles finales
+    RABO = 26          # lo que baja el rabo por debajo del circulo
+    W, H = D * S, (D + RABO) * S
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    cx, cy = W // 2, D * S // 2
+    r = D * S // 2 - 3 * S
+    # El RABO primero (queda por debajo del disco, asi que su contorno se
+    # funde con el del circulo y no se ve la costura).
+    punta = (cx, H - 2 * S)
+    rabo = [(cx - 17 * S, cy + r - 6 * S), (cx + 13 * S, cy + r - 6 * S), punta]
+    d.polygon(rabo, fill=BADGE_BORDE)
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=BADGE_BORDE)
+    # Relleno crema, dejando el contorno de madera.
+    g = 7 * S
+    rabo_in = [(cx - 12 * S, cy + r - 10 * S), (cx + 8 * S, cy + r - 10 * S),
+               (punta[0], punta[1] - 6 * S)]
+    d.polygon(rabo_in, fill=CREMA)
+    d.ellipse([cx - r + g, cy - r + g, cx + r - g, cy + r - g], fill=CREMA)
+    # Aro de oro por dentro: el acento del set, el mismo de los botones.
+    ar = r - g - 3 * S
+    d.ellipse([cx - ar, cy - ar, cx + ar, cy + ar], outline=BADGE_ORO,
+              width=3 * S)
+    img = img.resize((D, D + RABO), Image.LANCZOS)
+    save(img, "bocadillo_barco")
+
+
+def build_ic_barco() -> None:
+    """El BARCO DEL JUGADOR como icono (`ic_barco.png`), para el bocadillo de
+    "volver al barco" del mapa.
+
+    Sale del PRIMER fotograma de `barco_anim.webp` (la rejilla 4x4 del barco
+    con las velas al viento) recortado a su alfa: asi el icono es literalmente
+    el barco que el jugador ve navegando, sin dibujar nada nuevo.
+    """
+    hoja = Image.open(Path("assets/map/barco_anim.webp")).convert("RGBA")
+    w, h = hoja.width // 4, hoja.height // 4
+    img = crop_alpha(hoja.crop((0, 0, w, h)))
+    img.thumbnail((128, 128), Image.LANCZOS)
+    save(img, "ic_barco")
+
+
 # Paleta del set (madera oscura de contorno, oro de acento, crema).
+CREMA = (246, 231, 198, 255)
 BADGE_BORDE = (74, 46, 20, 255)
 BADGE_ORO = (242, 193, 78, 255)
 BADGE_BRILLO = (255, 226, 145, 255)

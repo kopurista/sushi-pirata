@@ -4639,6 +4639,37 @@ func _open_powerup_choice() -> void:
 	Audio.sfx("potenciador")
 	get_tree().paused = true
 	_animate_powerup_panel()
+	_armar_powerups()
+
+
+## LAS TARJETAS SE ARMAN CON RETARDO (pedido por el usuario): el cartel sale
+## en mitad de la partida, y el jugador puede estar dando golpes en la tabla a
+## toda velocidad — sin esto, el toque que llevaba en el aire elegía por él un
+## potenciador que no había ni leído. Es la misma medida que el plato de la
+## tabla (`prep_board.DISH_ARM`) y que los botones que nacen bajo el dedo.
+##
+## Y SE VE: mientras no están vivas, las tarjetas van a media luz y se
+## encienden al armarse — así el retardo se lee como "espera, que están
+## llegando" y no como un toque perdido. El temporizador va en modo SIEMPRE:
+## el árbol está en pausa mientras el cartel está puesto.
+func _armar_powerups() -> void:
+	var cartas: Array = powerup_options.get_children()
+	for c in cartas:
+		if c is Button:
+			c.disabled = true
+			c.modulate = Color(1, 1, 1, 0.55)
+	var t := get_tree().create_timer(POWERUP_ARM, true, false, true)
+	t.timeout.connect(func() -> void:
+		for c in cartas:
+			if not is_instance_valid(c) or not (c is Button):
+				continue
+			c.disabled = false
+			c.create_tween().tween_property(c, "modulate", Color.WHITE, 0.18))
+
+
+## Lo que tarda el cartel de potenciador en aceptar un toque (ver
+## `_armar_powerups`). Cuadra con su animación de entrada, que dura 0.42 s.
+const POWERUP_ARM := 0.55
 
 
 func _make_powerup_card(id: String) -> Button:
@@ -4841,6 +4872,42 @@ func _on_player_dish_served(recipe_id: String, price_override: int = 0,
 	GameState.bump_stat("dishes_made")
 	GameState.bump_stat("dish_%s" % recipe_id)
 	_on_dish_served(recipe_id, price_override, extras, level_override, eat_mult_override)
+
+
+## EL OLOR DEL BARBO ("neighbor_mult"): baja (o sube) el multiplicador de los
+## clientes sentados en las sillas PEGADAS a la de `origen` — una a cada lado,
+## esquinas incluidas. Vecino = taburete a menos de OLOR_RADIO en el plano:
+## dentro de un lado los taburetes distan 1,8 u y doblando la esquina 2,69,
+## mientras que el siguiente ya se va a 4,2 — el corte en 3 separa limpio.
+const OLOR_RADIO := 3.0
+func aplicar_olor_vecinos(origen: Node, delta_mult: int) -> void:
+	for c in seat_clients:
+		if c == null or not is_instance_valid(c) or c == origen:
+			continue
+		if not c.ya_sentado():
+			continue
+		var d := Vector2(c.global_position.x - origen.global_position.x,
+			c.global_position.z - origen.global_position.z)
+		if d.length() > OLOR_RADIO:
+			continue
+		if delta_mult < 0 and c.variety <= 0:
+			continue
+		c._set_variety(maxi(c.variety + delta_mult, 0), delta_mult > 0)
+		c._float_text("¡Puaj! %d" % delta_mult if delta_mult < 0
+			else "+%d" % delta_mult, Color(0.72, 0.85, 0.42))
+
+
+## CONTAGIO ("contagio" de la receta, el dashi ahumado): cuando alguien lo
+## come, TODOS los demas sentados ganan o pierden esa fraccion de su paciencia
+## maxima. A diferencia del olor del barbo (multiplicador, solo vecinos), esto
+## toca la PACIENCIA y llega a la mesa entera.
+func aplicar_contagio(origen: Node, frac: float) -> void:
+	for c in seat_clients:
+		if c == null or not is_instance_valid(c) or c == origen:
+			continue
+		if not c.ya_sentado():
+			continue
+		c.boost_patience(frac)
 
 
 ## Borra un plato de la lista de RECHAZADOS de todos los clientes, para que

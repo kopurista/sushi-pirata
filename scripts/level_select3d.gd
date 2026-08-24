@@ -75,7 +75,7 @@ const FICHA_BAJADA := 40.0
 ## El tope de arriba llega hasta el jefe del MAR 2 (m2_25, y=-7286) con su
 ## margen; el de abajo se queda JUSTO bajo el escenario 1 — sin el panel de
 ## informacion de antes, bajar mas solo ensenaba un hueco de mar vacio.
-const SCROLL_MIN := -8712.0
+const SCROLL_MIN := -13112.0
 const SCROLL_MAX := CampaignData.MAP_HEIGHT - 560.0
 
 ## EL PLANO DEL MAR TIENE QUE CUBRIR TAMBIÉN EL FONDEADERO DEL MENÚ, que está
@@ -87,7 +87,7 @@ const SEA_BOTTOM_PX := 5200.0
 ## 290 u: el plano tiene que llegar del fondeadero del menu (abajo del todo)
 ## hasta el jefe del mar 2 (y=-7286 px). Con 190 se acababa en -3500 y la
 ## mitad norte del mar nuevo flotaba sobre el vacio.
-const SEA_SIZE := 340.0
+const SEA_SIZE := 440.0
 
 ## Modelo 3D de cada tipo de nodo y huella horizontal objetivo (u).
 const KIND_MODELS := {
@@ -108,7 +108,7 @@ const CARTEL_X := 0.46
 ## El ABORDAJE aparta mas su cartel: el barco enemigo es ancho y con la
 ## fraccion general el cartel quedaba DETRAS del casco (con el paso del mapa
 ## subido a 268 hay sitio de sobra para sacarlo).
-const CARTEL_X_KIND := { "abordaje": 0.68, "isla": 0.58 }
+const CARTEL_X_KIND := { "abordaje": 0.68, "isla": 0.58, "cueva": 0.66 }
 const CARTEL_Z := 0.34
 ## Lo que se hunde por debajo del mar. El pivote del nodo esta a −0.10, asi que
 ## esto es lo que baja el cartel DESDE ahi: la linea de flotacion cruza los
@@ -215,6 +215,14 @@ var info_tesoro: VBoxContainer = null
 var info_tesoro_row: Container = null
 ## La franja de abajo del mapa: mapas del tesoro, tienda y opciones.
 var map_submenu: Control = null
+## EL BOTON DE VOLVER AL BARCO (ver `_build_boton_barco`).
+var boton_barco: Button = null
+var _barco_visible := false
+var _barco_tween: Tween = null
+## Lo lejos que hay que irse para que salga: mas de un paso de la travesia,
+## para que no asome por un empujoncito del dedo.
+const BARCO_LEJOS := 420.0
+const BARCO_BTN := 104.0
 ## Piezas de la ficha que hay que remedir cuando cambia su contenido.
 var ficha_panel: PanelContainer = null
 var ficha_cuerpo: VBoxContainer = null
@@ -319,8 +327,10 @@ func _setup_sea() -> void:
 	mesh.size = Vector2(SEA_SIZE, SEA_SIZE)
 	# El oleaje del agua es un desplazamiento de VÉRTICE: sin subdividir, el
 	# plano son dos triángulos y no se mueve nada.
-	mesh.subdivide_width = 48
-	mesh.subdivide_depth = 48
+	# La malla crece CON el plano (48 para 340 u): el oleaje va por vertice,
+	# asi que agrandando el mar sin subdividir mas, las olas se estiraban.
+	mesh.subdivide_width = 64
+	mesh.subdivide_depth = 64
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
 	# El plano se centra entre el TOPE DEL MAPA y el fondeadero del menú, que
@@ -976,6 +986,86 @@ func _setup_ui() -> void:
 	vbox.add_child(map_submenu)
 	map_info_panel = _build_ficha()
 	ui.add_child(map_info_panel)
+	boton_barco = _build_boton_barco()
+	ui.add_child(boton_barco)
+
+
+## EL BOCADILLO DE "VOLVER AL BARCO" (pedido por el usuario): en cuanto el
+## jugador se aleja de donde esta su barco, aparece meciendose un bocadillo
+## REDONDO con el rabo hacia abajo y el barco dentro; al tocarlo, la camara
+## vuelve de un viaje a donde esta.
+##
+## VA SIEMPRE EN EL MISMO SITIO (abajo, centrado sobre el submenu) y no
+## persiguiendo al barco: es un boton que se pulsa, y uno que cambia de sitio
+## se falla. El rabo hacia abajo lo ata al canto de la pantalla en vez de
+## dejarlo flotando en mitad del mar.
+func _build_boton_barco() -> Button:
+	var b := Button.new()
+	b.name = "BotonBarco"
+	b.custom_minimum_size = Vector2(BARCO_BTN, BARCO_BTN * 1.25)
+	b.size = b.custom_minimum_size
+	b.visible = false
+	b.modulate.a = 0.0
+	b.tooltip_text = "Volver al barco"
+	b.set_meta("snd", "barco_mover")
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	var globo := TextureRect.new()
+	globo.texture = load("res://assets/ui/bocadillo_barco.png")
+	globo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	globo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	globo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	globo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(globo)
+	# El barco va dentro del CIRCULO, que ocupa la parte de arriba del
+	# bocadillo (el rabo se lleva el ultimo cuarto).
+	var ic := TextureRect.new()
+	ic.texture = load("res://assets/ui/ic_barco.png")
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	ic.offset_left = BARCO_BTN * 0.19
+	ic.offset_right = -BARCO_BTN * 0.19
+	ic.offset_top = BARCO_BTN * 0.19
+	ic.offset_bottom = BARCO_BTN * 0.81
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(ic)
+	PrepBoard.add_press_feedback(b)
+	b.pressed.connect(func() -> void:
+		_scroll_to(ship_px)
+		scroll_speed = 0.0)
+	return b
+
+
+## Aparece o se retira segun lo lejos que ande la camara del barco, y se mece
+## mientras esta puesto. El vaiven va en VALORES ABSOLUTOS (nada de
+## `as_relative`, la leccion de la flecha del dialogo: un tween en bucle que
+## acumula se escapa de la pantalla).
+func _actualizar_boton_barco() -> void:
+	if boton_barco == null or not is_instance_valid(boton_barco):
+		return
+	var lienzo := GameState.canvas_size()
+	var y0 := lienzo.y - SUBMENU_H - boton_barco.size.y - 18.0
+	var lejos: bool = absf(cam_center - ship_px.y) > BARCO_LEJOS
+	if lejos == _barco_visible:
+		return
+	_barco_visible = lejos
+	if _barco_tween != null and _barco_tween.is_valid():
+		_barco_tween.kill()
+	if lejos:
+		boton_barco.position = Vector2((lienzo.x - boton_barco.size.x) * 0.5, y0)
+		boton_barco.visible = true
+		var ent := create_tween()
+		ent.tween_property(boton_barco, "modulate:a", 1.0, 0.22)
+		_barco_tween = create_tween().set_loops()
+		_barco_tween.tween_property(boton_barco, "position:y", y0 - 12.0, 0.7) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		_barco_tween.tween_property(boton_barco, "position:y", y0, 0.7) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	else:
+		var sal := create_tween()
+		sal.tween_property(boton_barco, "modulate:a", 0.0, 0.18)
+		sal.tween_callback(func() -> void: boton_barco.visible = false)
 
 
 ## Overlay 2D de un nodo: botón táctil transparente, estrellas conseguidas y
@@ -2356,6 +2446,8 @@ func _process(delta: float) -> void:
 			ship_blob.position = _world(ship_px) \
 					+ Vector3(-0.30, 0.04, -0.26) * esc \
 					+ Vector3(0.0, marea(), 0.0)
+
+	_actualizar_boton_barco()
 
 	# Overlays 2D anclados a sus nodos 3D.
 	if not map_visible:

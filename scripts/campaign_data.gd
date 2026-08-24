@@ -888,6 +888,15 @@ const PORTS: Array = [
 		# (main_menu._presentar_mejora): se la enseno su maestra Miku.
 		"reward_upgrade_3": "maki_aguacate",
 	},
+	# LOS PREMIOS DE 3 ESTRELLAS DEL MAR 2 SON RECETAS Y MEJORAS (regla del
+	# usuario): la tanda del 24-8-2026 se reparte del m2_02 al m2_16 — los
+	# picoteos de oficio primero (bol, shiitake, tsukemono, wakame) y el
+	# pescado nuevo despues; las CORONAS caen siempre DESPUES de que su receta
+	# base pueda estar ganada. La segunda ola (24-8-2026) rellena el resto:
+	# gyozas/tataki/toro en m2_11/19/23 y las coronas del yaki (m2_17), el
+	# maki de pepino (m2_20), el zuke (m2_21), el dashi (m2_22) y el fugu
+	# (m2_24). Las coronas de caballa, tempura, anguila y atun rojo NO tienen
+	# puerto todavia: son premios reservados para el MAR 3.
 	{
 		"id": "m2_02",
 		"sea": 2,
@@ -901,6 +910,7 @@ const PORTS: Array = [
 		"bite_speed": 1.15,
 		"goal_stars": 2,
 		"star_money": [58, 100, 158],
+		"reward_recipes_3": ["bol_arroz"],
 		# CON UN CAPITAN EN LA MEZCLA, LA CARTA CERRADA LLEVA UN 3 ESTRELLAS
 		# (le paso al usuario: el capitan miraba la cinta toda la jornada).
 		# Entra por preferencia el tsuke don o el futomaki, los dos regalos de
@@ -920,6 +930,7 @@ const PORTS: Array = [
 		"arrival_scale": 0.8,
 		"goal_stars": 2,
 		"star_money": [58, 100, 158],
+		"reward_recipes_3": ["gunkan_shiitake"],
 	},
 	{
 		"id": "m2_04",
@@ -935,6 +946,7 @@ const PORTS: Array = [
 		"recipe_slots": 3,
 		"goal_stars": 2,
 		"star_money": [60, 105, 165],
+		"reward_recipes_3": ["nigiri_caballa"],
 	},
 	{
 		"id": "m2_05",
@@ -947,6 +959,7 @@ const PORTS: Array = [
 		"patience_mult": 0.9,
 		"goal_stars": 2,
 		"star_money": [58, 100, 160],
+		"reward_recipes_3": ["tsukemono"],
 		"fixed_recipes": ["nigiri_atun", "maki_pepino", "edamame", "taiyaki"],
 		"alt_recipes": ["sashimi_atun_rojo", "nigiri_pulpo"],
 		# EL CAPITAN DEL MAPA: paga con un MAPA DEL TESORO ("mapa": true) si se
@@ -968,6 +981,7 @@ const PORTS: Array = [
 		"patience_mult": 0.9,
 		"goal_stars": 2,
 		"star_money": [60, 105, 165],
+		"reward_recipes_3": ["ensalada_wakame"],
 	},
 	{
 		"id": "m2_07",
@@ -984,6 +998,7 @@ const PORTS: Array = [
 		"late_type": "G",
 		"goal_stars": 2,
 		"star_money": [52, 92, 145],
+		"reward_recipes_3": ["gunkan_jurel"],
 	},
 	{
 		"id": "m2_08",
@@ -998,6 +1013,7 @@ const PORTS: Array = [
 		"director": "mar2_sirena",
 		"goal_stars": 2,
 		"star_money": [58, 102, 162],
+		"reward_upgrade_3": "nigiri_salmon",
 		"fixed_recipes": ["nigiri_salmon", "maki_aguacate", "sunomono", "mochi"],
 	},
 	{
@@ -1013,6 +1029,7 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [62, 108, 170],
+		"reward_recipes_3": ["nigiri_besugo"],
 		"fixed_recipes": ["uramaki_california", "nigiri_pulpo", "te_verde", "dorayaki"],
 	},
 	{
@@ -1028,6 +1045,7 @@ const PORTS: Array = [
 		"director": "mar2_despertar",
 		"goal_stars": 2,
 		"star_money": [64, 112, 178],
+		"reward_recipes_3": ["takoyaki_pulpo"],
 	},
 	{
 		"id": "m2_11",
@@ -1042,6 +1060,7 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [66, 115, 182],
+		"reward_recipes_3": ["gyozas"],
 	},
 	{
 		"id": "m2_12",
@@ -1055,6 +1074,7 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [64, 112, 178],
+		"reward_recipes_3": ["nigiri_pargo"],
 	},
 	{
 		"id": "m2_13",
@@ -1070,6 +1090,7 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [62, 110, 175],
+		"reward_recipes_3": ["barbo_ahumado"],
 	},
 	{
 		"id": "m2_14",
@@ -1106,6 +1127,7 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [68, 118, 188],
+		"reward_upgrade_3": "bol_arroz",
 	},
 	{
 		"id": "m2_16",
@@ -1120,6 +1142,7 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [68, 118, 188],
+		"reward_upgrade_3": "nigiri_pulpo",
 	},
 	{
 		"id": "m2_17",
@@ -1134,6 +1157,7 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [70, 122, 195],
+		"reward_upgrade_3": "onigiri",
 	},
 	{
 		"id": "m2_18",
@@ -1170,6 +1194,7 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [68, 120, 190],
+		"reward_recipes_3": ["tataki_atun_rojo"],
 		"fixed_recipes": ["salmon_tsuke_don", "maki_atun", "sunomono", "taiyaki"],
 	},
 	{
@@ -1185,7 +1210,10 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [70, 122, 195],
-		"fixed_recipes": ["fugu", "nigiri_anguila", "gari", "mochi"],
+		"reward_upgrade_3": "maki_pepino",
+		# OJO: aqui estuvo "gari", una receta que NO EXISTE en RecipeData (se
+		# cayo en el calibrado): su hueco de picoteo es del edamame.
+		"fixed_recipes": ["fugu", "nigiri_anguila", "edamame", "mochi"],
 		"alt_recipes": ["sashimi_variado", "udon"],
 	},
 	{
@@ -1201,6 +1229,7 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [58, 100, 160],
+		"reward_upgrade_3": "nigiri_atun",
 	},
 	{
 		"id": "m2_22",
@@ -1215,6 +1244,7 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [74, 128, 205],
+		"reward_upgrade_3": "caldo_dashi",
 	},
 	{
 		"id": "m2_23",
@@ -1229,6 +1259,7 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [72, 125, 200],
+		"reward_recipes_3": ["toro_aleta"],
 	},
 	{
 		"id": "m2_24",
@@ -1242,6 +1273,7 @@ const PORTS: Array = [
 		"recipe_slots": 3,
 		"goal_stars": 2,
 		"star_money": [78, 136, 218],
+		"reward_upgrade_3": "fugu",
 	},
 	{
 		"id": "m2_25",
@@ -1369,57 +1401,58 @@ const MAP_STEP := 215.0
 
 const MAP_POS: Dictionary = {
 	"nivel_1": Vector2(LANE_CENTER, 3220.0),
-	"nivel_2": Vector2(LANE_LEFT, 3008.0),
-	"practica_1": Vector2(LANE_RIGHT, 2796.0),
-	"nivel_3": Vector2(LANE_CENTER, 2584.0),
-	"nivel_4": Vector2(LANE_LEFT, 2372.0),
-	"practica_2": Vector2(LANE_RIGHT, 2160.0),
-	"nivel_5": Vector2(LANE_CENTER, 1948.0),
-	"nivel_6": Vector2(LANE_LEFT, 1736.0),
-	"practica_3": Vector2(LANE_RIGHT, 1524.0),
-	"nivel_7": Vector2(LANE_CENTER, 1312.0),
-	"nivel_8": Vector2(LANE_LEFT, 1100.0),
-	"practica_4": Vector2(LANE_RIGHT, 888.0),
-	"nivel_9": Vector2(LANE_CENTER, 676.0),
-	"nivel_10": Vector2(LANE_LEFT, 464.0),
-	"nivel_11": Vector2(LANE_RIGHT, 252.0),
-	"nivel_12": Vector2(LANE_CENTER, 40.0),
-	"nivel_13": Vector2(LANE_LEFT, -172.0),
-	"nivel_14": Vector2(LANE_RIGHT, -384.0),
-	"vispera_kappa": Vector2(LANE_CENTER, -596.0),
+	"nivel_2": Vector2(LANE_LEFT, 2908.0),
+	"practica_1": Vector2(LANE_RIGHT, 2596.0),
+	"nivel_3": Vector2(LANE_CENTER, 2284.0),
+	"nivel_4": Vector2(LANE_LEFT, 1972.0),
+	"practica_2": Vector2(LANE_RIGHT, 1660.0),
+	"nivel_5": Vector2(LANE_CENTER, 1348.0),
+	"nivel_6": Vector2(LANE_LEFT, 1036.0),
+	"practica_3": Vector2(LANE_RIGHT, 724.0),
+	"nivel_7": Vector2(LANE_CENTER, 412.0),
+	"nivel_8": Vector2(LANE_LEFT, 100.0),
+	"practica_4": Vector2(LANE_RIGHT, -212.0),
+	"nivel_9": Vector2(LANE_CENTER, -524.0),
+	"nivel_10": Vector2(LANE_LEFT, -836.0),
+	"nivel_11": Vector2(LANE_RIGHT, -1148.0),
+	"nivel_12": Vector2(LANE_CENTER, -1460.0),
+	"nivel_13": Vector2(LANE_LEFT, -1772.0),
+	"nivel_14": Vector2(LANE_RIGHT, -2084.0),
+	"vispera_kappa": Vector2(LANE_CENTER, -2396.0),
 	# LA CUEVA DEL KAPPA, a dos pasos del escenario 19 (el usuario la acerco:
 	# con el mar 2 continuando por encima, el aislamiento de antes ya no tenia
 	# sentido y dejaba un vacio enorme en la travesia).
-	"nivel_15": Vector2(LANE_CENTER, -1026.0),
-	# --- MAR 2: sigue hacia el norte, con un salto de mar (900 px) entre la
-	# cueva y su primera cala. PASO 268 (era 215: los modelos crecidos se
-	# tocaban y los carteles no tenian sitio, pedido por el usuario). El
-	# jefe (m2_25) lleva su respiro extra.
-	"m2_01": Vector2(LANE_CENTER, -1926.0),
-	"m2_02": Vector2(LANE_LEFT, -2194.0),
-	"m2_03": Vector2(LANE_CENTER, -2462.0),
-	"m2_04": Vector2(LANE_RIGHT, -2730.0),
-	"m2_05": Vector2(LANE_CENTER, -2998.0),
-	"m2_06": Vector2(LANE_LEFT, -3266.0),
-	"m2_07": Vector2(LANE_CENTER, -3534.0),
-	"m2_08": Vector2(LANE_RIGHT, -3802.0),
-	"m2_09": Vector2(LANE_CENTER, -4070.0),
-	"m2_10": Vector2(LANE_LEFT, -4338.0),
-	"m2_11": Vector2(LANE_CENTER, -4606.0),
-	"m2_12": Vector2(LANE_RIGHT, -4874.0),
-	"m2_13": Vector2(LANE_CENTER, -5142.0),
-	"m2_14": Vector2(LANE_LEFT, -5410.0),
-	"m2_15": Vector2(LANE_CENTER, -5678.0),
-	"m2_16": Vector2(LANE_RIGHT, -5946.0),
-	"m2_17": Vector2(LANE_CENTER, -6214.0),
-	"m2_18": Vector2(LANE_LEFT, -6482.0),
-	"m2_19": Vector2(LANE_CENTER, -6750.0),
-	"m2_20": Vector2(LANE_RIGHT, -7018.0),
-	"m2_21": Vector2(LANE_CENTER, -7286.0),
-	"m2_22": Vector2(LANE_LEFT, -7554.0),
-	"m2_23": Vector2(LANE_CENTER, -7822.0),
-	"m2_24": Vector2(LANE_RIGHT, -8090.0),
-	"m2_25": Vector2(LANE_CENTER, -8558.0),
+	"nivel_15": Vector2(LANE_CENTER, -2926.0),
+	# --- MAR 2: sigue hacia el norte, con un salto de mar (1000 px) entre la
+	# cueva y su primera cala. PASO 368: cada mar gano +100 px de paso
+	# (pedido por el usuario) porque con los CARTELES puestos la travesia
+	# se veia mas apretada de lo que estaba. El jefe (m2_25) lleva su
+	# respiro extra.
+	"m2_01": Vector2(LANE_CENTER, -3926.0),
+	"m2_02": Vector2(LANE_LEFT, -4294.0),
+	"m2_03": Vector2(LANE_CENTER, -4662.0),
+	"m2_04": Vector2(LANE_RIGHT, -5030.0),
+	"m2_05": Vector2(LANE_CENTER, -5398.0),
+	"m2_06": Vector2(LANE_LEFT, -5766.0),
+	"m2_07": Vector2(LANE_CENTER, -6134.0),
+	"m2_08": Vector2(LANE_RIGHT, -6502.0),
+	"m2_09": Vector2(LANE_CENTER, -6870.0),
+	"m2_10": Vector2(LANE_LEFT, -7238.0),
+	"m2_11": Vector2(LANE_CENTER, -7606.0),
+	"m2_12": Vector2(LANE_RIGHT, -7974.0),
+	"m2_13": Vector2(LANE_CENTER, -8342.0),
+	"m2_14": Vector2(LANE_LEFT, -8710.0),
+	"m2_15": Vector2(LANE_CENTER, -9078.0),
+	"m2_16": Vector2(LANE_RIGHT, -9446.0),
+	"m2_17": Vector2(LANE_CENTER, -9814.0),
+	"m2_18": Vector2(LANE_LEFT, -10182.0),
+	"m2_19": Vector2(LANE_CENTER, -10550.0),
+	"m2_20": Vector2(LANE_RIGHT, -10918.0),
+	"m2_21": Vector2(LANE_CENTER, -11286.0),
+	"m2_22": Vector2(LANE_LEFT, -11654.0),
+	"m2_23": Vector2(LANE_CENTER, -12022.0),
+	"m2_24": Vector2(LANE_RIGHT, -12390.0),
+	"m2_25": Vector2(LANE_CENTER, -12958.0),
 }
 
 
