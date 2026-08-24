@@ -1476,13 +1476,29 @@ La GUÍA lleva su sección ("El canto de sirena").
   `PowerupData` se reescribieron CORTAS Y CON LA CIFRA ("La cinta vuela 20
   s", "1 min sin cubo: dan otra vuelta"): en una carta estrecha una frase
   larga no se lee.
-  · **Su panel y sus cartas son EXCLUSIVOS** (`pot_panel.png` y
-    `pot_carta.png`, dibujados en `ui2_prep.build_potenciadores`): la caja de
-    madera oscura con oro y remaches del bote de propinas, y encima cartas de
-    pergamino con marco dorado. Ni el pergamino de `panel.png` ni el tablón
-    de `boton_madera.png`, que son el fondo de media interfaz: lo que se
-    elige aquí no es un botón más. El TÍTULO va en crema con reborde (sobre
-    la madera oscura, la tinta parda del resto de ventanas no se leía).
+  · **LA CARTA ES ARTE GENERADO CON LUDO** (`pot_carta.png`, de
+    `ui2_prep.build_pot_carta`): madera tallada con herrajes de latón en las
+    esquinas y su hoja de pergamino dentro. La primera versión salió DIBUJADA
+    con `ImageDraw` —pergamino con marco de oro— y el usuario la rechazó: es
+    la misma lección de la perilla de los deslizadores, una forma geométrica
+    hecha a mano se ve plana al lado del resto del set.
+  · **Y NO LLEVA PANEL DE FONDO** (pedido por el usuario): las tres cartas se
+    sostienen solas sobre la partida. El `Panel` sigue ahí —invisible— porque
+    es quien se traga los toques mientras se elige, que es media función de
+    un cartel modal; y el TÍTULO va en crema con reborde grueso, que ahora
+    cae sobre el nivel y no sobre un pergamino.
+  · **LA CARTA NO ES UN 9-SLICE**: sus herrajes SOBRESALEN del marco recto
+    (medido: en mitad de cada canto el alfa es 0, porque la caja del recorte
+    la marcan las esquinas), así que estirando las bandas del medio saldrían
+    franjas transparentes por los lados. Se usa ENTERA y a su proporción
+    exacta (0.690) con `STRETCH_SCALE`, y de ahí sale su medida en pantalla:
+    `POT_CARTA` 200×290 — el ancho lo da el reparto (624 de hueco menos dos
+    huecos de 12, entre tres). Los márgenes del texto salen del MARCO del
+    propio dibujo (9,1% del ancho por los lados, 7,7% del alto por arriba).
+  · **EL SITIO DE CADA COSA ESTÁ CONTADO**: rótulo 56 (dos renglones), dibujo
+    lo que sobre y descripción 86 (TRES renglones). Con 74 la última línea se
+    cortaba a media altura en las descripciones más largas, y por eso tres de
+    ellas se acortaron además en `PowerupData`.
   · **EL CONTENEDOR ES UN `BoxContainer` PELADO, no un VBox**: el mismo
     cartel sirve para las MEJORAS del arcade, que siguen en FILAS (sus
     rótulos son frases enteras y en una carta estrecha no se leerían), así

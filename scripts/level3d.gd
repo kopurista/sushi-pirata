@@ -2874,12 +2874,11 @@ func _skin_panels() -> void:
 		results_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 		results_panel.add_child(prep_board.make_nine_patch(
 			PrepBoard.PANEL_TEX, PrepBoard.PANEL_MARGIN))
-	# EL CARTEL DE POTENCIADORES TIENE ARTE PROPIO (pedido por el usuario): la
-	# caja de madera oscura con oro del bote de propinas, ni el pergamino del
-	# resto de ventanas ni el tablón de los botones. Ver `POT_PANEL_TEX`.
+	# EL CARTEL DE POTENCIADORES VA SIN FONDO (pedido por el usuario): las
+	# cartas se sostienen solas sobre la partida, sin un segundo panel detrás.
+	# El Panel se queda —invisible— porque es quien se traga los toques
+	# mientras se elige, que es media función de un cartel modal.
 	powerup_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-	powerup_panel.add_child(prep_board.make_nine_patch(
-		POT_PANEL_TEX, POT_PANEL_MARGIN))
 	# El rótulo es un TITULAR grande DENTRO del cartel, no una cinta: el panel
 	# ya lleva cuerdas en las cuatro esquinas y una tela encima lo cargaba.
 	$HUD/ResultsPanel/VBox/TitleLabel.visible = false
@@ -4634,10 +4633,10 @@ const POWERUP_CARD_H := 148.0
 const POWERUP_ICON := 104.0
 ## Arte EXCLUSIVO del cartel de potenciadores (`tools/ui2_prep.build_potenciadores`):
 ## la caja de madera oscura con oro del bote y las cartas de pergamino.
-const POT_PANEL_TEX := "res://assets/ui/pot_panel.png"
-const POT_PANEL_MARGIN := 44
 const POT_CARTA_TEX := "res://assets/ui/pot_carta.png"
-const POT_CARTA_MARGIN := 30
+## Medida de la carta EN PANTALLA. Su proporción es la del dibujo (0.690), y
+## el ancho sale del reparto: 600 de hueco − 2 huecos de 12, entre tres.
+const POT_CARTA := Vector2(200.0, 290.0)
 
 
 ## Tres tarjetas: DIBUJO + TÍTULO, y nada más. Antes cada opción era un párrafo
@@ -4714,21 +4713,34 @@ func _make_powerup_card(id: String) -> Button:
 func _card_vertical(nombre: String, icono_ruta: String, desc: String,
 		al_pulsar: Callable) -> Button:
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(0, POWERUP_CARD_H)
+	b.custom_minimum_size = Vector2(0, POT_CARTA.y)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
-	b.add_child(PrepBoard.make_nine_patch(POT_CARTA_TEX, POT_CARTA_MARGIN))
+	# ENTERA Y A SU PROPORCIÓN, no 9-slice: sus herrajes sobresalen del marco
+	# recto, así que estirar las bandas del medio dejaría franjas
+	# transparentes por los cantos (ver `ui2_prep.build_pot_carta`). Por eso
+	# la carta mide POT_CARTA (192x278), que es su proporción exacta.
+	var fondo := TextureRect.new()
+	fondo.texture = load(POT_CARTA_TEX)
+	fondo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	fondo.stretch_mode = TextureRect.STRETCH_SCALE
+	fondo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(fondo)
 	PrepBoard.add_press_feedback(b)
 	b.pressed.connect(al_pulsar)
 
+	# Los márgenes salen del MARCO de la carta (medido sobre el dibujo: 9.1%
+	# del ancho por los lados y 7.7% del alto por arriba), para que el texto
+	# caiga dentro del pergamino y no encima de la madera.
 	var col := VBoxContainer.new()
 	col.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	col.offset_left = 14.0
-	col.offset_right = -14.0
-	col.offset_top = 14.0
-	col.offset_bottom = -14.0
-	col.add_theme_constant_override("separation", 6)
+	col.offset_left = 22.0
+	col.offset_right = -22.0
+	col.offset_top = 26.0
+	col.offset_bottom = -26.0
+	col.add_theme_constant_override("separation", 4)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(col)
 
@@ -4742,7 +4754,7 @@ func _card_vertical(nombre: String, icono_ruta: String, desc: String,
 	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	titulo.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	titulo.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	titulo.custom_minimum_size = Vector2(0, 62)
+	titulo.custom_minimum_size = Vector2(0, 56)
 	titulo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(titulo)
 
@@ -4765,7 +4777,9 @@ func _card_vertical(nombre: String, icono_ruta: String, desc: String,
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size = Vector2(0, 74)
+	# TRES renglones de sitio: con dos, la última línea se cortaba a media
+	# altura en las descripciones más largas (medido en captura).
+	l.custom_minimum_size = Vector2(0, 86)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(l)
 	return b
@@ -4783,9 +4797,11 @@ func _montar_cartel_potenciadores(filas: bool) -> void:
 	t.text = "¡Mejora de oleada! Elige una" if filas 		else "¡Bote lleno! Elige un potenciador"
 	powerup_options.add_theme_constant_override("separation", 18 if filas else 12)
 	var vb: Control = $HUD/PowerupPanel/VBox
-	vb.offset_left = 66.0 if filas else 30.0
-	vb.offset_right = -66.0 if filas else -30.0
-	var alto := 700.0 if filas else 508.0
+	vb.offset_left = 66.0 if filas else 18.0
+	vb.offset_right = -66.0 if filas else -18.0
+	# Sin panel de fondo, el alto solo tiene que dar para el rótulo y la fila
+	# de cartas: 72 (margen del VBox) + 40 (título) + 18 + 290 + 60.
+	var alto := 700.0 if filas else 480.0
 	var medio: float = GameState.canvas_size().y * 0.5
 	powerup_panel.offset_top = medio - alto * 0.5
 	powerup_panel.offset_bottom = medio + alto * 0.5

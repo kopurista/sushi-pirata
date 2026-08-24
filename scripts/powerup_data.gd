@@ -53,7 +53,7 @@ const POWERUPS: Dictionary = {
 	},
 	"clientes_pacientes": {
 		"name": "Clientes pacientes",
-		"desc": "+20% de paciencia, también a los que vengan",
+		"desc": "+20% de paciencia para todos",
 		"icon": "res://assets/ui/pot_paciencia.png",
 	},
 	"menos_cooldown": {
@@ -83,7 +83,7 @@ const POWERUPS: Dictionary = {
 	},
 	"doble_plato": {
 		"name": "Doble plato",
-		"desc": "La siguiente receta saca 2 platos",
+		"desc": "La siguiente saca 2 platos",
 		"icon": "res://assets/ui/pot_doble.png",
 	},
 	# Solo se sortea en los ABORDAJES: son los únicos niveles con reloj (ver
@@ -116,7 +116,7 @@ const POWERUPS: Dictionary = {
 	},
 	"doble_variedad": {
 		"name": "Doble variedad",
-		"desc": "15 s con el multiplicador al doble",
+		"desc": "Multiplicadores al doble 15 s",
 		"icon": "res://assets/ui/pot_doble_mult.png",
 	},
 }
