@@ -75,7 +75,7 @@ const FICHA_BAJADA := 40.0
 ## El tope de arriba llega hasta el jefe del MAR 2 (m2_25, y=-7286) con su
 ## margen; el de abajo se queda JUSTO bajo el escenario 1 — sin el panel de
 ## informacion de antes, bajar mas solo ensenaba un hueco de mar vacio.
-const SCROLL_MIN := -7440.0
+const SCROLL_MIN := -8712.0
 const SCROLL_MAX := CampaignData.MAP_HEIGHT - 560.0
 
 ## EL PLANO DEL MAR TIENE QUE CUBRIR TAMBIÉN EL FONDEADERO DEL MENÚ, que está
@@ -87,7 +87,7 @@ const SEA_BOTTOM_PX := 5200.0
 ## 290 u: el plano tiene que llegar del fondeadero del menu (abajo del todo)
 ## hasta el jefe del mar 2 (y=-7286 px). Con 190 se acababa en -3500 y la
 ## mitad norte del mar nuevo flotaba sobre el vacio.
-const SEA_SIZE := 290.0
+const SEA_SIZE := 340.0
 
 ## Modelo 3D de cada tipo de nodo y huella horizontal objetivo (u).
 const KIND_MODELS := {
@@ -105,12 +105,16 @@ const NUM_TEX_MADERA := "res://assets/props/madera_cartel.webp"
 ## escenario y algo hacia la camara, en fracciones de su huella: lo bastante
 ## afuera para caer siempre sobre el agua.
 const CARTEL_X := 0.46
+## El ABORDAJE aparta mas su cartel: el barco enemigo es ancho y con la
+## fraccion general el cartel quedaba DETRAS del casco (con el paso del mapa
+## subido a 268 hay sitio de sobra para sacarlo).
+const CARTEL_X_KIND := { "abordaje": 0.68, "isla": 0.58 }
 const CARTEL_Z := 0.34
 ## Lo que se hunde por debajo del mar. El pivote del nodo esta a −0.10, asi que
 ## esto es lo que baja el cartel DESDE ahi: la linea de flotacion cruza los
 ## postes a media altura y la tabla queda limpia por encima.
 const CARTEL_CALADO := 0.26
-const CARTEL_ALTO := 1.52
+const CARTEL_ALTO := 1.66
 const CARTEL_ANCHO := 1.30
 const CARTEL_TABLA := 1.08
 const CARTEL_POSTE := 0.10
@@ -121,7 +125,7 @@ const CARTEL_FONDO := 0.09
 const NUM_EN_TABLA := 0.50
 const NUM_SUBE := 0.18
 const ESTRELLAS_EN_TABLA := 0.29
-const ESTRELLAS_BAJA := 0.31
+const ESTRELLAS_BAJA := 0.24
 
 ## Huella de cada modelo en el mapa. La ISLA es la mas grande porque su numero
 ## va ESCRITO EN LA ARENA: a 2.6 la playa no daba para una cifra legible.
@@ -413,7 +417,7 @@ func _setup_nodes() -> void:
 		flotantes.append(blob)
 		_cartel_nivel(pivot, foot, CampaignData.port_index(id) + 1,
 			int(GameState.level_stars.get(id, 0)),
-			GameState.is_port_unlocked(id), _lado_del_cartel(id))
+			GameState.is_port_unlocked(id), _lado_del_cartel(id), kind)
 		if not GameState.is_port_unlocked(id):
 			_dim_model(pivot)
 			if base_cueva != null:
@@ -439,13 +443,14 @@ func _lado_del_cartel(id: String) -> float:
 ## lado. Con el cartel abajo, el barco lo tapaba en cuanto se seleccionaba el
 ## escenario.
 func _cartel_nivel(pivot: Node3D, foot: float, n: int, estrellas: int,
-		unlocked: bool, lado: float) -> void:
+		unlocked: bool, lado: float, kind := "isla") -> void:
 	var cartel := Node3D.new()
 	cartel.rotation_degrees.y = 45.0
 	# MEDIO SUMERGIDO: la base baja bien por debajo del mar (el pivote del nodo
 	# esta a −0.10, asi que en local hay que bajar otro tanto) y la linea de
 	# flotacion cruza los postes a media altura.
-	cartel.position = R_HAT * (lado * foot * CARTEL_X) \
+	var fx: float = float(CARTEL_X_KIND.get(kind, CARTEL_X))
+	cartel.position = R_HAT * (lado * foot * fx) \
 		- D_HAT * (foot * CARTEL_Z) + Vector3(0.0, -CARTEL_CALADO, 0.0)
 	pivot.add_child(cartel)
 	# MADERA A MEDIO CAMINO (`madera_cartel.webp`, la del muelle mezclada con su
@@ -1372,9 +1377,17 @@ func _ver_seccion(caja: Control, on: bool) -> void:
 		sec.visible = on
 
 
+## Cuando se abrio la ficha, para ARMAR sus botones: en el ordenador un clic
+## genera DOS eventos (raton + toque sintetizado) y el que abria la ficha
+## pulsaba de propina el "Viajar" que acababa de aparecer bajo el cursor — con
+## genero faltando, el aviso de David salia detras de la propia ficha.
+var _ficha_abierta_ms := 0
+
+
 func _abrir_ficha() -> void:
 	if map_info_panel == null:
 		return
+	_ficha_abierta_ms = Time.get_ticks_msec()
 	map_info_panel.visible = true
 	map_info_panel.modulate.a = 0.0
 	create_tween().tween_property(map_info_panel, "modulate:a", 1.0, 0.18)
@@ -1590,6 +1603,13 @@ func _premios_de(fila: Container, port: Dictionary, escalon: int, meta: int,
 	var hecho3 := logradas >= 3
 	for r in port.get("reward_recipes_3", []):
 		_row_icon(fila, RecipeData.get_dish_texture(r), "", 40, hecho3)
+	# MEJORA DE RECETA: se ensena el plato ya coronado, que es lo que se gana.
+	var mejora_base := str(port.get("reward_upgrade_3", ""))
+	if mejora_base != "":
+		var mejora: Dictionary = RecipeData.upgrade_of(mejora_base)
+		if not mejora.is_empty():
+			_row_icon(fila, RecipeData.get_dish_texture(str(mejora.get("id", ""))),
+					"", 40, hecho3)
 	var lingotes := int(port.get("reward_ingots_3", 0))
 	if lingotes > 0:
 		_row_icon(fila, load("res://assets/ui/ic_lingote.png"),
@@ -2033,6 +2053,14 @@ func _unhandled_input(event: InputEvent) -> void:
 func _on_sail_pressed() -> void:
 	if selected_id == "" or not GameState.is_port_unlocked(selected_id):
 		return
+	# El clic fantasma del ordenador (ver _abrir_ficha): un "Viajar" en los
+	# primeros 400 ms es el mismo clic que abrio la ficha, no una decision.
+	if Time.get_ticks_msec() - _ficha_abierta_ms < 400:
+		return
+	# La ficha se retira ANTES de cualquier aviso: el dialogo de la falta de
+	# genero (y el cartel de la tienda) tienen que salir sobre el mapa, no
+	# detras de la ventana.
+	_cerrar_ficha()
 	# Zarpar por primera vez cierra la guía del mapa: a la vuelta, el jugador
 	# ya se mueve por donde quiera.
 	if _atado_al_puerto:
@@ -2070,6 +2098,7 @@ func _on_sail_pressed() -> void:
 ## abra la tienda. No es un premio: es la red de seguridad de la escuela.
 func _david_regala_genero(faltan: Array) -> void:
 	var caja := DialogueBox.new()
+	caja.z_index = 200
 	ui.add_child(caja)
 	caja.say([
 		{ "text": "¡RAAAK! ¡DESPENSA VACÍA! ¡Que no queda %s!"
@@ -2109,6 +2138,7 @@ func _zarpar_con(recetas: Array[String]) -> void:
 ## las tres salidas: jugar igualmente, pasarse por la tienda o volver al mapa.
 func _avisar_falta_genero(recetas: Array[String], faltan: Array) -> void:
 	var caja := DialogueBox.new()
+	caja.z_index = 200
 	ui.add_child(caja)
 	caja.say([
 		{ "text": "¡RAAAK! ¡ALTO AHÍ! ¡Te falta género en la despensa!",
@@ -2199,6 +2229,10 @@ func _panel_falta_genero(recetas: Array[String]) -> void:
 			pad.content_margin_right = 12.0
 			tienda.add_theme_stylebox_override(st, pad)
 		tienda.pressed.connect(func() -> void:
+			# La vuelta de la tienda cae en el MAPA, en el mismo escenario
+			# (GameState.map_port ya lo recuerda): sin esto se volvia al menu
+			# y habia que rehacer el camino entero.
+			GameState.shop_from = "mapa"
 			GameState.fade_to_scene("res://scenes/shop_screen.tscn", 0.35, 0.45))
 		btns.add_child(tienda)
 

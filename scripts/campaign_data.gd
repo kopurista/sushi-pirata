@@ -882,8 +882,11 @@ const PORTS: Array = [
 		"goal_stars": 2,
 		"star_money": [55, 95, 150],
 		"fixed_recipes": ["nigiri_salmon", "maki_atun", "sunomono", "mochi"],
-		"reward_ingots_3": 1,
-		"reward_rice_3": 2,
+		# EL PREMIO DE 3 ESTRELLAS ES LA PRIMERA MEJORA DE RECETA (ver el
+		# bloque de MEJORAS en RecipeData): el maki de aguacate coronado con
+		# mayonesa japonesa y cebolla frita. La presenta ALICE en el mapa
+		# (main_menu._presentar_mejora): se la enseno su maestra Miku.
+		"reward_upgrade_3": "maki_aguacate",
 	},
 	{
 		"id": "m2_02",
@@ -898,8 +901,12 @@ const PORTS: Array = [
 		"bite_speed": 1.15,
 		"goal_stars": 2,
 		"star_money": [58, 100, 158],
-		"fixed_recipes": ["maki_aguacate", "nigiri_atun", "te_verde", "dorayaki"],
-		"reward_rice_3": 2,
+		# CON UN CAPITAN EN LA MEZCLA, LA CARTA CERRADA LLEVA UN 3 ESTRELLAS
+		# (le paso al usuario: el capitan miraba la cinta toda la jornada).
+		# Entra por preferencia el tsuke don o el futomaki, los dos regalos de
+		# guion del mar 1, asi que siempre hay uno.
+		"fixed_recipes": ["maki_aguacate", "nigiri_atun", "dorayaki"],
+		"alt_recipes": ["salmon_tsuke_don", "futomaki_salmon"],
 	},
 	{
 		"id": "m2_03",
@@ -913,7 +920,6 @@ const PORTS: Array = [
 		"arrival_scale": 0.8,
 		"goal_stars": 2,
 		"star_money": [58, 100, 158],
-		"reward_ingots_3": 1,
 	},
 	{
 		"id": "m2_04",
@@ -929,7 +935,6 @@ const PORTS: Array = [
 		"recipe_slots": 3,
 		"goal_stars": 2,
 		"star_money": [60, 105, 165],
-		"reward_rice_3": 2,
 	},
 	{
 		"id": "m2_05",
@@ -951,7 +956,6 @@ const PORTS: Array = [
 			"reto": "mismo_caro", "n": 3,
 		},
 		"late_type": "G",
-		"reward_ingots_3": 1,
 	},
 	{
 		"id": "m2_06",
@@ -964,7 +968,6 @@ const PORTS: Array = [
 		"patience_mult": 0.9,
 		"goal_stars": 2,
 		"star_money": [60, 105, 165],
-		"reward_rice_3": 2,
 	},
 	{
 		"id": "m2_07",
@@ -981,7 +984,6 @@ const PORTS: Array = [
 		"late_type": "G",
 		"goal_stars": 2,
 		"star_money": [52, 92, 145],
-		"reward_ingots_3": 1,
 	},
 	{
 		"id": "m2_08",
@@ -997,7 +999,6 @@ const PORTS: Array = [
 		"goal_stars": 2,
 		"star_money": [58, 102, 162],
 		"fixed_recipes": ["nigiri_salmon", "maki_aguacate", "sunomono", "mochi"],
-		"reward_rice_3": 2,
 	},
 	{
 		"id": "m2_09",
@@ -1013,7 +1014,6 @@ const PORTS: Array = [
 		"goal_stars": 2,
 		"star_money": [62, 108, 170],
 		"fixed_recipes": ["uramaki_california", "nigiri_pulpo", "te_verde", "dorayaki"],
-		"reward_ingots_3": 1,
 	},
 	{
 		"id": "m2_10",
@@ -1028,7 +1028,6 @@ const PORTS: Array = [
 		"director": "mar2_despertar",
 		"goal_stars": 2,
 		"star_money": [64, 112, 178],
-		"reward_rice_3": 2,
 	},
 	{
 		"id": "m2_11",
@@ -1043,7 +1042,6 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [66, 115, 182],
-		"reward_ingots_3": 1,
 	},
 	{
 		"id": "m2_12",
@@ -1057,7 +1055,6 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [64, 112, 178],
-		"reward_rice_3": 2,
 	},
 	{
 		"id": "m2_13",
@@ -1073,7 +1070,6 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [62, 110, 175],
-		"reward_ingots_3": 1,
 	},
 	{
 		"id": "m2_14",
@@ -1095,7 +1091,7 @@ const PORTS: Array = [
 		"special_client": { "who": "miku", "type": "G" },
 		"late_type": "G",
 		"director": "mar2_miku",
-		"reward_rice_3": 2,
+		"reward_ingots_3": 1,
 	},
 	{
 		"id": "m2_15",
@@ -1110,7 +1106,6 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [68, 118, 188],
-		"reward_ingots_3": 1,
 	},
 	{
 		"id": "m2_16",
@@ -1125,7 +1120,6 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [68, 118, 188],
-		"reward_rice_3": 2,
 	},
 	{
 		"id": "m2_17",
@@ -1140,7 +1134,6 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [70, 122, 195],
-		"reward_ingots_3": 1,
 	},
 	{
 		"id": "m2_18",
@@ -1178,7 +1171,6 @@ const PORTS: Array = [
 		"goal_stars": 2,
 		"star_money": [68, 120, 190],
 		"fixed_recipes": ["salmon_tsuke_don", "maki_atun", "sunomono", "taiyaki"],
-		"reward_rice_3": 2,
 	},
 	{
 		"id": "m2_20",
@@ -1195,7 +1187,6 @@ const PORTS: Array = [
 		"star_money": [70, 122, 195],
 		"fixed_recipes": ["fugu", "nigiri_anguila", "gari", "mochi"],
 		"alt_recipes": ["sashimi_variado", "udon"],
-		"reward_ingots_3": 1,
 	},
 	{
 		"id": "m2_21",
@@ -1210,7 +1201,6 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [58, 100, 160],
-		"reward_rice_3": 2,
 	},
 	{
 		"id": "m2_22",
@@ -1225,7 +1215,6 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [74, 128, 205],
-		"reward_ingots_3": 1,
 	},
 	{
 		"id": "m2_23",
@@ -1240,7 +1229,6 @@ const PORTS: Array = [
 		"sirena": true,
 		"goal_stars": 2,
 		"star_money": [72, 125, 200],
-		"reward_rice_3": 2,
 	},
 	{
 		"id": "m2_24",
@@ -1254,7 +1242,6 @@ const PORTS: Array = [
 		"recipe_slots": 3,
 		"goal_stars": 2,
 		"star_money": [78, 136, 218],
-		"reward_ingots_3": 2,
 	},
 	{
 		"id": "m2_25",
@@ -1272,6 +1259,7 @@ const PORTS: Array = [
 		"star_money": [55, 95, 150],
 		"boss": "sirena",
 		"director": "mar2_sirena_jefa",
+		"reward_ingots_3": 3,
 	},
 ]
 
@@ -1404,32 +1392,34 @@ const MAP_POS: Dictionary = {
 	# sentido y dejaba un vacio enorme en la travesia).
 	"nivel_15": Vector2(LANE_CENTER, -1026.0),
 	# --- MAR 2: sigue hacia el norte, con un salto de mar (900 px) entre la
-	# cueva y su primera cala. El jefe (m2_25) lleva su respiro extra.
+	# cueva y su primera cala. PASO 268 (era 215: los modelos crecidos se
+	# tocaban y los carteles no tenian sitio, pedido por el usuario). El
+	# jefe (m2_25) lleva su respiro extra.
 	"m2_01": Vector2(LANE_CENTER, -1926.0),
-	"m2_02": Vector2(LANE_LEFT, -2141.0),
-	"m2_03": Vector2(LANE_CENTER, -2356.0),
-	"m2_04": Vector2(LANE_RIGHT, -2571.0),
-	"m2_05": Vector2(LANE_CENTER, -2786.0),
-	"m2_06": Vector2(LANE_LEFT, -3001.0),
-	"m2_07": Vector2(LANE_CENTER, -3216.0),
-	"m2_08": Vector2(LANE_RIGHT, -3431.0),
-	"m2_09": Vector2(LANE_CENTER, -3646.0),
-	"m2_10": Vector2(LANE_LEFT, -3861.0),
-	"m2_11": Vector2(LANE_CENTER, -4076.0),
-	"m2_12": Vector2(LANE_RIGHT, -4291.0),
-	"m2_13": Vector2(LANE_CENTER, -4506.0),
-	"m2_14": Vector2(LANE_LEFT, -4721.0),
-	"m2_15": Vector2(LANE_CENTER, -4936.0),
-	"m2_16": Vector2(LANE_RIGHT, -5151.0),
-	"m2_17": Vector2(LANE_CENTER, -5366.0),
-	"m2_18": Vector2(LANE_LEFT, -5581.0),
-	"m2_19": Vector2(LANE_CENTER, -5796.0),
-	"m2_20": Vector2(LANE_RIGHT, -6011.0),
-	"m2_21": Vector2(LANE_CENTER, -6226.0),
-	"m2_22": Vector2(LANE_LEFT, -6441.0),
-	"m2_23": Vector2(LANE_CENTER, -6656.0),
-	"m2_24": Vector2(LANE_RIGHT, -6871.0),
-	"m2_25": Vector2(LANE_CENTER, -7286.0),
+	"m2_02": Vector2(LANE_LEFT, -2194.0),
+	"m2_03": Vector2(LANE_CENTER, -2462.0),
+	"m2_04": Vector2(LANE_RIGHT, -2730.0),
+	"m2_05": Vector2(LANE_CENTER, -2998.0),
+	"m2_06": Vector2(LANE_LEFT, -3266.0),
+	"m2_07": Vector2(LANE_CENTER, -3534.0),
+	"m2_08": Vector2(LANE_RIGHT, -3802.0),
+	"m2_09": Vector2(LANE_CENTER, -4070.0),
+	"m2_10": Vector2(LANE_LEFT, -4338.0),
+	"m2_11": Vector2(LANE_CENTER, -4606.0),
+	"m2_12": Vector2(LANE_RIGHT, -4874.0),
+	"m2_13": Vector2(LANE_CENTER, -5142.0),
+	"m2_14": Vector2(LANE_LEFT, -5410.0),
+	"m2_15": Vector2(LANE_CENTER, -5678.0),
+	"m2_16": Vector2(LANE_RIGHT, -5946.0),
+	"m2_17": Vector2(LANE_CENTER, -6214.0),
+	"m2_18": Vector2(LANE_LEFT, -6482.0),
+	"m2_19": Vector2(LANE_CENTER, -6750.0),
+	"m2_20": Vector2(LANE_RIGHT, -7018.0),
+	"m2_21": Vector2(LANE_CENTER, -7286.0),
+	"m2_22": Vector2(LANE_LEFT, -7554.0),
+	"m2_23": Vector2(LANE_CENTER, -7822.0),
+	"m2_24": Vector2(LANE_RIGHT, -8090.0),
+	"m2_25": Vector2(LANE_CENTER, -8558.0),
 }
 
 

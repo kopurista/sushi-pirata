@@ -125,6 +125,9 @@ const INGREDIENTS: Dictionary = {
 	"wagyu": { "name": "Wagyu", "short": "Wagyu", "color": Color(0.72, 0.22, 0.24), "cost": 38 },
 	# Gratis como el arroz (cost 0): no se compra ni gasta usos.
 	"sesamo": { "name": "Sésamo", "short": "Sésamo", "color": Color(0.92, 0.88, 0.78), "cost": 0 },
+	# --- Ingredientes de MEJORA (ver UPGRADES): solo coronan platos hechos ---
+	"mayonesa_japonesa": { "name": "Mayonesa japonesa", "short": "Mayo", "color": Color(0.96, 0.93, 0.82), "cost": 12 },
+	"cebolla_frita": { "name": "Cebolla frita", "short": "CebFr", "color": Color(0.82, 0.6, 0.3), "cost": 10 },
 }
 
 ## COMBINACIONES: dos platos YA GUARDADOS en las cajas que se funden en uno
@@ -139,6 +142,27 @@ const COMBOS: Dictionary = {
 ## mandarlo a la cinta. No dan dinero: cambian cómo reacciona el cliente.
 ## Se gastan por PLATO servido, no por partida, y cuestan 10 doblones el uso.
 const EXTRAS := ["jengibre", "wasabi", "soja"]
+
+## MEJORAS DE RECETA (mar 2): una receta TERMINADA sobre la tabla puede
+## CORONARSE con dos ingredientes extra que la transforman en su version
+## mejorada — otra receta (oculta: no se elige, se fabrica transformando),
+## con mas precio y mejor dado en TODOS los tipos de cliente. La mejorada
+## cuenta como PLATO DISTINTO para la variedad y el hastio (id propio), y el
+## cooldown sigue siendo el de la receta base (via ready_base, como el aburi).
+## Cada mejora se GANA en un escenario (campo `reward_upgrade_3` del puerto) y
+## la presenta Alice en el mapa (main_menu._presentar_mejora).
+const UPGRADES := {
+	"maki_aguacate": {
+		"id": "maki_aguacate_mejorado",
+		"ingredients": ["mayonesa_japonesa", "cebolla_frita"],
+	},
+}
+
+
+## La mejora de una receta, o {} si no tiene (o no esta ganada: el filtro del
+## desbloqueo lo pone GameState.upgrade_unlocked, no estos datos).
+static func upgrade_of(recipe_id: String) -> Dictionary:
+	return UPGRADES.get(recipe_id, {})
 ## LOS TRES hacen que el plato cuente como NUEVO aunque el cliente ya lo haya
 ## probado (alarga la racha de variedad y cobra el bono de oro), y LOS TRES
 ## traen una contrapartida que va justo contra lo que el sistema premia. Se
@@ -551,6 +575,17 @@ const RECIPES: Dictionary = {
 	},
 	# Variantes de la tempura según el punto de fritura. No se eligen ni
 	# aparecen en el selector: las sirve el paso "fry_board" con su precio.
+	# MEJORA del maki de aguacate (mayonesa japonesa + cebolla frita por
+	# encima): no se elige ni se cocina — se TRANSFORMA desde el maki hecho
+	# (ver UPGRADES). Paga mas y lo coge mejor TODO el mundo.
+	"maki_aguacate_mejorado": {
+		"label": "MaGu+",
+		"name": "Maki de aguacate supremo",
+		"level": 1, "satiety": 1, "cooldown": 3.0, "price": 5,
+		"patience_mult": 0.8,
+		"take_chance": { "E": 0.95, "A": 0.65, "G": 0.35 },
+		"hidden": true, "steps": [], "stages": [],
+	},
 	"tempura_cruda": {
 		"label": "TempC",
 		"name": "Tempura poco hecha",

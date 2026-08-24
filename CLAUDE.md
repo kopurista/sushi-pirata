@@ -522,7 +522,9 @@ primera vez que se entra en ellos (`logros_intro_done` /
 **La campaña sigue en el MISMO lienzo del mapa, hacia arriba**: los 25
 escenarios `m2_01..m2_25` (todos con `"sea": 2` en `CampaignData`) continúan
 por encima de la cueva, con los carriles alternando en ciclo [C,I,C,D] y el
-paso a 215 px. La cueva del Kappa se acercó al 19 (`MAP_POS` de `nivel_15` a
+paso a **268 px** (estuvo en 215 y con los modelos crecidos se tocaban y los
+carteles no tenían sitio — pedido por el usuario; `SCROLL_MIN` −8712 y
+`SEA_SIZE` 340 crecieron con él). La cueva del Kappa se acercó al 19 (`MAP_POS` de `nivel_15` a
 −1026) y el tope de scroll (`SCROLL_MIN` −7440) llega hasta la jefa del 25.
 **El plano del mar se centra ENTRE los topes de scroll** (`SEA_SIZE` 290): con
 la medida del mar 1 el norte del mapa era azul liso sin oleaje. Y la cámara ya
@@ -634,6 +636,48 @@ sin corte fallado — enciende el modo: los platos **se montan al instante**
   (`cam.h_offset/v_offset` en `_tick_rush`). Todo se apaga en `_rush_off` y
   también en `_end_level`.
 - En ARCADE no corre (`note_rush_plate` sale con `arcade`).
+
+**LAS MEJORAS DE RECETA** (`RecipeData.UPGRADES`; sistema montado el
+24-8-2026, pedido por el usuario): una receta TERMINADA sobre la tabla se
+puede **CORONAR** con dos ingredientes extra que la transforman en su versión
+mejorada — otra receta (`hidden`: ni selector ni recetario; se fabrica solo
+transformando), con más precio y mejor dado en TODOS los tipos
+(`take_chance` propio). La mejorada cuenta como **PLATO DISTINTO** para la
+variedad y el hastío (id propio), y el cooldown sigue siendo el de la base
+(vía `ready_base`, el mismo camino que el aburi). La primera es el **maki de
+aguacate supremo** (mayonesa japonesa + cebolla frita, $5), premio de 3★ de
+m2_01; el resto de recetas y mejoras las encargará el usuario aparte.
+- **La tabla** (`prep_board`): dos botones dorados por ingrediente en el
+  CANTO de la mesa del lado del pulgar (derecha; izquierda con
+  `player_hand == "L"`), a media altura para no pisar los extras de arriba.
+  Solo se ven con un plato mejorable TERMINADO (a diferencia de los extras,
+  siempre a la vista: una mejora es de UNA receta). Echar los dos →
+  `_transformar_plato`: cambia `ready_recipe`, el sprite del plato (bote de
+  celebración), cobra 1 uso de cada ingrediente POR PLATO en la tabla (el
+  "plato doble" corona los dos) y canta "¡Mejorado! $N".
+- **El desbloqueo** (`reward_upgrade_3` en el puerto, entregado en
+  `complete_port` a las 3★): apunta la base en
+  `GameState.unlocked_upgrades`, desbloquea la receta mejorada (así sus
+  ingredientes entran al surtido de Saverio) y regala `PORT_GIFT` usos de los
+  dos ingredientes de coronación.
+- **La presenta ALICE en el mapa** (`main_menu._presentar_mejora`, bandera
+  `pending_mejora_intro`): el mar nuevo aprieta y su consejo es cocinar
+  mejor — el truco se lo enseñó su maestra Miku.
+- La ficha del mapa enseña como premio el plato YA coronado
+  (`_premios_de` con `RecipeData.upgrade_of`).
+- El sprite del plato mejorado salió por `editImage` sobre el CONCEPTO del
+  maki (assets/models/source, que trae alfa de verdad) y se recortó al
+  encuadre del sprite base; su `.glb` por la cadena de siempre.
+
+**RECOMPENSAS DEL MAR 2 (regla pedida por el usuario)**: los premios de los
+escenarios son RECETAS y MEJORAS — los sacos de arroz NO se dan como
+recompensa (salvo excepciones) y los lingotes solo en niveles importantes o
+especiales (hoy: Miku m2_14, Nach m2_18 y la jefa m2_25). Los huecos de 3★
+del resto del mar quedan a la espera de las recetas nuevas.
+**Y UNA ISLA CON CAPITANES EN LA MEZCLA LLEVA UN 3★ EN SU CARTA CERRADA**
+(la lección de m2_02: un capitán con carta de 1-2★ mira la cinta toda la
+jornada): ahí entran por `alt_recipes` el tsuke don o el futomaki, los dos
+regalos de guion del mar 1, así que siempre hay uno.
 
 **La ventana de POTENCIADOR respira y se aparta** (mismo lote): se abre con
 `powerup_delay` 0.65 s tras cruzar el umbral (que la barra se vea llenarse
@@ -3126,6 +3170,22 @@ La GUÍA lleva su sección ("El canto de sirena").
   entrada hay que lanzarlo DOS FOTOGRAMAS después de montar la escena — el
   primer `_process` trae un delta enorme (todo lo que tardó en cargar) y el
   tween se lo salta de golpe, así que no se veía nunca.
+- **EL CLIC FANTASMA DEL ORDENADOR: un clic son DOS eventos (ratón + toque
+  sintetizado), y el segundo PULSA lo que acabe de aparecer bajo el cursor.**
+  Dos víctimas reales (24-8-2026): al tocar un escenario del mapa, la ficha
+  se abría y el mismo clic pulsaba su "Viajar" (con género faltando, el aviso
+  de David salía DETRÁS de la ventana); y al tocar un cofre ya cobrado del
+  bonus diario, el cartel del botín se abría y el mismo clic le daba a
+  "Cerrar". El arreglo es ARMAR lo recién aparecido: el "Viajar" ignora
+  pulsaciones en los primeros 400 ms de ficha (`_ficha_abierta_ms`) y el
+  "Cerrar" del botín nace `disabled` 0,3 s. Todo botón que aparezca DEBAJO
+  del toque que lo crea necesita este armado (el "¡Ese soy yo!" de la ficha
+  de tripulación ya lo tenía, con 0,9 s).
+  Del mismo lote: "Viajar" cierra la ficha ANTES de avisar de nada
+  (`_cerrar_ficha` en `_on_sail_pressed`), los avisos de género van a
+  `z_index` 200, y el botón "Tienda" del cartel de falta de género apunta
+  `GameState.shop_from = "mapa"` — la vuelta de la tienda cae en el mapa, en
+  el mismo escenario (`map_port` lo recuerda).
 - **`DialogueBox` se queda con TODO el puntero desde `_input`, no desde
   `_gui_input`**: con `_gui_input` solo se consumían los eventos TÁCTILES, y un
   clic de ratón genera DOS (el suyo y el táctil que sintetiza
@@ -3401,38 +3461,85 @@ La GUÍA lleva su sección ("El canto de sirena").
   que lo borra y deja solo la espuma; además la animación rompería la
   continuidad de bordes y el mar tileado saldría con costuras. Por eso el
   movimiento del agua va por shader (deriva + dos senos cruzados).
-- **EL NÚMERO DEL ESCENARIO VIVE DENTRO DEL DECORADO**
-  (`level_select3d._numero_del_nodo`, pedido por el usuario): escrito en la
-  ARENA de la isla, en un CARTEL clavado en el muelle del puerto, pintado en la
-  VELA del abordaje y ESCULPIDO en la roca de la cueva. Antes era una chapa
-  redonda flotando delante del nodo, y una chapa con un número se lee como un
-  botón más de la interfaz; así el mapa se lee como un sitio.
-  · Los cuatro son **`Label3D`**, no texturas horneadas: sale con la fuente del
-    juego, el número se cambia sin regenerar nada y no cuesta un `.png` por
-    escenario. Van al grupo `no_batch` (`GeometryBatch.bake` libera los
-    originales) y con `alpha_cut` en DISCARD, para que no haya que ordenarlos
-    contra el mar ni contra la niebla.
-  · **LA ORIENTACIÓN LA MANDA LA CÁMARA (yaw 45)**: un rótulo DE PIE mirando a
-    la cámara va a `rotation.y = 45`, y uno TUMBADO en el suelo a
-    `(-90, 45, 0)` — el -90 pone su cara hacia arriba y el 45 hace que su eje X
-    caiga sobre el "derecha" de la pantalla (`R_HAT`); sin ese segundo giro el
-    número sale torcido sobre la arena.
-  · **Y "DELANTE" ES `+D_HAT`**: el eje que va hacia la cámara es el mismo que
-    baja por la pantalla. Con el signo cambiado, el cartel del puerto se quedó
-    detrás de la roca del faro y el número de la cueva dentro de la piedra.
-  · **LA ISLA CRECIÓ A PROPÓSITO** (`KIND_FOOT` 2.6 → 3.5): a la huella de
-    antes la playa no daba para una cifra legible. Y el número no va en el
-    centro sino en la banda de arena DE DELANTE (`ISLA_NUM_W`): en el medio lo
-    partían el parche de hierba y la roca.
-  · **EL NÚMERO DE LA VELA VA EN CREMA, no en tinta**: las velas de
-    `map_enemigo.glb` son oscuras y están furladas, así que un número marrón se
-    perdía en ellas.
-  · **LA ALTURA SE MIDE, no se deduce**: el `.glb` de cada nodo es UNA malla
-    fundida, así que no se puede preguntar por "la arena" ni por "la vela". El
-    pivote apunta su alto ya escalado (`set_meta("alto")`) y el sitio de cada
-    número sale de una fracción de ese alto, comprobada en captura. El primer
-    intento dejó el número de la isla ENTERRADO en la arena y solo se veía una
-    mota oscura.
+- **EL NÚMERO DEL ESCENARIO VA EN UN CARTEL CLAVADO EN EL AGUA**, el mismo
+  para los cuatro tipos (`level_select3d._cartel_nivel`, decidido por el
+  usuario). A la DERECHA del escenario, de cara a la cámara y MEDIO SUMERGIDO:
+  la tabla queda limpia por encima del mar y los postes se hunden.
+  · **ESTUVO METIDO EN EL DECORADO DE CADA TIPO** —escrito en la arena, pintado
+    en la vela, esculpido en la roca— y cada sitio pedía su ajuste: en la isla
+    chocaba con la roca y con el parche de hierba, en el barco lo tapaban el
+    palo mayor y las jarcias (hubo que llevarlo a la vela de PROA, que en
+    `map_enemigo.glb` es +Z, medido: con −Z se iba al castillo de popa) y en la
+    cueva se perdía contra la piedra. Un cartel al lado se lee igual de bien en
+    los cuatro y además es lo que habría de verdad en una travesía.
+  · **LA CIFRA ES UNA IMAGEN HORNEADA** (`tools/num_map.py` →
+    `assets/map/num_<n>.png`): la trama de la madera recortada por la silueta y
+    con el RELIEVE ya pintado —luz por el canto de arriba y sombra por el de
+    abajo—, que es lo que la hace parecer tallada en la tabla. Va **SIN
+    SOMBREAR** (`SHADING_MODE_UNSHADED`): el relieve ya está en la imagen, y
+    dejar que el sol del mapa lo iluminara otra vez solo servía para aplastarlo.
+    · Se intentó antes con **`TextMesh`** —geometría extruida de verdad— y
+      Godot NO PUEDE con esta fuente: *"Convex decomposing failed. Make sure
+      the font doesn't contain self-intersecting lines"*, con la Exo 2 tanto
+      Bold como Regular. El número salía sin malla ninguna.
+  · **LA MADERA VA A MEDIO CAMINO** (`madera_cartel.webp`, la del muelle
+    mezclada al 55% con su propio color medio): con la veta entera el cartel se
+    leía como una mancha rayada y la cifra se perdía; con un color liso quedaba
+    de plástico.
+  · **LOS POSTES VAN DETRÁS DE LA TABLA** (z negativo): delante se veían
+    cruzando el número, que es justo lo que un cartel de verdad no hace.
+  · **Y LAS ESTRELLAS DEL ESCENARIO VAN AHÍ TAMBIÉN**, bajo su número
+    (`_estrellas_quad`, cuatro versiones horneadas de 0 a 3 llenas). Estuvieron
+    en una hilera 2D flotando sobre el nodo y las de un escenario caían al lado
+    del vecino: no había forma de saber de quién eran. En el cartel, número y
+    estrellas se leen como una sola ficha.
+    **SON PINTURA Y TALLA, no la hilera de interfaz** (rediseño pedido por el
+    usuario): la ganada es una estrella de pintura DORADA con cuerpo (lona
+    teñida de oro con su relieve) y la que falta una TALLA hundida en madera
+    oscura — el relieve al revés, horneado con la máscara volteada
+    (`num_map.py: ORO/TALLA/_estrella_mascara`). Van a `ESTRELLAS_BAJA` 0.24
+    (subidas: a 0.31 la marea llegaba a taparlas) y la tabla creció a
+    `CARTEL_ALTO` 1.66.
+  · **EL LADO Y LA DISTANCIA DEL CARTEL SON POR TIPO** (`CARTEL_X_KIND`):
+    el ABORDAJE lo aparta a 0.68 (el barco enemigo es ancho y a 0.46 el
+    cartel quedaba DETRÁS del casco) y la ISLA a 0.58 (pisaba la arena).
+  · **EL NÚMERO DE LA ISLA VA CLARO** (tinte 1.06/0.98/0.82 sobre la trama de
+    arena): iba en tonos de arena sobre la madera cálida de la tabla — casi
+    el mismo color — y no se distinguía (le pasó al usuario).
+  · **EL CARTEL SUBE (−D_HAT) Y ESQUIVA EL BARCO.** El barco del jugador se
+    ancla SIEMPRE por debajo del nodo (`_ship_anchor`, +72 px), así que con el
+    cartel abajo lo tapaba en cuanto se seleccionaba el escenario. Subiéndolo,
+    los dos no pueden pisarse aunque caigan del mismo lado.
+  · **Y EL LADO LO MANDA EL CANTO DE LA PANTALLA** (`_lado_del_cartel`): en el
+    carril de la DERECHA un cartel a la derecha se salía de cuadro, así que ahí
+    va a la izquierda; en el del medio, también (que es donde no está el
+    barco); y en el de la izquierda, a la derecha.
+  · **LOS CUATRO MODELOS CRECIERON** (`KIND_FOOT`: isla 3.5, puerto 3.9,
+    abordaje 3.4, cueva 3.0) **y con ellos la separación entre escenarios**: el
+    paso del mapa pasó de 158 a 212 px (`CampaignData.MAP_POS`), o se tocaban
+    entre sí. La CUEVA se fue con ellos —de −700 a −1664, para conservar su
+    distancia de siete pasos— y con ella el tope de scroll (`SCROLL_MIN`), que
+    es quien la deja alcanzable.
+- **LA FICHA LLEVA GRÁFICO PROPIO** (`panel_ficha.png`: pergamino con marco
+  de CUERDA y argollas de latón, `FICHA_MARGIN` 56) y **se cierra con un ASPA**
+  en la esquina de arriba, no con un botón de "Cerrar" al pie — abajo solo
+  queda "Viajar", que es lo único que se hace de verdad ahí.
+  · **EL ASPA CUELGA DEL OVERLAY, NO DEL PANEL.** `PanelContainer` es un
+    CONTENEDOR: estira a todos sus hijos hasta llenarlo, así que el aspa metida
+    dentro salía del tamaño del pergamino entero y lo tapaba. Su sitio lo pone
+    `_ficha_offsets`, que es quien sabe el alto que tiene la ventana.
+  · Contenido: nombre, **"Fase N"**, tipo y nivel recomendado, las estrellas
+    EN GRANDE, el OBJETIVO (cómo se cierra la jornada y qué castiga el tipo),
+    la clientela, la carta, los escalones con sus premios, el récord y el
+    tesoro. Las filas de la clientela y de la carta van **sin rótulo**: la
+    sección ya se llama así y repetirlo delante de los iconos era decir dos
+    veces lo mismo.
+  · **HUBO UNA FICHA COMPLETAMENTE VACÍA y era `_seccion`**: devolvía la caja
+    del contenido pero colgaba sus TRES piezas (separador, rótulo y caja) del
+    CUERPO, así que `info_tesoro.get_parent()` era el cuerpo entero — y
+    esconder la sección del tesoro escondía la ficha completa. Los nueve
+    escenarios sin coleccionable se abrían en blanco. Hoy cada sección es su
+    propio VBox y la caja lleva apuntada la suya en un meta (`_ver_seccion`).
 - **LA FICHA DEL ESCENARIO ES UNA VENTANA, no la franja de abajo**
   (`level_select3d._build_ficha`, pedido por el usuario): se abre al TOCAR un
   nodo (`_select` con `animate`, que es la señal de que ha sido el jugador) y
@@ -3452,17 +3559,26 @@ La GUÍA lleva su sección ("El canto de sirena").
   · **DICE CÓMO SE CIERRA LA JORNADA** (`_texto_cierre`), que es información
     que solo estaba en la guía: un abordaje no se juega como una isla y el
     panel no lo decía en ninguna parte.
-  · **Y EL TESORO QUE SE PUEDE SACAR DE AHÍ**, con una INTERROGACIÓN encima
-    mientras no se tenga (`_fill_tesoro` + `CampaignData.collectible_of`, el
+  · **Y EL TESORO QUE SE PUEDE SACAR DE AHÍ**, en SILUETA mientras no se tenga
+    y con el VISTO VERDE encima cuando ya está en la vitrina —y ahí se cae el
+    "cómo se consigue": eso es una instrucción, y lo que queda es un recuerdo— (`_fill_tesoro` + `CampaignData.collectible_of`, el
     inverso de `port_for_collectible`): dice que en ese escenario hay algo que
     llevarse sin desvelar qué es. El requisito se redacta con el MISMO
     `collectible_how` que canta el cliente en el nivel, y se pinta con
     **RichTextLabel** porque trae palabras clave entre `**`.
 - **LA FRANJA DE ABAJO DEL MAPA ES UN SUBMENÚ PROPIO** (`_build_submenu`), y
-  con un diseño DISTINTO al del menú principal (pedido por el usuario): allí
-  son cinco iconos sobre una barra de madera oscura y aquí son TRES TABLONES
-  anchos con icono y rótulo. Son dos sitios distintos y tienen que sentirse
-  distintos. Llevan a los **mapas del tesoro** (las misiones secundarias, que
+  con un diseño DISTINTO al del menú principal (pedido por el usuario): allí es
+  una barra de madera oscura con cuerda en el canto y aquí un TABLÓN DE MADERA
+  DE DERIVA amarrado con cuerda en los dos extremos (`submenu_mapa.png`,
+  9-slice solo horizontal), **teñido de madera cálida** (`SUBMENU_TINTE`: se
+  genera en gris de deriva y así no se confundía con la barra oscura del menú
+  ni desaparecía contra el azul del mar) y **estrecho y centrado** — son tres
+  accesos, y un tablón de punta a punta de la pantalla para tres iconos se lee
+  como una barra vacía. Los tres accesos van DIRECTAMENTE sobre el tablón,
+  sin el botón de madera del resto del juego: el fondo ya lo pone él, y un
+  botón dentro de otro se leía como dos marcos encajados. El icono de los mapas
+  es un mapa del tesoro ENROLLADO y atado (`ic_mapa_tesoro.png`): abierto ya
+  estaría contando lo que hay dentro. Llevan a los **mapas del tesoro** (las misiones secundarias, que
   todavía no existen: el botón lo dice él mismo y de paso enseña cuántos se
   llevan acumulados en `GameState.treasure_maps`), a la **tienda** y a
   **opciones**.
@@ -3481,11 +3597,19 @@ La GUÍA lleva su sección ("El canto de sirena").
   ya está cobrado. La cuenta la da `GameState.daily_wait_text()`: el bonus se
   renueva al cambiar el DÍA del aparato, así que lo que falta es lo que queda
   hasta la medianoche local.
-  · Va colgado de la BARRA, así que viaja con ella al mapa y a la pesca, y por
-    eso `_level_bar_spot` centra "barra + cofre" y no la barra sola.
-  · Es INFORMATIVO, no pulsable (`MOUSE_FILTER_IGNORE`): el cartel del bonus
-    sale solo al entrar en el menú, así que no tiene nada que abrir — y de paso
-    no se come el toque de la barra, que sí lleva a Maestrías.
+  · **PEGADO AL CANTO DERECHO Y SOLO EN EL MENÚ** (pedido por el usuario):
+    cuelga del `ui_layer`, no de la barra de experiencia —que viaja al mapa y a
+    la pesca—, y su visibilidad la lleva el `_process` mirando `in_menu`,
+    `menu_blend` y `start_mode`.
+  · **LLEVA FONDO CON EL COLOR DEL MAPA**: el cofre en tinta sobre el mar azul
+    no se leía (es un dibujo marrón sobre agua marina). Con su cuadro de
+    pergamino detrás se lee como una carta clavada en la esquina.
+  · **Y SE PUEDE TOCAR SIEMPRE**: con premio abre el cartel de siempre y sin él
+    abre el mapa EN CONSULTA (`_show_daily(true)`) — los cofres ya cobrados se
+    tocan para ver qué dieron (`_ver_premio_dia`, que se lo vuelve a preguntar
+    a `DailyData`, que es determinista y no guarda nada), bajo el siguiente va
+    la cuenta atrás, y ESE cartel sí tiene aspa para salir (el normal no la
+    lleva a propósito: hay un premio esperando).
   · Se repinta cada 20 s desde el `_process` del menú (es una cifra en minutos,
     no hace falta por fotograma) y en el acto al cobrar (`_daily_done`), o el
     jugador cerraría el cartel con el premio ya en la mano y el icono seguiría
@@ -3503,7 +3627,9 @@ La GUÍA lleva su sección ("El canto de sirena").
   caiga allí.
   · **LOS PREMIOS VAN EN LA LÍNEA DE SU ESCALÓN**, no en un bloque aparte
     (`_fill_goal_rows` + `_premios_de`): cada renglón se lee entero de
-    izquierda a derecha —"tantas monedas ➜ tantas estrellas ➜ esto te llevas"—
+    izquierda a derecha —"tantas monedas, tantas estrellas, esto te llevas",
+    SIN flecha entre medias (la línea ya se lee sola y la flecha solo era un
+    icono más que colocar)—
     y se acabó el emparejar a ojo qué premio caía en qué escalón. Estuvieron en
     dos bloques, y eso dibujaba DOS veces la misma hilera de estrellas y
     gastaba una fila entera de la columna: es esa fila la que le devuelve el

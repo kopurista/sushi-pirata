@@ -1469,6 +1469,40 @@ if __name__ == "__main__":
 
 # --------------------------------- calavera del contador y chapa de bonificador
 
+## --- EL MAPA DE AVENTURA: su panel, su barra y el mapa del tesoro ---
+## El panel de la ficha se exporta a 340 de ancho: ahi su marco de cuerda mide
+## unos 46 texeles, que es el margen 9-slice que la deja entera. El de la barra
+## sale de sus dos amarres de cuerda, que van en los extremos y NO se estiran.
+FICHA_PANEL_W = 340
+MAPA_BARRA_W = 620
+
+
+def build_mapa_ui() -> None:
+    """Las tres piezas del mapa de aventura.
+
+    `panel_ficha` es la ventana del escenario: pergamino con marco de CUERDA y
+    argollas de laton, a proposito distinto del `panel.png` de madera del resto
+    del juego — el usuario pidio "un grafico completamente nuevo y distintivo",
+    y con el mismo marco de siempre la ficha se leia como una pantalla mas.
+
+    `submenu_mapa` es el tablon de la franja de abajo: madera de deriva gris
+    amarrada con cuerda en los dos extremos. Tampoco es la barra del menu
+    principal (madera oscura con cuerda en el canto): son dos sitios distintos.
+
+    `ic_mapa_tesoro` es el mapa del tesoro ENROLLADO y atado con su lazo — para
+    las misiones secundarias, que todavia no existen: abierto ya estaria
+    contando lo que hay dentro.
+    """
+    pan = drop_white(Image.open(RAW / "mapa" / "panel_4.webp").convert("RGBA"))
+    save(fit_width(solidify(crop_alpha(keep_largest(pan))), FICHA_PANEL_W),
+         "panel_ficha")
+    bar = drop_white(Image.open(RAW / "mapa" / "barra_3.webp").convert("RGBA"))
+    save(fit_width(solidify(crop_alpha(keep_largest(bar))), MAPA_BARRA_W),
+         "submenu_mapa")
+    mp = drop_white(Image.open(RAW / "mapa" / "mapa_3.webp").convert("RGBA"))
+    save(fit_max(crop_alpha(drop_specks(mp), 2), 128), "ic_mapa_tesoro")
+
+
 def build_perks_ui() -> None:
     """Dos piezas que no encajan en ningun grupo anterior.
 

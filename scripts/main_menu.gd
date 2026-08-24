@@ -285,6 +285,11 @@ func _menu_popups() -> void:
 		await get_tree().create_timer(0.7).timeout
 		await _presentar_kappa()
 		return
+	# LA PRIMERA MEJORA DE RECETA la presenta ALICE (pedido por el usuario):
+	# se la enseno su maestra Miku, y es su consejo para un mar mas duro.
+	if GameState.pending_mejora_intro:
+		await get_tree().create_timer(0.7).timeout
+		await _presentar_mejora()
 	# PABLO PAGA LO QUE COMIÓ. La promesa se hace en su nivel y el pago se cobra
 	# AQUÍ, con las tres cajas de recursos a la vista: es la primera vez que el
 	# jugador oye hablar de los lingotes y David puede señalarle el contador de
@@ -446,6 +451,27 @@ func _presentar_alice() -> void:
 ## EL KAPPA, RENDIDO Y MEDIO DORMIDO, viene a pagar: 2 lingotes y su diente.
 ## La escena corre UNA vez, al volver al mapa tras rendirlo por primera vez.
 const KAPPA_LINGOTES := 2
+
+
+## ALICE PRESENTA LA PRIMERA MEJORA DE RECETA (el premio de 3 estrellas de
+## m2_01): el mar nuevo aprieta y su consejo es afinar la cocina — empezando
+## por el truco que le enseno Miku, coronar el maki de aguacate.
+func _presentar_mejora() -> void:
+	GameState.pending_mejora_intro = false
+	GameState.save_game()
+	var caja := DialogueBox.new()
+	caja.z_index = 200
+	ui_layer.add_child(caja)
+	caja.say([
+		{ "text": "%s... ¿puedo decirte algo? Este mar no es como el primero. La clientela aprieta, y el canto... el canto no perdona." % GameState.player_title(), "who": "alice", "mood": "serio" },
+		{ "text": "Así que toca cocinar MEJOR. Y sé por dónde empezar: mi maestra me enseñó a **coronar** platos.", "who": "alice", "mood": "hablando" },
+		{ "text": "Mira: cuando termines un **maki de aguacate**, verás dos ingredientes nuevos junto a la tabla — **mayonesa japonesa** y **cebolla frita**.", "who": "alice", "mood": "hablando" },
+		{ "text": "Échaselos por encima y tendrás el **maki de aguacate supremo**: paga más, lo quiere TODO el mundo... y para el paladar de un cliente es un plato NUEVO.", "who": "alice", "mood": "feliz" },
+		{ "text": "¡RAAAK! ¡LA NIÑA SABE COCINA FINA!", "who": "gigi", "mood": "loro" },
+		{ "text": "Los ingredientes de coronar se compran donde Saverio, como todo. Ya te he dejado unos usos para estrenar.", "who": "alice", "mood": "feliz" },
+	])
+	await caja.finished
+	await caja.close_and_free()
 
 
 func _presentar_kappa() -> void:
@@ -3620,6 +3646,13 @@ func _ver_premio_dia(n: int, padre: Control) -> void:
 	ok.set_meta("snd", "atras")
 	ok.add_theme_font_size_override("font_size", 22)
 	ok.pressed.connect(caja.queue_free)
+	# ARMADO contra el clic fantasma del ordenador: el toque sintetizado abre
+	# este cartel y la mitad de raton del MISMO clic aterrizaba en el "Cerrar"
+	# recien aparecido — el botin se cerraba solo nada mas abrirse.
+	ok.disabled = true
+	get_tree().create_timer(0.3).timeout.connect(func() -> void:
+		if is_instance_valid(ok):
+			ok.disabled = false)
 	caja.add_child(ok)
 	Audio.ventana(caja)
 	caja.scale = Vector2(0.8, 0.8)

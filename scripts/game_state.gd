@@ -236,6 +236,10 @@ var ingredients: Dictionary = {}
 ## Potenciadores permanentes conseguidos por combos (ver PerkData) y usos
 ## comprados de cada uno: id -> usos restantes.
 var unlocked_perks: Array[String] = []
+## MEJORAS DE RECETA ganadas (ids de la receta BASE, ver RecipeData.UPGRADES).
+var unlocked_upgrades: Array[String] = []
+## La escena de Alice presentando la PRIMERA mejora (m2_01) espera en el mapa.
+var pending_mejora_intro := false
 var perk_uses: Dictionary = {}
 ## Nivel de MEJORA de cada bonificador (1..PerkData.MAX_LEVEL). Se sube con
 ## doblones desde la pantalla de Bonificadores; los usos NO se compran.
@@ -724,6 +728,20 @@ func pantry_waves_left(recipe_ids: Array) -> int:
 
 ## Los EXTRAS (jengibre, wasabi, soja) NO van por partida: cada plato al que
 ## se le echa uno gasta una unidad. Se descuentan al servirlo a la cinta.
+## ¿Esta ganada la mejora de esa receta? (ver RecipeData.UPGRADES).
+func upgrade_unlocked(base_id: String) -> bool:
+	return base_id in unlocked_upgrades
+
+
+## Un uso de despensa de un ingrediente de MEJORA (mismo contrato que los
+## extras: se cobra al transformar, que es cuando el ingrediente se echa).
+func consume_upgrade_ingredient(id: String) -> bool:
+	if get_ingredient_uses(id) <= 0:
+		return false
+	ingredients[id] = get_ingredient_uses(id) - 1
+	return true
+
+
 func consume_extra(id: String) -> bool:
 	if get_ingredient_uses(id) <= 0:
 		return false
@@ -1508,6 +1526,19 @@ func complete_port(port_id: String, stars: int) -> Array:
 		for r in port.get("reward_recipes_3", []):
 			if unlock_recipe(r):
 				newly.append(r)
+		# MEJORA DE RECETA (mar 2): se apunta la base, se desbloquea la receta
+		# mejorada (oculta: ni selector ni recetario, pero sus ingredientes
+		# entran al surtido de Saverio) y ALICE la presenta en el mapa.
+		var mejora_base := str(port.get("reward_upgrade_3", ""))
+		if mejora_base != "" and not mejora_base in unlocked_upgrades:
+			unlocked_upgrades.append(mejora_base)
+			var mejora: Dictionary = RecipeData.upgrade_of(mejora_base)
+			if not mejora.is_empty():
+				unlock_recipe(str(mejora.get("id", "")))
+				# Y despensa de estreno de sus dos ingredientes.
+				for ing in mejora.get("ingredients", []):
+					ingredients[ing] = get_ingredient_uses(ing) + PORT_GIFT
+			pending_mejora_intro = true
 		var lingotes := int(port.get("reward_ingots_3", 0))
 		if lingotes > 0:
 			ingots += lingotes
@@ -2324,6 +2355,8 @@ func save_game() -> void:
 		"level_scores": level_scores,
 		"ingredients": ingredients,
 		"unlocked_perks": unlocked_perks,
+		"unlocked_upgrades": unlocked_upgrades,
+		"pending_mejora_intro": pending_mejora_intro,
 		"perk_uses": perk_uses,
 		"perk_level": perk_level,
 		"shop_stock": shop_stock,
@@ -2426,6 +2459,8 @@ func load_game() -> void:
 	for k in ing_dict.keys():
 		ingredients[str(k)] = int(ing_dict[k])
 	unlocked_perks = _to_string_array(parsed.get("unlocked_perks", []))
+	unlocked_upgrades = _to_string_array(parsed.get("unlocked_upgrades", []))
+	pending_mejora_intro = bool(parsed.get("pending_mejora_intro", false))
 	perk_uses = {}
 	var perk_dict: Dictionary = parsed.get("perk_uses", {})
 	for k in perk_dict.keys():

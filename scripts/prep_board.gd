@@ -1716,6 +1716,11 @@ var flame_tween: Tween = null
 ## Botones que salen arriba a la izquierda de la tabla con el plato ya hecho.
 var extra_buttons: Dictionary = {}
 var extras_chosen: Dictionary = {}
+## MEJORA DE RECETA: los dos ingredientes que coronan el plato TERMINADO.
+## Botones por ingrediente (solo visibles con un plato mejorable en la tabla)
+## y cuales estan ya echados; con los dos, el plato SE TRANSFORMA.
+var upgrade_buttons: Dictionary = {}
+var upgrade_added: Dictionary = {}
 
 
 # --- Barco combinado -------------------------------------------------------
@@ -2493,6 +2498,175 @@ func _build_extra_buttons() -> void:
 	# no por el sistema de interfaz, así que la fila puede dejar pasar los
 	# toques: sin esto tapaba los botones de extras que ahora van debajo.
 	ingredients_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_build_upgrade_buttons()
+
+
+## Los botones de MEJORA: uno por ingrediente de coronacion, en el CANTO de la
+## mesa del lado del pulgar (derecha para el diestro, izquierda para el zurdo,
+## pedido por el usuario) y a media altura, lejos de los extras de arriba.
+## Nacen ocultos: solo salen con un plato TERMINADO cuya mejora este ganada.
+func _build_upgrade_buttons() -> void:
+	var lado_izq := GameState.player_hand == "L"
+	var todos: Dictionary = {}
+	for base in RecipeData.UPGRADES:
+		for ing in RecipeData.UPGRADES[base].get("ingredients", []):
+			todos[ing] = true
+	var i := 0
+	for id in todos:
+		var b := Button.new()
+		b.name = "Mejora_" + id
+		b.size = Vector2(64, 64)
+		var x := 10.0 if lado_izq else board_panel.size.x - 74.0
+		b.position = Vector2(x, 92.0 + i * 76.0)
+		b.pivot_offset = b.size / 2.0
+		b.visible = false
+		b.tooltip_text = RecipeData.get_ingredient(id).get("name", id)
+		for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+			b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+		var disc := Panel.new()
+		disc.set_anchors_preset(Control.PRESET_FULL_RECT)
+		disc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		disc.show_behind_parent = true
+		var sb := StyleBoxFlat.new()
+		# Dorado sobre madera: es un premio, no un extra corriente.
+		sb.bg_color = Color(0.24, 0.16, 0.07, 0.94)
+		sb.border_color = Color(1.0, 0.86, 0.35)
+		sb.set_border_width_all(3)
+		sb.set_corner_radius_all(14)
+		disc.add_theme_stylebox_override("panel", sb)
+		b.add_child(disc)
+		var ic := TextureRect.new()
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.texture = RecipeData.get_ingredient_texture(id)
+		ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+		ic.offset_left = 6.0
+		ic.offset_top = 6.0
+		ic.offset_right = -6.0
+		ic.offset_bottom = -6.0
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(ic)
+		var plus := Label.new()
+		plus.name = "Plus"
+		plus.text = "+"
+		plus.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+		plus.offset_left = -20.0
+		plus.offset_top = -24.0
+		plus.offset_right = 4.0
+		plus.offset_bottom = 4.0
+		plus.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		plus.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		plus.add_theme_font_size_override("font_size", 26)
+		plus.add_theme_color_override("font_color", Color(1, 0.95, 0.55))
+		plus.add_theme_color_override("font_outline_color", Color.BLACK)
+		plus.add_theme_constant_override("outline_size", 6)
+		plus.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(plus)
+		var check := TextureRect.new()
+		check.name = "Check"
+		check.visible = false
+		check.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		check.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		check.texture = load("res://assets/ui/check.png")
+		check.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+		check.offset_left = -26.0
+		check.offset_top = -26.0
+		check.offset_right = 4.0
+		check.offset_bottom = 4.0
+		check.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(check)
+		b.pressed.connect(_toggle_upgrade.bind(id))
+		board_panel.add_child(b)
+		board_panel.move_child(b, i)
+		upgrade_buttons[id] = b
+		i += 1
+
+
+## La mejora del plato que hay AHORA sobre la tabla, o {} si no aplica.
+func _mejora_actual() -> Dictionary:
+	if state != State.READY:
+		return {}
+	if not GameState.upgrade_unlocked(ready_recipe):
+		return {}
+	return RecipeData.upgrade_of(ready_recipe)
+
+
+## Echar (o quitar, mientras falte el otro) un ingrediente de mejora. Con los
+## DOS echados el plato SE TRANSFORMA en su version mejorada.
+func _toggle_upgrade(id: String) -> void:
+	var mejora := _mejora_actual()
+	if mejora.is_empty() or not id in mejora.get("ingredients", []):
+		return
+	if upgrade_added.get(id, false):
+		upgrade_added.erase(id)
+		Audio.sfx("recurso_off")
+		_bump_extra(upgrade_buttons.get(id, null))
+		_update_upgrade_buttons()
+		return
+	if GameState.get_ingredient_uses(id) < dishes.size():
+		_flash_message("¡Sin %s!" % RecipeData.get_ingredient(id).get("short", id))
+		Audio.sfx("recurso_off")
+		return
+	upgrade_added[id] = true
+	Audio.sfx("recurso")
+	_bump_extra(upgrade_buttons.get(id, null))
+	var completos := true
+	for ing in mejora.get("ingredients", []):
+		if not upgrade_added.get(ing, false):
+			completos = false
+	if completos:
+		_transformar_plato(mejora)
+	else:
+		_update_upgrade_buttons()
+
+
+## LA TRANSFORMACION: el plato de la tabla pasa a ser la receta MEJORADA — id
+## propio (cuenta como plato DISTINTO para la variedad), mas precio y mejor
+## dado. Los usos de despensa se cobran aqui, uno por plato en la tabla (el
+## "plato doble" de la maestria corona los dos). El cooldown no se toca:
+## sigue siendo el de la receta base, via ready_base.
+func _transformar_plato(mejora: Dictionary) -> void:
+	for ing in mejora.get("ingredients", []):
+		for i in dishes.size():
+			GameState.consume_upgrade_ingredient(str(ing))
+	ready_recipe = str(mejora.get("id", ready_recipe))
+	upgrade_added.clear()
+	var precio := int(RecipeData.get_recipe(ready_recipe).get("price", 0))
+	_flash_message("¡Mejorado! $%d" % precio, Color(1.0, 0.86, 0.35))
+	Audio.sfx("recurso_ok")
+	for d in dishes:
+		if d == null or not is_instance_valid(d):
+			continue
+		for hijo in d.get_children():
+			if hijo is TextureRect:
+				hijo.texture = RecipeData.get_dish_texture(ready_recipe)
+		# El bote de la coronacion: el plato celebra su ascenso.
+		var tw := create_tween()
+		tw.tween_property(d, "scale", Vector2(1.22, 1.22), 0.12) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(d, "scale", Vector2.ONE, 0.14)
+	_update_upgrade_buttons()
+	_update_extra_buttons()
+
+
+## Los botones de mejora solo existen para el plato mejorable: fuera de ese
+## momento ni se ven (a diferencia de los extras, que siempre estan a la
+## vista: una mejora es de UNA receta y ensenarla siempre confundiria).
+func _update_upgrade_buttons() -> void:
+	var mejora := _mejora_actual()
+	for id in upgrade_buttons:
+		var b: Button = upgrade_buttons[id]
+		var aplica: bool = not mejora.is_empty() \
+				and id in mejora.get("ingredients", [])
+		b.visible = aplica and not tutorial_mode
+		if not aplica:
+			continue
+		var puesto: bool = upgrade_added.get(id, false)
+		var stock: bool = GameState.get_ingredient_uses(id) >= dishes.size()
+		b.disabled = not (puesto or stock)
+		b.get_node("Check").visible = puesto
+		b.get_node("Plus").visible = not puesto
+		b.modulate = Color.WHITE if (puesto or stock) else Color(0.75, 0.75, 0.75, 0.38)
 
 
 ## Marca o desmarca un extra para el plato que está sobre la tabla.
@@ -2542,6 +2716,8 @@ func _bump_extra(b: Button) -> void:
 ## momento), pero apagados y sin responder mientras no haya un plato terminado
 ## sobre la tabla o no quede existencia en la despensa.
 func _update_extra_buttons() -> void:
+	# La mejora se refresca en los mismos momentos que los extras.
+	_update_upgrade_buttons()
 	# "no_extras": a los postres (mochi, dorayaki, taiyaki) no se les echa nada.
 	# En el tutorial los extras no existen todavía: interfaz mínima.
 	if tutorial_mode or hide_extras:
@@ -3711,6 +3887,7 @@ func _finish_prep(grant_mastery: bool) -> void:
 	ready_level = 0
 	# Cada plato empieza SIN extras, aunque el anterior los llevara.
 	extras_chosen.clear()
+	upgrade_added.clear()
 	current_recipe = ""
 	if grant_mastery:
 		var uses: int = RecipeData.get_recipe(ready_recipe).get("free_uses", 0)
