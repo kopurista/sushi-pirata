@@ -2603,8 +2603,11 @@ func _toggle_upgrade(id: String) -> void:
 		_bump_extra(upgrade_buttons.get(id, null))
 		_update_upgrade_buttons()
 		return
-	if GameState.get_ingredient_uses(id) < dishes.size():
-		_flash_message("¡Sin %s!" % RecipeData.get_ingredient(id).get("short", id))
+	# CON UNO SOLO QUE FALTE NO HAY MEJORA (pedido por el usuario): los
+	# botones salen igualmente, apagados, y el toque lo dice con palabras en
+	# vez de no responder — que se lea como aviso y no como boton roto.
+	if not _mejora_con_genero(mejora):
+		_flash_message("¡Faltan ingredientes!")
 		Audio.sfx("recurso_off")
 		return
 	upgrade_added[id] = true
@@ -2649,11 +2652,26 @@ func _transformar_plato(mejora: Dictionary) -> void:
 	_update_extra_buttons()
 
 
+## ¿Hay genero para la mejora ENTERA? Cada ingrediente que no este ya echado
+## necesita usos para TODOS los platos de la tabla (el "plato doble" corona
+## los dos). Con uno solo que falte, no hay mejora.
+func _mejora_con_genero(mejora: Dictionary) -> bool:
+	for ing in mejora.get("ingredients", []):
+		if upgrade_added.get(ing, false):
+			continue
+		if GameState.get_ingredient_uses(str(ing)) < dishes.size():
+			return false
+	return true
+
+
 ## Los botones de mejora solo existen para el plato mejorable: fuera de ese
 ## momento ni se ven (a diferencia de los extras, que siempre estan a la
 ## vista: una mejora es de UNA receta y ensenarla siempre confundiria).
+## CON GENERO INCOMPLETO salen APAGADOS pero vivos: el toque contesta
+## "¡Faltan ingredientes!" en vez de quedarse mudo (ver _toggle_upgrade).
 func _update_upgrade_buttons() -> void:
 	var mejora := _mejora_actual()
+	var completo := _mejora_con_genero(mejora) if not mejora.is_empty() else false
 	for id in upgrade_buttons:
 		var b: Button = upgrade_buttons[id]
 		var aplica: bool = not mejora.is_empty() \
@@ -2662,11 +2680,11 @@ func _update_upgrade_buttons() -> void:
 		if not aplica:
 			continue
 		var puesto: bool = upgrade_added.get(id, false)
-		var stock: bool = GameState.get_ingredient_uses(id) >= dishes.size()
-		b.disabled = not (puesto or stock)
+		b.disabled = false
 		b.get_node("Check").visible = puesto
 		b.get_node("Plus").visible = not puesto
-		b.modulate = Color.WHITE if (puesto or stock) else Color(0.75, 0.75, 0.75, 0.38)
+		b.modulate = Color.WHITE if (puesto or completo) \
+				else Color(0.75, 0.75, 0.75, 0.38)
 
 
 ## Marca o desmarca un extra para el plato que está sobre la tabla.

@@ -909,6 +909,41 @@ func _stock_has_extras() -> bool:
 ## Sortea 8 ingredientes distintos de entre los que se venden (el arroz es
 ## infinito y no entra). Los EXTRAS quedan fuera: tienen su propia balda y el
 ## tendero los tiene SIEMPRE, así que sortearlos ocuparía un hueco del día.
+## EL SURTIDO COMPLETO DE SAVERIO (pedido por el usuario: la tienda ya no
+## rota cada dia — con muchos ingredientes, que el que necesitas no este era
+## una loteria injusta). Todo el genero UTIL: los ingredientes de pago de las
+## recetas desbloqueadas MAS los de coronacion de las mejoras ganadas (la
+## receta mejorada no tiene pasos, asi que sus ingredientes no salen de
+## get_ingredients y hay que sumarlos aparte). ORDENADO POR ESCASEZ: lo que
+## falta (0 usos) primero, y despues de menos a mas existencias.
+func shop_catalog() -> Array[String]:
+	var utiles := {}
+	for rid in unlocked_recipes:
+		for ing in RecipeData.get_ingredients(rid):
+			utiles[ing] = true
+	for base in unlocked_upgrades:
+		for ing in RecipeData.upgrade_of(base).get("ingredients", []):
+			utiles[ing] = true
+	var out: Array[String] = []
+	for ing in RecipeData.INGREDIENTS:
+		if ing in RecipeData.EXTRAS or not utiles.has(ing):
+			continue
+		if int(RecipeData.INGREDIENTS[ing].get("cost", 0)) > 0:
+			out.append(ing)
+	# Orden ESTABLE: a igual existencias se queda el orden del catalogo.
+	var con_usos: Array = []
+	for i in out.size():
+		con_usos.append([get_ingredient_uses(out[i]), i, out[i]])
+	con_usos.sort()
+	var ordenado: Array[String] = []
+	for fila in con_usos:
+		ordenado.append(str(fila[2]))
+	return ordenado
+
+
+## (HISTORICO) El surtido rotatorio de 8 del dia: la tienda ya vende TODO el
+## genero via shop_catalog(). Se conserva porque los guardados llevan
+## shop_stock/shop_day dentro y porque reroll_shop es quien suma shop_spent.
 func roll_shop_stock() -> void:
 	# Saverio solo saca a la balda lo que sirve para las recetas que YA sabes
 	# cocinar: ofrecer atún antes de tener una receta con atún no dice nada.

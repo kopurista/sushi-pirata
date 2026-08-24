@@ -655,6 +655,16 @@ m2_01; el resto de recetas y mejoras las encargará el usuario aparte.
   `_transformar_plato`: cambia `ready_recipe`, el sprite del plato (bote de
   celebración), cobra 1 uso de cada ingrediente POR PLATO en la tabla (el
   "plato doble" corona los dos) y canta "¡Mejorado! $N".
+- **EL CONSUMO ES POR ELABORACIÓN, no por jornada** (regla del usuario): los
+  ingredientes de coronación se cobran en CADA transformación. Un ingrediente
+  que además viva en recetas normales (las huevas de salmón del gunkan) sigue
+  cobrando su 1 uso por jornada por esa vía, y la coronación le suma el uso
+  extra por plato — las dos vías son independientes y salen solas del diseño.
+- **CON UNO SOLO QUE FALTE NO HAY MEJORA** (regla del usuario): los botones
+  salen igualmente, APAGADOS PERO VIVOS (`_mejora_con_genero`,
+  `b.disabled = false` a propósito) — el toque contesta "¡Faltan
+  ingredientes!" en vez de quedarse mudo, que un botón que no responde se lee
+  como roto y no como aviso.
 - **El desbloqueo** (`reward_upgrade_3` en el puerto, entregado en
   `complete_port` a las 3★): apunta la base en
   `GameState.unlocked_upgrades`, desbloquea la receta mejorada (así sus
@@ -3680,10 +3690,19 @@ La GUÍA lleva su sección ("El canto de sirena").
   piernas; y termina antes del mostrador o taparía el género. 2) El cartel va
   **girado 45°**: una tabla alineada con los ejes del mundo se ve DE CANTO,
   como una raya (`SIGN_RIGHT`/`SIGN_FRONT` son los ejes ya girados). Vende USOS de ingredientes (`cost` en
-  `RecipeData.INGREDIENTS`) de un surtido de **8 artículos que cambia cada día
-  real** (`GameState.shop_stock/shop_day`, se renueva solo al cambiar la fecha);
-  el botón **"Recargar artículos"** vuelve a sortearlo pagando
-  `GameState.SHOP_REROLL_COST`. Al tocar un artículo se abre un cartel que
+  `RecipeData.INGREDIENTS`) y desde el 24-8-2026 tiene **TODO el género a la
+  venta, siempre** (`GameState.shop_catalog`; pedido por el usuario: con
+  muchos ingredientes, la rotación diaria de 8 era una lotería injusta). La
+  parrilla va en un **ScrollContainer con TouchScroll** y ORDENADA POR
+  ESCASEZ: lo que FALTA (0 usos) delante y el resto de menos a más — el orden
+  se decide AL ENTRAR (`_catalogo`) y no se rebaraja al comprar, que una
+  balda saltando bajo el dedo marea. El botón de "Recargar" y el sorteo
+  diario se retiraron (`roll_shop_stock` queda de histórico: los guardados
+  llevan `shop_stock/shop_day` dentro y `reroll_shop` es quien documenta
+  `shop_spent`). **OJO: `shop_catalog` suma aparte los ingredientes de
+  CORONACIÓN de las mejoras ganadas** — la receta mejorada no tiene pasos,
+  así que `get_ingredients` no los devuelve y sin esa suma la mayonesa y la
+  cebolla no se podían comprar. Al tocar un artículo se abre un cartel que
   pregunta CUÁNTOS usos se quieren (flechas ◄ N ►, total y dinero restante).
 - **EL RECETARIO VA POR SECCIONES DE ESTRELLAS** (`_paginas_recetario`): cada
   doble página lleva recetas de UN SOLO nivel y las estrellas se dibujan una
@@ -5432,13 +5451,10 @@ que no hay problema.
   en el 6 (`GameState.extras_done`, que es lo que mira `extras_unlocked()` y
   con ella la tabla y la tienda). La tienda ya es bastante novedad ella sola, y
   los extras solo tienen sentido cuando el jugador conoce el hastío.
-- **El surtido de la tienda solo trae ingredientes de recetas DESBLOQUEADAS**
-  (`roll_shop_stock` filtra por `unlocked_recipes`), y `unlock_recipe` pone
-  `shop_day = ""` para que el surtido se rehaga al aprender algo nuevo.
-  **Al recargar NO se repite nada de la tanda anterior**: se sortea primero
-  entre lo que NO estaba y solo se rellena con lo de antes si no hay bastante
-  género distinto (con pocas recetas desbloqueadas el surtido no da para ocho
-  artículos nuevos). Pagar por recargar y que salga lo mismo es tirar el dinero.
+- **La tienda vende TODO el género útil, siempre** (`GameState.shop_catalog`:
+  ingredientes de pago de las recetas desbloqueadas + los de coronación de
+  las mejoras ganadas), ordenado por escasez. El surtido rotatorio de 8 y su
+  "Recargar" son HISTORIA (ver el bloque de la tienda, arriba).
 - **La DESPENSA del inventario ordena por lo que sirve**: delante los
   ingredientes de recetas que ya se saben cocinar, detrás los demás en silueta
   con "???" (`_ingredient_known`). Los GRATIS (arroz, sésamo) cuentan siempre
