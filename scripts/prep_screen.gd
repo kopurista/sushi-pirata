@@ -465,13 +465,16 @@ func _build_perk_card(id: String, board_script: GDScript) -> Button:
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	name_l.add_theme_font_size_override("font_size", 14)
+	name_l.add_theme_font_size_override("font_size", 16)
 	# GRABADO sobre el latón: letra oscura con reborde claro. En crema, como
 	# sobre la madera, se perdía en la chapa.
-	name_l.add_theme_color_override("font_color", Color(0.27, 0.15, 0.04))
-	name_l.add_theme_color_override("font_outline_color", Color(1, 0.93, 0.70))
-	name_l.add_theme_constant_override("outline_size", 7)
-	name_l.add_theme_constant_override("line_spacing", -7)
+	name_l.add_theme_color_override("font_color", Color(0.20, 0.10, 0.02))
+	name_l.add_theme_color_override("font_outline_color", Color(1, 0.96, 0.82))
+	name_l.add_theme_constant_override("outline_size", 9)
+	name_l.add_theme_constant_override("line_spacing", -6)
+	var negrita_p: Font = load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita_p != null:
+		name_l.add_theme_font_override("font", negrita_p)
 	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(name_l)
 
@@ -1180,9 +1183,18 @@ func _refresh_resumen() -> void:
 
 func _ficha_resumen(id: String) -> Control:
 	var datos := RecipeData.get_recipe(id)
-	var card := Control.new()
+	# LA FICHA SE PUEDE TOCAR y abre la MISMA hoja del recetario
+	# (`RecipeSheet`, pedido por el usuario): aquí caben cuatro renglones de
+	# rasgos y allí está el plato entero — ingredientes, dados por tipo,
+	# maridaje y su corona. Compartir la hoja es lo que impide que las dos
+	# pantallas acaben contando cosas distintas del mismo plato.
+	var card := Button.new()
 	card.custom_minimum_size = ficha_size
-	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.tooltip_text = "Ver la receta"
+	for st in ["normal", "hover", "pressed", "focus", "disabled"]:
+		card.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	card.pressed.connect(func() -> void: RecipeSheet.abrir($UI/Root, id))
+	PrepBoard.add_press_feedback(card, 0.96)
 
 	var fondo := TextureRect.new()
 	fondo.texture = load(FICHA_TEX)
@@ -1231,11 +1243,11 @@ func _ficha_resumen(id: String) -> Control:
 	var txt := Label.new()
 	txt.text = "\n".join(_rasgos(id))
 	txt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	txt.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	txt.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	txt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	# El texto se apoya ABAJO y ocupa lo justo: asi las cartas comparten
-	# baseline aunque una diga tres cosas y otra una sola, y lo que sobra se
-	# lo queda el dibujo (que es lo que identifica el plato de un vistazo).
+	# El texto arranca ARRIBA de su franja (pedido por el usuario): apoyado
+	# abajo, una ficha de un solo rasgo dejaba su renglón pegado al canto de
+	# la carta y parecía caído.
 	txt.custom_minimum_size = Vector2(0, 82)
 	txt.add_theme_font_size_override("font_size", 15)
 	txt.add_theme_constant_override("line_spacing", -2)
@@ -1265,7 +1277,9 @@ func _rasgos(id: String) -> Array[String]:
 	if bool(r.get("snack", false)):
 		out.append("Picoteo")
 	if bool(r.get("leaves_seat", false)):
-		out.append("Postre: libera silla")
+		# "Postre" y punto: lo de la silla lo cuenta su hoja del recetario, y
+		# aquí el renglón se lee igual de bien con una palabra.
+		out.append("Postre")
 	var libres := int(r.get("free_uses", 0))
 	if libres > 0:
 		out.append("Maestría x%d" % (libres + 1))
