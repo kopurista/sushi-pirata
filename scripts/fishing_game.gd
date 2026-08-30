@@ -219,9 +219,6 @@ var leccion_en_curso := false
 const CLASE_TOPE := 0.9
 const CLASE_TENSION := 0.4
 const CLASE_TIRON := 0.35
-## Intentos que da la clase antes de rendirse: si el pez se escapa, se
-## vuelve a empezar en vez de dejar al jugador sin aprender la pelea.
-const CLASE_INTENTOS := 3
 var phases_left := 0
 var speed_left := 0.0
 var speed_next := 0.0
@@ -272,8 +269,10 @@ const TUTOR_DELANTE := 54.0
 const TUTOR_INSISTE := 6.0
 ## Lo que dura el TIRÓN dentro del tutorial. Uno de verdad dura 3-4 s y ahí no
 ## da tiempo ni a leer el cartel: es la única mecánica de la pesca que no se
-## entiende sin haberla hecho, así que en la clase se alarga.
-const TUTOR_TIRON := 11.0
+## entiende sin haberla hecho, así que en la clase se alarga — pero SEIS es el
+## techo (el usuario probó once y se hacía eterno). Lo justo para leer el
+## cartel, equivocarse una vez y ver que pulsar rápido SÍ frena la barra.
+const TUTOR_TIRON := 6.0
 ## Salto de linea de los carteles del tutorial. Va por `char(10)` y no
 ## por una secuencia de escape: los parches automaticos de este repo se
 ## comen las barras invertidas (ver el aviso de CLAUDE.md).
@@ -2068,107 +2067,28 @@ func _quitar_foco(velo: ColorRect, nodo: Control, z: int) -> void:
 	var tw := velo.create_tween()
 	tw.tween_property(velo, "modulate:a", 0.0, 0.22)
 	tw.tween_callback(velo.queue_free)
-## LA CLASE DE PESCA, DE PRACTICA. Cai no suelta la teoria de un tiron: dice UNA
-## cosa, se quita de en medio y el jugador la HACE; solo entonces viene la
-## siguiente. Cada leccion se cierra sola cuando el jugador cumple, asi que no
-## hay forma de quedarse escuchando sin tocar nada.
+## LA CLASE DE PESCA DE CAI: la MISMA del botón "?" con Cai poniéndole voz
+## (pedido por el usuario). Tenía guion propio —noventa líneas con su bucle de
+## reintentos, sus focos y sus esperas— y era el gemelo pobre del otro: el
+## bueno insiste cuando el jugador no hace lo que toca, se repite entero si el
+## pez se escapa, deja salirse y no se puede quedar colgado. Dos tutoriales
+## para lo mismo eran además dos sitios donde arreglar cada fallo.
 ##
-## EL INTENTO VA AMANADO (`clase`): el pez es el mas facil que existe, el sedal
-## perdona, el pez no se escapa y hay UNA fase de velocidad GARANTIZADA y floja
-## — porque el tiron es lo unico que no se puede explicar sin verlo, y en una
-## partida normal puede no salir. Cai paga la clase, asi que tampoco cuesta
-## doblones. Al acabar deja `CAI_TIRADAS_GRATIS` lanzamientos gratis.
+## Cai se queda con lo suyo, que es lo único que el cartel no puede dar: el
+## saludo, el "hoy pago yo" y el regalo de las tiradas. El INTENTO va amañado
+## igual (`clase`, que enciende el propio tutorial): pez de tier 0, sin
+## cobrar, el sedal perdona y la presa no se suelta.
 func _clase_de_pesca() -> void:
 	GameState.fishing_intro_done = true
 	GameState.bait = maxi(GameState.bait, CAI_TIRADAS_GRATIS)
 	GameState.save_game()
-	clase = true
-	_refresh_cast_label()
-
 	await _leccion([
 		{ "text": "Yo enseño poco. Tú haces mucho. Asi se aprende.", "who": "cai", "mood": "serio" },
-		{ "text": "Hoy pago yo. Tú mira y toca.", "who": "cai", "mood": "hablando" },
+		{ "text": "Hoy pago yo. Mira el cartel. Haz lo que dice.", "who": "cai", "mood": "hablando" },
 	])
-
-	# 1) EL BOTON. Se enfoca y no se sigue hasta que lo pulsa.
-	var z_btn := cast_btn.z_index
-	var velo := _foco_pesca(cast_btn)
-	await _leccion([
-		{ "text": "Esto es caña. Tocas ahí y empieza. Tócalo.", "who": "cai", "mood": "hablando" },
-	])
-	_quitar_foco(velo, cast_btn, z_btn)
-
-	# EL INTENTO SE REPITE SI SALE MAL. Con todo congelado mientras Cai habla no
-	# deberia escaparse ninguno, pero si pasa, la clase NO se queda a medias:
-	# Cai se encoge de hombros y se vuelve a empezar. Antes se cortaba ahi y el
-	# jugador se quedaba sin aprender la pelea.
-	var intentos := 0
-	while intentos < CLASE_INTENTOS:
-		intentos += 1
-		if state != State.READY:
-			await _esperar_pesca(func() -> bool: return state == State.READY, 12.0)
-		if intentos > 1:
-			await _leccion([
-				{ "text": "Se fue. Pasa. Otra vez.", "who": "cai", "mood": "callado" },
-			])
-		await _tutor_espera(func() -> bool: return state != State.READY)
-
-		# 2) LA SOMBRA. Que la vea nadar y lance por delante.
-		await _leccion([
-			{ "text": "Eso es **sombra**. Sombra grande, premio grande.", "who": "cai", "mood": "hablando" },
-			{ "text": "Tocas agua **delante** de sombra. No encima. Prueba.", "who": "cai", "mood": "serio" },
-		])
-		await _esperar_pesca(func() -> bool: return bobber_out or state == State.READY)
-		if state == State.READY:
-			continue
-
-		# 3) LA FINTA Y LA PICADA, avisadas ANTES de que el pez amague.
-		await _leccion([
-			{ "text": "Ahora espera. Pez hace trampa: viene, se va. Eso no es picada.", "who": "cai", "mood": "hablando" },
-			{ "text": "Picada de verdad: flotador se **hunde**. Ahí tocas, rápido.", "who": "cai", "mood": "sorprendido" },
-		])
-		await _esperar_pesca(func() -> bool:
-			return state == State.FIGHT or state == State.READY or state == State.ESCAPED)
-		if state != State.FIGHT:
-			continue
-
-		# 4) LA PELEA. Foco en la caña y a recoger de verdad.
-		var z_cana := fight_box.z_index if fight_box != null else 0
-		velo = _foco_pesca(fight_box)
-		await _leccion([
-			{ "text": "Enganchado. Dos barras: **sedal** y **fuerza de pez**.", "who": "cai", "mood": "serio" },
-			{ "text": "Aprietas y **mantienes**: pez se cansa. Sedal rojo, sueltas.", "who": "cai", "mood": "hablando" },
-		])
-		_quitar_foco(velo, fight_box, z_cana)
-		await _esperar_pesca(func() -> bool:
-			return energy <= 0.55 or state != State.FIGHT)
-		if state != State.FIGHT:
-			continue
-
-		# 5) EL TIRON. Se provoca AQUI para que Cai lo explique con el delante.
-		speed_next = 0.0
-		await _esperar_pesca(func() -> bool:
-			return speed_left > 0.0 or state != State.FIGHT)
-		if state != State.FIGHT:
-			continue
-		await _leccion([
-			{ "text": "¡Corre! Ahora no mantienes. Ahora **tocas rápido**.", "who": "cai", "mood": "sorprendido" },
-		])
-		await _esperar_pesca(func() -> bool:
-			return speed_left <= 0.0 or state != State.FIGHT)
-
-		# 6) EL REMATE.
-		if state == State.FIGHT:
-			await _leccion([
-				{ "text": "Ya pasó. Aprieta otra vez. Acaba tú.", "who": "cai", "mood": "hablando" },
-			])
-		await _esperar_pesca(func() -> bool:
-			return state == State.REVEAL or state == State.READY or state == State.ESCAPED)
-		if state == State.REVEAL:
-			break
-
-	clase = false
-	_refresh_cast_label()
+	# `_tutorial_guiado` pone `clase` él solo, así que aquí NO se toca: si se
+	# encendiera antes, el tutorial se daría por ya en marcha y no arrancaría.
+	await _tutorial_guiado()
 	await _leccion([
 		{ "text": "Eso. Ya sabes pescar.", "who": "cai", "mood": "feliz" },
 		{ "text": "Tres tiradas mías. Regalo. Después pagas tú.", "who": "cai", "mood": "hablando" },
@@ -2443,11 +2363,15 @@ func _montar_salir_tutorial() -> void:
 	PrepBoard.skin_small_button(b)
 	b.add_theme_font_size_override("font_size", 20)
 	b.set_meta("snd", "atras")
+	# POR DEBAJO DE LAS CAJAS DE RECURSOS (pedido por el usuario): esas viven
+	# en el menú, no aquí, y ocupan hasta la y 76 —110 con la cuenta atrás del
+	# arroz—, así que arriba del todo el botón les caía encima. Va en la banda
+	# del "?", que mientras dura el tutorial está escondido por definición.
 	b.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	b.offset_left = -274.0
 	b.offset_right = -24.0
-	b.offset_top = 24.0 + GameState.safe_top()
-	b.offset_bottom = 76.0 + GameState.safe_top()
+	b.offset_top = 196.0 + GameState.safe_top()
+	b.offset_bottom = 248.0 + GameState.safe_top()
 	b.z_index = 170
 	b.pressed.connect(func() -> void: tutor_abandonar = true)
 	add_child(b)

@@ -1580,6 +1580,11 @@ func _palm(pos: Vector3, yaw: float) -> void:
 	_add_blob_shadow(pos + Vector3(0.4 * s, 0.02, 0.25 * s), 2.6 * s, 1.7 * s)
 
 
+## Alto de la farola del muelle. El poste dibujado que hubo antes medía 2,86
+## (2,6 de palo y su caja de luz), así que la de verdad se pone a esa talla.
+const PORT_LAMP_H := 2.9
+
+
 ## PUERTO: muelle de tablones grises sobre el mar, norays, farol y mercancia.
 func _scenery_port() -> void:
 	# Madera de muelle: gris azulado de la mar, NO el marron calido del barco
@@ -1615,13 +1620,30 @@ func _scenery_port() -> void:
 	for b in [Vector3(-2.2, 0.0, 6.6), Vector3(5.6, 0.0, -2.0)]:
 		_cyl(0.17, 0.21, 0.5, b + Vector3(0.0, 0.25, 0.0), Color(0.22, 0.20, 0.19))
 		_cyl(0.26, 0.26, 0.09, b + Vector3(0.0, 0.16, 0.0), Color(0.52, 0.42, 0.26))
-	# Farol de muelle: poste alto con caja de luz calida.
-	_cyl(0.07, 0.09, 2.6, Vector3(-3.4, 1.3, -4.9), Color(0.25, 0.20, 0.14))
-	var lamp := _box(Vector3(0.30, 0.34, 0.30), Vector3(-3.4, 2.72, -4.9),
-		Color(1.0, 0.85, 0.45))
-	lamp.material_override.emission_enabled = true
-	lamp.material_override.emission = Color(1.0, 0.8, 0.35)
-	lamp.material_override.emission_energy_multiplier = 0.7
+	# FAROLA DE VERDAD, la misma del puerto de la portada (pedido por el
+	# usuario): `farola.glb`. Era un cilindro con una caja de luz encima y al
+	# lado del resto del muelle —que ya va con modelos— se leia como un
+	# andamio. Se queda el poste dibujado de respaldo por si falta el archivo.
+	var farola := "res://assets/models/farola.glb"
+	if ResourceLoader.exists(farola):
+		# Y SE MUDA AL CANTO DERECHO: el poste dibujado medía lo mismo pero
+		# la farola de verdad lleva su cabeza de cristal arriba del todo, y
+		# en el sitio de antes (-3.4, -4.9) esa cabeza caía detrás de la
+		# barra del HUD. Medido con `unproject_position`: aquí queda a media
+		# altura de la banda visible y con su pie por encima de la tabla.
+		var f := _spawn_model(load(farola), Vector3(6.6, 0.0, 1.2),
+			PORT_LAMP_H, self)
+		# Girada como en la portada: de frente a esta camara (yaw 45), o su
+		# cara buena queda mirando al mar.
+		f.rotation_degrees.y = 45.0
+		f.add_to_group("no_batch")
+	else:
+		_cyl(0.07, 0.09, 2.6, Vector3(-3.4, 1.3, -4.9), Color(0.25, 0.20, 0.14))
+		var lamp := _box(Vector3(0.30, 0.34, 0.30), Vector3(-3.4, 2.72, -4.9),
+			Color(1.0, 0.85, 0.45))
+		lamp.material_override.emission_enabled = true
+		lamp.material_override.emission = Color(1.0, 0.8, 0.35)
+		lamp.material_override.emission_energy_multiplier = 0.7
 	# Carga APILADA (un puerto no deja las cajas sueltas) pero repartida por
 	# todo el muelle: dos montones grandes, dos pequeños y barriles arrimados
 	# en otros rincones. Todo fuera del anillo de paso de los clientes.
