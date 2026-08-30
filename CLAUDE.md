@@ -2445,7 +2445,16 @@ La GUÍA lleva su sección ("El canto de sirena").
       de arroz (y 118): esas cajas viven en el MENÚ, no en la pesca, y ocupan
       hasta la y 76 —110 con la cuenta atrás del arroz—, así que ese es el
       primer renglón libre. Puede caer en el sitio del álbum porque durante
-      el tutorial el álbum no se ve (`_montar_salir_tutorial`): el "Atrás" se esconde en cuanto hay un
+      el tutorial el álbum no se ve (`_montar_salir_tutorial`).
+      · **EL VELO DEL FOCO SE LO TRAGABA**: el picking va por orden de ÁRBOL,
+        no por z_index, así que el velo del paso 1 —el único con foco opaco—
+        se comía su pulsación y el botón no respondía. `_foco_pesca` lo sube
+        al final del árbol al montar el velo, igual que hace con el nodo
+        enfocado.
+      · **Y SALIRSE CANCELA LA TIRADA** (`_cancelar_intento`): sin eso el
+        guion se callaba pero el intento seguía vivo —la sombra nadando y la
+        caña lista— y no parecía haberse cancelado nada. La tirada de
+        práctica no paga, así que abandonarla a medias no cuesta nada.: el "Atrás" se esconde en cuanto hay un
       intento en juego, o sea media clase, y quien ya sabe pescar se quedaba
       dentro hasta el final.
     · **AL ACABAR VUELVE EL "?"** (`_tutor_fin` lo enciende a mano): su

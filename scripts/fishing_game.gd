@@ -2060,6 +2060,13 @@ func _foco_pesca(nodo: Control, pasa_toques := false) -> ColorRect:
 	velo.modulate.a = 0.0
 	add_child(velo)
 	velo.create_tween().tween_property(velo, "modulate:a", 1.0, 0.25)
+	# EL BOTÓN DE SALIRSE SE SUBE POR ENCIMA DEL VELO. El picking va por orden
+	# de ÁRBOL, no por z_index, así que el velo —añadido después— se tragaba
+	# su pulsación: en el paso 1, que es el único con foco de velo opaco, el
+	# botón no respondía. Le pasó al usuario. Es la misma trampa que ya
+	# resolvió el nodo enfocado, dos líneas más abajo.
+	if salir_tutor_btn != null and is_instance_valid(salir_tutor_btn):
+		move_child(salir_tutor_btn, -1)
 	if nodo != null and is_instance_valid(nodo):
 		nodo.z_index = 180
 		# Y SE SUBE AL FINAL DEL ARBOL: el z_index solo cambia el orden de
@@ -2228,7 +2235,10 @@ func _tutorial_guiado() -> void:
 		# calma y se cuenta otra vez desde el principio.
 		await _tutor_pausa(0.6)
 		await _esperar_pesca(func() -> bool: return state == State.READY, 12.0)
-	_tutor_fin()
+	# SALIRSE CANCELA EL INTENTO. Sin esto el guion se callaba pero la tirada
+	# seguía viva: la sombra nadando y la caña lista para lanzar, o sea que no
+	# parecía haberse cancelado nada (le pasó al usuario).
+	_tutor_fin(tutor_abandonar)
 
 
 ## UNA PASADA del tutorial. Devuelve `true` solo si llego hasta el final; con
@@ -2360,6 +2370,19 @@ func _tutor_intento(vuelta: int) -> bool:
 	return true
 
 
+## RECOGE LA TIRADA A MEDIAS y devuelve la pesca a la calma, sin cartel de
+## botín ni castigo: se usa al salirse del tutorial, donde el intento era de
+## práctica y no había nada apostado.
+func _cancelar_intento() -> void:
+	if snd != null:
+		snd.todos_los_bucles_off()
+	holding = false
+	retrieving = false
+	_set_rush(false)
+	instruction.text = ""
+	_set_state(State.READY)
+
+
 ## ¿SE HA IDO AL TRASTE EL INTENTO? Lo apunta `_escaped`, que es el embudo de
 ## TODAS las formas de perder el pez: no clavar la picada, tirar en una finta,
 ## dejar que se lleve el cebo y reventar el sedal. Se apunta con una BANDERA y
@@ -2402,9 +2425,13 @@ func _montar_salir_tutorial() -> void:
 ## Cierra el tutorial y devuelve el minijuego a la normalidad. Se llama
 ## también desde `_set_state` si el intento termina antes de tiempo: el
 ## cartel no puede quedarse colgado sobre una pantalla que ya no lo espera.
-func _tutor_fin() -> void:
+func _tutor_fin(cancelar := false) -> void:
 	if not tutor:
 		return
+	# La tirada de práctica no paga nada, así que abandonarla a medias no
+	# cuesta nada tampoco: se recoge todo y a empezar de cero.
+	if cancelar and is_busy():
+		_cancelar_intento()
 	tutor = false
 	tutor_falta_tiron = false
 	tutor_abandonar = false
@@ -2513,30 +2540,27 @@ func _preguntar_tutorial() -> void:
 	centro.set_anchors_preset(Control.PRESET_FULL_RECT)
 	velo.add_child(centro)
 	var cartel := Control.new()
-	cartel.custom_minimum_size = Vector2(540, 340)
+	cartel.custom_minimum_size = Vector2(520, 300)
 	centro.add_child(cartel)
 	cartel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
 		PrepBoard.PANEL_MARGIN))
-	PrepBoard.add_panel_banner(cartel, "¿Repasamos?", 30)
+	PrepBoard.add_panel_banner(cartel, "Repetir tutorial", 28)
 	# EL TEXTO ARRIBA Y LOS BOTONES ABAJO, cada uno en su franja y sin
 	# tocarse: el parrafo iba centrado en una caja que llegaba hasta los
 	# botones, asi que la segunda frase aterrizaba encima de ellos.
 	var l := Label.new()
-	# UN SOLO SALTO entre las dos frases: con el renglón en blanco quedaban
-	# tan separadas que no se leían como un mismo párrafo.
-	l.text = ("Te guío paso a paso en una tirada de práctica.
-"
-		+ "No cuesta doblones y no puedes perder la presa.")
-	l.add_theme_constant_override("line_spacing", 4)
+	l.text = ("Guía paso a paso para aprender a pescar con una tirada de "
+		+ "práctica. No cuesta doblones pero no te quedas con lo que pesques.")
+	l.add_theme_constant_override("line_spacing", 2)
 	l.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	# ANCHO Y CUERPO MEDIDOS para que cada frase entre en UN renglon: a
 	# cuerpo 20 y con 54 de margen la primera se partia en dos, el parrafo
 	# pasaba de tres renglones a cuatro y se desbordaba de su caja — que es
 	# como acababa la segunda frase encima de los botones.
-	l.offset_left = 36.0
-	l.offset_top = 94.0
-	l.offset_right = -36.0
-	l.offset_bottom = -142.0
+	l.offset_left = 40.0
+	l.offset_top = 86.0
+	l.offset_right = -40.0
+	l.offset_bottom = -118.0
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -2549,8 +2573,8 @@ func _preguntar_tutorial() -> void:
 	# descolgada. El centrador no puede equivocarse.
 	var pie := CenterContainer.new()
 	pie.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	pie.offset_top = -122.0
-	pie.offset_bottom = -34.0
+	pie.offset_top = -106.0
+	pie.offset_bottom = -26.0
 	cartel.add_child(pie)
 	var botones := HBoxContainer.new()
 	botones.alignment = BoxContainer.ALIGNMENT_CENTER
