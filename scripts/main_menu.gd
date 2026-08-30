@@ -3642,10 +3642,16 @@ func _ver_premio_dia(n: int, padre: Control) -> void:
 		dado["money"] = DailyData.money_for(int(dado["money"]),
 			GameState.chef_level)
 	var fichas: Array[Control] = []
-	for clave in ["money", "rice", "ingots", "bait", "maps", "extras"]:
+	for clave in ["money", "rice", "ingots", "bait", "maps"]:
 		if dado.has(clave):
 			fichas.append(_daily_chip(load(DAILY_ICONS[clave]),
 				"x%d" % int(dado[clave])))
+	# LOS EXTRAS, UNO POR UNO: el premio son N usos de CADA extra, y con un
+	# solo icono —el jengibre— parecía que solo caía ese.
+	if dado.has("extras"):
+		for e in RecipeData.EXTRAS:
+			fichas.append(_daily_chip(RecipeData.get_ingredient_texture(e),
+				"x%d" % int(dado["extras"])))
 	for k in dado.get("ingredients", {}):
 		fichas.append(_daily_chip(RecipeData.get_ingredient_texture(str(k)),
 			"x%d" % int(dado["ingredients"][k])))
@@ -3710,11 +3716,16 @@ func _ver_premio_dia(n: int, padre: Control) -> void:
 func _show_daily_reward(dado: Dictionary, velo: Control, panel: Control,
 		pie: Label) -> void:
 	var fichas: Array[Control] = []
-	for clave in ["money", "rice", "ingots", "bait", "maps", "extras"]:
+	for clave in ["money", "rice", "ingots", "bait", "maps"]:
 		if not dado.has(clave):
 			continue
 		fichas.append(_daily_chip(load(DAILY_ICONS[clave]),
 			"x%d" % int(dado[clave])))
+	# Ídem: una ficha por extra, que el premio es de los TRES.
+	if dado.has("extras"):
+		for e in RecipeData.EXTRAS:
+			fichas.append(_daily_chip(RecipeData.get_ingredient_texture(e),
+				"x%d" % int(dado["extras"])))
 	for k in dado.get("ingredients", {}):
 		fichas.append(_daily_chip(RecipeData.get_ingredient_texture(str(k)),
 			"x%d" % int(dado["ingredients"][k])))

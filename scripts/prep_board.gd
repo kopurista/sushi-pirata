@@ -2335,6 +2335,34 @@ func _build_ingredients(recipe_id: String) -> void:
 			holder.add_child(t)
 		ingredients_row.add_child(holder)
 		ingredient_nodes[ing_id] = holder
+	_ordenar_para_arrastre()
+
+
+## EL INGREDIENTE QUE HAY QUE ARRASTRAR SE PONE EN EL LADO CONTRARIO AL
+## PULGAR (pedido por el usuario): con la tabla pegada a la derecha (diestro)
+## va a la IZQUIERDA, y al revés con la mano izquierda. Así el gesto siempre
+## cruza hacia la tabla y no se hace hacia atrás, contra la muñeca.
+func _ordenar_para_arrastre() -> void:
+	if step_index >= steps.size():
+		return
+	var paso: Dictionary = steps[step_index]
+	var t := str(paso.get("type", ""))
+	if t != "drag_ingredient" and t != "drag_choice":
+		return
+	var ids: Array = paso.get("options", [paso.get("ingredient", "")])
+	# Con la mano IZQUIERDA la tabla queda a la izquierda: el ingrediente se
+	# va al final de la fila (derecha). Con la derecha, al principio.
+	var al_final: bool = GameState.player_hand == "L"
+	var pos: int = ingredients_row.get_child_count() - 1 if al_final else 0
+	for ing in ids:
+		if not ingredient_nodes.has(ing):
+			continue
+		var nodo: Control = ingredient_nodes[ing]
+		if not is_instance_valid(nodo) or nodo.get_parent() != ingredients_row:
+			continue
+		ingredients_row.move_child(nodo, pos)
+		pos += -1 if al_final else 1
+		pos = clampi(pos, 0, ingredients_row.get_child_count() - 1)
 
 
 ## Elimina de la tabla los ingredientes que ya no se van a usar.
@@ -2396,6 +2424,7 @@ func _advance_step() -> void:
 	_reset_step_progress()
 	step_index += 1
 	_prune_ingredients()
+	_ordenar_para_arrastre()
 	# Paso nuevo: la guía se retira y vuelve a contar (menos que la 1ª vez).
 	_reset_guide(GUIDE_DELAY_NEXT)
 	if step_index >= steps.size():

@@ -573,6 +573,10 @@ func _add_card(id: String, pos: Vector2, color: Color) -> void:
 	fila.add_theme_constant_override("separation", 12)
 	card.add_child(fila)
 	fila.add_child(_make_pm_button(id, false))
+	# LOS PUNTOS ENTREGADOS VAN EN PUNTITOS, no en un "0/5" (pedido por el
+	# usuario): una fila de bolitas que se van llenando se lee de un vistazo y
+	# sin contar, como las barras de los Sims. El Label sigue existiendo —
+	# oculto— para el "MÁX." del rango tope, que sí es una palabra.
 	var pts := Label.new()
 	pts.name = "Puntos"
 	pts.custom_minimum_size = Vector2(96.0, PM_SIZE)
@@ -580,9 +584,39 @@ func _add_card(id: String, pos: Vector2, color: Color) -> void:
 	pts.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	pts.add_theme_font_size_override("font_size", 22)
 	pts.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pts.visible = false
 	fila.add_child(pts)
+	var bolas := Control.new()
+	bolas.name = "Bolas"
+	bolas.custom_minimum_size = Vector2(96.0, PM_SIZE)
+	bolas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bolas.draw.connect(_dibujar_bolas.bind(bolas))
+	fila.add_child(bolas)
 	fila.add_child(_make_pm_button(id, true))
 	_paint_icon(id)
+
+
+## LOS PUNTITOS: uno por punto que pide el rango, llenos los entregados. El
+## lleno es el oro del set y el vacío un hueco hundido, para que se distingan
+## también sin color (la misma pareja que las estrellas del cartel del mapa).
+func _dibujar_bolas(c: Control) -> void:
+	var total: int = int(c.get_meta("total", 5))
+	var dados: int = int(c.get_meta("dados", 0))
+	if total <= 0:
+		return
+	var r := 7.0
+	var hueco := 6.0
+	var ancho: float = total * r * 2.0 + (total - 1) * hueco
+	var x: float = (c.size.x - ancho) * 0.5 + r
+	var y: float = c.size.y * 0.5
+	for i in total:
+		var cx := Vector2(x + i * (r * 2.0 + hueco), y)
+		if i < dados:
+			c.draw_circle(cx, r, Color(0.96, 0.76, 0.24))
+			c.draw_arc(cx, r, 0.0, TAU, 20, Color(0.42, 0.26, 0.06), 2.0, true)
+		else:
+			c.draw_circle(cx, r, Color(0.72, 0.63, 0.48, 0.45))
+			c.draw_arc(cx, r, 0.0, TAU, 20, Color(0.45, 0.34, 0.18, 0.55), 2.0, true)
 
 
 ## Lado de los discos de reparto. Van PEQUEÑOS: solo tienen que dejarse pulsar
@@ -649,12 +683,18 @@ func _paint_icon(id: String) -> void:
 	var coste := SkillData.rank_cost(id)
 	var fila_b: HBoxContainer = card.get_node("Botones")
 	var pts_l: Label = fila_b.get_node("Puntos")
+	var bolas: Control = fila_b.get_node("Bolas")
 	if rank >= SkillData.MAX_RANK:
 		pts_l.text = "MÁX."
 		pts_l.add_theme_color_override("font_color", ORO)
+		pts_l.visible = true
+		bolas.visible = false
 	else:
-		pts_l.text = "%d/%d" % [GameState.skill_points(id) % coste, coste]
-		pts_l.add_theme_color_override("font_color", FADED)
+		pts_l.visible = false
+		bolas.visible = true
+		bolas.set_meta("dados", GameState.skill_points(id) % coste)
+		bolas.set_meta("total", coste)
+		bolas.queue_redraw()
 
 	var mas: TextureButton = fila_b.get_node("Mas")
 	var menos: TextureButton = fila_b.get_node("Menos")

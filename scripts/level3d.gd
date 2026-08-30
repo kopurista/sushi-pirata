@@ -5878,7 +5878,11 @@ func _show_next_recipe(overlay: ColorRect, queue: Array) -> void:
 	# Con descripción el cartel crece: la ficha de una receta trae ahora un
 	# párrafo de dos o tres renglones y con el alto de siempre se salía.
 	var alto := 580.0
-	if not is_perk and RecipeData.summary(id) != "":
+	if is_perk:
+		# Con la explicación de cómo funcionan, el cartel del bonificador pide
+		# tanto sitio como el de una receta con resumen.
+		alto = 700.0
+	elif RecipeData.summary(id) != "":
 		alto = 690.0
 	box.custom_minimum_size = Vector2(470, alto)
 	box.pivot_offset = Vector2(235, alto * 0.5)
@@ -5929,7 +5933,15 @@ func _show_next_recipe(overlay: ColorRect, queue: Array) -> void:
 		desc.add_theme_color_override("font_color", Color(0.42, 0.3, 0.18))
 		vb.add_child(desc)
 		var gift := Label.new()
-		gift.text = "Llévate 1 uso de regalo. Compra más en el Inventario."
+		# CÓMO FUNCIONA UN BONIFICADOR, aquí mismo (pedido por el usuario): se
+		# gana uno y hay que saber en el acto que se ELIGE antes de zarpar,
+		# que se GASTA por jornada y dónde se consiguen más.
+		gift.text = ("Llévate 1 uso de regalo.
+
+Los bonificadores se eligen "
+			+ "ANTES de zarpar, junto a la carta, y cada jornada gasta un uso. "
+			+ "Repite su hazaña para ganar más, o cómpralos con lingotes en "
+			+ "**Bonificadores**, en el mapa.")
 		gift.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		gift.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		gift.add_theme_font_size_override("font_size", 18)
