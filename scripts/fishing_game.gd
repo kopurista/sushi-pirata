@@ -275,6 +275,11 @@ const TUTOR_INSISTE := 6.0
 ## comen las barras invertidas (ver el aviso de CLAUDE.md).
 const TUTOR_NL := char(10)
 var tutor := false
+## El jugador ya ha MANTENIDO de verdad (mas de `HOLD_MIN`) durante la pelea
+## del tutorial, y ya ha SOLTADO despues. Son los dos gestos que el tutorial
+## no puede dar por sabidos: hasta que no ocurren, no se pasa de paso.
+var tutor_mantuvo := false
+var tutor_solto := false
 ## En el TUTORIAL la presa no se puede cobrar hasta haber explicado el
 ## TIRON: jugando bien la barra se vaciaba en cuatro segundos y la
 ## leccion mas importante se quedaba sin dar (medido con un jugador
@@ -319,6 +324,15 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	# Los anillos del tutorial siguen a lo que senalan (y laten), asi que se
+	# repintan SIEMPRE — tambien con la leccion parada, que ahi el latido es
+	# lo unico que dice "mira aqui".
+	for i in range(_anillos.size() - 1, -1, -1):
+		var a := _anillos[i]
+		if a == null or not is_instance_valid(a):
+			_anillos.remove_at(i)
+		else:
+			a.queue_redraw()
 	# El botón del tablón RESPIRA suavemente mientras espera (el latido del
 	# viejo texto de la portada, en versión botón).
 	if state == State.READY and cast_btn != null and not cast_btn.disabled \
@@ -1108,6 +1122,8 @@ func _tick_fight(delta: float) -> void:
 		if holding:
 			hold_time += delta
 			idle_time = 0.0
+			if hold_time >= HOLD_MIN:
+				tutor_mantuvo = true
 			# La presa NO cede hasta que el dedo lleva HOLD_MIN apoyado: un
 			# toque suelto tensa el sedal (ver el pico de `_on_zone_input`)
 			# pero no recoge ni un palmo.
@@ -1117,6 +1133,8 @@ func _tick_fight(delta: float) -> void:
 		else:
 			hold_time = 0.0
 			idle_time += delta
+			if tutor_mantuvo:
+				tutor_solto = true
 			# Cuanto más tiempo sin recoger, más deprisa recupera el pez.
 			var rampa := minf(1.0 + idle_time * REGAIN_RAMP, REGAIN_RAMP_MAX)
 			energy += k_tiron * (REGAIN_BASE + REGAIN_TIER * tier) * fuerza \
@@ -1967,12 +1985,20 @@ func _cai_salida() -> void:
 ## Velo oscuro con UN control por encima (mismo apaño que las guías del menú: el
 ## z_index no cambia quién recibe el toque, pero aquí el velo se lo traga todo a
 ## propósito — durante la clase no se juega).
-func _foco_pesca(nodo: Control) -> ColorRect:
+## Con `pasa_toques` el velo NO se traga la pulsacion. Hace falta cuando lo
+## que se explica se juega DEBAJO del velo: en la leccion de la pelea el foco
+## cae sobre la cana mientras el jugador tiene que seguir pulsando el agua, y
+## con el velo tragandose los toques la barra del sedal no subia ni la de la
+## presa bajaba hasta que el tutorial pasaba de paso. Pasaba de verdad, y se
+## vivia como que el juego se habia quedado tonto: el primer aguante SI valia
+## —lo enciende `_start_fight`, no el jugador— y ninguno de los siguientes.
+func _foco_pesca(nodo: Control, pasa_toques := false) -> ColorRect:
 	var velo := ColorRect.new()
 	velo.color = Color(0, 0, 0, 0.7)
 	velo.set_anchors_preset(Control.PRESET_FULL_RECT)
 	velo.z_index = 150
-	velo.mouse_filter = Control.MOUSE_FILTER_STOP
+	velo.mouse_filter = Control.MOUSE_FILTER_IGNORE if pasa_toques \
+			else Control.MOUSE_FILTER_STOP
 	velo.modulate.a = 0.0
 	add_child(velo)
 	velo.create_tween().tween_property(velo, "modulate:a", 1.0, 0.25)
@@ -2247,13 +2273,24 @@ func _tutorial_guiado() -> void:
 	_borrar_anillo(anillo2)
 
 	tutor_falta_tiron = true
-	# 5) LA PELEA, barra por barra y con foco en cada una.
+	# 5) LA PELEA, barra por barra. El foco cae sobre la cana pero DEJA JUGAR
+	#    (`pasa_toques`): aqui el jugador tiene que estar pulsando el agua.
+	#    Y los dos pasos se cierran cuando LO HACE, no cuando pasan cuatro
+	#    segundos: mantener y soltar son los dos gestos de toda la pelea.
+	tutor_mantuvo = false
+	tutor_solto = false
 	var zs := rod.z_index
-	var velo2 := _foco_pesca(rod)
-	_tutor_di("MANTÉN pulsado para recoger.\nEl sedal se tensa: verde, naranja... y rojo se rompe.")
-	await _tutor_pausa(4.0)
-	_tutor_di("Suelta de vez en cuando y el sedal descansa.\nVacía la barra de la presa y será tuyo.")
-	await _tutor_pausa(4.0)
+	var velo2 := _foco_pesca(rod, true)
+	await _tutor_insistir(func() -> bool: return tutor_mantuvo,
+		"MANTÉN pulsado para recoger." + TUTOR_NL
+			+ "El sedal se tensa: verde, naranja... y rojo se rompe.",
+		"Apoya el dedo en el agua y NO lo sueltes:" + TUTOR_NL
+			+ "así recoges sedal.")
+	await _tutor_insistir(func() -> bool: return tutor_solto,
+		"Suelta de vez en cuando y el sedal descansa." + TUTOR_NL
+			+ "Vacía la barra de la presa y será tuyo.",
+		"Levanta el dedo un momento:" + TUTOR_NL
+			+ "con el sedal en rojo se rompe.")
 	_quitar_foco(velo2, rod, zs)
 
 	# 6) EL TIRON. Se PROVOCA aqui mismo (`speed_next = 0`) y no se deja
@@ -2265,10 +2302,15 @@ func _tutorial_guiado() -> void:
 		await _esperar_pesca(func() -> bool:
 			return speed_left > 0.0 or state != State.FIGHT, 12.0)
 	if state == State.FIGHT and speed_left > 0.0:
-		_tutor_di("¡AHORA! Pulsa rápido y sin parar." + TUTOR_NL
-			+ "Aquí MANTENER no vale: rompe el sedal.")
-		await _esperar_pesca(func() -> bool:
-			return speed_left <= 0.0 or state != State.FIGHT, 15.0)
+		# SIN TOPE: mientras `tutor_falta_tiron` esta puesto la presa no se
+		# puede cobrar, asi que insistir es seguro — y el tiron es justo lo
+		# unico de la pesca que no se entiende sin haberlo hecho.
+		await _tutor_insistir(func() -> bool:
+			return speed_left <= 0.0 or state != State.FIGHT,
+			"¡AHORA! Pulsa rápido y sin parar." + TUTOR_NL
+				+ "Aquí MANTENER no vale: rompe el sedal.",
+			"Pulsa y suelta, pulsa y suelta." + TUTOR_NL
+				+ "Cada toque le frena el tirón.")
 		_tutor_di("Eso es. Cuando afloje, vuelve a mantener.")
 		await _tutor_pausa(2.6)
 	tutor_falta_tiron = false
@@ -2301,6 +2343,10 @@ func _tutor_fin() -> void:
 ## hacían avanzar el guion sin que el jugador hubiera hecho nada — y el
 ## tutorial acababa contando cosas que en pantalla no habían ocurrido.
 func _tutor_insistir(cond: Callable, texto: String, empujon: String) -> void:
+	# LO PRIMERO, DECIRLO: el bucle solo alterna a partir de `TUTOR_INSISTE`,
+	# asi que sin esta linea el cartel se quedaba con la frase del paso
+	# ANTERIOR durante seis segundos.
+	_tutor_di(texto)
 	await _tutor_pausa(TUTOR_MIN_LEER)
 	var t := 0.0
 	var alterna := false
@@ -2375,32 +2421,47 @@ func _preguntar_tutorial() -> void:
 	centro.set_anchors_preset(Control.PRESET_FULL_RECT)
 	velo.add_child(centro)
 	var cartel := Control.new()
-	cartel.custom_minimum_size = Vector2(520, 300)
+	cartel.custom_minimum_size = Vector2(520, 350)
 	centro.add_child(cartel)
 	cartel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
 		PrepBoard.PANEL_MARGIN))
 	PrepBoard.add_panel_banner(cartel, "¿Repasamos?", 30)
+	# EL TEXTO ARRIBA Y LOS BOTONES ABAJO, cada uno en su franja y sin
+	# tocarse: el parrafo iba centrado en una caja que llegaba hasta los
+	# botones, asi que la segunda frase aterrizaba encima de ellos.
 	var l := Label.new()
-	l.text = ("Te guío paso a paso en una tirada de práctica.\n\n"
+	l.text = ("Te guío paso a paso en una tirada de práctica.
+
+"
 		+ "No cuesta doblones y no puedes perder la presa.")
-	l.set_anchors_preset(Control.PRESET_FULL_RECT)
-	l.offset_left = 54.0
-	l.offset_top = 92.0
-	l.offset_right = -54.0
-	l.offset_bottom = -110.0
+	l.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# ANCHO Y CUERPO MEDIDOS para que cada frase entre en UN renglon: a
+	# cuerpo 20 y con 54 de margen la primera se partia en dos, el parrafo
+	# pasaba de tres renglones a cuatro y se desbordaba de su caja — que es
+	# como acababa la segunda frase encima de los botones.
+	l.offset_left = 36.0
+	l.offset_top = 94.0
+	l.offset_right = -36.0
+	l.offset_bottom = -142.0
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_font_size_override("font_size", 20)
+	l.add_theme_font_size_override("font_size", 19)
 	l.add_theme_color_override("font_color", Color(0.42, 0.3, 0.18))
 	cartel.add_child(l)
+	# LOS BOTONES VAN EN UN `CenterContainer`, no en un HBox anclado: un
+	# contenedor anclado a mano se centra respecto a sus OFFSETS, y bastaba
+	# que uno de los dos botones midiera distinto para que la pareja quedara
+	# descolgada. El centrador no puede equivocarse.
+	var pie := CenterContainer.new()
+	pie.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	pie.offset_top = -122.0
+	pie.offset_bottom = -34.0
+	cartel.add_child(pie)
 	var botones := HBoxContainer.new()
 	botones.alignment = BoxContainer.ALIGNMENT_CENTER
-	botones.add_theme_constant_override("separation", 26)
-	botones.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	botones.offset_top = -104.0
-	botones.offset_bottom = -18.0
-	cartel.add_child(botones)
+	botones.add_theme_constant_override("separation", 40)
+	pie.add_child(botones)
 	var no := Button.new()
 	no.custom_minimum_size = Vector2(120, 86)
 	PrepBoard.skin_action_button(no, false)
@@ -2415,6 +2476,10 @@ func _preguntar_tutorial() -> void:
 	botones.add_child(si)
 
 
+## LOS ANILLOS VIVOS, para repintarlos por fotograma (ver `_anillo_en`).
+var _anillos: Array[Control] = []
+
+
 func _anillo_en(get_pos: Callable) -> Control:
 	var c := Control.new()
 	c.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -2423,6 +2488,10 @@ func _anillo_en(get_pos: Callable) -> Control:
 	c.set_meta("pos", get_pos)
 	add_child(c)
 	c.draw.connect(_dibujar_anillo.bind(c))
+	# SE REPINTA POR FOTOGRAMA o el aro se queda clavado donde estuviera el
+	# pez al crearlo: `draw` solo se emite cuando alguien pide `queue_redraw`,
+	# y aqui lo que se senala se MUEVE (esa es toda la leccion).
+	_anillos.append(c)
 	return c
 
 
@@ -2438,6 +2507,7 @@ func _dibujar_anillo(c: Control) -> void:
 
 
 func _borrar_anillo(c: Control) -> void:
+	_anillos.erase(c)
 	if c != null and is_instance_valid(c):
 		c.queue_free()
 

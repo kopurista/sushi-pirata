@@ -1006,6 +1006,28 @@ BADGE_BRILLO = (255, 226, 145, 255)
 BADGE_TEXTO = (74, 46, 20, 255)
 
 
+def build_perk_square() -> None:
+    """LA CHAPA CUADRADA DE UN BONIFICADOR (`boton_perk_cuadrado.png`).
+
+    GENERADA CON LUDO (`_gen/ui2/perk/cuadrado.webp`), como la carta del bote
+    de propinas: madera tallada con su plancha de laton dentro y un remache en
+    cada esquina. Sustituye a la chapa alargada (`boton_perk.png`) en el
+    SELECTOR, donde el usuario pidio que un bonificador se lea de un vistazo —
+    icono grande y nombre, nada mas.
+
+    **NO ES UN 9-SLICE**: se dibuja SIEMPRE cuadrada y a su tamano, asi que no
+    hay banda que estirar. De las cuatro variantes que devolvio Ludo se eligio
+    la de proporcion 1,009 (las otras salian 0,976-0,979 y, forzadas a
+    cuadrado, torcian los remaches).
+
+    Se exporta a 300 de lado —el doble de los ~150 a los que se dibuja—
+    porque el movil renderiza por encima del lienzo de diseno.
+    """
+    img = crop_alpha(Image.open(RAW / "perk" / "cuadrado.webp").convert("RGBA"))
+    img = img.resize((300, 300), Image.LANCZOS)
+    save(img, "boton_perk_cuadrado")
+
+
 def build_mult_badges() -> None:
     """Chapas x2..x20 del multiplicador de variedad, DIBUJADAS (como la barra),
     no generadas: la tanda de Ludo salía con estallidos de cómic que no

@@ -33,11 +33,26 @@ var leaving := false
 ## bote de propinas, que NO es un 9-slice —sus herrajes sobresalen del marco
 ## recto—, asi que va entera y a su proporcion exacta: de ahi salen estas dos
 ## medidas, y cambiar una sin la otra deforma los herrajes.
-const FICHA_ANCHO := 150.0
-const FICHA_ALTO := 217.0
+const FICHA_ANCHO := 156.0
+const FICHA_ALTO := 226.0
+## Fichas por renglón: SIEMPRE cuatro como mucho, y lo que no cabe se pasa con
+## las dos flechas de la derecha (pedido por el usuario). Con un renglón fijo
+## las fichas pueden ser grandes y su texto legible, que es lo que se buscaba.
+const FICHAS_POR_FILA := 4
+## Ancho reservado a la columna de flechas. Se reserva SIEMPRE, aunque no
+## haya nada que pasar: si no, las fichas cambiarían de tamaño al elegir la
+## quinta receta.
+const FICHA_FLECHAS := 60.0
 const FICHA_TEX := "res://assets/ui/pot_carta.png"
 ## Hueco entre fichas.
 const FICHA_HUECO := 8.0
+## LA CHAPA CUADRADA de un bonificador y su marco. El marco es la fracción de
+## madera que rodea a la plancha de latón, MEDIDA sobre el dibujo (la plancha
+## va de 42 a 257 de 300), y es lo que acota dónde puede caer el icono y el
+## nombre sin pisar los remaches.
+const PERK_SQ_TEX := "res://assets/ui/boton_perk_cuadrado.png"
+const PERK_LADO := 152.0
+const PERK_MARCO := 0.155
 ## Medida REAL de la ficha en esta pantalla: se calcula del numero de huecos
 ## de carta, porque las cinco de una isla no caben al ancho de las tres de un
 ## puerto y, envolviendose, la fila se comia la parrilla entera.
@@ -46,8 +61,13 @@ var ficha_size := Vector2(FICHA_ANCHO, FICHA_ALTO)
 ## (9,1% del ancho por los lados, 7,7% del alto por arriba), como en level3d.
 const FICHA_LADO := 14.0
 const FICHA_ARRIBA := 17.0
-## Fila con una ficha por plato elegido.
+## Fila con una ficha por plato elegido, y las flechas que la pasan.
 var resumen_box: HFlowContainer = null
+var flechas_box: VBoxContainer = null
+var flecha_arriba: Button = null
+var flecha_abajo: Button = null
+## Página de fichas que se está viendo (de `FICHAS_POR_FILA` en adelante).
+var ficha_pagina := 0
 ## Fila de bonificadores (se rehace si el aviso previo regala uno).
 var perk_bar: Control = null
 ## Gigi ya ha avisado de que la carta no lleva platos de dos estrellas.
@@ -388,56 +408,99 @@ func _add_perk_bar(board_script: GDScript) -> void:
 	vbox.add_child(box)
 
 
+## LA CHAPA DE UN BONIFICADOR: cuadrada, con su ICONO grande y su NOMBRE
+## debajo, y nada más (pedido por el usuario). Era una chapa alargada con el
+## icono pequeño a la izquierda y el nombre en dos renglones apretados a la
+## derecha, y en una fila de cuatro no se distinguía uno de otro de un
+## vistazo: aquí lo que identifica al bonificador es el dibujo, así que el
+## dibujo es lo que manda.
+##
+## De paso ocupa mucho menos alto —cuatro caben en UN renglón— y ese hueco es
+## el que se llevan las fichas de las recetas.
 func _build_perk_card(id: String, board_script: GDScript) -> Button:
 	var data := PerkData.get_perk(id)
 	var b := Button.new()
 	b.toggle_mode = true
-	# DOS POR RENGLÓN, no tres. La chapa lleva 36 téxeles de marco por cada
-	# lado, así que de un botón de 216 solo quedan ~120 px de cara útil y
-	# "Ayudante de cocina" se salía por encima del latón. A 336 caben dos por
-	# renglón (672 + separación) y el nombre entra de una pieza.
-	b.custom_minimum_size = Vector2(336, 86)
+	b.custom_minimum_size = Vector2(PERK_LADO, PERK_LADO)
 	b.tooltip_text = str(data.get("desc", ""))
-	board_script.skin_perk_button(b)
+	# La chapa NO es un 9-slice: se dibuja siempre cuadrada y a su tamaño, así
+	# que va de fondo tal cual, sin bandas que estirar.
+	for st in ["normal", "hover", "pressed", "focus", "disabled"]:
+		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	var chapa := TextureRect.new()
+	chapa.texture = load(PERK_SQ_TEX)
+	chapa.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	chapa.stretch_mode = TextureRect.STRETCH_SCALE
+	chapa.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	chapa.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(chapa)
+	board_script.add_press_feedback(b)
 
+	# El hueco útil es la PLANCHA DE LATÓN de dentro, medida sobre el dibujo
+	# (x 42..257 e y 45..253 de 300): por fuera está la madera del marco y sus
+	# cuatro remaches, y cualquier cosa que se salga los pisa.
+	var dentro := PERK_LADO * PERK_MARCO
 	var icon := TextureRect.new()
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.texture = load(str(data.get("icon", "")))
-	icon.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	# Por DENTRO del marco de la chapa (36 téxeles), no encima de él.
-	icon.offset_left = 30.0
-	icon.offset_right = 82.0
-	icon.offset_top = 14.0
-	icon.offset_bottom = -14.0
+	icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	icon.offset_left = dentro
+	icon.offset_right = -dentro
+	icon.offset_top = dentro
+	# El dibujo se queda en la mitad de ARRIBA de la plancha: el nombre pide
+	# dos renglones (hay bonificadores de tres palabras) y con el icono
+	# bajando hasta el 66% se le montaba encima y no se leia ninguno.
+	icon.offset_bottom = -PERK_LADO * 0.44
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(icon)
 
 	var name_l := Label.new()
-	name_l.text = "%s\nx%d" % [data.get("name", id), GameState.get_perk_uses(id)]
-	name_l.set_anchors_preset(Control.PRESET_FULL_RECT)
-	name_l.offset_left = 90.0
-	name_l.offset_right = -26.0
+	name_l.text = str(data.get("name", id))
+	name_l.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	name_l.offset_left = dentro * 0.6
+	name_l.offset_right = -dentro * 0.6
+	name_l.offset_top = PERK_LADO * 0.56
+	name_l.offset_bottom = -dentro * 0.7
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	name_l.add_theme_font_size_override("font_size", 18)
+	name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_l.add_theme_font_size_override("font_size", 14)
 	# GRABADO sobre el latón: letra oscura con reborde claro. En crema, como
 	# sobre la madera, se perdía en la chapa.
 	name_l.add_theme_color_override("font_color", Color(0.27, 0.15, 0.04))
 	name_l.add_theme_color_override("font_outline_color", Color(1, 0.93, 0.70))
-	name_l.add_theme_constant_override("outline_size", 5)
-	name_l.add_theme_constant_override("line_spacing", -2)
+	name_l.add_theme_constant_override("outline_size", 7)
+	name_l.add_theme_constant_override("line_spacing", -7)
 	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(name_l)
 
+	# LOS USOS QUE QUEDAN, en una chapita arriba a la derecha. No es
+	# decoración: son un recurso que se gasta por jornada y es la mitad de la
+	# decisión de ponérselo hoy o guardarlo.
+	var usos := Label.new()
+	usos.text = "x%d" % GameState.get_perk_uses(id)
+	usos.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	usos.offset_left = -PERK_LADO * 0.42
+	usos.offset_right = -dentro * 0.5
+	usos.offset_top = dentro * 0.35
+	usos.offset_bottom = dentro * 0.35 + 28.0
+	usos.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	usos.add_theme_font_size_override("font_size", 17)
+	usos.add_theme_color_override("font_color", Color(1, 0.93, 0.72))
+	usos.add_theme_color_override("font_outline_color", Color(0.2, 0.1, 0.02))
+	usos.add_theme_constant_override("outline_size", 6)
+	usos.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(usos)
+
 	# Marco verde cuando está activado.
 	var hl := Panel.new()
-	hl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.3, 0.9, 0.35, 0.16)
 	sb.set_border_width_all(4)
 	sb.border_color = Color(0.4, 1.0, 0.45)
-	sb.set_corner_radius_all(10)
+	sb.set_corner_radius_all(16)
 	hl.add_theme_stylebox_override("panel", sb)
 	hl.visible = false
 	hl.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -457,7 +520,23 @@ func _build_perk_card(id: String, board_script: GDScript) -> Button:
 ## enmarca TODAS las recetas. Va DENTRO del contenido scrolleable, con la altura
 ## total del contenido: el marco superior/inferior solo se ve en los extremos y
 ## el centro se estira, así al desplazarse se recorre todo el pergamino.
+## EL PERGAMINO SE QUEDA QUIETO Y SOLO SE DESLIZA LO DE DENTRO (pedido por el
+## usuario). Estuvo DENTRO del scroll y con la altura de todo el contenido, o
+## sea que al recorrer la lista se perdía el borde de arriba y aparecía el de
+## abajo: la idea era "recorrer un pergamino largo", pero en la práctica el
+## marco entraba y salía de cuadro y la pantalla parecía descuadrarse. Ahora
+## el pergamino es un MARCO fijo y el `ScrollContainer` vive metido dentro de
+## sus cuerdas.
 func _add_shared_parchment() -> void:
+	var scroll: ScrollContainer = $UI/Root/Margin/VBox/Scroll
+	var vb: VBoxContainer = $UI/Root/Margin/VBox
+	var marco := Control.new()
+	marco.name = "Marco"
+	marco.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	marco.clip_contents = true
+	vb.add_child(marco)
+	vb.move_child(marco, scroll.get_index())
+
 	var parch := NinePatchRect.new()
 	parch.name = "Parchment"
 	parch.texture = load(PrepBoard.PANEL_TEX)
@@ -465,19 +544,29 @@ func _add_shared_parchment() -> void:
 	parch.patch_margin_top = PrepBoard.PANEL_MARGIN
 	parch.patch_margin_right = PrepBoard.PANEL_MARGIN
 	parch.patch_margin_bottom = PrepBoard.PANEL_MARGIN
-	parch.set_anchors_preset(Control.PRESET_FULL_RECT)
+	parch.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	# Tinte cálido leve para un aire de pergamino viejo y desgastado.
 	parch.modulate = Color(0.97, 0.93, 0.85)
 	parch.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(parch)
-	content.move_child(parch, 0)
+	marco.add_child(parch)
+
+	scroll.reparent(marco)
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scroll.offset_left = FRAME_SIDE
+	scroll.offset_right = -FRAME_SIDE
+	scroll.offset_top = FRAME_TOP
+	scroll.offset_bottom = -FRAME_BOTTOM
+	# Dentro del marco ya no hace falta el hueco de las cuerdas: lo pone el
+	# propio marco, que ahora está fuera.
+	sections.offset_left = 6.0
+	sections.offset_right = -6.0
+	sections.offset_top = 4.0
 
 
-## Ajusta la altura del contenido (y por tanto del pergamino) a la de la lista
-## de recetas más el marco de cuerda arriba y abajo.
+## La lista de dentro crece con las recetas; el pergamino ya no.
 func _update_content_size() -> void:
 	var h := sections.get_combined_minimum_size().y
-	content.custom_minimum_size = Vector2(0, h + FRAME_TOP + FRAME_BOTTOM)
+	content.custom_minimum_size = Vector2(0, h + 12.0)
 
 
 ## Cabecera de sección: fila de estrellas que separa cada nivel de dificultad.
@@ -997,18 +1086,53 @@ func _build_resumen_row() -> void:
 	# quepan los `slots` del escenario. Con la medida fija, una isla de cinco
 	# recetas partia la fila en dos renglones (440 px) y dejaba la parrilla en
 	# una fila y media. La PROPORCION se respeta: la carta no es un 9-slice.
-	var util: float = GameState.canvas_size().x - 20.0
+	var util: float = GameState.canvas_size().x - 20.0 - FICHA_FLECHAS
+	var caben: int = mini(maxi(slots, 1), FICHAS_POR_FILA)
 	var ancho: float = minf(FICHA_ANCHO,
-			(util - FICHA_HUECO * float(maxi(slots - 1, 0))) / float(maxi(slots, 1)))
+			(util - FICHA_HUECO * float(caben - 1)) / float(caben))
 	ficha_size = Vector2(ancho, ancho * FICHA_ALTO / FICHA_ANCHO)
+
+	var fila := HBoxContainer.new()
+	fila.name = "Resumen"
+	fila.alignment = BoxContainer.ALIGNMENT_CENTER
+	fila.add_theme_constant_override("separation", 4)
+	var vb: VBoxContainer = $UI/Root/Margin/VBox
+	vb.add_child(fila)
+	vb.move_child(fila, vb.get_node("Marco").get_index() + 1)
+
 	resumen_box = HFlowContainer.new()
 	resumen_box.alignment = FlowContainer.ALIGNMENT_CENTER
 	resumen_box.add_theme_constant_override("h_separation", int(FICHA_HUECO))
 	resumen_box.add_theme_constant_override("v_separation", 6)
 	resumen_box.custom_minimum_size = Vector2(0, ficha_size.y)
-	var vb: VBoxContainer = $UI/Root/Margin/VBox
-	vb.add_child(resumen_box)
-	vb.move_child(resumen_box, $UI/Root/Margin/VBox/Scroll.get_index() + 1)
+	resumen_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	fila.add_child(resumen_box)
+
+	# LAS DOS FLECHAS, a la derecha de las fichas: con más de cuatro recetas
+	# en la carta no caben todas en un renglón, y encogerlas las volvería
+	# ilegibles — que es justo lo contrario de para qué están.
+	flechas_box = VBoxContainer.new()
+	flechas_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	flechas_box.add_theme_constant_override("separation", 6)
+	flechas_box.custom_minimum_size = Vector2(FICHA_FLECHAS, 0)
+	fila.add_child(flechas_box)
+	flecha_arriba = _flecha_ficha(true)
+	flecha_abajo = _flecha_ficha(false)
+	flechas_box.add_child(flecha_arriba)
+	flechas_box.add_child(flecha_abajo)
+
+
+## Una de las dos flechas de paso de página de las fichas.
+func _flecha_ficha(arriba: bool) -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(52, 52)
+	PrepBoard.skin_small_button(b)
+	b.add_theme_font_size_override("font_size", 26)
+	b.text = "▲" if arriba else "▼"
+	b.pressed.connect(func() -> void:
+		ficha_pagina += -1 if arriba else 1
+		_refresh_resumen())
+	return b
 
 
 ## Rehace las fichas con lo que haya elegido ahora mismo.
@@ -1018,12 +1142,15 @@ func _refresh_resumen() -> void:
 	for c in resumen_box.get_children():
 		resumen_box.remove_child(c)
 		c.queue_free()
+	if flechas_box != null and is_instance_valid(flechas_box):
+		flecha_arriba.visible = false
+		flecha_abajo.visible = false
 	if selected.is_empty():
 		# El hueco esta reservado siempre, asi que vacio seria un agujero sin
 		# explicacion: mejor que cuente lo que va a salir ahi.
 		var vacio := Label.new()
 		vacio.text = "Elige tus recetas y aquí verás qué hace cada una"
-		vacio.custom_minimum_size = Vector2(560, ficha_size.y)
+		vacio.custom_minimum_size = Vector2(500, ficha_size.y)
 		vacio.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		vacio.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		vacio.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1034,8 +1161,21 @@ func _refresh_resumen() -> void:
 		vacio.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		resumen_box.add_child(vacio)
 		return
-	for id in selected:
-		resumen_box.add_child(_ficha_resumen(str(id)))
+	# LA PÁGINA SE ACOTA AQUÍ, no al pulsar: la carta cambia bajo los pies (se
+	# suelta una receta y de pronto sobra media página), y una página fuera de
+	# rango dejaría la fila en blanco sin que nadie entendiera por qué.
+	var paginas: int = int(ceil(float(selected.size()) / float(FICHAS_POR_FILA)))
+	ficha_pagina = clampi(ficha_pagina, 0, maxi(paginas - 1, 0))
+	if flechas_box != null and is_instance_valid(flechas_box):
+		var hay: bool = paginas > 1
+		flecha_arriba.visible = hay
+		flecha_abajo.visible = hay
+		if hay:
+			PrepBoard.set_dimmed(flecha_arriba, ficha_pagina <= 0)
+			PrepBoard.set_dimmed(flecha_abajo, ficha_pagina >= paginas - 1)
+	var desde: int = ficha_pagina * FICHAS_POR_FILA
+	for i in range(desde, mini(desde + FICHAS_POR_FILA, selected.size())):
+		resumen_box.add_child(_ficha_resumen(str(selected[i])))
 
 
 func _ficha_resumen(id: String) -> Control:
@@ -1069,8 +1209,8 @@ func _ficha_resumen(id: String) -> Control:
 	nom.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	nom.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	nom.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	nom.custom_minimum_size = Vector2(0, 36)
-	nom.add_theme_font_size_override("font_size", 14)
+	nom.custom_minimum_size = Vector2(0, 38)
+	nom.add_theme_font_size_override("font_size", 15)
 	nom.add_theme_constant_override("line_spacing", -6)
 	nom.add_theme_color_override("font_color", Color(0.30, 0.17, 0.05))
 	var negrita: Font = load("res://fonts/static/Exo2-Bold.ttf")
@@ -1083,7 +1223,7 @@ func _ficha_resumen(id: String) -> Control:
 	dib.texture = RecipeData.get_dish_texture(id)
 	dib.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	dib.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	dib.custom_minimum_size = Vector2(0, 60)
+	dib.custom_minimum_size = Vector2(0, 56)
 	dib.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	dib.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(dib)
@@ -1096,9 +1236,9 @@ func _ficha_resumen(id: String) -> Control:
 	# El texto se apoya ABAJO y ocupa lo justo: asi las cartas comparten
 	# baseline aunque una diga tres cosas y otra una sola, y lo que sobra se
 	# lo queda el dibujo (que es lo que identifica el plato de un vistazo).
-	txt.custom_minimum_size = Vector2(0, 62)
-	txt.add_theme_font_size_override("font_size", 13)
-	txt.add_theme_constant_override("line_spacing", -3)
+	txt.custom_minimum_size = Vector2(0, 82)
+	txt.add_theme_font_size_override("font_size", 15)
+	txt.add_theme_constant_override("line_spacing", -2)
 	txt.add_theme_color_override("font_color", Color(0.40, 0.26, 0.12))
 	txt.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(txt)
@@ -1115,11 +1255,13 @@ func _ficha_resumen(id: String) -> Control:
 func _rasgos(id: String) -> Array[String]:
 	var r := RecipeData.get_recipe(id)
 	var out: Array[String] = []
-	var precio := int(r.get("price", 0))
+	# NADA DE PRECIO: la moneda de cada receta ya sale en su tarjeta de la
+	# parrilla, dos dedos más arriba, y repetirla aquí gastaba el renglón más
+	# valioso de la ficha (quitado por el usuario). Lo único que se dice del
+	# dinero es lo que NO se ve en la parrilla: que un picoteo paga distinto
+	# picado que suelto.
 	if r.has("snack_price"):
-		out.append("$%d  ·  picado $%d" % [precio, int(r.get("snack_price", precio))])
-	elif precio > 0:
-		out.append("$%d" % precio)
+		out.append("Picado paga %d" % int(r.get("snack_price", 0)))
 	if bool(r.get("snack", false)):
 		out.append("Picoteo")
 	if bool(r.get("leaves_seat", false)):
@@ -1146,19 +1288,33 @@ func _rasgos(id: String) -> Array[String]:
 	if int(r.get("servings", 1)) > 1:
 		out.append("Para %d bocas" % int(r.get("servings", 1)))
 	if bool(r.get("frescura", false)):
-		out.append("Frescura")
+		out.append("Fresco paga más")
 	if bool(r.get("marinado", false)):
-		out.append("Marinado")
+		out.append("Reposado paga más")
 	if float(r.get("fama", 0.0)) > 0.0:
-		out.append("Fama")
+		out.append("Gusta más cuanto más sirvas")
 	if r.has("maridaje"):
-		out.append("Maridaje")
+		# CON QUÉ, no solo "maridaje": el bono solo cae si el cliente viene de
+		# comerse uno de esos platos, así que sin los nombres la ficha decía
+		# que hay una mecánica pero no cómo usarla.
+		var con: Array = (r.get("maridaje", {}) as Dictionary).get("con", [])
+		var nombres: Array[String] = []
+		for otro in con:
+			var d2 := RecipeData.get_recipe(str(otro))
+			if not d2.is_empty():
+				nombres.append(str(d2.get("name", otro)))
+		if nombres.is_empty():
+			out.append("Maridaje")
+		else:
+			while nombres.size() > 2:
+				nombres.remove_at(nombres.size() - 1)
+			out.append("Maridaje: %s" % " o ".join(nombres))
 	if r.has("talla"):
 		out.append("Paga por talla")
 	if bool(r.get("riesgo", false)):
-		out.append("Riesgo")
+		out.append("Al que lo rechaza le duele")
 	if not is_equal_approx(float(r.get("contagio", 0.0)), 0.0):
-		out.append("Contagio")
+		out.append("Contagia a la mesa")
 	if float(r.get("next_take_bonus", 0.0)) > 0.0:
 		out.append("Anima al siguiente")
 	if int(r.get("neighbor_mult", 0)) != 0:
