@@ -5023,6 +5023,15 @@ que no hay problema.
   pergamino, cuyo borde tiene que ser OPACO (ver `solidify` en `ui2_prep.py`),
   y comprimir con pérdida el alfa de una banda que se estira es justo el bug de
   la franja translúcida que ya costó encontrar. Son 3,6 MB: no compensa.
+- **LOS SPRITES 2D LLEVAN TOPE DE TAMAÑO** (`process/size_limit`: 512 en
+  `assets/dishes` y `assets/stages`, 256 en `assets/ingredients`). Sin él
+  sumaban **295 MB de textura en memoria** (71 platos de ~700 px, 112 etapas
+  de ~670 y 55 ingredientes de ~585) para dibujarse a un TERCIO: el sprite de
+  etapa ocupa 290×156 px de lienzo y un ingrediente 88×76. En un iPhone eso
+  se lleva la pestaña por delante — y el síntoma es que **el juego "se
+  reinicia" solo**, que en la build web es la pestaña recargándose por
+  memoria (reaparece la pantalla de carga de Godot). Con los topes bajan a
+  141 MB y a tamaño de pantalla no se nota: comprobado en captura.
 - **Al cambiar `compress/mode` de una textura, su UID CAMBIA** y las escenas que
   la referencian se quedan con el viejo: salen avisos `invalid UID … using text
   path instead`. Funciona (Godot cae al path de texto) pero es el estado que
