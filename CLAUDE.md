@@ -2410,6 +2410,39 @@ La GUÍA lleva su sección ("El canto de sirena").
       energía por abajo): jugando bien, la barra se vaciaba en cuatro
       segundos y el tutorial terminaba sin dar la única lección que de
       verdad se falla.
+    · **EL TUTORIAL SE REPITE SI EL INTENTO SE PIERDE** (`_tutor_intento`
+      devuelve si llegó al final y `_tutorial_guiado` lo vuelve a llamar). Era
+      UNA sola pasada: si el pez se escapaba —por no clavar la picada, por
+      tirar en una finta o por reventar el sedal— el guion seguía hablando
+      sobre un intento que ya no existía, terminaba felicitando por algo que
+      no había ocurrido y dejaba al jugador SIN el botón del "?" para volver
+      a intentarlo.
+      · **La pérdida se apunta con una BANDERA (`tutor_perdido`) en
+        `_escaped`, NO mirando el estado**: `_escaped` es el embudo de todas
+        las formas de perder el pez, y mirar el estado no vale por dos
+        motivos — en el paso 1 el minijuego está en READY a propósito (se
+        espera a que el jugador pulse), y el ESCAPED dura 1,6 s, así que una
+        pausa del guion podía dormirse encima sin llegar a verlo.
+      · **TODA espera del guion se corta con `_tutor_roto()`**, así que
+        ningún paso puede quedarse esperando algo que ya no puede pasar.
+    · **BOTÓN "Salir del tutorial"** arriba a la derecha mientras dura
+      (`_montar_salir_tutorial`): el "Atrás" se esconde en cuanto hay un
+      intento en juego, o sea media clase, y quien ya sabe pescar se quedaba
+      dentro hasta el final.
+    · **AL ACABAR VUELVE EL "?"** (`_tutor_fin` lo enciende a mano): su
+      visibilidad la decide `_set_state`, y si el pez se cobraba ANTES de que
+      el guion terminara de hablar, el último `_set_state(READY)` corría con
+      `tutor` todavía puesto y el botón se quedaba escondido para siempre.
+    · **EL ARO DEL LANZAMIENTO SE QUEDA PUESTO** mientras no hay sedal en el
+      agua (`_anillo_en` admite `visible_si`): si el primer lanzamiento caía
+      lejos y había que recoger, el segundo se hacía a ciegas.
+    · **EL TIRÓN DEL TUTORIAL DURA `TUTOR_TIRON` (11 s)**: uno normal dura
+      3-4 y ahí no da tiempo ni a leer el cartel, y es la única mecánica de
+      la pesca que no se entiende sin haberla hecho.
+    · **UN "!" EN BOCADILLO SOBRE EL FLOTADOR AL PICAR** (`_dibujar_picada`,
+      dibujado con cuatro primitivas, no es un asset): el rótulo de "¡Ha
+      picado!" vive abajo, en la franja de instrucciones, y en el segundo que
+      dura la ventana el jugador está mirando el anzuelo.
     · **EL VELO DEL FOCO SE TRAGABA LOS TOQUES DE LA PELEA**, y por eso
       `_foco_pesca` admite `pasa_toques`. En la lección de las barras el foco
       cae sobre la caña, y su velo es un `ColorRect` a pantalla completa: el
@@ -4080,6 +4113,19 @@ La GUÍA lleva su sección ("El canto de sirena").
     mecánica sin decir cómo usarla. Y las demás mecánicas se EXPLICAN en vez de
     nombrarse ("Gusta más cuanto más sirvas", no "Fama"): el nombre solo lo
     entiende quien ya la conoce, y la ficha es justo para el que no.
+  · **TOCAR UNA FICHA ABRE LA HOJA ENTERA DEL PLATO** (`RecipeSheet.abrir`,
+    la MISMA del recetario): en la ficha caben cuatro renglones y allí está
+    el plato completo — ingredientes, dados por tipo, maridaje y su corona.
+    `scripts/recipe_sheet.gd` nació de sacar esa hoja de `inventory_screen`:
+    duplicarla habría garantizado que tarde o temprano las dos pantallas
+    dijeran cosas distintas del mismo plato.
+    **Y AL SACARLA SALIÓ QUE EL RECETARIO ESTABA ROTO**: a la fila de la FAMA
+    le faltaba un corchete y `inventory_screen.gd` no compilaba, así que la
+    pantalla de inventario entera fallaba al cargar. Con el archivo completo
+    el error se veía igual de claro — simplemente nadie había vuelto a abrir
+    el recetario desde que entró la fama. **Un `--headless --quit-after` de
+    la escena lo habría cazado: pasarlo también por las pantallas que no se
+    tocan.**
   · **NO usa `RecipeData.summary`**: ese escribe frases enteras para el
     recetario, donde cada receta tiene una hoja para ella sola, y en una carta
     de 122 px de texto se convierte en un párrafo ilegible. `_rasgos` lee los
