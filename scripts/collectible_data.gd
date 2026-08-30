@@ -47,6 +47,12 @@ const TRIFORCE_REWARD := 3
 const CUCHILLO_CORTES := 200
 const GALON_OLEADA := 20
 const DELANTAL_TIRADOS := 100
+## LOS CUATRO DE QUEDARSE SIN NADA (pedidos por el usuario): recuerdos de las
+## malas rachas. No se ganan HACIENDO algo, sino tocando fondo — y por eso son
+## los únicos que salen de mirar el monedero y la despensa (ver
+## `GameState._sin_nada`). El de las monedas no pide cero: con menos de
+## MONEDERO_MINIMO ya no da ni para un uso de género.
+const MONEDERO_MINIMO := 25
 const CAMPANA_PROPINA := 30
 ## LOS PALILLOS son un ESCALÓN, no tres premios sueltos: el mismo objeto en
 ## madera, plata y oro según los platos servidos de toda la vida (la stat
@@ -194,6 +200,15 @@ const ITEMS: Array = [
 			% PIEDRA_CORTES },
 	{ "id": "plato_quemado", "name": "Plato quemado",
 		"desc": "El primero que se te fue al cubo. Se guarda para no repetirlo." },
+	# --- Los cuatro de TOCAR FONDO (ver GameState._sin_nada) ---
+	{ "id": "saco_vacio", "name": "Saco de arroz vacío",
+		"desc": "El día que se acabó el arroz. No se navega con la bodega así." },
+	{ "id": "lingote_roto", "name": "Lingote roto",
+		"desc": "Lo que queda cuando se gasta hasta el último lingote." },
+	{ "id": "monedero_roto", "name": "Saco de monedas roto",
+		"desc": "Con lo que había dentro no llegaba ni para un puñado de arroz." },
+	{ "id": "soja_vacia", "name": "Botella de soja vacía",
+		"desc": "Ni una gota. Ese servicio se sirvió soso." },
 	{ "id": "dorayaki_mordisco", "name": "Dorayaki con un mordisco",
 		"desc": "Por preparar %d dorayakis. Este te lo has ganado."
 			% DORAYAKI_PLATOS },

@@ -7,6 +7,8 @@ const SAVE_PATH := "user://savegame.json"
 ## submenu del MAPA lleva a las dos, y volver al menu principal desde ahi
 ## sacaba al jugador de donde estaba: con esto el "Atras" devuelve al mapa.
 var shop_from := ""
+## De dónde se entró a Bonificadores, para volver ahí (hoy solo "mapa").
+var perks_from := ""
 var options_from := ""
 
 
@@ -1015,6 +1017,27 @@ func plato_mas_caro_de_la_carta() -> String:
 
 
 # --- Potenciadores permanentes ---------------------------------------------
+
+## ¿Tiene el jugador ALGÚN bonificador? Lo mira el submenú del mapa: su
+## acceso no sale hasta que hay algo que ver dentro.
+## UN USO MÁS DE UN BONIFICADOR, pagado con LINGOTES (pedido por el usuario:
+## 1 lingote por uso). Los usos se ganan jugando —repitiendo la hazaña del
+## bonificador—, y esto es el atajo de pago para cuando corre prisa.
+const PERK_USO_LINGOTES := 1
+
+
+func comprar_uso_perk(id: String) -> bool:
+	if not is_perk_unlocked(id) or ingots < PERK_USO_LINGOTES:
+		return false
+	ingots -= PERK_USO_LINGOTES
+	add_perk_uses(id, 1)
+	save_game()
+	return true
+
+
+func tiene_algun_perk() -> bool:
+	return not unlocked_perks.is_empty()
+
 
 func is_perk_unlocked(id: String) -> bool:
 	return id in unlocked_perks
@@ -2111,6 +2134,22 @@ func queue_achievement_check() -> void:
 	call_deferred("_run_achievement_check")
 
 
+## LOS COLECCIONABLES DE TOCAR FONDO: quedarse sin arroz, sin lingotes, sin
+## monedas o sin soja deja su recuerdo. Se miran aquí y no en cada sitio que
+## gasta, porque el repaso de logros ya corre tras cualquier movimiento del
+## progreso (`queue_achievement_check`), que es justo cuando estas cifras
+## pueden haber bajado.
+func _sin_nada() -> void:
+	if rice <= 0:
+		unlock_collectible("saco_vacio")
+	if ingots <= 0:
+		unlock_collectible("lingote_roto")
+	if money < CollectibleData.MONEDERO_MINIMO:
+		unlock_collectible("monedero_roto")
+	if get_ingredient_uses("soja") <= 0 and extras_unlocked():
+		unlock_collectible("soja_vacia")
+
+
 func _run_achievement_check() -> void:
 	_ach_check_queued = false
 	# Coleccionables que dependen de una ESTADÍSTICA.
@@ -2125,6 +2164,7 @@ func _run_achievement_check() -> void:
 		unlock_collectible("cuchillo_maestro")
 	if arcade_best >= CollectibleData.GALON_OLEADA:
 		unlock_collectible("galon_oro")
+	_sin_nada()
 	if get_stat("plates_wasted") >= CollectibleData.DELANTAL_TIRADOS:
 		unlock_collectible("delantal_chamuscado")
 	if get_stat("best_tips_run") >= CollectibleData.CAMPANA_PROPINA:

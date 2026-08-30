@@ -1221,8 +1221,12 @@ const SUBMENU_MARGIN := 76
 const SUBMENU_MARGEN := 96.0
 ## Tinte de la madera del tablon (se genero en gris de deriva).
 const SUBMENU_TINTE := Color(1.22, 0.94, 0.66)
+## EL SUBMENU DEL MAPA. Los BONIFICADORES viven aquí y no en el menú principal
+## (pedido por el usuario): es donde se llevan puestos. Y su acceso NO SALE
+## hasta tener el primero — un botón a una pantalla vacía no explica nada.
 const SUBMENU_BOTONES := [
 	["tesoro", "res://assets/ui/ic_mapa_tesoro.png", "Mapas"],
+	["perks", "res://assets/ui/ic_perks.png", "Bonific."],
 	["tienda", "res://assets/ui/ic_tienda.png", "Tienda"],
 	["opciones", "res://assets/ui/ic_opciones.png", "Opciones"],
 ]
@@ -1266,6 +1270,9 @@ func _build_submenu() -> Control:
 	fila.add_theme_constant_override("separation", 6)
 	barra.add_child(fila)
 	for def in SUBMENU_BOTONES:
+		# Sin ningún bonificador ganado, el suyo ni se monta.
+		if str(def[0]) == "perks" and not GameState.tiene_algun_perk():
+			continue
 		fila.add_child(_boton_submenu(str(def[0]), str(def[1]), str(def[2])))
 	return barra
 
@@ -1312,6 +1319,9 @@ func _on_submenu(id: String) -> void:
 	match id:
 		"tesoro":
 			_mapas_del_tesoro()
+		"perks":
+			GameState.perks_from = "mapa"
+			GameState.fade_to_scene("res://scenes/perks_screen.tscn", 0.35, 0.45)
 		"tienda":
 			# CERRADA HASTA QUE SAVERIO ABRA SU PUESTO (nivel 4): el submenú
 			# del mapa se saltaba la compuerta que sí respeta el menú.

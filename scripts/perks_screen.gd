@@ -66,6 +66,11 @@ func _setup_ui() -> void:
 	root.add_child(bar)
 	var back := PrepBoard.make_back_button()
 	back.pressed.connect(func() -> void:
+		# VUELVE AL MAPA si se entró desde su submenú (el mismo patrón que la
+		# tienda y las maestrías): allí es donde vive hoy su acceso.
+		if GameState.perks_from != "":
+			GameState.transition = GameState.perks_from
+			GameState.perks_from = ""
 		GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45))
 	bar.add_child(back)
 	var title := PrepBoard.make_title("Bonificadores")
@@ -326,12 +331,111 @@ func _build_perk_card(id: String) -> Control:
 		tope.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		caja.add_child(tope)
 		return card
+	# LOS DOS BOTONES EN UNA FILA: mejorar de nivel (doblones) y comprar UN USO
+	# (lingotes). Son dos monedas distintas y dos cosas distintas — el nivel
+	# sube lo que HACE el bonificador y el uso solo lo pone otra vez en la
+	# mochila—, así que van juntos pero separados.
+	var fila := HBoxContainer.new()
+	fila.alignment = BoxContainer.ALIGNMENT_CENTER
+	fila.add_theme_constant_override("separation", 8)
+	caja.add_child(fila)
 	var buy := _make_upgrade_button(cost)
-	buy.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	buy.disabled = GameState.money < cost
 	buy.pressed.connect(func() -> void: _confirmar_mejora(id))
-	caja.add_child(buy)
+	fila.add_child(buy)
+	fila.add_child(_boton_uso(id))
 	return card
+
+
+## "+1 uso" por un LINGOTE: chapa pequeña con el lingote dibujado dentro, para
+## que no se confunda con la de mejorar, que cobra doblones.
+func _boton_uso(id: String) -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(96, 52)
+	PrepBoard.skin_button(b)
+	b.add_theme_font_size_override("font_size", 17)
+	b.text = "+1"
+	b.tooltip_text = "Un uso más por %d lingote" % GameState.PERK_USO_LINGOTES
+	b.disabled = GameState.ingots < GameState.PERK_USO_LINGOTES
+	var ic := TextureRect.new()
+	ic.texture = load("res://assets/ui/ic_lingote.png")
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+	ic.offset_left = -42.0
+	ic.offset_right = -8.0
+	ic.offset_top = 9.0
+	ic.offset_bottom = -9.0
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(ic)
+	for st in ["normal", "hover", "pressed", "focus"]:
+		var pad := StyleBoxEmpty.new()
+		pad.content_margin_left = 6.0
+		pad.content_margin_right = 40.0
+		b.add_theme_stylebox_override(st, pad)
+	b.pressed.connect(func() -> void: _confirmar_uso(id))
+	return b
+
+
+## Se pregunta antes, como la mejora: el lingote es la moneda cara del juego.
+func _confirmar_uso(id: String) -> void:
+	var datos := PerkData.get_perk(id)
+	if GameState.ingots < GameState.PERK_USO_LINGOTES:
+		return
+	var velo := ColorRect.new()
+	Audio.ventana(velo)
+	velo.color = Color(0, 0, 0, 0.55)
+	velo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	velo.z_index = 160
+	ui.get_child(0).add_child(velo)
+	var centro := CenterContainer.new()
+	centro.set_anchors_preset(Control.PRESET_FULL_RECT)
+	velo.add_child(centro)
+	var cartel := Control.new()
+	cartel.custom_minimum_size = Vector2(540, 320)
+	centro.add_child(cartel)
+	cartel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
+		PrepBoard.PANEL_MARGIN))
+	PrepBoard.add_panel_banner(cartel, "¿Un uso más?", 30)
+	var vb := VBoxContainer.new()
+	vb.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vb.offset_left = 56.0
+	vb.offset_top = 86.0
+	vb.offset_right = -56.0
+	vb.offset_bottom = -40.0
+	vb.add_theme_constant_override("separation", 12)
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	cartel.add_child(vb)
+	for linea in [
+		["Un uso más de %s." % str(datos.get("name", id)), 23, DARK],
+		["Cuesta %d lingote. Te quedarán %d." % [GameState.PERK_USO_LINGOTES,
+			GameState.ingots - GameState.PERK_USO_LINGOTES], 18, FADED],
+		["Ahora llevas %d." % GameState.get_perk_uses(id), 18, FADED],
+	]:
+		var l := Label.new()
+		l.text = str(linea[0])
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.add_theme_font_size_override("font_size", int(linea[1]))
+		l.add_theme_color_override("font_color", linea[2])
+		vb.add_child(l)
+	var botones := HBoxContainer.new()
+	botones.alignment = BoxContainer.ALIGNMENT_CENTER
+	botones.add_theme_constant_override("separation", 26)
+	vb.add_child(botones)
+	var no := Button.new()
+	no.custom_minimum_size = Vector2(120, 92)
+	PrepBoard.skin_action_button(no, false)
+	no.pressed.connect(velo.queue_free)
+	botones.add_child(no)
+	var si := Button.new()
+	si.custom_minimum_size = Vector2(120, 92)
+	PrepBoard.skin_action_button(si, true)
+	si.pressed.connect(func() -> void:
+		velo.queue_free()
+		if GameState.comprar_uso_perk(id):
+			_refresh())
+	botones.add_child(si)
 
 
 ## FICHA de un bonificador: el dibujo grande, qué hace en CADA nivel y cómo se

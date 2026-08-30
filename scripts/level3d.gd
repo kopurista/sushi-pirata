@@ -995,6 +995,15 @@ func _check_perk_unlocks() -> Array:
 	if boxes_stacked and GameState.perk_gate_open("barco") \
 			and GameState.unlock_perk("barco"):
 		newly.append("barco")
+		# BORDAR EL ESCENARIO: cerrar con un 30% MAS de lo que piden las 3
+	# estrellas. Es la unica condicion que no mira COMO has cocinado sino
+	# CUANTO, asi que es la que premia exprimir un escenario ya aprendido.
+	if not star_money.is_empty():
+		var tope: float = float(star_money.back()) * PerkData.UNLOCK_XP_FRAC
+		if float(_star_money()) >= tope \
+				and GameState.perk_gate_open("experiencia") \
+				and GameState.unlock_perk("experiencia"):
+			newly.append("experiencia")
 	return newly
 
 

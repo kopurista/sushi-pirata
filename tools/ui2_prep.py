@@ -749,6 +749,9 @@ def build_powerups() -> None:
 COLLECTIBLE_ICON_SIDE = 200
 
 COLLECTIBLES = [
+    # Los cuatro de QUEDARSE SIN NADA (saco vacio, lingote roto, monedero
+    # roto y botella de soja vacia): ver CollectibleData.SIN_NADA.
+    "saco_vacio", "lingote_roto", "monedero_roto", "soja_vacia",
     "sombrero_paja", "bandera", "botella", "mapa_tesoro", "cartel_recompensa",
     "catalejo", "tricornio", "panuelo", "garfio", "parche", "canon", "ancla",
     "pistola", "espada", "brujula", "pluma_loro", "pluma_escribir", "barril",

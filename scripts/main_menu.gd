@@ -2714,7 +2714,9 @@ func _setup_submenu() -> void:
 			["ic_recetario", func() -> void: _go_recipes()],
 			["ic_inventario", func() -> void: _go_inventory()],
 			["ic_perfil", func() -> void: _go_profile()],
-			["ic_perks", func() -> void: _go_perks()],
+			# LOS BONIFICADORES YA NO ESTÁN AQUÍ (pedido por el usuario): su
+			# acceso vive en el submenú del MAPA, que es donde se usan, y no
+			# aparece hasta tener el primero (`level_select3d.SUBMENU_BOTONES`).
 			["ic_opciones", func() -> void: _go_options()]]:
 		var sub := _make_sub_button(str(def[0]), def[1])
 		row.add_child(sub)

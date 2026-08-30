@@ -53,6 +53,18 @@ const PERKS: Dictionary = {
 		"levels": [60.0, 54.0, 48.0, 40.0, 30.0],
 		"level_text": "Descansa %d s entre plato y plato.",
 	},
+	# EXPERIENCIA: devuelve —con creces— el 20% de XP que se recortó a toda la
+	# campaña (ver SkillData.XP_GANANCIA). Se gana BORDANDO un escenario: no
+	# basta con las 3 estrellas, hay que pasarse de largo del listón.
+	"experiencia": {
+		"name": "Cuaderno de bitácora",
+		"desc": "Todo lo que aprendes en una jornada cunde más: la experiencia que deja cada escenario sube.",
+		"icon": "res://assets/ui/perk_experiencia.png",
+		"unlock": "Cierra un escenario con un 30% más de oro del que piden sus 3 estrellas.",
+		# Porcentaje EXTRA de experiencia.
+		"levels": [25, 32, 40, 50, 65],
+		"level_text": "Ganas un %d%% más de experiencia.",
+	},
 	"paladar": {
 		"name": "Paladar de capitán",
 		"desc": "Sube el TOPE del multiplicador de variedad de cada cliente, así que rinden más por plato y más al despedirlos con postre.",
@@ -95,6 +107,9 @@ const UNLOCK_PLATES_ONE_CLIENT := 5
 const UNLOCK_HELPER_CLIENTS := 4
 const UNLOCK_HELPER_PLATES := 4
 ## Clientes que deben llegar al multiplicador tope para desbloquear "paladar".
+## Cuánto hay que pasarse del objetivo de 3 estrellas para llevarse el
+## bonificador de experiencia (1.3 = un 30% más).
+const UNLOCK_XP_FRAC := 1.3
 const UNLOCK_VARIETY_CLIENTS := 1
 ## Cajas con al menos UNLOCK_BOAT_STACK platos para desbloquear "barco".
 const UNLOCK_BOAT_BOXES := 2
