@@ -1193,7 +1193,7 @@ func _eat_snack(recipe_id: String, data: Dictionary) -> void:
 	money_earned += price
 	eaten_ids.append(recipe_id)
 	plate_served.emit(price, 0)
-	_push_bubble_icon(recipe_id, false)
+	_push_bubble_icon(recipe_id, [])
 	_float_text("+$%d" % price, Color(1.0, 0.86, 0.2))
 
 
@@ -1403,7 +1403,7 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 	if current_lucky and not recipe.get("leaves_seat", false):
 		current_lucky = false
 		_set_variety(variety + 1, true)
-	_push_bubble_icon(current_id, not current_extras.is_empty())
+	_push_bubble_icon(current_id, current_extras)
 
 
 ## Cambia el multiplicador y refresca su chapa. A partir de x2 entra la
@@ -1503,7 +1503,7 @@ func _place_badge() -> void:
 ## despide por la izquierda. Los destinos de los iconos son ABSOLUTOS por
 ## antigüedad: dos empujones muy seguidos con desplazamientos relativos
 ## dejaban dos iconos montados en la misma casilla.
-func _push_bubble_icon(recipe_id: String, con_extra: bool) -> void:
+func _push_bubble_icon(recipe_id: String, extras: Array) -> void:
 	var ui := _world_ui()
 	if ui == null or not variety_ui:
 		return
@@ -1560,8 +1560,8 @@ func _push_bubble_icon(recipe_id: String, con_extra: bool) -> void:
 	icon.scale = Vector2(0.2, 0.2)
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bubble.add_child(icon)
-	if con_extra:
-		_add_sparkle(icon)
+	if not extras.is_empty():
+		_marcar_extras(icon, extras)
 	_bubble_icons.push_front(icon)
 	var n := _bubble_icons.size()
 	icon.position = _icon_pos(0, n)
@@ -1591,24 +1591,32 @@ func _wake_bubble() -> void:
 	_dim_tween.tween_interval(BUBBLE_HOT)
 	_dim_tween.tween_property(_bubble, "modulate:a", BUBBLE_DIM, 0.45)
 
-## Destellos sobre el icono de un plato que llevó extra: dos estrellitas que
-## laten en las esquinas del icono.
-func _add_sparkle(icon: Control) -> void:
-	# UNA estrella, en la esquina superior IZQUIERDA a propósito: es la franja
-	# que sigue asomando cuando el plato siguiente se solapa encima. Con dos
-	# (una en cada esquina) el plato de arriba tapaba a veces la derecha y los
-	# extras parecían tener unas veces una estrella y otras dos.
-	var s := TextureRect.new()
-	s.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	s.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	s.texture = load("res://assets/ui/estrella_llena.png")
-	s.size = Vector2(11, 11)
-	s.position = Vector2(-4, -4)
-	s.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	icon.add_child(s)
-	var tw := s.create_tween().set_loops()
-	tw.tween_property(s, "modulate:a", 0.35, 0.4)
-	tw.tween_property(s, "modulate:a", 1.0, 0.4)
+## EL EXTRA QUE LLEVABA EL PLATO, dibujado encima de su icono en el bocadillo
+## (pedido por el usuario): igual que en las cajas de guardado, donde el extra
+## marcado ya se ve sobre el plato. Antes era una estrella genérica, que decía
+## "llevaba algo" pero no QUÉ.
+##
+## Van en la esquina superior IZQUIERDA y apilándose hacia abajo: es la franja
+## que sigue asomando cuando el plato siguiente se solapa encima (con la
+## derecha, el de arriba los tapaba a ratos).
+func _marcar_extras(icon: Control, extras: Array) -> void:
+	var i := 0
+	for id in extras:
+		var tex := RecipeData.get_ingredient_texture(str(id))
+		if tex == null:
+			continue
+		var s := TextureRect.new()
+		s.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		s.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		s.texture = tex
+		s.size = Vector2(14, 14)
+		s.position = Vector2(-5, -5 + i * 13)
+		s.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon.add_child(s)
+		var tw := s.create_tween().set_loops()
+		tw.tween_property(s, "modulate:a", 0.55, 0.45)
+		tw.tween_property(s, "modulate:a", 1.0, 0.45)
+		i += 1
 
 
 func _stop_eating_anim() -> void:

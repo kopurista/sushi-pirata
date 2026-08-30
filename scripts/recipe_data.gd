@@ -911,8 +911,9 @@ const RECIPES: Dictionary = {
 			{ "type": "tap_ingredient", "ingredient": "arroz" },
 			{ "type": "tap_board", "count": 3 },
 			{ "type": "tap_ingredient", "ingredient": "salmon" },
-			# UN solo corte, y lento: lo que queda es el sashimi de salmón.
-			{ "type": "slice_board", "count": 1, "duration": 0.7, "direction": "right",
+			# DOS cortes lentos (eran uno): es un plato de 3★ y su elaboración
+			# tiene que pesar lo que cobra.
+			{ "type": "slice_board", "count": 2, "duration": 0.7, "direction": "right",
 				"fail_penalty": 4 },
 			# El salmón se queda reposando en la soja y la tabla vuelve a enseñar
 			# el CUENCO DE ARROZ, que es el destino del último paso.

@@ -76,11 +76,6 @@ const POWERUPS: Dictionary = {
 		"desc": "Todo parado 10 s",
 		"icon": "res://assets/ui/pot_tiempo_muerto.png",
 	},
-	"mas_almacen": {
-		"name": "Más almacén",
-		"desc": "Una caja más y pilas de 5",
-		"icon": "res://assets/ui/pot_almacen.png",
-	},
 	"doble_plato": {
 		"name": "Doble plato",
 		"desc": "La siguiente saca 2 platos",
@@ -105,8 +100,10 @@ const POWERUPS: Dictionary = {
 		"icon": "res://assets/ui/pot_sobremesa.png",
 	},
 	"todo_picoteo": {
-		"name": "Manos libres",
-		"desc": "30 s picando sin soltar el plato",
+		# Se llamaba "Manos libres" y no se entendía: lo que hace es que
+		# CUALQUIER plato se pueda picar sin soltar el que se está comiendo.
+		"name": "Doble bocado",
+		"desc": "30 s: cogen otro plato mientras comen",
 		"icon": "res://assets/ui/pot_picoteo.png",
 	},
 	"sin_basura": {

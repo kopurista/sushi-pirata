@@ -460,6 +460,10 @@ const SKILL_COUNTERS := ["golpe_vista", "cocina_abundante", "golpe_suerte"]
 var skill_counter_row: HBoxContainer = null
 ## id -> Label de la cifra, y lo último que se pintó (para no repintar por frame).
 var _skill_chip: Dictionary = {}
+## Tweens del TEMBLOR de cada chip (ver `_vibrar_chip`), aparte del latido del
+## "¡YA!": uno anima el chip y el otro la cifra, y matarlos juntos dejaba al
+## chip torcido.
+var _skill_shake: Dictionary = {}
 var _skill_drawn: Dictionary = {}
 var _skill_tween: Dictionary = {}
 ## Relleno que ocupa el hueco del reloj en los niveles que no lo llevan, para
@@ -3100,6 +3104,7 @@ func _process(delta: float) -> void:
 	if (canto_on or canto_activo) and not ended and not prep_phase:
 		_tick_canto(delta)
 	_tick_rush(delta)
+	_refresh_pot_row()
 
 	# La banda de la cinta avanza a la velocidad real de los platos (tambien
 	# durante la fase de preparacion, pero no congelada). `belt_dir` es el
@@ -4364,10 +4369,12 @@ func _upgrade_pool() -> Array[Dictionary]:
 	var fijos: Array[Dictionary] = [
 		{ "id": "cd_l1", "title": "Platos de 1★ un 30% más rápidos",
 			"icon": pot.call("receta_instantanea") },
+		# El icono va a pelo: su potenciador ("Más almacén") se retiró porque
+		# chocaba con la maestría de las cajas, pero el dibujo sigue valiendo.
 		{ "id": "caja_extra", "title": "Una caja más",
-			"icon": pot.call("mas_almacen") },
+			"icon": "res://assets/ui/pot_almacen.png" },
 		{ "id": "pila_extra", "title": "Las cajas guardan uno más",
-			"icon": pot.call("mas_almacen") },
+			"icon": "res://assets/ui/pot_almacen.png" },
 		{ "id": "cinta_lenta", "title": "La cinta va más despacio",
 			"icon": pot.call("cinta_rapida") },
 		{ "id": "vuelta_extra", "title": "Los platos aguantan una vuelta más",
@@ -4891,6 +4898,7 @@ func _on_powerup_chosen(id: String) -> void:
 ## Todos los potenciadores son AUTOMÁTICOS: se aplican aquí mismo al elegirlos
 ## (ver la cabecera de powerup_data.gd para por qué desapareció la mitad manual).
 func _apply_powerup(id: String) -> void:
+	_marcar_potenciador(id)
 	match id:
 		"cinta_rapida":
 			belt_mult = 3.0
@@ -4941,10 +4949,6 @@ func _apply_powerup(id: String) -> void:
 			for c in seat_clients:
 				if c != null and c.variety > 0:
 					c._set_variety(c.variety * 2, true)
-		# Absorbe al antiguo "guardar un plato más": una caja más Y pilas de 5.
-		"mas_almacen":
-			prep_board.add_storage_slot()
-			prep_board.stack_max = 5
 		"tiempo_extra_prep":
 			frozen = true
 			freeze_timer = 10.0
@@ -6869,6 +6873,193 @@ func _refresh_skill_counters() -> void:
 		else:
 			num.text = str(v)
 			num.add_theme_color_override("font_color", Color(1, 0.95, 0.8, 0.85))
+		_vibrar_chip(id, v)
+
+
+## EL CHIP TIEMBLA SEGÚN SE ACERCA SU PLATO (pedido por el usuario): a tres
+## que faltan tirita apenas, a dos se nota y al último se agita — así el
+## jugador sabe SIN CONTAR que el siguiente plato sale doble (o gratis, o con
+## suerte). Se anima la ROTACIÓN y no la posición: el chip vive en un
+## contenedor, que le reescribiría el sitio cada fotograma.
+func _vibrar_chip(id: String, quedan: int) -> void:
+	if not _skill_chip.has(id):
+		return
+	var chip: Control = _skill_chip[id].get_parent()
+	var viejo: Tween = _skill_shake.get(id, null)
+	if viejo != null and viejo.is_valid():
+		viejo.kill()
+	chip.rotation_degrees = 0.0
+	if quedan <= 0 or quedan > 3:
+		return
+	# 3 → un temblorcillo; 1 → sacudida de verdad.
+	var amp: float = [0.0, 5.0, 3.0, 1.6][clampi(quedan, 1, 3)]
+	var vel: float = [0.0, 0.07, 0.10, 0.14][clampi(quedan, 1, 3)]
+	chip.pivot_offset = chip.size * 0.5
+	var t := create_tween().set_loops()
+	t.tween_property(chip, "rotation_degrees", amp, vel) \
+		.set_trans(Tween.TRANS_SINE)
+	t.tween_property(chip, "rotation_degrees", -amp, vel * 2.0) \
+		.set_trans(Tween.TRANS_SINE)
+	t.tween_property(chip, "rotation_degrees", 0.0, vel) \
+		.set_trans(Tween.TRANS_SINE)
+	# Un respiro entre sacudidas: temblando sin parar se volvía ruido.
+	t.tween_interval(0.9 if quedan == 3 else (0.6 if quedan == 2 else 0.35))
+	_skill_shake[id] = t
+
+
+# ------------------------------------------- potenciadores EN MARCHA (HUD)
+# Los potenciadores elegidos se apuntan ABAJO A LA IZQUIERDA (pedido por el
+# usuario), en espejo de los contadores de maestría, que viven abajo a la
+# derecha. Cada uno enseña su dibujo y LO QUE LE QUEDA: segundos si va por
+# tiempo, platos si va por platos, y nada si es de efecto inmediato — un
+# potenciador que ya hizo lo suyo no tiene por qué ocupar sitio.
+
+## Alto de la chapa y hueco entre ellas (los mismos que los contadores).
+const POT_CHIP := 62.0
+const POT_CHIP_GAP := 6.0
+
+var pot_row: HBoxContainer = null
+## id -> { "num": Label, "chip": Control }
+var _pot_chip: Dictionary = {}
+
+
+## ¿Qué le queda a este potenciador? Devuelve el texto de su chapa, o "" si ya
+## no está en marcha (entonces la chapa se retira).
+func _pot_restante(id: String) -> String:
+	match id:
+		"cinta_rapida":
+			return "%ds" % ceili(belt_timer) if belt_timer > 0.0 else ""
+		"menos_cooldown":
+			var t: float = prep_board.cooldown_mult_timer
+			return "%ds" % ceili(t) if t > 0.0 else ""
+		"mas_propinas":
+			return "%ds" % ceili(tip_chance_timer) if tip_chance_timer > 0.0 else ""
+		"todo_picoteo":
+			return "%ds" % ceili(snack_all_timer) if snack_all_timer > 0.0 else ""
+		"sin_basura":
+			return "%ds" % ceili(no_waste_timer) if no_waste_timer > 0.0 else ""
+		"doble_variedad":
+			return "%ds" % ceili(variety_x2_timer) if variety_x2_timer > 0.0 else ""
+		"receta_instantanea":
+			var n: int = prep_board.instant_recipes
+			return "x%d" % n if n > 0 else ""
+		"doble_plato":
+			return "x1" if prep_board.double_next else ""
+		"sobremesa":
+			return "x1" if dessert_boost else ""
+		"aroma":
+			# El aroma dura todo el turno: se queda puesto y sin cifra.
+			return "•" if aroma_active else ""
+	# Los de efecto inmediato (clientes de más, horas extra, variedad para
+	# todos, tiempo muerto) no tienen nada que contar: su chapa aparece un
+	# momento y se va sola.
+	return ""
+
+
+func _marcar_potenciador(id: String) -> void:
+	if arcade and not PowerupData.POWERUPS.has(id):
+		return
+	if pot_row == null:
+		pot_row = HBoxContainer.new()
+		pot_row.add_theme_constant_override("separation", int(POT_CHIP_GAP))
+		pot_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		$HUD.add_child(pot_row)
+	if _pot_chip.has(id):
+		# Repetido: se refresca su cifra y da un botecito para que se vea.
+		var c: Control = _pot_chip[id]["chip"]
+		var t := create_tween()
+		t.tween_property(c, "scale", Vector2(1.18, 1.18), 0.09)
+		t.tween_property(c, "scale", Vector2.ONE, 0.12)
+		_place_pot_row()
+		return
+	var datos := PowerupData.get_powerup(id)
+	var chip := Control.new()
+	chip.custom_minimum_size = Vector2(POT_CHIP, POT_CHIP)
+	chip.size = chip.custom_minimum_size
+	chip.pivot_offset = chip.custom_minimum_size * 0.5
+	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# La misma chapa de pergamino que los contadores de maestría: son las dos
+	# esquinas de lo mismo, lo que llevas puesto en esta jornada.
+	var fondo := PrepBoard.make_nine_patch(PrepBoard.CARD_TEX, PrepBoard.CARD_MARGIN)
+	chip.add_child(fondo)
+	var ic := TextureRect.new()
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var ruta := str(datos.get("icon", ""))
+	if ResourceLoader.exists(ruta):
+		ic.texture = load(ruta)
+	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ic.offset_left = 6.0
+	ic.offset_top = 5.0
+	ic.offset_right = -6.0
+	ic.offset_bottom = -7.0
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip.add_child(ic)
+	var num := Label.new()
+	num.add_theme_font_size_override("font_size", 19)
+	num.add_theme_color_override("font_color", Color(1, 0.95, 0.8))
+	num.add_theme_color_override("font_outline_color", Color(0.16, 0.08, 0.02))
+	num.add_theme_constant_override("outline_size", 7)
+	num.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	num.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	num.set_anchors_preset(Control.PRESET_FULL_RECT)
+	num.offset_right = 3.0
+	num.offset_bottom = 6.0
+	num.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip.add_child(num)
+	pot_row.add_child(chip)
+	_pot_chip[id] = { "num": num, "chip": chip }
+	# Entra con un golpe, como las chapas del multiplicador.
+	chip.scale = Vector2(0.5, 0.5)
+	var tw := create_tween()
+	tw.tween_property(chip, "scale", Vector2.ONE, 0.26) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_place_pot_row()
+	# OJO: NO se refresca aquí. `_apply_powerup` marca la chapa ANTES de correr
+	# su `match`, así que en este instante el temporizador todavía vale 0 y la
+	# chapa se daría por gastada nada más nacer. La pone al día el tick.
+
+
+## ABAJO A LA IZQUIERDA, a la misma altura que los contadores de maestría (la
+## banda que queda justo encima de la cinta de la tabla).
+func _place_pot_row() -> void:
+	if pot_row == null:
+		return
+	var n: int = pot_row.get_child_count()
+	if n <= 0:
+		return
+	var ancho: float = n * POT_CHIP + (n - 1) * POT_CHIP_GAP
+	pot_row.size = Vector2(ancho, POT_CHIP)
+	# Misma banda que los contadores de maestría (588 es el alto de la tabla
+	# de elaboración), pero pegada al canto IZQUIERDO.
+	pot_row.position = Vector2(12.0,
+		GameState.canvas_size().y - 588.0 - 2.0 - POT_CHIP)
+
+
+## Por fotograma: refresca las cifras y retira lo que ya se ha gastado.
+func _refresh_pot_row() -> void:
+	if pot_row == null:
+		return
+	var fuera: Array = []
+	for id in _pot_chip:
+		var texto := _pot_restante(str(id))
+		var num: Label = _pot_chip[id]["num"]
+		if texto == "":
+			# Los inmediatos se quedan un momento a la vista y se van; los de
+			# duración desaparecen al agotarse.
+			fuera.append(id)
+			continue
+		num.text = texto
+	for id in fuera:
+		var chip: Control = _pot_chip[id]["chip"]
+		_pot_chip.erase(id)
+		var tw := chip.create_tween()
+		tw.tween_interval(1.4)
+		tw.tween_property(chip, "modulate:a", 0.0, 0.3)
+		tw.tween_callback(func() -> void:
+			if is_instance_valid(chip):
+				chip.queue_free()
+			_place_pot_row())
 
 
 ## pantalla de verdad y la fila no se descuelga hacia un lado.
