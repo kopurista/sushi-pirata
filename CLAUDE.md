@@ -464,10 +464,16 @@ Gades. Habla poco y mal —solo sabe japonés— así que sus frases son cortas,
 artículos y a veces son un "..." (para eso está su expresión `callado`). Es la
 voz de la pantalla de PESCA, y saluda y se despide en cada visita (10 frases de
 cada). También explica los COLECCIONABLES la primera vez que sale uno del cofre.
-**SU CLASE ES DE PRÁCTICA, NO DE TEORÍA** (`_clase_de_pesca`): dice UNA cosa,
-se quita de en medio y el jugador la HACE; solo entonces viene la siguiente, y
-cada lección se cierra sola al cumplirla, así que no se puede escuchar sin
-tocar. Era una parrafada seguida con dos focos y luego "ahora tú".
+**SU CLASE ES EL MISMO TUTORIAL DEL "?"**, con Cai poniéndole voz
+(`_clase_de_pesca` llama a `_tutorial_guiado`). Tuvo guion propio —noventa
+líneas con su bucle de reintentos, sus focos y sus esperas— y era el gemelo
+pobre del otro: el bueno insiste cuando el jugador no hace lo que toca, se
+repite entero si el pez se escapa, deja salirse y no se puede quedar colgado.
+Dos tutoriales para lo mismo eran además dos sitios donde arreglar cada fallo.
+Cai se queda con lo único que el cartel no puede dar: el saludo, el "hoy pago
+yo" y el regalo de las tiradas. **`_clase_de_pesca` NO enciende `clase`**: lo
+pone el propio tutorial, y encendiéndolo antes este se daría por ya en marcha
+y no arrancaría. Era una parrafada seguida con dos focos y luego "ahora tú".
 · **El intento va AMAÑADO** (`clase`): pez de tier 0 y pequeño, sin cobrar
   (paga Cai), el sedal perdona (`CLASE_TENSION`), la presa tira flojo
   (`CLASE_TIRON`) y **ni el sedal se rompe ni el pez se suelta** — se quedan
@@ -2425,8 +2431,11 @@ La GUÍA lleva su sección ("El canto de sirena").
         pausa del guion podía dormirse encima sin llegar a verlo.
       · **TODA espera del guion se corta con `_tutor_roto()`**, así que
         ningún paso puede quedarse esperando algo que ya no puede pasar.
-    · **BOTÓN "Salir del tutorial"** arriba a la derecha mientras dura
-      (`_montar_salir_tutorial`): el "Atrás" se esconde en cuanto hay un
+    · **BOTÓN "Salir del tutorial"** a la derecha mientras dura, en la banda
+      del "?" (y 196, que ahí está escondido por definición). NO arriba del
+      todo: las cajas de recursos viven en el MENÚ, no en la pesca, y ocupan
+      hasta la y 110 con la cuenta atrás del arroz, así que allí les caía
+      encima (`_montar_salir_tutorial`): el "Atrás" se esconde en cuanto hay un
       intento en juego, o sea media clase, y quien ya sabe pescar se quedaba
       dentro hasta el final.
     · **AL ACABAR VUELVE EL "?"** (`_tutor_fin` lo enciende a mano): su
@@ -2436,9 +2445,10 @@ La GUÍA lleva su sección ("El canto de sirena").
     · **EL ARO DEL LANZAMIENTO SE QUEDA PUESTO** mientras no hay sedal en el
       agua (`_anillo_en` admite `visible_si`): si el primer lanzamiento caía
       lejos y había que recoger, el segundo se hacía a ciegas.
-    · **EL TIRÓN DEL TUTORIAL DURA `TUTOR_TIRON` (11 s)**: uno normal dura
+    · **EL TIRÓN DEL TUTORIAL DURA `TUTOR_TIRON` (6 s)**: uno normal dura
       3-4 y ahí no da tiempo ni a leer el cartel, y es la única mecánica de
-      la pesca que no se entiende sin haberla hecho.
+      la pesca que no se entiende sin haberla hecho. **Seis es el techo**: se
+      probó con once y se hacía eterno.
     · **UN "!" EN BOCADILLO SOBRE EL FLOTADOR AL PICAR** (`_dibujar_picada`,
       dibujado con cuatro primitivas, no es un asset): el rótulo de "¡Ha
       picado!" vive abajo, en la franja de instrucciones, y en el segundo que
@@ -4169,6 +4179,14 @@ La GUÍA lleva su sección ("El canto de sirena").
 - `scenes/*.tscn` — main_menu, level_select3d, shop_screen, inventory_screen,
   level3d, prep_screen, client, plate. (main_menu/level_select3d/shop_screen/
   inventory_screen son raíces vacías: toda su UI se construye por código.)
+- **LA FAROLA DEL MUELLE ES `farola.glb`**, la misma del puerto de la portada
+  (`level3d.PORT_LAMP_H`): era un cilindro con una caja de luz emisiva encima
+  y, al lado del resto del muelle —que ya va con modelos—, se leía como un
+  andamio. **Va en el canto DERECHO (6.6, 0, 1.2) y no donde estaba el poste**
+  (-3.4, -4.9): la de verdad lleva su cabeza de cristal arriba del todo y allí
+  caía detrás de la barra del HUD. El sitio se eligió MIDIENDO con
+  `cam.unproject_position`, no a ojo — a media altura de la banda visible y
+  con el pie por encima de la tabla de elaboración.
 - **Escenario de isla**: palmera, rocas y cabaña son MODELOS con textura
   (`palmera.glb`, `rocas.glb`, `cabana.glb`), no geometría por código. La
   palmera se intentó montar con cilindros y tablillas y desde la cámara
