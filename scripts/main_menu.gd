@@ -402,8 +402,11 @@ func _presentar_maestrias() -> void:
 		{ "text": "¡Nivel **%d**, %s! Ya no cocinas como el que llegó a este barco." % [GameState.chef_level, GameState.player_title()], "mood": "riendo" },
 		{ "text": "Cada nivel te deja un **punto de maestría**, y llevas unos cuantos sin gastar. Eso es oficio guardado en el bolsillo.", "mood": "hablando" },
 		{ "text": "Se gastan en tres **árboles**: el **cuchillo** afila tus manos, el **cliente** te saca más de cada boca y el **chef** manda en los platos.", "mood": "hablando" },
+		{ "text": "El del **cuchillo** acorta gestos y enfriamientos: cocinas más en el mismo rato. El del **cliente** los hace esperar más, pagar más y dejar más propina.", "mood": "hablando" },
+		{ "text": "Y el del **chef** toca los platos: más vueltas en la cinta, cajas más altas, platos que salen gratis o dobles.", "mood": "hablando" },
+		{ "text": "Cinco habilidades por árbol, y cada una sube de rango si le echas más puntos. Empieza por lo que más te duela hoy.", "mood": "serio" },
 		{ "text": "¡GÁSTALOS YA! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
-		{ "text": "Vamos, que te enseño la mesa donde se reparten. Se llega tocando tu **barra de nivel**, y ahí puedes cambiarlos de sitio cuando quieras.", "mood": "feliz" },
+		{ "text": "Y tranquilo: **se pueden recolocar** cuando quieras, así que no hay decisión que te ate. Vamos, que te enseño la mesa — se llega tocando tu **barra de nivel**.", "mood": "feliz" },
 	])
 	await caja.finished
 	await caja.close_and_free()

@@ -209,7 +209,10 @@ var first_seats: Array = []
 ## para que el guion pueda ponerle el foco encima antes de que siga su
 ## camino.
 var forzar_desprecio := false
-signal plato_ignorado(pos: Vector3)
+## Lleva el PLATO y no su posición: entre el desprecio y el momento en que
+## David lo cuenta, el plato SIGUE VIAJANDO, así que con una posición
+## congelada el foco caía donde el plato ya no estaba.
+signal plato_ignorado(plato: Node3D)
 ## Índices de asiento ordenados por cercanía de cinta (se calcula al vuelo).
 var seat_order: Array[int] = []
 ## Clientes por llegada (1 = de uno en uno). Ver el reparto del horario.

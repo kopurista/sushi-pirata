@@ -394,19 +394,31 @@ func _nivel_1() -> void:
 	# nivel provoca el desprecio a propósito y David lo explica con el plato
 	# despreciado todavía en la cinta.
 	lv.forzar_desprecio = true
-	var sitio := Vector3.ZERO
-	var visto := [false]
-	var conexion := func(pos: Vector3) -> void:
-		sitio = pos
-		visto[0] = true
+	var despreciado := { "plato": null, "sitio": Vector3.ZERO }
+	var conexion := func(plato: Node3D) -> void:
+		despreciado["plato"] = plato
+		despreciado["sitio"] = plato.global_position
 	lv.plato_ignorado.connect(conexion)
-	await _esperar(func() -> bool: return lv.ended or visto[0])
+	await _esperar(func() -> bool:
+		return lv.ended or despreciado["plato"] != null)
 	if lv.plato_ignorado.is_connected(conexion):
 		lv.plato_ignorado.disconnect(conexion)
 	if lv.ended:
 		return
-	_focus_screen_rect(Rect2(lv.cam.unproject_position(sitio) - Vector2(80, 80),
-		Vector2(160, 160)))
+	# EL DADO SE TIRA CUANDO EL PLATO ENTRA EN EL RADIO DEL CLIENTE, o sea
+	# ANTES de que le pase por delante: hablando en ese instante, David contaba
+	# algo que en pantalla todavía no había ocurrido (le pasó al usuario). Se
+	# espera a que el plato termine de cruzar y SE ENFOCA DONDE ESTÁ ENTONCES,
+	# no donde estaba al tirar el dado.
+	await _pausa(DESPRECIO_ESPERA)
+	if lv.ended:
+		return
+	var sitio: Vector3 = despreciado["sitio"]
+	var plato: Node3D = despreciado["plato"]
+	if plato != null and is_instance_valid(plato):
+		sitio = plato.global_position
+	_focus_screen_rect(Rect2(lv.cam.unproject_position(sitio) - Vector2(90, 90),
+		Vector2(180, 180)))
 	await _say([
 		{ "text": "¡Ojo a eso! Ha dejado pasar el plato. No siempre les apetece lo que ven: a veces uno mira y sigue a lo suyo.", "mood": "sorprendido" },
 		{ "text": "No es culpa tuya. Cada cliente tiene su momento, y un plato que hoy no quiere puede querérselo el de al lado.", "mood": "hablando" },
@@ -420,6 +432,10 @@ func _nivel_1() -> void:
 # solo; cuando se ha comido su SEGUNDO plato (o su paciencia ha bajado un
 # tercio) entran los otros TRES DE GOLPE, que es lo que hace evidente el
 # problema: un plato en la cinta se lo queda el primero que pase.
+
+## Lo que se deja al plato despreciado para que CRUCE por delante del cliente
+## antes de que David lo cuente (a 1.35 u/s cubre de sobra el radio de toma).
+const DESPRECIO_ESPERA := 1.5
 
 ## Platos que hay que tener guardados para que la lección de cajas dé el paso.
 const CAJAS_PEDIDAS := 4
@@ -441,7 +457,9 @@ func _nivel_2() -> void:
 		{ "text": "**Playa del Coco**. Hoy te voy a enseñar el truco que separa a un cocinero de un friegaplatos.", "mood": "feliz" },
 	])
 	await _focus_node(pb.storage_box, 16.0)
-	await _say([
+	# SUBIDA (`_say_raised`): las cajas viven abajo del todo y la caja de
+	# diálogo, a su altura de siempre, las tapaba justo mientras se explican.
+	await _say_raised([
 		{ "text": "Estas dos **cajas** son tuyas desde hoy. Guardan platos ya hechos y los mantienen calientes hasta que tú digas.", "mood": "hablando" },
 		{ "text": "Sirve para adelantar trabajo: cocinas cuando tienes hueco y sueltas cuando hace falta.", "mood": "serio" },
 		{ "text": "¡CAJAS! ¡RAAAK!", "who": "gigi", "mood": "loro" },
@@ -720,6 +738,10 @@ func _nivel_5() -> void:
 		{ "text": "¡FUERA! ¡SITIO PARA EL SIGUIENTE! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
 		{ "text": "Eso. Cuanto más alta lleve la chapa, más gorda la propina: súbele la variedad y **entonces** le sacas el postre.", "mood": "loro_resignado" },
 	])
+	await _say_raised([
+		{ "text": "Y un secreto de cocinero: hay platos que **casan** con otros. Si a alguien le sirves el mochi justo después de un **té verde**, paga más.", "mood": "feliz" },
+		{ "text": "Se llama **maridaje**, y lo dice el recetario de cada plato. Cuando lo aciertes, verás saltar el aviso.", "mood": "hablando" },
+	])
 	_play("¡Súbele la chapa y despídelo con un **mochi**!")
 
 	# --- El primer potenciador elegido ---
@@ -829,6 +851,13 @@ func _explicar_coleccionables() -> void:
 
 
 func _nivel_7() -> void:
+	# UNA LÍNEA QUE PRESENTE EL SITIO antes de soltar la mecánica (pedido por
+	# el usuario): entrar explicando el reloj era demasiado directo.
+	await _say([
+		{ "text": "**Estrecho del Rayo**. Hoy no atracamos en ningún puerto, %s: hoy **abordamos**." % GameState.player_title(), "mood": "serio" },
+		{ "text": "Nos plantamos en la cubierta de otro barco, montamos la cocina y damos de comer a su tripulación antes de que se den cuenta.", "mood": "hablando" },
+		{ "text": "Y de ahí lo importante: en un abordaje hay **prisa**. Mira ese reloj.", "mood": "serio" },
+	])
 	await _focus_node(lv.time_label, 24.0)
 	await _say([
 		{ "text": "Se cierra al agotarse el reloj... o al llegar al **objetivo**. Y cada 10 segundos que sobren, prima extra.", "mood": "hablando" },

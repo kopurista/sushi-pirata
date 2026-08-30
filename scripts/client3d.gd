@@ -1086,7 +1086,7 @@ func _scan_belt(snack_only: bool = false) -> void:
 		if level_ref != null and "forzar_desprecio" in level_ref \
 				and level_ref.forzar_desprecio and not snack_only:
 			level_ref.forzar_desprecio = false
-			level_ref.plato_ignorado.emit(plate.global_position)
+			level_ref.plato_ignorado.emit(plate)
 			declined.append(pid)
 			continue
 		if randf() < chance:
