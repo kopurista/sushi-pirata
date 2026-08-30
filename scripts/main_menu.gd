@@ -1374,7 +1374,11 @@ func _process(delta: float) -> void:
 		# SOLO EN EL MENU (pedido por el usuario): en el mapa, en la pesca y en
 		# la portada no pinta nada. `in_menu` ya lo sabe; `menu_blend` descarta
 		# ademas el viaje de ida y vuelta a Aventura.
-		daily_chest.visible = in_menu and menu_blend > 0.98 			and GameState.tutorial_done and not start_mode
+		# Y TAMPOCO CON LA PESCA PUESTA: alli comparte esquina con el album
+		# y con el "?" del tutorial, y los tres se pisaban.
+		daily_chest.visible = in_menu and menu_blend > 0.98 \
+			and GameState.tutorial_done and not start_mode \
+			and fishing_ui == null
 	_daily_tick += delta
 	if _daily_tick >= 20.0:
 		_daily_tick = 0.0

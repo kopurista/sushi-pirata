@@ -214,6 +214,9 @@ var clase := false
 ## Cai esta diciendo una leccion: la pelea se queda congelada (ver `_leccion`).
 var leccion_en_curso := false
 ## Cuánto perdona el sedal y cuánto tira la presa mientras Cai enseña.
+## Tope de las barras en la clase y en el tutorial: ni el sedal se rompe ni la
+## presa se suelta, pero por debajo hay recorrido de sobra que ver moverse.
+const CLASE_TOPE := 0.9
 const CLASE_TENSION := 0.4
 const CLASE_TIRON := 0.35
 ## Intentos que da la clase antes de rendirse: si el pez se escapa, se
@@ -263,6 +266,10 @@ var rush_on := false
 ## el cartel y los focos lo cuentan todo mientras se juega.
 ## Lo que se deja leer un paso del tutorial antes de dejarlo pasar.
 const TUTOR_MIN_LEER := 1.1
+## Lo que se adelanta el aro a la BOCA del pez (px de lienzo).
+const TUTOR_DELANTE := 54.0
+## Cada cuánto insiste el cartel cuando el jugador no hace lo que toca.
+const TUTOR_INSISTE := 6.0
 ## Salto de linea de los carteles del tutorial. Va por `char(10)` y no
 ## por una secuencia de escape: los parches automaticos de este repo se
 ## comen las barras invertidas (ver el aviso de CLAUDE.md).
@@ -564,7 +571,7 @@ func _setup_ayuda_btn() -> void:
 	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ayuda_btn.add_child(ic)
-	ayuda_btn.pressed.connect(_tutorial_guiado)
+	ayuda_btn.pressed.connect(_preguntar_tutorial)
 	add_child(ayuda_btn)
 
 
@@ -1154,11 +1161,18 @@ func _tick_fight(delta: float) -> void:
 			Vector2(bobber.x / maxf(cs.x, 1.0), bobber.y / maxf(cs.y, 1.0)))
 	# EN LA CLASE NO SE PIERDE: el sedal se queda a un pelo de romperse y la
 	# presa a un pelo de soltarse, para que el susto se vea sin castigo.
+	# EN LA CLASE NO SE PIERDE, PERO LAS BARRAS TIENEN QUE MOVERSE: con los
+	# topes clavados a 0.93 el jugador soltaba, volvía a mantener y no veía
+	# cambiar nada — leía el amaño como que el juego no le hacía caso (le pasó
+	# al usuario). Se deja un margen de juego POR DEBAJO del tope para que el
+	# gesto siempre tenga respuesta visible.
 	if clase:
-		tension = minf(tension, 0.93)
-		energy = minf(energy, 0.93)
+		tension = minf(tension, CLASE_TOPE)
+		energy = minf(energy, CLASE_TOPE)
 	if tutor and tutor_falta_tiron:
-		# Ver `tutor_falta_tiron`: aguanta hasta la leccion del tiron.
+		# Ver `tutor_falta_tiron`: aguanta hasta la leccion del tiron. El suelo
+		# va bastante por debajo del tope, así que entre uno y otro queda barra
+		# de sobra que ver moverse.
 		energy = maxf(energy, 0.12)
 	if tension >= 1.0:
 		GameState.bump_stat("fish_line_broken")
@@ -2197,27 +2211,39 @@ func _tutorial_guiado() -> void:
 
 	# 2) LA SOMBRA. Se señala con un anillo que la SIGUE: lo primero que hay
 	#    que entender es que no se queda quieta.
-	var anillo := _anillo_en(func() -> Vector2: return shadow_pos)
+	# El anillo va DELANTE DE SU BOCA y se mueve con ella: enseña el sitio al
+	# que hay que adelantarse, que es lo que de verdad se está aprendiendo.
+	var anillo := _anillo_en(_punto_de_lanzado)
 	_tutor_di("Esa sombra es tu presa.\nNada sin parar: no la esperes quieta.")
 	await _tutor_pausa(3.0)
-	_tutor_di("Toca el agua POR DELANTE de ella\npara lanzar el sedal.")
-	await _tutor_espera(func() -> bool: return bobber_out and not casting)
+	_tutor_di("Toca el agua donde marca el aro,\nPOR DELANTE de su boca.")
+	# SIN TOPE: este paso no se puede saltar. Si el jugador se queda quieto,
+	# el cartel le insiste en vez de seguir contando cosas que no han pasado
+	# (le pasó al usuario: le hablaba del sedal lejano sin haber lanzado).
+	await _tutor_insistir(func() -> bool: return bobber_out and not casting,
+		"Toca el agua donde marca el aro,\nPOR DELANTE de su boca.",
+		"Tócala tú: hasta que no lances,\nel pez no se entera de que estás.")
 	_borrar_anillo(anillo)
 
-	# 3) RECOGER. Solo si el sedal cayó lejos: si el pez ya va hacia el
+	# 3) RECOGER. Solo si el sedal cayó LEJOS de verdad; si el pez ya va al
 	#    anzuelo, esta lección sobra y no se suelta.
-	if state == State.SHADOW:
-		_tutor_di("Si ha caído lejos, MANTÉN pulsado\npara recoger el sedal y vuelve a lanzar.")
+	if state == State.SHADOW and bobber.distance_to(shadow_pos) > VISION_R:
+		_tutor_di("Ha caído lejos: MANTÉN pulsado\npara recoger y vuelve a lanzar.")
 	await _esperar_pesca(func() -> bool:
-		return state == State.APPROACH or state == State.FEINT)
+		return state == State.APPROACH or state == State.FEINT, 90.0)
 
 	# 4) LAS FINTAS: la parte que más intentos cuesta, y la única que no se
 	#    puede explicar después de haberla fallado.
 	var anillo2 := _anillo_en(func() -> Vector2: return bobber)
 	_tutor_di("Ya viene. Dará mordisquitos de prueba:\nsi tocas en uno, lo espantas.")
-	await _tutor_espera(func() -> bool: return feints_done >= 1, 25.0)
-	_tutor_di("Eso era un amago.\nEspera al «¡Ha picado!» y toca ENTONCES.")
-	await _tutor_espera(func() -> bool: return state == State.FIGHT, 40.0)
+	await _tutor_espera(func() -> bool:
+		return feints_done >= 1 or state == State.FIGHT, 30.0)
+	if state != State.FIGHT:
+		_tutor_di("Eso era un amago.\nEspera al «¡Ha picado!» y toca ENTONCES.")
+	# SIN TOPE: hasta que no pique y se claven, no hay pelea que explicar.
+	await _tutor_insistir(func() -> bool: return state == State.FIGHT,
+		"Espera al «¡Ha picado!»\ny toca ENTONCES.",
+		"Cuando el flotador se hunda y salga\n«¡Ha picado!», toca la pantalla.")
 	_borrar_anillo(anillo2)
 
 	tutor_falta_tiron = true
@@ -2269,6 +2295,27 @@ func _tutor_fin() -> void:
 		tw.tween_callback(func() -> void: tutor_card.visible = false)
 
 
+## ESPERA SIN TOPE a un paso que NO se puede saltar, y cada `TUTOR_INSISTE`
+## segundos alterna el cartel entre la consigna y un empujón. Los topes de
+## `_tutor_espera` valían para los pasos de adorno, pero en los obligatorios
+## hacían avanzar el guion sin que el jugador hubiera hecho nada — y el
+## tutorial acababa contando cosas que en pantalla no habían ocurrido.
+func _tutor_insistir(cond: Callable, texto: String, empujon: String) -> void:
+	await _tutor_pausa(TUTOR_MIN_LEER)
+	var t := 0.0
+	var alterna := false
+	while tutor and is_inside_tree() and not cond.call():
+		await get_tree().process_frame
+		if state == State.READY or state == State.REVEAL:
+			# El intento se acabó por otro lado: que no se quede colgado.
+			return
+		t += get_process_delta_time()
+		if t >= TUTOR_INSISTE:
+			t = 0.0
+			alterna = not alterna
+			_tutor_di(empujon if alterna else texto)
+
+
 ## Espera a que se cumpla algo, PERO nunca antes de `TUTOR_MIN_LEER`
 ## segundos: un jugador que ya sabe pescar cumple el paso en el mismo
 ## fotograma en que sale el cartel, y el texto parpadeaba sin que diera
@@ -2302,6 +2349,72 @@ func _tutor_pausa(segundos: float) -> void:
 ## flotador). No se usa el foco con velo de `_foco_pesca` porque lo que hay
 ## que señalar aquí está DIBUJADO dentro de `zone`: oscurecerlo lo taparía
 ## justo a él. El anillo se dibuja encima y sigue al objetivo por fotograma.
+## ADONDE HAY QUE LANZAR: por delante de la BOCA del pez, no encima de su
+## sombra (pedido por el usuario). La sombra viaja, así que el anillo tiene
+## que ir señalando el sitio al que llegará — que es justo lo que el jugador
+## tiene que aprender a calcular.
+func _punto_de_lanzado() -> Vector2:
+	# La BOCA va por delante del centro del cuerpo (FEINT_RETREAT es lo que
+	# el cuerpo queda retirado cuando embiste), y el aro se adelanta otro
+	# tanto sobre su rumbo.
+	return shadow_pos + Vector2.from_angle(heading) * (FEINT_RETREAT + TUTOR_DELANTE)
+
+
+## Pregunta antes de soltar el tutorial: es largo, amaña el intento y quien
+## solo quería mirar el álbum no tiene por qué tragárselo.
+func _preguntar_tutorial() -> void:
+	if tutor or clase or state != State.READY:
+		return
+	var velo := ColorRect.new()
+	Audio.ventana(velo)
+	velo.color = Color(0, 0, 0, 0.55)
+	velo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	velo.z_index = 200
+	add_child(velo)
+	var centro := CenterContainer.new()
+	centro.set_anchors_preset(Control.PRESET_FULL_RECT)
+	velo.add_child(centro)
+	var cartel := Control.new()
+	cartel.custom_minimum_size = Vector2(520, 300)
+	centro.add_child(cartel)
+	cartel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
+		PrepBoard.PANEL_MARGIN))
+	PrepBoard.add_panel_banner(cartel, "¿Repasamos?", 30)
+	var l := Label.new()
+	l.text = ("Te guío paso a paso en una tirada de práctica.\n\n"
+		+ "No cuesta doblones y no puedes perder la presa.")
+	l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	l.offset_left = 54.0
+	l.offset_top = 92.0
+	l.offset_right = -54.0
+	l.offset_bottom = -110.0
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.add_theme_font_size_override("font_size", 20)
+	l.add_theme_color_override("font_color", Color(0.42, 0.3, 0.18))
+	cartel.add_child(l)
+	var botones := HBoxContainer.new()
+	botones.alignment = BoxContainer.ALIGNMENT_CENTER
+	botones.add_theme_constant_override("separation", 26)
+	botones.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	botones.offset_top = -104.0
+	botones.offset_bottom = -18.0
+	cartel.add_child(botones)
+	var no := Button.new()
+	no.custom_minimum_size = Vector2(120, 86)
+	PrepBoard.skin_action_button(no, false)
+	no.pressed.connect(velo.queue_free)
+	botones.add_child(no)
+	var si := Button.new()
+	si.custom_minimum_size = Vector2(120, 86)
+	PrepBoard.skin_action_button(si, true)
+	si.pressed.connect(func() -> void:
+		velo.queue_free()
+		_tutorial_guiado())
+	botones.add_child(si)
+
+
 func _anillo_en(get_pos: Callable) -> Control:
 	var c := Control.new()
 	c.set_anchors_preset(Control.PRESET_FULL_RECT)
