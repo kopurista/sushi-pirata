@@ -3097,6 +3097,12 @@ func _montar_pesca() -> void:
 	fishing_ui.album_abierto.connect(func(on: bool) -> void:
 		if level_bar != null and is_instance_valid(level_bar):
 			level_bar.visible = not on)
+	# CON EL TUTORIAL EN MARCHA, LA BARRA TAMPOCO (pedido por el usuario): va
+	# por encima de la pesca y durante una clase de práctica no hay
+	# experiencia que ganar, así que solo estorba al cartel y al aro.
+	fishing_ui.tutor_activo.connect(func(on: bool) -> void:
+		if level_bar != null and is_instance_valid(level_bar):
+			level_bar.visible = not on)
 	# La barra, POR ENCIMA de la pesca (mismo motivo que las cajas).
 	if level_bar != null:
 		level_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE

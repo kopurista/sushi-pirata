@@ -2431,11 +2431,21 @@ La GUÍA lleva su sección ("El canto de sirena").
         pausa del guion podía dormirse encima sin llegar a verlo.
       · **TODA espera del guion se corta con `_tutor_roto()`**, así que
         ningún paso puede quedarse esperando algo que ya no puede pasar.
-    · **BOTÓN "Salir del tutorial"** a la derecha mientras dura, en la banda
-      del "?" (y 196, que ahí está escondido por definición). NO arriba del
-      todo: las cajas de recursos viven en el MENÚ, no en la pesca, y ocupan
-      hasta la y 110 con la cuenta atrás del arroz, así que allí les caía
-      encima (`_montar_salir_tutorial`): el "Atrás" se esconde en cuanto hay un
+    · **MIENTRAS DURA EL TUTORIAL NO HAY ÁLBUM, NI "ATRÁS", NI BARRA DE
+      EXPERIENCIA.** Los dos primeros son las salidas de la pantalla y aquí
+      hay una clase a medias (para irse está su propio botón); la barra vive
+      en el MENÚ, por encima de la pesca, y en una práctica no hay
+      experiencia que ganar. La visibilidad de los botones se decide en UN
+      solo sitio (`_refrescar_botones`), que llaman `_set_state` y **las dos
+      puntas del tutorial**: al encenderlo y al apagarlo no hay cambio de
+      estado, así que sin eso se quedaban como estuvieran — el álbum y el
+      "Atrás" reaparecían en cuanto el tutorial volvía a empezar tras un
+      fallo. La barra la esconde el menú con la señal `tutor_activo`.
+    · **BOTÓN "Salir del tutorial"** a la derecha y JUSTO DEBAJO de los sacos
+      de arroz (y 118): esas cajas viven en el MENÚ, no en la pesca, y ocupan
+      hasta la y 76 —110 con la cuenta atrás del arroz—, así que ese es el
+      primer renglón libre. Puede caer en el sitio del álbum porque durante
+      el tutorial el álbum no se ve (`_montar_salir_tutorial`): el "Atrás" se esconde en cuanto hay un
       intento en juego, o sea media clase, y quien ya sabe pescar se quedaba
       dentro hasta el final.
     · **AL ACABAR VUELVE EL "?"** (`_tutor_fin` lo enciende a mano): su
@@ -2445,10 +2455,10 @@ La GUÍA lleva su sección ("El canto de sirena").
     · **EL ARO DEL LANZAMIENTO SE QUEDA PUESTO** mientras no hay sedal en el
       agua (`_anillo_en` admite `visible_si`): si el primer lanzamiento caía
       lejos y había que recoger, el segundo se hacía a ciegas.
-    · **EL TIRÓN DEL TUTORIAL DURA `TUTOR_TIRON` (6 s)**: uno normal dura
+    · **EL TIRÓN DEL TUTORIAL DURA `TUTOR_TIRON` (4 s)**: uno normal dura
       3-4 y ahí no da tiempo ni a leer el cartel, y es la única mecánica de
-      la pesca que no se entiende sin haberla hecho. **Seis es el techo**: se
-      probó con once y se hacía eterno.
+      la pesca que no se entiende sin haberla hecho. **Cuatro es el techo**:
+      se probó con once y con seis y los dos se hacían eternos.
     · **UN "!" EN BOCADILLO SOBRE EL FLOTADOR AL PICAR** (`_dibujar_picada`,
       dibujado con cuatro primitivas, no es un asset): el rótulo de "¡Ha
       picado!" vive abajo, en la franja de instrucciones, y en el segundo que

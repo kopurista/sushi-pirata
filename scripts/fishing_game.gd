@@ -61,6 +61,9 @@ signal rush_changed(on: bool)
 ## aquí mismo, con la pesca todavía en pantalla: contarla al volver al menú
 ## dejaba a David bromeando sobre un tenedor que el jugador había pescado tres
 ## pantallas atrás.
+## El TUTORIAL esta en marcha: el menu esconde su barra de experiencia, que
+## va por encima de esta pantalla y aqui no pinta nada.
+signal tutor_activo(on: bool)
 signal escena_coleccionable
 
 enum State { READY, SHADOW, APPROACH, FEINT, BITE, FIGHT, REVEAL, ESCAPED }
@@ -269,10 +272,11 @@ const TUTOR_DELANTE := 54.0
 const TUTOR_INSISTE := 6.0
 ## Lo que dura el TIRÓN dentro del tutorial. Uno de verdad dura 3-4 s y ahí no
 ## da tiempo ni a leer el cartel: es la única mecánica de la pesca que no se
-## entiende sin haberla hecho, así que en la clase se alarga — pero SEIS es el
-## techo (el usuario probó once y se hacía eterno). Lo justo para leer el
+## entiende sin haberla hecho, así que en la clase se alarga — pero CUATRO es
+## el techo (se probó con once y con seis, y se hacían eternos). Lo justo para
+## leer el
 ## cartel, equivocarse una vez y ver que pulsar rápido SÍ frena la barra.
-const TUTOR_TIRON := 6.0
+const TUTOR_TIRON := 4.0
 ## Salto de linea de los carteles del tutorial. Va por `char(10)` y no
 ## por una secuencia de escape: los parches automaticos de este repo se
 ## comen las barras invertidas (ver el aviso de CLAUDE.md).
@@ -794,6 +798,25 @@ func is_busy() -> bool:
 
 
 
+## QUIEN SE VE Y QUIEN NO, en un solo sitio. Lo llaman `_set_state` y las dos
+## puntas del tutorial: al encenderlo y al apagarlo NO hay cambio de estado,
+## asi que sin esto los botones se quedaban como estuvieran — el album y el
+## "Atras" reaparecian en cuanto el tutorial volvia a empezar tras un fallo
+## (le paso al usuario), y el "?" se quedaba escondido para siempre si el pez
+## se cobraba antes de que el guion terminara de hablar.
+##
+## DURANTE EL TUTORIAL NO HAY NI ALBUM NI "ATRAS": son las dos salidas de la
+## pantalla y aqui hay una clase a medias; para irse esta su propio boton.
+func _refrescar_botones() -> void:
+	cast_btn.visible = state == State.READY
+	album_btn.visible = state == State.READY and not tutor
+	if ayuda_btn != null and is_instance_valid(ayuda_btn):
+		# El "?" solo en reposo: en plena pelea no se cambia de tema.
+		ayuda_btn.visible = state == State.READY and not tutor
+	# En plena faena no hay "Atrás": los 50 ya están apostados.
+	back_btn.visible = (state == State.READY or state == State.REVEAL) 		and not tutor
+
+
 func _set_state(s: int) -> void:
 	# Ningun bucle sobrevive a un cambio de estado: el carrete sonando
 	# sobre el cartel del botin (o sobre el menu al salir) canta muchisimo.
@@ -803,13 +826,7 @@ func _set_state(s: int) -> void:
 	state = s
 	if is_busy() != antes:
 		busy_changed.emit(is_busy())
-	cast_btn.visible = s == State.READY
-	album_btn.visible = s == State.READY
-	if ayuda_btn != null and is_instance_valid(ayuda_btn):
-		# El "?" solo en reposo: en plena pelea no se cambia de tema.
-		ayuda_btn.visible = s == State.READY and not tutor
-	# En plena faena no hay "Atrás": los 50 ya están apostados.
-	back_btn.visible = s == State.READY or s == State.REVEAL
+	_refrescar_botones()
 	fight_box.visible = s == State.FIGHT
 	if s == State.READY:
 		instruction.text = ""
@@ -2188,6 +2205,10 @@ func _tutorial_guiado() -> void:
 	clase = true
 	tutor_abandonar = false
 	_refresh_cast_label()
+	_refrescar_botones()
+	# LA BARRA DE EXPERIENCIA TAMPOCO: vive en el menu, por encima de la
+	# pesca, y durante la clase no hay nada que ganar en ella.
+	tutor_activo.emit(true)
 	_montar_salir_tutorial()
 	tutor_card.modulate.a = 0.0
 	tutor_card.visible = true
@@ -2363,15 +2384,15 @@ func _montar_salir_tutorial() -> void:
 	PrepBoard.skin_small_button(b)
 	b.add_theme_font_size_override("font_size", 20)
 	b.set_meta("snd", "atras")
-	# POR DEBAJO DE LAS CAJAS DE RECURSOS (pedido por el usuario): esas viven
-	# en el menú, no aquí, y ocupan hasta la y 76 —110 con la cuenta atrás del
-	# arroz—, así que arriba del todo el botón les caía encima. Va en la banda
-	# del "?", que mientras dura el tutorial está escondido por definición.
+	# JUSTO DEBAJO DE LOS SACOS DE ARROZ (pedido por el usuario). Esas cajas
+	# viven en el MENÚ, no aquí, y ocupan hasta la y 76 —110 con la cuenta
+	# atrás del arroz—, así que este es el primer renglón libre. Puede pisar
+	# el sitio del álbum porque durante el tutorial el álbum no se ve.
 	b.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	b.offset_left = -274.0
 	b.offset_right = -24.0
-	b.offset_top = 196.0 + GameState.safe_top()
-	b.offset_bottom = 248.0 + GameState.safe_top()
+	b.offset_top = 118.0 + GameState.safe_top()
+	b.offset_bottom = 170.0 + GameState.safe_top()
 	b.z_index = 170
 	b.pressed.connect(func() -> void: tutor_abandonar = true)
 	add_child(b)
@@ -2392,13 +2413,13 @@ func _tutor_fin() -> void:
 	if salir_tutor_btn != null and is_instance_valid(salir_tutor_btn):
 		salir_tutor_btn.queue_free()
 		salir_tutor_btn = null
-	# EL "?" VUELVE. Su visibilidad la decide `_set_state`, que aquí ya no se
-	# vuelve a llamar: si el pez se cobró ANTES de que el guion terminara de
-	# hablar, el último `_set_state(READY)` corrió con `tutor` todavía puesto
-	# y el botón se quedaba escondido para siempre — sin forma de repetir la
-	# clase. Le pasó al usuario.
-	if ayuda_btn != null and is_instance_valid(ayuda_btn):
-		ayuda_btn.visible = state == State.READY
+	# VUELVEN EL "?", EL ÁLBUM Y EL "ATRÁS": su visibilidad la decide
+	# `_set_state`, que aquí ya no se vuelve a llamar — si el pez se cobró
+	# ANTES de que el guion terminara de hablar, el último `_set_state(READY)`
+	# corrió con `tutor` todavía puesto y el "?" se quedaba escondido para
+	# siempre, sin forma de repetir la clase. Le pasó al usuario.
+	_refrescar_botones()
+	tutor_activo.emit(false)
 	if tutor_card != null and is_instance_valid(tutor_card):
 		var tw := tutor_card.create_tween()
 		tw.tween_property(tutor_card, "modulate:a", 0.0, 0.25)
