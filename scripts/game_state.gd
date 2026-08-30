@@ -1133,7 +1133,7 @@ func has_perk(id: String) -> bool:
 var chef_xp := 0
 ## Nivel vigente (1..SkillData.MAX_LEVEL). Se deriva de chef_xp al cargar y se
 ## mantiene al día en add_chef_xp; se guarda solo por legibilidad del save.
-var chef_level := 1
+var chef_level := 0
 ## ¿Ya se sembró la experiencia retroactiva de los escenarios superados ANTES
 ## de que existieran las maestrías? Bandera propia y no "¿falta chef_xp?": ver
 ## la explicación en `load_game`.
@@ -1422,12 +1422,22 @@ func scenario_xp(port_id: String, stars: int, prev_stars: int) -> int:
 		base *= SkillData.XP_BOSS_MULT
 	var m := float(SkillData.STAR_MULT[clampi(stars, 0, 3)])
 	var prev_m := float(SkillData.STAR_MULT[clampi(prev_stars, 0, 3)])
+	# EL RECORTE DEL 20% y el bonificador de experiencia se aplican JUNTOS y
+	# aquí, que es la única puerta por la que entra la XP de un escenario.
+	var ganancia: float = SkillData.XP_GANANCIA * xp_mult()
 	if prev_stars <= 0:
-		return int(round(base * m * SkillData.FIRST_MULT))
+		return int(round(base * m * SkillData.FIRST_MULT * ganancia))
 	var pago := base * m
 	if m > prev_m:
 		pago += base * (m - prev_m) * SkillData.FIRST_MULT
-	return int(round(pago))
+	return int(round(pago * ganancia))
+
+
+## Multiplicador de experiencia del bonificador `experiencia` (1.0 sin él).
+func xp_mult() -> float:
+	if has_perk("experiencia"):
+		return 1.0 + perk_value("experiencia") / 100.0
+	return 1.0
 
 
 ## PRIMA DE EXPERIENCIA POR EL ORO DE MÁS. `oro` es lo que se lleva el jugador

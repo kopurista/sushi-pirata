@@ -831,7 +831,11 @@ static func skin_start_button(b: Button, drop := START_TEXT_DROP) -> void:
 	# llevan TRES botones que hacen tres cosas distintas —zarpar del selector,
 	# viajar por el mapa y empezar el turno— y poniéndoles aquí el mismo
 	# sonido, los tres sonaban a campanas de barco.
-	b.set_meta("snd", "")
+	# Y NO SE LO PISA A QUIEN YA LO HAYA PUESTO: el llamante marca su papel
+	# ANTES de vestir el botón, así que sobrescribirlo aquí dejaba mudo al
+	# "¡Empezar!", que pedía un clic corriente.
+	if not b.has_meta("snd"):
+		b.set_meta("snd", "")
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		var sb := StyleBoxEmpty.new()
 		sb.content_margin_top = drop

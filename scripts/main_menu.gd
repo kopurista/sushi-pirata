@@ -598,7 +598,7 @@ func _presentar_saverio() -> void:
 	caja.say([
 		{ "text": "¡Buen turno, %s! Y mira quién estaba descargando en el muelle mientras cocinabas..." % GameState.player_title(), "mood": "feliz" },
 		{ "text": "**Saverio**, el mejor tendero de estos mares. Encantado, cocinero.", "who": "saverio", "mood": "explicando" },
-		{ "text": "Yo vendo **usos** de ingredientes, y saco **género nuevo** cada día. A partir de hoy mi puesto es tuyo.", "who": "saverio", "mood": "hablando" },
+		{ "text": "Yo vendo **usos** de ingredientes, y tengo **de todo** siempre a la vista. A partir de hoy mi puesto es tuyo.", "who": "saverio", "mood": "hablando" },
 		{ "text": "¡NEGOCIOS! ¡RAAAK!", "who": "gigi", "mood": "loro" },
 		{ "text": "Anda, pásate por el puesto y échale un ojo. Lo tienes siempre en el **menú**, botón **Tienda**.", "mood": "hablando" },
 	])

@@ -700,19 +700,42 @@ func _fill_small_item(b: Button, ing: String, data: Dictionary, cost: int) -> Bu
 	name_l.add_theme_color_override("font_color", DARK)
 	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(name_l)
-	var info := Label.new()
-	info.text = "%d · x%d" % [cost, GameState.get_ingredient_uses(ing)]
+	# CON LA MONEDA DEL JUEGO, como los artículos grandes: sin ella el precio
+	# de los extras era un número suelto que no se sabía de qué era.
+	var info := HBoxContainer.new()
+	info.alignment = BoxContainer.ALIGNMENT_CENTER
+	info.add_theme_constant_override("separation", 3)
 	info.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	info.offset_top = -28.0
 	info.offset_bottom = -2.0
-	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	info.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	info.add_theme_font_size_override("font_size", 18)
-	info.add_theme_color_override("font_color", Color(0.45, 0.33, 0.2))
 	info.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mon := TextureRect.new()
+	mon.texture = load("res://assets/ui/moneda.png")
+	mon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	mon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	mon.custom_minimum_size = Vector2(20, 20)
+	mon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	info.add_child(mon)
+	var txt := Label.new()
+	txt.text = "%d · x%d" % [cost, GameState.get_ingredient_uses(ing)]
+	txt.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	txt.add_theme_font_size_override("font_size", 18)
+	txt.add_theme_color_override("font_color", Color(0.45, 0.33, 0.2))
+	txt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	info.add_child(txt)
 	b.add_child(info)
 	b.pressed.connect(_open_buy_dialog.bind(ing))
+	_marcar_agotado(b, ing)
 	return b
+
+
+## LO QUE ESTÁ A CERO SE VE VACÍO (pedido por el usuario): el artículo queda
+## a media luz, para que de un vistazo se distinga lo que falta de lo que hay.
+## Va con lo ORDENADO POR ESCASEZ: los apagados son justo los primeros.
+func _marcar_agotado(b: Button, ing: String) -> void:
+	if GameState.get_ingredient_uses(ing) > 0:
+		return
+	b.modulate = Color(1, 1, 1, 0.55)
 
 
 func _build_item(ing: String, small: bool = false) -> Button:
@@ -773,13 +796,13 @@ func _build_item(ing: String, small: bool = false) -> Button:
 	price.add_child(pl)
 	b.add_child(price)
 
-
 	b.pressed.connect(_open_buy_dialog.bind(ing))
+	_marcar_agotado(b, ing)
 	return b
 
 
-## Recargar cuesta dinero, así que se pregunta antes: el icono es pequeño y se
-## pulsa sin querer con facilidad.
+## Al tocar un artículo se pregunta CUÁNTOS usos se quieren: comprar de uno en
+## uno con lo que cuesta el género sería un suplicio.
 func _open_buy_dialog(ing: String) -> void:
 	var data: Dictionary = RecipeData.INGREDIENTS.get(ing, {})
 	var cost := int(data.get("cost", 1))

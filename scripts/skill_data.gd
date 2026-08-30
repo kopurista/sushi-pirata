@@ -71,6 +71,11 @@ const XP_ACCEL := 1.2
 ## Con 6 esos mismos tres escenarios dan 162 XP, o sea nivel 3, y el escenario
 ## 15 deja el cocinero en 16 contra los 17 que recomienda.
 const XP_SCENARIO := 6
+## LA GANANCIA DE EXPERIENCIA SE RECORTA UN 20% (pedido por el usuario), y el
+## bonificador `experiencia` la devuelve con creces (+25%). Va como factor y
+## no bajando `XP_SCENARIO` para que las cuentas de la cabecera —medidas
+## contra la campaña entera— sigan leyéndose.
+const XP_GANANCIA := 0.8
 const STAR_MULT := [0.0, 0.5, 1.0, 1.5]
 const FIRST_MULT := 3.0
 
@@ -486,14 +491,23 @@ static func reward_icon(clave: String) -> String:
 
 
 ## Experiencia que cuesta subir del nivel n al n+1.
+## EL COCINERO EMPIEZA EN EL NIVEL 0 (pedido por el usuario) y sube al 1 al
+## cerrar su primer escenario, que es cuando el juego le enseña la barra. Por
+## eso el escalón 0 → 1 es simbólico (`XP_PRIMERO`): cualquier escenario
+## aprobado lo cubre. De ahí en adelante manda la curva de siempre.
+const XP_PRIMERO := 12
+
+
 static func xp_for_next(level: int) -> int:
+	if level <= 0:
+		return XP_PRIMERO
 	var k := float(maxi(level - 1, 0))
 	return int(round(XP_BASE + XP_STEP * k + XP_ACCEL * k * k))
 
 
 ## Nivel que corresponde a esta experiencia acumulada (1..MAX_LEVEL).
 static func level_for_xp(xp: int) -> int:
-	var nivel := 1
+	var nivel := 0
 	var resto := xp
 	while nivel < MAX_LEVEL:
 		var coste := xp_for_next(nivel)
@@ -508,8 +522,8 @@ static func level_for_xp(xp: int) -> int:
 ## término cuadrático ya no hay fórmula cerrada cómoda, así que se SUMA: son
 ## como mucho 450 vueltas y solo se llama al pintar una barra.
 static func xp_at_level(level: int) -> int:
-	var n := clampi(level, 1, MAX_LEVEL)
+	var n := clampi(level, 0, MAX_LEVEL)
 	var total := 0
-	for k in range(1, n):
+	for k in range(0, n):
 		total += xp_for_next(k)
 	return total

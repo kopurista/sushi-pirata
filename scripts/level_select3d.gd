@@ -108,7 +108,12 @@ const CARTEL_X := 0.46
 ## El ABORDAJE aparta mas su cartel: el barco enemigo es ancho y con la
 ## fraccion general el cartel quedaba DETRAS del casco (con el paso del mapa
 ## subido a 268 hay sitio de sobra para sacarlo).
-const CARTEL_X_KIND := { "abordaje": 0.68, "isla": 0.58, "cueva": 0.66 }
+const CARTEL_X_KIND := {
+	"abordaje": 0.68, "isla": 0.58, "cueva": 0.66,
+	# El PUERTO tambien se aparta: su modelo (el faro y sus pantalanes) tapaba
+	# el cartel por un lado y se comia la primera estrella.
+	"puerto": 0.62,
+}
 const CARTEL_Z := 0.34
 ## Lo que se hunde por debajo del mar. El pivote del nodo esta a −0.10, asi que
 ## esto es lo que baja el cartel DESDE ahi: la linea de flotacion cruza los
@@ -1013,7 +1018,8 @@ func _build_boton_barco() -> Button:
 	b.visible = false
 	b.modulate.a = 0.0
 	b.tooltip_text = "Volver al barco"
-	b.set_meta("snd", "barco_mover")
+	# Sin crujido: aquí no navega el barco, se mueve la CÁMARA.
+	b.set_meta("snd", "click")
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 	var globo := TextureRect.new()
@@ -1048,7 +1054,11 @@ func _build_boton_barco() -> Button:
 func _actualizar_boton_barco() -> void:
 	if boton_barco == null or not is_instance_valid(boton_barco):
 		return
-	var lejos: bool = absf(cam_center - ship_px.y) > BARCO_LEJOS
+	# La distancia se mide contra el punto al que la cámara PUEDE llegar: el
+	# barco del escenario 1 queda más al sur que `SCROLL_MAX`, así que estando
+	# encima el bocadillo salía igual (le pasó al usuario).
+	var alcanzable: float = clampf(ship_px.y, SCROLL_MIN, SCROLL_MAX)
+	var lejos: bool = absf(cam_center - alcanzable) > BARCO_LEJOS
 	# EN EL MAPA, MAS `y` ES MAS ABAJO (el escenario 1 es el de mas y, ver
 	# CampaignData.MAP_POS): con el barco en una `y` MENOR que la camara, el
 	# barco queda por ARRIBA y el bocadillo se va al canto de arriba con el
@@ -1289,6 +1299,12 @@ func _on_submenu(id: String) -> void:
 		"tesoro":
 			_mapas_del_tesoro()
 		"tienda":
+			# CERRADA HASTA QUE SAVERIO ABRA SU PUESTO (nivel 4): el submenú
+			# del mapa se saltaba la compuerta que sí respeta el menú.
+			if not GameState.shop_unlocked():
+				ui.add_child(_aviso_simple("La tienda",
+					"Todavía no hay dónde comprar. **Saverio** montará su puesto más adelante en la travesía."))
+				return
 			GameState.shop_from = "mapa"
 			GameState.fade_to_scene("res://scenes/shop_screen.tscn", 0.35, 0.45)
 		"opciones":
@@ -2072,6 +2088,11 @@ func _select(id: String, animate: bool) -> void:
 	# Viaje: la duración crece con la distancia, con un leve balanceo extra.
 	var dist := ship_px.distance_to(target)
 	var dur := clampf(dist / 420.0, 0.35, 1.4)
+	# SIN CRUJIDO SI EL BARCO NO SE MUEVE (pedido por el usuario): reelegir el
+	# escenario en el que ya está no es una travesía.
+	if dist < 8.0:
+		_scroll_to(CampaignData.map_pos(id))
+		return
 	# EL CRUJIDO DURA LO QUE DURA EL VIAJE, con fundido a la entrada y a la
 	# salida para que no empiece ni acabe a cuchillo, y con el TONO sorteado:
 	# es el mismo crujido, y cambiando de nivel diez veces seguidas sonaba

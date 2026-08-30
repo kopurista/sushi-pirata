@@ -381,7 +381,9 @@ const PORTS: Array = [
 		"star_money": [16, 29, 46],
 		"reward_recipes": [],
 		"reward_recipes_3": [],
-		"reward_rice_3": 1,
+		# SIN SACO DE ARROZ: los premios de escenario son RECETAS (regla del
+		# usuario). Este daba uno y desentonaba con el resto del mar.
+		"reward_ingredients_3": { "salmon": 3, "aguacate": 2 },
 		# Carta cerrada con lo aprendido en el 1 y el 2. El maki de pepino entra
 		# si se ganaron las 3 estrellas del 2; si no, el gunkan.
 		"fixed_recipes": ["maki_aguacate", "nigiri_salmon"],

@@ -908,6 +908,11 @@ func _apply_perks() -> void:
 	# del cliente cada client3d; en el tutorial todo queda en neutro).
 	if not GameState.is_tutorial():
 		plate_laps = maxi(int(GameState.skill_value("segunda_vuelta")), 1)
+		# EN EL MAR 1 EL PLATO AGUANTA DOS VUELTAS (pedido por el usuario): la
+		# escuela perdona, y del mar 2 en adelante cae en la primera. La
+		# maestría "Segunda vuelta" sigue sumando por encima de eso.
+		if CampaignData.sea_of(GameState.current_port) < 2:
+			plate_laps += 1
 		plate_forget_lap = GameState.skill_rank("segunda_vuelta") >= 4
 		waste_frac = GameState.skill_aux("segunda_vuelta", "waste",
 			WASTE_PENALTY * 100.0) / 100.0
@@ -2358,7 +2363,11 @@ func _musica_del_nivel() -> void:
 		Audio.musica("arcade")
 		return
 	if GameState.is_tutorial():
-		Audio.musica("tutorial")
+		# EL TUTORIAL SUENA AL ABORDAJE YA LANZADO (pedido por el usuario): es
+		# una cocina desbordada, así que se le pone el tema de los abordajes
+		# con el tempo que ese tema solo alcanza en sus últimos segundos.
+		Audio.musica("abordaje")
+		Audio.tempo(TEMPO_MAX)
 		return
 	var kind := scenery_kind
 	Audio.musica(kind if Audio.TEMAS.has(kind) else "isla")
@@ -2455,7 +2464,9 @@ func _ask_start() -> void:
 	# para el cuerpo de letra que lleva (ver `PrepBoard.skin_start_button`).
 	go.custom_minimum_size = Vector2(300, 112)
 	go.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	PrepBoard.skin_start_button(go)
+	# `drop` a 0: el desplazamiento de serie sube el rótulo 9 px (ver
+	# `START_TEXT_DROP`) y en este botón, que es alto, se veía descentrado.
+	PrepBoard.skin_start_button(go, 0.0)
 	go.add_theme_font_size_override("font_size", 40)
 	go.pressed.connect(func() -> void:
 		awaiting_start = false
@@ -3097,9 +3108,13 @@ func _process(delta: float) -> void:
 	# del NIVEL. Con `cinta_max` a 0 (todo lo demás) nunca se enciende.
 	if cinta_max > 0 and prep_board != null:
 		prep_board.belt_full = get_tree().get_nodes_in_group("plates").size() >= cinta_max
-		band_mat.set_shader_parameter("scroll_tiles", belt_scroll)
-		if corner_mat != null:
-			corner_mat.set_shader_parameter("scroll_tiles", belt_scroll)
+	# EL EMPUJE DEL SHADER VA FUERA DE ESE `if`. Se coló dentro al meter el
+	# tope de platos del mar 3, así que la banda solo se movía en escenarios
+	# con `cinta_max` — o sea, en ninguno: LA CINTA SE VEÍA PARADA EN TODO EL
+	# JUEGO aunque los platos siguieran viajando por encima.
+	band_mat.set_shader_parameter("scroll_tiles", belt_scroll)
+	if corner_mat != null:
+		corner_mat.set_shader_parameter("scroll_tiles", belt_scroll)
 
 	# La cinta dibujada en la mesa de preparación gira CON la de cubierta.
 	if prep_board != null and "belt_dir" in prep_board:
