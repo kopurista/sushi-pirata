@@ -1058,13 +1058,20 @@ func _actualizar_boton_barco() -> void:
 	# barco del escenario 1 queda más al sur que `SCROLL_MAX`, así que estando
 	# encima el bocadillo salía igual (le pasó al usuario).
 	var alcanzable: float = clampf(ship_px.y, SCROLL_MIN, SCROLL_MAX)
-	var lejos: bool = absf(cam_center - alcanzable) > BARCO_LEJOS
+	# SOLO EN EL MAPA. La misma escena hace de menú y de portada, y allí el
+	# barco está fondeado MUY por debajo del mapa (`MENU_ANCHOR`): recortarlo
+	# al tope del scroll lo dejaba a 2.000 px de la cámara y el bocadillo
+	# salía en la pantalla de inicio (le pasó al usuario).
+	var lejos: bool = _mapa_activo() 		and absf(cam_center - alcanzable) > BARCO_LEJOS
 	# EN EL MAPA, MAS `y` ES MAS ABAJO (el escenario 1 es el de mas y, ver
 	# CampaignData.MAP_POS): con el barco en una `y` MENOR que la camara, el
 	# barco queda por ARRIBA y el bocadillo se va al canto de arriba con el
 	# rabo vuelto (pedido por el usuario).
 	var arriba: bool = ship_px.y < cam_center
-	if lejos == _barco_visible and (not lejos or arriba == _barco_arriba):
+	# Se mira TAMBIÉN lo que el botón está enseñando: quien lo apaga por fuera
+	# (`_set_map_ui_visible` al salir del mapa) dejaba la bandera diciendo que
+	# seguía puesto, y al volver ya no se encendía nunca.
+	if lejos == _barco_visible and boton_barco.visible == lejos 			and (not lejos or arriba == _barco_arriba):
 		return
 	_barco_visible = lejos
 	_barco_arriba = arriba
@@ -1087,6 +1094,13 @@ func _actualizar_boton_barco() -> void:
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	_barco_tween.tween_property(boton_barco, "position:y", y0, 0.7) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+## ¿Estamos EN EL MAPA de aventura? En `level_select3d` a pelo, siempre; en
+## `main_menu`, que hereda de aquí y es además menú y portada, solo cuando la
+## cámara ya está en el mapa (lo redefine).
+func _mapa_activo() -> bool:
+	return true
 
 
 ## Pega el bocadillo al canto que toca y le da la vuelta al rabo. Devuelve la

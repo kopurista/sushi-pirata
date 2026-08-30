@@ -1151,6 +1151,12 @@ func _enter_map(animate: bool) -> void:
 		leaving = false)
 
 
+## El bocadillo de "volver al barco" es SOLO del mapa: ni en el menú (donde
+## el barco está fondeado y la cámara encima) ni en la portada.
+func _mapa_activo() -> bool:
+	return not in_menu and not start_mode and not leaving and menu_blend < 0.5
+
+
 ## Enciende o apaga la interfaz del mapa con un fundido.
 func _map_ui_fade(show: bool) -> void:
 	# La FICHA no entra aqui: es una ventana modal que solo se abre al tocar un
