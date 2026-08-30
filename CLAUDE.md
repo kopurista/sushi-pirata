@@ -2410,6 +2410,29 @@ La GUÍA lleva su sección ("El canto de sirena").
       energía por abajo): jugando bien, la barra se vaciaba en cuatro
       segundos y el tutorial terminaba sin dar la única lección que de
       verdad se falla.
+    · **EL VELO DEL FOCO SE TRAGABA LOS TOQUES DE LA PELEA**, y por eso
+      `_foco_pesca` admite `pasa_toques`. En la lección de las barras el foco
+      cae sobre la caña, y su velo es un `ColorRect` a pantalla completa: el
+      PRIMER aguante valía —lo enciende `_start_fight`, no el jugador— y
+      ninguno de los siguientes, así que soltar y volver a pulsar no subía el
+      sedal ni bajaba la presa hasta que el tutorial pasaba de paso. Se vivía
+      como que el juego se hubiera quedado tonto.
+    · **EL ARO NO SE MOVÍA CON EL PEZ**: `draw` solo se emite cuando alguien
+      pide `queue_redraw` y nadie lo pedía, así que el anillo se pintaba UNA
+      vez y se quedaba clavado donde estuviera el pez en ese fotograma. Los
+      anillos vivos (`_anillos`) se repintan por fotograma desde `_process`.
+    · **NINGÚN PASO AVANZA SIN HABERLO HECHO**: mantener y soltar se esperan de
+      verdad (`tutor_mantuvo` / `tutor_solto`, apuntados en `_tick_fight`) y el
+      tirón insiste SIN TOPE — con `tutor_falta_tiron` puesto la presa no se
+      puede cobrar, así que esperar es seguro. Y `_tutor_insistir` DICE su
+      consigna al entrar: solo alternaba a los seis segundos, y hasta entonces
+      el cartel se quedaba con la frase del paso anterior.
+    · La ventana de **"¿Repasamos?"** lleva el ancho y el cuerpo MEDIDOS para
+      que cada frase entre en UN renglón (a cuerpo 20 con 54 de margen la
+      primera se partía, el párrafo pasaba de tres renglones a cuatro y se
+      desbordaba de su caja: así acababa la segunda frase encima de los
+      botones) y los botones en un `CenterContainer`, no en un contenedor
+      anclado a mano.
     · **NO APUNTA NADA**: ni álbum, ni récords, ni doblones, ni
       coleccionables, y nunca sale cofre (solo peces). La marca de
       práctica viaja **con el INTENTO** (`roll["practica"]`), no con la
@@ -4036,6 +4059,27 @@ La GUÍA lleva su sección ("El canto de sirena").
   de la carta, con su nombre, su dibujo y lo que HACE en renglones de dos o tres
   palabras ("$10 · Bocado x0,45 · Congela 5 s"). El check verde dice qué llevas;
   esto dice qué hace, que es la decisión que se está tomando ahí.
+  · **EL PERGAMINO DE LA PARRILLA ES UN MARCO FIJO** (`_add_shared_parchment`
+    monta un `Marco` con el `ScrollContainer` metido dentro de sus cuerdas):
+    estuvo DENTRO del scroll y con la altura de todo el contenido —la idea era
+    "recorrer un pergamino largo"—, y en la práctica el marco entraba y salía
+    de cuadro al deslizar y la pantalla parecía descuadrarse. Solo se desliza
+    la lista.
+  · **CUATRO FICHAS POR RENGLÓN COMO MUCHO** (`FICHAS_POR_FILA`), y con una
+    carta más larga se pasa página con dos flechas a la derecha
+    (`ficha_pagina`, columna de `FICHA_FLECHAS` reservada SIEMPRE para que las
+    fichas no cambien de tamaño al elegir la quinta receta). Encogerlas hasta
+    que cupieran todas las volvía ilegibles, que es lo contrario de para qué
+    están.
+  · **NADA DE PRECIO en la ficha** (quitado por el usuario): la moneda ya sale
+    en la tarjeta de la parrilla dos dedos más arriba. Lo único que se dice del
+    dinero es lo que allí no se ve: que un picoteo paga distinto picado que
+    suelto.
+  · **EL MARIDAJE DICE CON QUÉ**: el bono solo cae si el cliente viene de
+    comerse uno de esos platos, así que sin los nombres la ficha anunciaba una
+    mecánica sin decir cómo usarla. Y las demás mecánicas se EXPLICAN en vez de
+    nombrarse ("Gusta más cuanto más sirvas", no "Fama"): el nombre solo lo
+    entiende quien ya la conoce, y la ficha es justo para el que no.
   · **NO usa `RecipeData.summary`**: ese escribe frases enteras para el
     recetario, donde cada receta tiene una hoja para ella sola, y en una carta
     de 122 px de texto se convierte en un párrafo ilegible. `_rasgos` lee los
@@ -5727,6 +5771,18 @@ de la carta entera, así que piden recalibrar `star_money`.
 - **El MENÚ anuncia las recetas nuevas** (`GameState.pending_reveal`, que
   llenan `complete_tutorial`/`complete_port` y consume `main_menu`): pergamino
   con los platos entrando de uno en uno con su bote.
+- **EN EL SELECTOR LA CHAPA DEL BONIFICADOR ES CUADRADA**
+  (`boton_perk_cuadrado.png`, generada con Ludo; `prep_screen.PERK_LADO` /
+  `PERK_MARCO`): icono grande, nombre debajo y sus usos en una chapita del
+  canto. La alargada dejaba el icono pequeño a la izquierda y el nombre
+  apretado a la derecha, y en una fila de cuatro no se distinguía uno de otro
+  de un vistazo — lo que identifica a un bonificador es su DIBUJO. De paso,
+  cuatro caben en UN renglón y ese hueco es el que se llevan las fichas de las
+  recetas. **No es un 9-slice**: se dibuja siempre cuadrada y a su tamaño; el
+  hueco útil es la plancha de latón, MEDIDA sobre el dibujo (va de 42 a 257 de
+  300 → `PERK_MARCO` 0.155), y lo que se salga de ahí pisa los remaches. De
+  las cuatro variantes que devolvió Ludo se eligió la de proporción 1,009: las
+  otras (0,976-0,979), forzadas a cuadrado, torcían los remaches.
 - **LOS BONIFICADORES LLEVAN CHAPA DE LATÓN, no el tablón de madera del resto
   del juego** (`PrepBoard.PERK_TEX/PERK_MARGIN`, `skin_perk_button`, pedido por
   el usuario): un bonificador no es un botón más, y con la misma madera no se
