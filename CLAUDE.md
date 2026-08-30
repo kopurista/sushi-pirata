@@ -575,6 +575,10 @@ por `CampaignData.sea_of(id) >= 3` en el mismo bloque que los del mar 2:
   de mejora sin género.
 - **ABORDAJE → LA CINTA VA AL DOBLE** (`belt_base` 2.0): el plato pasa por
   delante de cada boca la mitad de tiempo, así que fallar el sitio se paga.
+- **ABORDAJE (2ª vuelta de tuerca, PENDIENTE de implementar)**: además de la
+  cinta al doble, que **vaya acelerando según pasa el tiempo** — el turno
+  empieza a ritmo normal y acaba disparado (pedido por el usuario; la perilla
+  es `belt_base`, que ya multiplica la velocidad de los platos y del shader).
 - **PENDIENTE cuando existan los escenarios del mar 3**: `level_director.
   _explicar_handicap` solo cubre los del mar 2 y sus banderas
   (`isla_handicap_done` y compañía) ya estarán gastadas, así que hará falta
@@ -5576,6 +5580,18 @@ que no hay problema.
   y nubes ni se crean, y se paran el balanceo del logotipo, el cabeceo del
   barco, el mecerse de los fondos y la respiración del tendero—, nunca las
   animaciones de juego.
+
+## DIFICULTAD: DOS PERILLAS QUE TODAVÍA NO SE HAN USADO
+
+Aparte de los hándicaps por mar, la dificultad de un escenario puede subir por
+**el TAMAÑO de la cinta** y por **cuánta gente se sienta en ella** (recordado
+por el usuario). Hoy las dos son constantes de `level3d` —`BELT_SIDE` (el lado
+del cuadrado del circuito, 3.6 u) y los 8 taburetes de `seats`— y ningún
+escenario las toca: una cinta más larga estira el viaje del plato (más tiempo
+delante de cada boca, pero más tarde en volver) y más asientos multiplican la
+demanda contra la MISMA cocina, que es el cuello de botella real del juego
+(ver el bloque del calibrado). Al usarlas, ojo: las dos cambian el rendimiento
+de la carta entera, así que piden recalibrar `star_money`.
 
 ## Progresión y economía (cambios recientes)
 
