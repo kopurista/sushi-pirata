@@ -4030,7 +4030,32 @@ La GUÍA lleva su sección ("El canto de sirena").
   Debajo, la fila de **potenciadores permanentes** disponibles (solo aventura),
   y el botón "¡Zarpar!". Arriba, "Atrás" (al mapa en aventura, al menú en
   Arcade). NO lleva el título "Sushi Pirata".
-  **LA "SELECCIÓN AUTOMÁTICA" GARANTIZA COBERTURA POR TIPO**
+  **EL SELECTOR ENSEÑA UNA FICHA POR PLATO ELEGIDO** (`_build_resumen_row` /
+  `_ficha_resumen` / `_rasgos`, pedido por el usuario): bajo la parrilla, una
+  CARTA VERTICAL —la misma `pot_carta.png` del bote de propinas— por cada receta
+  de la carta, con su nombre, su dibujo y lo que HACE en renglones de dos o tres
+  palabras ("$10 · Bocado x0,45 · Congela 5 s"). El check verde dice qué llevas;
+  esto dice qué hace, que es la decisión que se está tomando ahí.
+  · **NO usa `RecipeData.summary`**: ese escribe frases enteras para el
+    recetario, donde cada receta tiene una hoja para ella sola, y en una carta
+    de 122 px de texto se convierte en un párrafo ilegible. `_rasgos` lee los
+    MISMOS campos que aplica `client3d` (así no puede contradecir a la cinta) y
+    los canta en cifras, con tope de CINCO renglones.
+  · **LAS FICHAS SE ESTRECHAN HASTA CABER EN UN RENGLÓN** (`ficha_size`, del
+    número de `slots`): con la medida fija, una isla de cinco recetas partía la
+    fila en dos renglones (440 px) y dejaba la parrilla en fila y media. La
+    PROPORCIÓN se respeta (la carta no es un 9-slice: sus herrajes sobresalen).
+  · **LA FILA OCUPA SU HUECO SIEMPRE**, y vacía dice para qué está: si
+    apareciera al elegir el primer plato, la parrilla daría un salto justo bajo
+    el dedo que acaba de tocar.
+  · Ese hueco sale de la PARRILLA, que es el único que estira: por eso ahora se
+    ven TRES filas de recetas y no cuatro, que es lo que se pidió. Y para
+    hacerle sitio, la cabecera se compactó — el subtítulo "elige las recetas"
+    se apaga en aventura (dice lo que el jugador ya está haciendo) y en su
+    renglón va "Escenario N" con las caras de la clientela, sin repetir el
+    nombre del escenario que ya canta la barra de arriba.
+
+**LA "SELECCIÓN AUTOMÁTICA" GARANTIZA COBERTURA POR TIPO**
   (`_asegurar_nivel`): su puntuación mide rendimiento MEDIO, y con un solo
   capitán entre ocho bocas ningún plato de 3★ gana nunca el reparto — salía una
   carta entera de 1★ que dejaba al capitán mirando la cinta toda la jornada, y

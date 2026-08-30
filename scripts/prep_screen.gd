@@ -29,6 +29,25 @@ var perks_selected: Array[String] = []
 ## Pivote del modelo 3D del fondo (se mece con el oleaje).
 var backdrop: Node3D = null
 var leaving := false
+## LA FICHA DE UN PLATO ELEGIDO (ver `_build_resumen_row`). Usa la carta del
+## bote de propinas, que NO es un 9-slice —sus herrajes sobresalen del marco
+## recto—, asi que va entera y a su proporcion exacta: de ahi salen estas dos
+## medidas, y cambiar una sin la otra deforma los herrajes.
+const FICHA_ANCHO := 150.0
+const FICHA_ALTO := 217.0
+const FICHA_TEX := "res://assets/ui/pot_carta.png"
+## Hueco entre fichas.
+const FICHA_HUECO := 8.0
+## Medida REAL de la ficha en esta pantalla: se calcula del numero de huecos
+## de carta, porque las cinco de una isla no caben al ancho de las tres de un
+## puerto y, envolviendose, la fila se comia la parrilla entera.
+var ficha_size := Vector2(FICHA_ANCHO, FICHA_ALTO)
+## Margenes del texto DENTRO de la carta, sacados de su propio marco dibujado
+## (9,1% del ancho por los lados, 7,7% del alto por arriba), como en level3d.
+const FICHA_LADO := 14.0
+const FICHA_ARRIBA := 17.0
+## Fila con una ficha por plato elegido.
+var resumen_box: HFlowContainer = null
 ## Fila de bonificadores (se rehace si el aviso previo regala uno).
 var perk_bar: Control = null
 ## Gigi ya ha avisado de que la carta no lleva platos de dos estrellas.
@@ -155,6 +174,7 @@ func _ready() -> void:
 		_add_auto_button(board_script)
 	else:
 		_marcar_carta_fija()
+	_build_resumen_row()
 	_add_perk_bar(board_script)
 	_skin_start_button(board_script)
 	start_button.pressed.connect(_on_start_pressed)
@@ -681,7 +701,7 @@ func _add_auto_button(board_script) -> void:
 	fila.add_child(b)
 
 
-## QUÉ ESCENARIO ES Y QUIÉN VIENE, bajo el rótulo. El jugador estaba eligiendo
+## QUÉ ESCENARIO ES Y QUIÉN VIENE, en el sitio del subtítulo. El jugador estaba eligiendo
 ## la carta sin saber ni el número del escenario ni a quién iba a servir, que
 ## es justo lo que decide qué recetas hacen falta: los grumetes comen de 1★,
 ## los piratas de 2★ y los capitanes de 3★.
@@ -691,32 +711,40 @@ func _build_info_row() -> void:
 	var port := CampaignData.get_port(GameState.current_port)
 	if port.is_empty():
 		return
-	var caja := VBoxContainer.new()
-	caja.alignment = BoxContainer.ALIGNMENT_CENTER
-	caja.add_theme_constant_override("separation", 2)
-	var vb: VBoxContainer = $UI/Root/Margin/VBox
-	vb.add_child(caja)
-	vb.move_child(caja, count_label.get_index())
+	# EN UN SOLO RENGLON, y en el hueco del subtitulo (pedido por el usuario:
+	# quitar informacion de arriba para que abajo quepan las fichas y los
+	# bonificadores). El subtitulo decia "elige las recetas necesarias", que es
+	# justo lo que el jugador ya sabe que esta haciendo; el escenario y la
+	# clientela, no. Con la CARTA CERRADA el subtitulo si dice algo que no se
+	# deduce (que hoy no se elige carta), asi que ahi se queda.
+	var sub: Label = $UI/Root/Margin/VBox/Subtitle
+	sub.visible = not carta_fija.is_empty()
 
+	var fila := HFlowContainer.new()
+	fila.alignment = FlowContainer.ALIGNMENT_CENTER
+	fila.add_theme_constant_override("h_separation", 16)
+	fila.add_theme_constant_override("v_separation", 2)
+	var vb: VBoxContainer = $UI/Root/Margin/VBox
+	vb.add_child(fila)
+	vb.move_child(fila, count_label.get_index())
+
+	# SOLO EL NUMERO: el nombre del escenario ya lo canta la barra de arriba a
+	# cuerpo 28, y repetirlo dos renglones mas abajo gastaba media linea.
 	var n := CampaignData.port_index(GameState.current_port) + 1
 	var titulo := Label.new()
-	titulo.text = "Escenario %d  ·  %s" % [n, str(port.get("name", ""))]
-	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	titulo.add_theme_font_size_override("font_size", 22)
+	titulo.text = "Escenario %d" % n
+	titulo.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	titulo.add_theme_font_size_override("font_size", 21)
 	titulo.add_theme_color_override("font_color", Color(1, 0.93, 0.78))
 	titulo.add_theme_color_override("font_outline_color", Color(0, 0, 0))
 	titulo.add_theme_constant_override("outline_size", 7)
-	caja.add_child(titulo)
+	fila.add_child(titulo)
 
 	# LA CLIENTELA, con las mismas caras que el HUD y el mapa. En un ABORDAJE
 	# no hay cupo, así que se enseñan los tipos sin cifra: lo que importa es
 	# QUIÉN viene, no cuántos.
 	var mix: Dictionary = port.get("client_mix", {})
 	var sin_fin := CampaignData.unlimited_clients(GameState.current_port)
-	var fila := HBoxContainer.new()
-	fila.alignment = BoxContainer.ALIGNMENT_CENTER
-	fila.add_theme_constant_override("separation", 14)
-	caja.add_child(fila)
 	for t in ["E", "A", "G"]:
 		var cuantos := int(mix.get(t, 0))
 		if cuantos <= 0:
@@ -730,12 +758,12 @@ func _build_info_row() -> void:
 		var ruta := "res://assets/ui/head_%s.png" % t
 		if ResourceLoader.exists(ruta):
 			ic.texture = load(ruta)
-		ic.custom_minimum_size = Vector2(38, 38)
+		ic.custom_minimum_size = Vector2(34, 34)
 		par.add_child(ic)
 		var l := Label.new()
 		l.text = "sin fin" if sin_fin else "x%d" % cuantos
 		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		l.add_theme_font_size_override("font_size", 21)
+		l.add_theme_font_size_override("font_size", 20)
 		l.add_theme_color_override("font_color", Color(1, 0.88, 0.6))
 		l.add_theme_color_override("font_outline_color", Color(0, 0, 0))
 		l.add_theme_constant_override("outline_size", 6)
@@ -944,12 +972,216 @@ func _update_ui() -> void:
 	# saber por qué: parecía que la tarjeta no respondía. Atenuadas se lee de un
 	# vistazo que ya no queda hueco, y las elegidas siguen a plena luz para
 	# poder soltar una y cambiarla.
+	_refresh_resumen()
 	var llena := selected.size() >= slots
 	for id in recipe_cards:
 		var carta: Button = recipe_cards[id]
 		if not is_instance_valid(carta):
 			continue
 		PrepBoard.set_dimmed(carta, llena and not (id in selected))
+
+
+## UNA FICHA POR PLATO ELEGIDO, bajo la parrilla y en el mismo lenguaje que las
+## cartas del bote de propinas (pedido por el usuario). El "check" verde dice
+## QUE llevas; esto dice QUE HACE, que es lo que de verdad se esta decidiendo
+## aqui: cuatro cartas juntas se comparan de un vistazo, y con la parrilla sola
+## habia que acordarse de memoria de lo que rendia cada plato.
+##
+## La fila ocupa su hueco SIEMPRE, aunque no haya nada elegido: si apareciera y
+## desapareciera, la parrilla daria un salto con cada toque justo debajo del
+## dedo. Y como el `Scroll` de las recetas es el unico que ESTIRA, ese hueco
+## sale de la parrilla: de ahi que ahora se vean tres filas y no cuatro, que es
+## lo que se pidio.
+func _build_resumen_row() -> void:
+	# TODAS LAS FICHAS EN UN RENGLON, pase lo que pase: se estrechan hasta que
+	# quepan los `slots` del escenario. Con la medida fija, una isla de cinco
+	# recetas partia la fila en dos renglones (440 px) y dejaba la parrilla en
+	# una fila y media. La PROPORCION se respeta: la carta no es un 9-slice.
+	var util: float = GameState.canvas_size().x - 20.0
+	var ancho: float = minf(FICHA_ANCHO,
+			(util - FICHA_HUECO * float(maxi(slots - 1, 0))) / float(maxi(slots, 1)))
+	ficha_size = Vector2(ancho, ancho * FICHA_ALTO / FICHA_ANCHO)
+	resumen_box = HFlowContainer.new()
+	resumen_box.alignment = FlowContainer.ALIGNMENT_CENTER
+	resumen_box.add_theme_constant_override("h_separation", int(FICHA_HUECO))
+	resumen_box.add_theme_constant_override("v_separation", 6)
+	resumen_box.custom_minimum_size = Vector2(0, ficha_size.y)
+	var vb: VBoxContainer = $UI/Root/Margin/VBox
+	vb.add_child(resumen_box)
+	vb.move_child(resumen_box, $UI/Root/Margin/VBox/Scroll.get_index() + 1)
+
+
+## Rehace las fichas con lo que haya elegido ahora mismo.
+func _refresh_resumen() -> void:
+	if resumen_box == null or not is_instance_valid(resumen_box):
+		return
+	for c in resumen_box.get_children():
+		resumen_box.remove_child(c)
+		c.queue_free()
+	if selected.is_empty():
+		# El hueco esta reservado siempre, asi que vacio seria un agujero sin
+		# explicacion: mejor que cuente lo que va a salir ahi.
+		var vacio := Label.new()
+		vacio.text = "Elige tus recetas y aquí verás qué hace cada una"
+		vacio.custom_minimum_size = Vector2(560, ficha_size.y)
+		vacio.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vacio.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		vacio.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		vacio.add_theme_font_size_override("font_size", 20)
+		vacio.add_theme_color_override("font_color", Color(1, 0.92, 0.76, 0.72))
+		vacio.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+		vacio.add_theme_constant_override("outline_size", 6)
+		vacio.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		resumen_box.add_child(vacio)
+		return
+	for id in selected:
+		resumen_box.add_child(_ficha_resumen(str(id)))
+
+
+func _ficha_resumen(id: String) -> Control:
+	var datos := RecipeData.get_recipe(id)
+	var card := Control.new()
+	card.custom_minimum_size = ficha_size
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var fondo := TextureRect.new()
+	fondo.texture = load(FICHA_TEX)
+	fondo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	fondo.stretch_mode = TextureRect.STRETCH_SCALE
+	fondo.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(fondo)
+
+	var col := VBoxContainer.new()
+	col.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var lado: float = FICHA_LADO * ficha_size.x / FICHA_ANCHO
+	var arriba: float = FICHA_ARRIBA * ficha_size.y / FICHA_ALTO
+	col.offset_left = lado
+	col.offset_right = -lado
+	col.offset_top = arriba
+	col.offset_bottom = -arriba
+	col.add_theme_constant_override("separation", 1)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(col)
+
+	var nom := Label.new()
+	nom.text = str(datos.get("name", id))
+	nom.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	nom.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	nom.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	nom.custom_minimum_size = Vector2(0, 36)
+	nom.add_theme_font_size_override("font_size", 14)
+	nom.add_theme_constant_override("line_spacing", -6)
+	nom.add_theme_color_override("font_color", Color(0.30, 0.17, 0.05))
+	var negrita: Font = load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		nom.add_theme_font_override("font", negrita)
+	nom.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(nom)
+
+	var dib := TextureRect.new()
+	dib.texture = RecipeData.get_dish_texture(id)
+	dib.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	dib.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	dib.custom_minimum_size = Vector2(0, 60)
+	dib.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	dib.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(dib)
+
+	var txt := Label.new()
+	txt.text = "\n".join(_rasgos(id))
+	txt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	txt.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	txt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# El texto se apoya ABAJO y ocupa lo justo: asi las cartas comparten
+	# baseline aunque una diga tres cosas y otra una sola, y lo que sobra se
+	# lo queda el dibujo (que es lo que identifica el plato de un vistazo).
+	txt.custom_minimum_size = Vector2(0, 62)
+	txt.add_theme_font_size_override("font_size", 13)
+	txt.add_theme_constant_override("line_spacing", -3)
+	txt.add_theme_color_override("font_color", Color(0.40, 0.26, 0.12))
+	txt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(txt)
+	return card
+
+
+## LO QUE SE COMPARA AL ARMAR LA CARTA, en renglones de dos o tres palabras.
+## NO se usa `RecipeData.summary`: ese escribe frases enteras para el recetario
+## —donde hay una hoja entera para cada receta— y en una carta de 122 px de
+## texto se convierte en un parrafo ilegible. Aqui manda la cifra.
+##
+## Las cifras salen de los MISMOS campos que aplica `client3d`, asi que la
+## ficha no puede contradecir a lo que pasa luego en la cinta.
+func _rasgos(id: String) -> Array[String]:
+	var r := RecipeData.get_recipe(id)
+	var out: Array[String] = []
+	var precio := int(r.get("price", 0))
+	if r.has("snack_price"):
+		out.append("$%d  ·  picado $%d" % [precio, int(r.get("snack_price", precio))])
+	elif precio > 0:
+		out.append("$%d" % precio)
+	if bool(r.get("snack", false)):
+		out.append("Picoteo")
+	if bool(r.get("leaves_seat", false)):
+		out.append("Postre: libera silla")
+	var libres := int(r.get("free_uses", 0))
+	if libres > 0:
+		out.append("Maestría x%d" % (libres + 1))
+	var bocado := float(r.get("eat_mult", 1.0))
+	if not is_equal_approx(bocado, 1.0):
+		out.append("Bocado %s" % _mult(bocado))
+	var pac := float(r.get("patience_mult", 1.0))
+	if not is_equal_approx(pac, 1.0):
+		out.append("Paciencia %s" % _mult(pac))
+	if float(r.get("patience_freeze", 0.0)) > 0.0:
+		out.append("Congela %d s" % int(round(float(r.get("patience_freeze", 0.0)))))
+	if bool(r.get("clears_boredom", false)):
+		out.append("Limpia paladar")
+	if float(r.get("tip_chance_bonus", 0.0)) > 0.0:
+		out.append("Propina +%d%%" % int(round(float(r.get("tip_chance_bonus", 0.0)) * 100.0)))
+	if not is_equal_approx(float(r.get("tip_amount_mult", 1.0)), 1.0):
+		out.append("Propina %s" % _mult(float(r.get("tip_amount_mult", 1.0))))
+	if int(r.get("variety_worth", 1)) > 1:
+		out.append("Variedad +%d" % int(r.get("variety_worth", 1)))
+	if int(r.get("servings", 1)) > 1:
+		out.append("Para %d bocas" % int(r.get("servings", 1)))
+	if bool(r.get("frescura", false)):
+		out.append("Frescura")
+	if bool(r.get("marinado", false)):
+		out.append("Marinado")
+	if float(r.get("fama", 0.0)) > 0.0:
+		out.append("Fama")
+	if r.has("maridaje"):
+		out.append("Maridaje")
+	if r.has("talla"):
+		out.append("Paga por talla")
+	if bool(r.get("riesgo", false)):
+		out.append("Riesgo")
+	if not is_equal_approx(float(r.get("contagio", 0.0)), 0.0):
+		out.append("Contagio")
+	if float(r.get("next_take_bonus", 0.0)) > 0.0:
+		out.append("Anima al siguiente")
+	if int(r.get("neighbor_mult", 0)) != 0:
+		out.append("Huele a los vecinos")
+	var tipo := str(r.get("only_type", ""))
+	if tipo != "":
+		var nombres := { "E": "grumetes", "A": "piratas", "G": "capitanes" }
+		out.append("Solo %s" % str(nombres.get(tipo, tipo)))
+	# CINCO RENGLONES COMO MUCHO: lo que no cabe en la carta no se lee, y una
+	# ficha con el texto desbordado es peor que una ficha corta.
+	while out.size() > 5:
+		out.remove_at(out.size() - 1)
+	return out
+
+
+## "x1,5" con coma decimal y sin ceros de relleno.
+func _mult(v: float) -> String:
+	var s := "x%.2f" % v
+	while s.ends_with("0"):
+		s = s.substr(0, s.length() - 1)
+	if s.ends_with("."):
+		s = s.substr(0, s.length() - 1)
+	return s.replace(".", ",")
 
 
 ## ¿Lleva la selección algún plato de N estrellas o más?
