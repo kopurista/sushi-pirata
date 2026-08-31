@@ -59,8 +59,8 @@ func toast_achievement(icon: Texture2D, tint: Color, title: String,
 
 ## Ventana de COLECCIONABLE conseguido. `extra` añade un renglón (el regalo de
 ## doblones del triángulo dorado).
-func announce_collectible(id: String, extra := "") -> void:
-	_queue.append({ "kind": "collectible", "id": id, "extra": extra })
+func announce_collectible(id: String, extra := "", xp := 0) -> void:
+	_queue.append({ "kind": "collectible", "id": id, "extra": extra, "xp": xp })
 	_pump()
 
 
@@ -211,8 +211,10 @@ func _show_collectible(item: Dictionary) -> void:
 	if desc != "":
 		desc_h = clampf(ceili(desc.length() / 40.0) * 30.0 + 10.0, 40.0, 136.0)
 	var extra_h := 34.0 if extra_txt != "" else 0.0
+	var xp_n := int(item.get("xp", 0))
+	var xp_h := 32.0 if xp_n > 0 else 0.0
 	var panel_w := 520.0
-	var panel_h := 434.0 + desc_h + extra_h + 110.0
+	var panel_h := 434.0 + desc_h + extra_h + xp_h + 110.0
 	var panel := Control.new()
 	panel.position = Vector2((cs.x - panel_w) * 0.5, (cs.y - panel_h) * 0.5)
 	panel.size = Vector2(panel_w, panel_h)
@@ -270,6 +272,18 @@ func _show_collectible(item: Dictionary) -> void:
 		extra.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		panel.add_child(extra)
 		y += extra_h
+
+	# LA EXPERIENCIA DE LA PIEZA, en su propio renglón azul (el color con el
+	# que el juego ya habla de experiencia en la barra del menú).
+	if xp_n > 0:
+		var xp_l := _label("+%d de experiencia" % xp_n, 21,
+			Color(0.24, 0.42, 0.62))
+		xp_l.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		xp_l.offset_top = y
+		xp_l.offset_bottom = y + xp_h
+		xp_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		panel.add_child(xp_l)
+		y += xp_h
 
 	var seguir := Button.new()
 	seguir.text = "Continuar"

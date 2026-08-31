@@ -3156,11 +3156,12 @@ func _xp_en_la_barra(cantidad: int) -> void:
 	l.position = Vector2(0.0, LVL_BAR_H * 0.5)
 	level_bar.add_child(l)
 	var t := l.create_tween().set_parallel(true)
-	# DURA MÁS (0.9 s se leía a medias, sobre todo con el cartel del pez
-	# encima): sube despacio y se va al final.
-	t.tween_property(l, "position:y", -46.0, 2.2) \
+	# EL FUNDIDO VA AL FINAL DEL VIAJE, no a media subida: el retardo de 0.5
+	# apagaba el rótulo a los 0,95 s aunque siguiera moviéndose 2,2 — con el
+	# cartel del pez delante no daba tiempo ni a verlo (le pasó al usuario).
+	t.tween_property(l, "position:y", -46.0, 3.4) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	t.tween_property(l, "modulate:a", 0.0, 0.45).set_delay(0.5)
+	t.tween_property(l, "modulate:a", 0.0, 0.7).set_delay(2.7)
 	t.chain().tween_callback(l.queue_free)
 	# Y la barra sube de verdad (con su fogonazo si cruza un nivel).
 	_play_xp_anim_if_pending()

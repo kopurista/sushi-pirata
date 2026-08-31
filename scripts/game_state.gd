@@ -263,6 +263,8 @@ var daily_last: String = ""
 ## COLECCIONABLES conseguidos (ids de CollectibleData) y fragmentos sueltos del
 ## triángulo dorado (a CollectibleData.TRIFORCE_PIECES se juntan en uno).
 var collectibles: Array[String] = []
+## id -> {fecha, donde}: cuándo y de dónde salió cada pieza de la vitrina.
+var collectible_meta: Dictionary = {}
 var triforce_pieces: int = 0
 ## COLECCIONABLES CONSEGUIDOS QUE AÚN DEBEN SU ESCENA (ver
 ## `CollectibleData.SCENE_ITEMS`): el corazón con el apellido de David, el
@@ -1920,20 +1922,56 @@ func has_collectible(id: String) -> bool:
 ## Desbloquea un coleccionable, lo ANUNCIA con su ventana y guarda. Devuelve
 ## true si era nuevo. `extra` añade un renglón al anuncio (el regalo del
 ## triángulo dorado).
+## LO QUE PAGA EN EXPERIENCIA UNA PIEZA DE LA VITRINA (pedido por el
+## usuario): escala con el NIVEL del cocinero, la misma pendiente lineal que
+## el oro de las medallas, para que una pieza tardía no sepa a calderilla.
+const COL_XP_BASE := 25
+const COL_XP_POR_NIVEL := 5
+
+
+func col_xp() -> int:
+	return COL_XP_BASE + COL_XP_POR_NIVEL * maxi(chef_level, 1)
+
+
 func unlock_collectible(id: String, extra := "") -> bool:
 	if id in collectibles or CollectibleData.get_item(id).is_empty():
 		return false
 	collectibles.append(id)
+	# CADA PIEZA APUNTA SU FECHA Y SU PROCEDENCIA (para la ficha de la
+	# vitrina). Las de guardados anteriores no la tienen: su ficha ensena
+	# solo la descripcion, que es lo justo con quien ya las tenia.
+	var hoy := Time.get_datetime_dict_from_system()
+	collectible_meta[id] = {
+		"fecha": "%02d/%02d/%d" % [hoy.day, hoy.month, hoy.year],
+		"donde": _col_procedencia(id),
+	}
+	# Y PAGA EXPERIENCIA, escalada al nivel del cocinero.
+	var xp := col_xp()
+	add_chef_xp(xp)
 	# LOS QUE TIENEN ESCENA solo apuntan aquí la deuda: la ventana del
 	# coleccionable la saca NoticeLayer en su capa global, sin sitio para un
 	# retrato, así que la escena la cobra `main_menu` al cerrar la pesca.
 	if id in CollectibleData.SCENE_ITEMS:
 		pending_col_scenes.append(id)
 	save_game()
-	_ensure_notices().announce_collectible(id, extra)
+	_ensure_notices().announce_collectible(id, extra, xp)
 	# El logro de coleccionista bebe de aquí ("derived:coleccion").
 	queue_achievement_check()
 	return true
+
+
+## DE DÓNDE SALIÓ UNA PIEZA, deducido de los datos en el momento de ganarla:
+## el escenario que la entrega, el cofre de la pesca, o nada (los trofeos de
+## jugar ya se explican solos con su descripción).
+func _col_procedencia(id: String) -> String:
+	var port_id := CampaignData.port_for_collectible(id)
+	if port_id != "":
+		var port := CampaignData.get_port(port_id)
+		return "En %s (mar %d)" % [str(port.get("name", "")),
+			CampaignData.sea_of(port_id)]
+	if id in FishData.FISHING_COLLECTIBLES or id == "trifuerza":
+		return "Pescando, en un cofre del fondo"
+	return ""
 
 
 ## Un fragmento del TRIÁNGULO DORADO. Los 8 se juntan en UN coleccionable y
@@ -2462,6 +2500,7 @@ func save_game() -> void:
 		"skill_points": skills,
 		"arcade_best": arcade_best,
 		"collectibles": collectibles,
+		"collectible_meta": collectible_meta,
 		"triforce_pieces": triforce_pieces,
 		"pending_col_scenes": pending_col_scenes,
 		"fish_album": fish_album,
@@ -2649,6 +2688,7 @@ func load_game() -> void:
 				skills[str(k)] = r * SkillData.rank_cost(str(k))
 	arcade_best = maxi(int(parsed.get("arcade_best", 0)), 0)
 	collectibles = _to_string_array(parsed.get("collectibles", []))
+	collectible_meta = parsed.get("collectible_meta", {})
 	triforce_pieces = int(parsed.get("triforce_pieces", 0))
 	pending_col_scenes = _to_string_array(parsed.get("pending_col_scenes", []))
 	# Guardado de cuando la escena del corazón era una bandera suelta.
