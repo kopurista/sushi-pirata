@@ -336,6 +336,9 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	# La pecera nada tambien con la pesca parada: es su propia pantalla.
+	if pecera_node != null:
+		_tick_pecera(delta)
 	# Los anillos del tutorial siguen a lo que senalan (y laten), asi que se
 	# repintan SIEMPRE — tambien con la leccion parada, que ahi el latido es
 	# lo unico que dice "mira aqui".
@@ -1794,6 +1797,87 @@ func _fill_chest_loot(fila: HBoxContainer, premio: Dictionary) -> void:
 
 # ------------------------------------------------------------------- álbum
 
+# ------------------------------------------------------------------ LA PECERA
+#
+# EL ALBUM ES UNA PECERA (pedido por el usuario): los peces capturados NADAN
+# dentro de un tanque largo que se recorre con scroll HORIZONTAL, y tocar uno
+# abre su ficha. Los que faltan nadan en SILUETA oscura y sin nombre — la
+# misma regla del album viejo: no se desvela lo que queda por pescar.
+#
+# CADA TIPO DE PEZ NADA A SU MANERA (`NADOS` + `_tick_pez`): un tiburon cruza
+# rapido y recto, una rana esta quieta y da saltos, la tortuga rema despacio,
+# la medusa pulsa arriba y abajo, el pulpo va a chorros, el caballito flota de
+# pie y los del fondo (cangrejos, erizos, la basura) se arrastran por la arena.
+#
+# Los peces se DIBUJAN (draw_texture_rect por fotograma), no son cien nodos:
+# asi el volteo al cambiar de rumbo es un rectangulo negativo y el toque se
+# resuelve por distancia en `_input_pecera`.
+
+## Ancho de columna del tanque (tres carriles por columna) y margenes.
+const PECERA_PASO := 150.0
+const PECERA_MARGEN := 130.0
+## Lado del dibujo de un pez corriente (los legendarios van algo mayores).
+const PECERA_PEZ := 84.0
+## Pixeles de dedo que separan un TOQUE de un arrastre (los del juego).
+const PECERA_DEADZONE := 14.0
+
+## COMO NADA CADA TIPO: vel (px/s), amp y frec del vaiven vertical, y rango
+## de paseo alrededor de su sitio. `fondo` va pegado a la arena y `quieto`
+## (la basura) no nada: esta hundido.
+const NADOS := {
+	"normal":    { "vel": 34.0, "amp": 10.0, "frec": 1.6, "rango": 110.0 },
+	"veloz":     { "vel": 86.0, "amp": 6.0, "frec": 2.2, "rango": 150.0 },
+	"tiburon":   { "vel": 64.0, "amp": 4.0, "frec": 0.9, "rango": 170.0 },
+	"serpiente": { "vel": 30.0, "amp": 22.0, "frec": 3.2, "rango": 120.0 },
+	"raya":      { "vel": 22.0, "amp": 26.0, "frec": 0.8, "rango": 130.0 },
+	"globo":     { "vel": 12.0, "amp": 14.0, "frec": 1.1, "rango": 60.0 },
+	"medusa":    { "vel": 5.0, "amp": 30.0, "frec": 1.4, "rango": 30.0 },
+	"caballito": { "vel": 7.0, "amp": 12.0, "frec": 2.4, "rango": 34.0 },
+	"tortuga":   { "vel": 14.0, "amp": 8.0, "frec": 0.7, "rango": 90.0 },
+	"rana":      { "vel": 0.0, "amp": 0.0, "frec": 0.0, "rango": 70.0 },
+	"jet":       { "vel": 10.0, "amp": 6.0, "frec": 1.0, "rango": 120.0 },
+	"fondo":     { "vel": 9.0, "amp": 0.0, "frec": 0.0, "rango": 55.0 },
+	"quieto":    { "vel": 0.0, "amp": 0.0, "frec": 0.0, "rango": 0.0 },
+}
+
+## Que tipo de nado le toca a cada especie. Lo que no este aqui nada "normal".
+const NADO_POR_PEZ := {
+	"tiburon": "tiburon", "tiburon_martillo": "tiburon",
+	"tiburon_tigre": "tiburon", "tiburon_ballena": "tiburon",
+	"barracuda": "tiburon", "pez_espada": "tiburon", "pez_vela": "tiburon",
+	"pez_lanza": "tiburon",
+	"atun": "veloz", "atun_rojo": "veloz", "atun_amarillo": "veloz",
+	"pez_volador": "veloz", "lampuga": "veloz", "salmon_real": "veloz",
+	"anguila": "serpiente", "morena": "serpiente", "congrio": "serpiente",
+	"pez_remo": "serpiente", "pez_vibora": "serpiente",
+	"raya": "raya", "mantarraya": "raya",
+	"pez_balon": "globo", "pez_erizo": "globo", "fugu": "globo",
+	"pez_luna": "globo",
+	"medusa": "medusa",
+	"caballito_mar": "caballito", "caballito_dorado": "caballito",
+	"tortuga": "tortuga", "celacanto": "tortuga", "nautilus": "tortuga",
+	"froggy": "rana", "bata_bata": "rana",
+	"pulpo": "jet", "calamar": "jet", "sepia": "jet",
+	"calamar_gigante": "jet",
+	"cangrejo": "fondo", "bogavante": "fondo", "langosta": "fondo",
+	"erizo_mar": "fondo", "estrella_mar": "fondo", "caracola": "fondo",
+	"pejesapo": "fondo", "rape": "fondo", "gamba_real": "fondo",
+	"botella_rota": "quieto", "rueda": "quieto", "bota": "quieto",
+	"mata_wakame": "quieto",
+}
+
+## Estado de la pecera abierta (una sola a la vez).
+var pecera_node: Control = null
+var pecera_overlay: Control = null
+var pecera_peces: Array = []
+var pecera_scroll := 0.0
+var pecera_ancho := 0.0
+var _pec_touch := false
+var _pec_drag := false
+var _pec_start := 0.0
+var _pec_vel := 0.0
+
+
 func _open_album() -> void:
 	if state != State.READY:
 		return
@@ -1801,6 +1885,7 @@ func _open_album() -> void:
 	var overlay := Control.new()
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(overlay)
+	pecera_overlay = overlay
 	var veil := ColorRect.new()
 	veil.color = Color(0, 0, 0, 0.5)
 	veil.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1817,10 +1902,10 @@ func _open_album() -> void:
 	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
 		PrepBoard.PANEL_MARGIN))
 
-	# Se cuentan las especies DEL CATÁLOGO, no las claves del guardado: un id
-	# renombrado dejaría una entrada huérfana y el contador se pasaría.
+	# Se cuentan las especies DEL CATALOGO, no las claves del guardado: un id
+	# renombrado dejaria una entrada huerfana y el contador se pasaria.
 	var pescados := FishData.caught_count(GameState.fish_album)
-	var title := PrepBoard.make_title("Álbum: %d/%d" % [pescados,
+	var title := PrepBoard.make_title("Pecera: %d/%d" % [pescados,
 		FishData.total()])
 	title.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	title.offset_left = 90.0
@@ -1828,23 +1913,36 @@ func _open_album() -> void:
 	title.offset_top = -26.0
 	panel.add_child(title)
 
-	var scroll := ScrollContainer.new()
-	TouchScroll.attach(scroll)
-	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
-	scroll.offset_left = 48.0
-	scroll.offset_top = 66.0
-	scroll.offset_right = -48.0
-	scroll.offset_bottom = -108.0
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	panel.add_child(scroll)
-	var grid := GridContainer.new()
-	grid.columns = 4
-	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	grid.add_theme_constant_override("h_separation", 8)
-	grid.add_theme_constant_override("v_separation", 14)
-	scroll.add_child(grid)
-	for f in FishData.FISH:
-		grid.add_child(_album_cell(str(f["id"]), overlay))
+	# EL TANQUE: un Control que dibuja el agua y los peces, recortado a su
+	# marco. El paneo es propio (arrastre + inercia), no un ScrollContainer:
+	# TouchScroll solo sabe de vertical y aqui ademas hay que distinguir el
+	# toque sobre un pez del tiron que recorre la pecera.
+	var tanque := Control.new()
+	tanque.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tanque.offset_left = 44.0
+	tanque.offset_top = 62.0
+	tanque.offset_right = -44.0
+	tanque.offset_bottom = -108.0
+	tanque.clip_contents = true
+	tanque.mouse_filter = Control.MOUSE_FILTER_STOP
+	panel.add_child(tanque)
+	tanque.draw.connect(_dibujar_pecera)
+	tanque.gui_input.connect(_input_pecera)
+	pecera_node = tanque
+	pecera_scroll = 0.0
+	_pec_vel = 0.0
+	_montar_peces.call_deferred()
+
+	var pista := Label.new()
+	pista.text = "Desliza para recorrer la pecera  ·  toca un pez para su ficha"
+	pista.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pista.add_theme_font_size_override("font_size", 16)
+	pista.add_theme_color_override("font_color", FADED)
+	pista.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	pista.offset_top = -104.0
+	pista.offset_bottom = -84.0
+	pista.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(pista)
 
 	var cerrar := Button.new()
 	cerrar.text = "Cerrar"
@@ -1853,49 +1951,230 @@ func _open_album() -> void:
 	cerrar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	cerrar.offset_left = 160.0
 	cerrar.offset_right = -160.0
-	cerrar.offset_top = -96.0
-	cerrar.offset_bottom = -34.0
+	cerrar.offset_top = -84.0
+	cerrar.offset_bottom = -30.0
 	panel.add_child(cerrar)
 	cerrar.pressed.connect(func() -> void:
 		album_abierto.emit(false)
+		pecera_node = null
+		pecera_overlay = null
+		pecera_peces.clear()
 		overlay.queue_free())
 
 
-func _album_cell(fish_id: String, overlay: Control) -> Control:
-	var caught := GameState.fish_album.has(fish_id)
-	var cell := Button.new()
-	cell.custom_minimum_size = Vector2(136, 150)
-	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
-		cell.add_theme_stylebox_override(st, StyleBoxEmpty.new())
-	var col := VBoxContainer.new()
-	col.set_anchors_preset(Control.PRESET_FULL_RECT)
-	col.alignment = BoxContainer.ALIGNMENT_CENTER
-	col.add_theme_constant_override("separation", 4)
-	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cell.add_child(col)
-	var ic := TextureRect.new()
-	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	ic.texture = FishData.get_icon(fish_id)
-	ic.custom_minimum_size = Vector2(104, 104)
-	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if not caught:
-		# Silueta oscura y sin nombre: como la vitrina de coleccionables, el
-		# álbum no desvela lo que queda por pescar.
-		ic.modulate = Color(0.12, 0.10, 0.09, 0.85)
-	col.add_child(ic)
-	var l := Label.new()
-	l.text = str(FishData.get_fish(fish_id).get("name", fish_id)) \
-		if caught else "???"
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", 16)
-	l.add_theme_color_override("font_color", DARK if caught else FADED)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	col.add_child(l)
-	if caught:
-		cell.pressed.connect(func() -> void: _open_ficha(fish_id, overlay))
-	return cell
+## Reparte las cien especies por el tanque, en el ORDEN del catalogo (que ya
+## va de lo comun a lo legendario: nadar hacia la derecha es adentrarse). Se
+## llama en diferido porque necesita el alto REAL del tanque.
+func _montar_peces() -> void:
+	if pecera_node == null or not is_instance_valid(pecera_node):
+		return
+	pecera_peces.clear()
+	var alto := pecera_node.size.y
+	var suelo := alto - 58.0
+	var i := 0
+	for f in FishData.FISH:
+		var id := str(f["id"])
+		var tipo: String = NADO_POR_PEZ.get(id, "normal")
+		var nado: Dictionary = NADOS[tipo]
+		# Tres carriles por columna; el azar es DETERMINISTA (del hash del
+		# id), asi que cada pez tiene su sitio y no se rebaraja al reabrir.
+		var azar := float(hash(id) % 1000) / 1000.0
+		var home := Vector2(
+			PECERA_MARGEN + floorf(i / 3.0) * PECERA_PASO \
+				+ (azar - 0.5) * 46.0,
+			alto * (0.16 + 0.26 * float(i % 3)) + (azar - 0.5) * 40.0)
+		if tipo == "fondo" or tipo == "quieto":
+			home.y = suelo
+		home.y = clampf(home.y, 54.0, suelo)
+		pecera_peces.append({
+			"id": id, "tipo": tipo, "home": home, "pos": home,
+			"dir": -1.0 if azar < 0.5 else 1.0, "fase": azar * TAU,
+			"vel": float(nado["vel"]) * (0.85 + 0.3 * azar),
+			"salto": 0.0, "espera": 1.0 + azar * 3.0,
+			"lado": PECERA_PEZ * (1.2 if FishData.tier_of(id) >= 3 else 1.0),
+			"caught": GameState.fish_album.has(id),
+			# El icono se PRECARGA aqui: un load() dentro de _draw deja la
+			# textura rota (se dibuja como un cuadrado plano) y ademas se
+			# queda asi en cache. Medido con sonda: cargada fuera del draw se
+			# pinta perfecta, cargada dentro sale un rectangulo blanco.
+			"tex": FishData.get_icon(id),
+		})
+		i += 1
+	pecera_ancho = PECERA_MARGEN * 2.0 + ceilf(pecera_peces.size() / 3.0) \
+		* PECERA_PASO
+	pecera_node.queue_redraw()
+
+
+## El nado, tipo a tipo. La rana SALTA (parabola en `salto`), el jet va a
+## RAFAGAS (la espera dispara un empujon de velocidad), el resto pasea entre
+## los bordes de su rango con su vaiven vertical.
+func _tick_pecera(delta: float) -> void:
+	if pecera_node == null or not is_instance_valid(pecera_node):
+		return
+	for p in pecera_peces:
+		_tick_pez(p, delta)
+	# La inercia del paneo.
+	if not _pec_touch and absf(_pec_vel) > 12.0:
+		pecera_scroll = clampf(pecera_scroll - _pec_vel * delta, 0.0,
+			maxf(pecera_ancho - pecera_node.size.x, 0.0))
+		_pec_vel *= pow(0.04, delta)
+	pecera_node.queue_redraw()
+
+
+func _tick_pez(p: Dictionary, delta: float) -> void:
+	var tipo: String = p["tipo"]
+	if tipo == "quieto":
+		return
+	var nado: Dictionary = NADOS[tipo]
+	var pos: Vector2 = p["pos"]
+	var home: Vector2 = p["home"]
+	p["fase"] = float(p["fase"]) + delta * float(nado["frec"])
+	match tipo:
+		"rana":
+			# Quieta en el suelo; cada pocos segundos, un salto en parabola.
+			p["espera"] = float(p["espera"]) - delta
+			if float(p["espera"]) <= 0.0 and float(p["salto"]) <= 0.0:
+				p["salto"] = 1.0
+				p["espera"] = 2.2 + fmod(float(p["fase"]), 2.5)
+				if absf(pos.x - home.x) > float(nado["rango"]):
+					p["dir"] = signf(home.x - pos.x)
+			if float(p["salto"]) > 0.0:
+				p["salto"] = float(p["salto"]) - delta * 1.6
+				pos.x += float(p["dir"]) * 90.0 * delta
+				pos.y = home.y - sin(clampf(1.0 - float(p["salto"]), 0.0, 1.0)
+					* PI) * 56.0
+			else:
+				pos.y = home.y
+		"jet":
+			# Rafagas de propulsion: casi parado, y de pronto un chorro.
+			p["espera"] = float(p["espera"]) - delta
+			var empuje := 1.0
+			if float(p["espera"]) <= 0.0:
+				p["espera"] = 1.6 + fmod(float(p["fase"]), 2.0)
+				if absf(pos.x - home.x) > float(nado["rango"]):
+					p["dir"] = signf(home.x - pos.x)
+			empuje = 7.0 if float(p["espera"]) > 1.2 else 1.0
+			pos.x += float(p["dir"]) * float(p["vel"]) * empuje * delta
+			pos.y = home.y + sin(float(p["fase"])) * float(nado["amp"])
+		"medusa", "caballito":
+			# Casi clavados en su x; lo suyo es el vaiven vertical.
+			pos.x += float(p["dir"]) * float(p["vel"]) * delta
+			if absf(pos.x - home.x) > float(nado["rango"]):
+				p["dir"] = -float(p["dir"])
+			pos.y = home.y + sin(float(p["fase"])) * float(nado["amp"])
+		_:
+			pos.x += float(p["dir"]) * float(p["vel"]) * delta
+			if absf(pos.x - home.x) > float(nado["rango"]):
+				p["dir"] = signf(home.x - pos.x)
+			pos.y = home.y + sin(float(p["fase"])) * float(nado["amp"])
+	p["pos"] = pos
+
+
+func _dibujar_pecera() -> void:
+	var c := pecera_node
+	# Antes de `_montar_peces` (que va en diferido) el ancho es 0, y un
+	# fmod(x, 0) es NaN: las algas y las burbujas escupian avisos de
+	# normalize en los dos primeros fotogramas.
+	if c == null or not is_instance_valid(c) or pecera_ancho <= 0.0:
+		return
+	var w := c.size.x
+	var h := c.size.y
+	# EL AGUA: bandas que oscurecen con la profundidad (un gradiente barato).
+	var arriba := Color(0.29, 0.55, 0.72)
+	var abajo := Color(0.10, 0.24, 0.42)
+	for i in 6:
+		var t0 := i / 6.0
+		c.draw_rect(Rect2(0, h * t0, w, h / 6.0 + 1.0),
+			arriba.lerp(abajo, t0))
+	# LA ARENA del fondo, con unas piedras.
+	c.draw_rect(Rect2(0, h - 44.0, w, 44.0), Color(0.76, 0.66, 0.46))
+	c.draw_rect(Rect2(0, h - 44.0, w, 4.0), Color(0.62, 0.53, 0.36))
+	for i in 9:
+		var rx := fmod(float(i) * 397.0 - pecera_scroll * 0.9, w + 80.0) - 40.0
+		c.draw_circle(Vector2(rx, h - 40.0 + float(i % 3) * 8.0),
+			7.0 + float(i % 4) * 3.0, Color(0.55, 0.47, 0.34))
+	# ALGAS al fondo del tanque, meciendose.
+	for i in 14:
+		var ax := fmod(float(i) * 431.0 - pecera_scroll, pecera_ancho)
+		if ax < -30.0 or ax > w + 30.0:
+			continue
+		var alto_alga := 46.0 + float(i % 4) * 22.0
+		var vaiven := sin(_t * 1.1 + float(i)) * 9.0
+		var base := Vector2(ax, h - 40.0)
+		c.draw_line(base, base + Vector2(vaiven, -alto_alga),
+			Color(0.16, 0.44, 0.26, 0.9), 5.0, true)
+		c.draw_line(base + Vector2(8, 0),
+			base + Vector2(vaiven * 0.6 + 8.0, -alto_alga * 0.7),
+			Color(0.20, 0.52, 0.30, 0.8), 4.0, true)
+	# BURBUJAS subiendo.
+	for i in 10:
+		var bx := fmod(float(i) * 613.0 - pecera_scroll, pecera_ancho)
+		if bx < 0.0 or bx > w:
+			continue
+		var by := h - fmod(_t * (26.0 + float(i % 3) * 12.0) \
+			+ float(i) * 97.0, h)
+		# Rellenas y tenues, no un aro: draw_arc antialiased escupe avisos de
+		# normalize con arcos pequenos, y a este tamano no se distingue.
+		c.draw_circle(Vector2(bx, by), 4.0 + float(i % 3) * 2.0,
+			Color(1, 1, 1, 0.22))
+	# LOS PECES. El volteo es un rectangulo de ancho negativo: los iconos
+	# miran a la IZQUIERDA, asi que nadando a la derecha se voltean.
+	for p in pecera_peces:
+		var pos: Vector2 = p["pos"]
+		var x := pos.x - pecera_scroll
+		var lado: float = p["lado"]
+		if x < -lado or x > w + lado:
+			continue
+		var tex: Texture2D = p["tex"]
+		if tex == null:
+			continue
+		var tinte := Color.WHITE if bool(p["caught"]) \
+			else Color(0.06, 0.10, 0.14, 0.82)
+		var r := Rect2(Vector2(x - lado * 0.5, pos.y - lado * 0.5),
+			Vector2(lado, lado))
+		if float(p["dir"]) > 0.0 and p["tipo"] != "quieto":
+			r = Rect2(Vector2(x + lado * 0.5, pos.y - lado * 0.5),
+				Vector2(-lado, lado))
+		c.draw_texture_rect(tex, r, false, tinte)
+
+
+## Paneo con inercia y toque sobre pez, en el mismo gesto: hasta
+## `PECERA_DEADZONE` px es un toque (abre la ficha del pez mas cercano), y a
+## partir de ahi es un arrastre que recorre el tanque.
+func _input_pecera(ev: InputEvent) -> void:
+	if pecera_node == null:
+		return
+	if ev is InputEventScreenTouch:
+		if ev.pressed:
+			_pec_touch = true
+			_pec_drag = false
+			_pec_start = ev.position.x
+			_pec_vel = 0.0
+		else:
+			_pec_touch = false
+			if not _pec_drag:
+				_tocar_pez(ev.position)
+	elif ev is InputEventScreenDrag and _pec_touch:
+		if absf(ev.position.x - _pec_start) > PECERA_DEADZONE:
+			_pec_drag = true
+		if _pec_drag:
+			pecera_scroll = clampf(pecera_scroll - ev.relative.x, 0.0,
+				maxf(pecera_ancho - pecera_node.size.x, 0.0))
+			_pec_vel = lerpf(_pec_vel, ev.relative.x * 60.0, 0.7)
+
+
+func _tocar_pez(punto: Vector2) -> void:
+	var mundo := Vector2(punto.x + pecera_scroll, punto.y)
+	var mejor: Dictionary = {}
+	var mejor_d := 62.0
+	for p in pecera_peces:
+		var d: float = (p["pos"] as Vector2).distance_to(mundo)
+		if d < mejor_d:
+			mejor_d = d
+			mejor = p
+	# Los que faltan no abren nada: la silueta es toda la pista que hay.
+	if not mejor.is_empty() and bool(mejor["caught"]):
+		_open_ficha(str(mejor["id"]), pecera_overlay)
 
 
 func _open_ficha(fish_id: String, album_overlay: Control) -> void:
