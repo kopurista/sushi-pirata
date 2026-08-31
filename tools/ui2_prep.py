@@ -1093,6 +1093,18 @@ def build_vitrina() -> None:
     fondo = Image.open(RAW / "vitrina" / "fondo_v3a.webp").convert("RGB")
     fondo = tile_horizontal(fondo, 90)
     fondo.thumbnail((10000, 820), Image.LANCZOS)
+    # RELLENO POR ABAJO (+60 filas del propio canto): el frente de la balda
+    # tercera acababa a un 5% del borde, y ahi el MARCO del mueble (dibujado
+    # encima) pisaba las etiquetas de esa fila por mucho que se agrandara la
+    # vitrina. Con el faldon, la superficie baja del 0.95 al 0.88 del alto y
+    # a las etiquetas les queda balda de sobra por debajo.
+    from PIL import ImageOps as _ops
+    faldon = fondo.crop((0, fondo.height - 2, fondo.width, fondo.height))
+    faldon = faldon.resize((fondo.width, 60))
+    con_faldon = Image.new("RGB", (fondo.width, fondo.height + 60))
+    con_faldon.paste(fondo, (0, 0))
+    con_faldon.paste(faldon, (0, fondo.height))
+    fondo = con_faldon
     fondo.save(OUT / "vitrina_fondo.png")
     print("vitrina_fondo  ", fondo.size)
     etiqueta = drop_white(Image.open(RAW / "vitrina" / "etiqueta1.webp").convert("RGBA"))

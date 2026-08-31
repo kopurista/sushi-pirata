@@ -797,11 +797,24 @@ func _ready() -> void:
 			if not ya_narrado:
 				exclusive_dishes = port.get("exclusive_dishes", {})
 				exclusive_types = port.get("exclusive_types", {})
-		# Jugar un nivel consume 1 uso de cada ingrediente de las recetas
-		# elegidas; si no alcanzan, vuelta a la seleccion.
-		if not GameState.consume_ingredients_for_level(GameState.selected_recipes):
+		# JUGAR IGUALMENTE CON GÉNERO FALTANDO (pedido por el usuario): la
+		# receta impagable SE CAE DE LA CARTA en vez de rebotar la jornada
+		# entera a la selección — el "Jugar" del aviso de Gigi mandaba aquí y
+		# el rebote lo devolvía en el acto, así que parecía que el botón no
+		# hacía nada. Solo se rebota si NO queda ni una receta pagable (o sin
+		# arroz). Las gratis del puerto-escuela y las recetas aún no
+		# desbloqueadas (que no piden despensa) no se filtran.
+		var gratis_port := bool(port.get("free_ingredients", false))
+		var jugables: Array[String] = []
+		for r in GameState.selected_recipes:
+			if gratis_port or not GameState.is_recipe_unlocked(r) \
+					or GameState.has_ingredients_for(r):
+				jugables.append(r)
+		if jugables.is_empty() \
+				or not GameState.consume_ingredients_for_level(jugables):
 			get_tree().change_scene_to_file.call_deferred("res://scenes/prep_screen.tscn")
 			return
+		GameState.selected_recipes = jugables
 		# Los potenciadores permanentes elegidos gastan 1 uso por partida.
 		GameState.consume_perks_for_level()
 	elif GameState.is_arcade():

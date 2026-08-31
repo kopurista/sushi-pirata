@@ -549,9 +549,14 @@ func gift_ingredients_for(recipe_ids: Array, uses: int) -> void:
 				uses if get_ingredient_uses(ing) <= 0 else GIFT_KNOWN)
 
 
-## ¿Hay al menos 1 uso de cada ingrediente de la receta?
+## ¿Hay al menos 1 uso de cada ingrediente de la receta? Los GRATUITOS
+## (coste 0: el sésamo, el arroz) no cuentan — ni se compran ni se gastan,
+## la misma regla que `ingredients_for_selection`. Sin ese salto, esta
+## función vetaba recetas por un ingrediente que la tienda ni vende.
 func has_ingredients_for(recipe_id: String) -> bool:
 	for ing in RecipeData.get_ingredients(recipe_id):
+		if int(RecipeData.get_ingredient(ing).get("cost", 0)) <= 0:
+			continue
 		if get_ingredient_uses(ing) <= 0:
 			return false
 	return true

@@ -521,12 +521,24 @@ func _plate_width() -> float:
 
 
 ## Sufijo de arte que le toca a este hablante por sus coleccionables.
-## Gigi comparte dibujo con David, asi que el tricornio les cambia a los dos.
+## Gigi comparte dibujo con David, así que el tricornio y el pañuelo cambian
+## el MISMO retrato: cuatro estados en total (nada / pañuelo de David /
+## tricornio de Gigi / los dos). OJO AL SENTIDO: el arte ORIGINAL del juego
+## traía a Gigi CON tricornio, así que ese pasó a ser la variante
+## `_tricornio` (copiado tal cual) y el arte BASE nuevo es la serie con el
+## loro a pelo, regenerada por editImage.
 static func _variante_de(who: String) -> String:
 	if who == "cai" and GameState.has_collectible("sombrero_paja"):
 		return "sombrero"
-	if (who == "david" or who == "gigi") 			and GameState.has_collectible("tricornio"):
-		return "tricornio"
+	if who == "david" or who == "gigi":
+		var panuelo := GameState.has_collectible("panuelo")
+		var tricornio := GameState.has_collectible("tricornio")
+		if panuelo and tricornio:
+			return "panuelo_tricornio"
+		if tricornio:
+			return "tricornio"
+		if panuelo:
+			return "panuelo"
 	return ""
 
 

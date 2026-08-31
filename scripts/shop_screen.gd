@@ -465,6 +465,37 @@ func _stall_props() -> void:
 		n.rotation_degrees.y = float(d["r"])
 		if d["m"] == "caja":
 			_tint(n, CRATE_TINT)
+	_trofeos_tienda(suelo)
+
+
+## LOS TRES AMULETOS DE LA TIENDA (coleccionables): el maneki-neko sobre la
+## caja de arriba, el daruma sobre el barril y el omamori en el tablero del
+## mostrador, junto al género. Son Sprite3D con el dibujo del propio
+## coleccionable — a esta escala un modelo 3D no aportaría nada — y solo salen
+## los que están en la vitrina. Se colocan APOYADOS: el sprite se ancla por su
+## centro, así que se sube media altura (pixel_size × mitad del alto típico).
+func _trofeos_tienda(suelo: float) -> void:
+	for d in [
+			{ "id": "maneki_neko", "png": "col_maneki_neko",
+				"p": Vector3(4.20, suelo + 1.30, 2.52), "px": 0.0026 },
+			{ "id": "daruma", "png": "col_daruma",
+				"p": Vector3(4.70, suelo + 0.98, 1.55), "px": 0.0024 },
+			{ "id": "omamori", "png": "col_omamori",
+				"p": Vector3(-1.05, 1.10, COUNTER_Z - 0.35), "px": 0.0020 }]:
+		if not GameState.has_collectible(str(d["id"])):
+			continue
+		var ruta := "res://assets/ui/%s.png" % str(d["png"])
+		if not ResourceLoader.exists(ruta):
+			continue
+		var spr := Sprite3D.new()
+		spr.texture = load(ruta)
+		spr.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		spr.pixel_size = float(d["px"])
+		var alto_px := float((spr.texture as Texture2D).get_height())
+		spr.position = Vector3(d["p"]) \
+			+ Vector3(0.0, alto_px * 0.5 * float(d["px"]), 0.0)
+		spr.add_to_group("no_batch")
+		add_child(spr)
 
 
 ## El género EN EL PUESTO: los ocho artículos del día sobre el tablero y, en

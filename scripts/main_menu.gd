@@ -819,9 +819,13 @@ func _disparar_canon(canon: Node3D) -> void:
 	mh.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	humo.material_override = mh
 	add_child(humo)
+	# La boca del tubo: su direccion LOCAL viene apuntada en el propio nodo
+	# (col_visibles la deja en el meta "dir_boca"), asi que recolocar o girar
+	# el cañon no descoloca el disparo.
+	var dir_local: Vector3 = canon.get_meta("dir_boca", Vector3(0, 0.2, 1))
+	var dir: Vector3 = (canon.global_transform.basis * dir_local).normalized()
 	humo.global_position = canon.global_position \
-		+ canon.global_transform.basis.z * 0.14 * s \
-		+ Vector3(0.0, 0.06 * s, 0.0)
+		+ dir * 0.16 * s + Vector3(0.0, 0.05 * s, 0.0)
 	var th := create_tween().set_parallel()
 	th.tween_property(humo, "scale", Vector3.ONE * 3.2, 0.55) \
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
@@ -838,7 +842,6 @@ func _disparar_canon(canon: Node3D) -> void:
 	add_child(bala)
 	var origen: Vector3 = humo.global_position
 	bala.global_position = origen
-	var dir: Vector3 = canon.global_transform.basis.z.normalized()
 	var destino: Vector3 = origen + dir * 5.0 * s
 	destino.y = -0.3
 	var tb := create_tween()

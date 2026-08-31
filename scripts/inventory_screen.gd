@@ -680,10 +680,11 @@ const VIT_MARGEN := 56.0
 ## baldas, MEDIDA sobre `vitrina_fondo.png` v3 (sus frentes de balda caen en
 ## y 248-316, 514-583 y 788-819 de 820). Con dos baldas la mitad de arriba
 ## del mueble era puro aire (dicho por el usuario).
-# La tercera va un pelo por ENCIMA de su ledge (0.925, no 0.945): con la
-# fracción exacta sus etiquetas quedaban mordidas por el marco de abajo, y
-# la sombra de apoyo ya vende el contacto.
-const VIT_BALDAS := [0.288, 0.618, 0.925]
+# Fracciones MEDIDAS sobre el png (superficies de balda en y 227, 480 y 745
+# de 880). El fondo lleva un FALDÓN de 60 filas añadido por abajo
+# (`build_vitrina`): sin él, la balda tercera acababa a un 5% del borde y el
+# MARCO del mueble pisaba sus etiquetas por mucho que creciera la vitrina.
+const VIT_BALDAS := [0.262, 0.550, 0.852]
 ## La zona de la ficha bajo el mueble (ver `_ficha_abajo`).
 var vitrina_ficha: Control = null
 

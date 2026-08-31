@@ -128,65 +128,105 @@ static func _bandera_pirata(pivot: Node3D, s: float, alto: float) -> void:
 ## EL KOINOBORI: la carpa de tela en un asta de popa, hinchada por el viento
 ## hacia atrás. La carpa es un cilindro cónico naranja con el ojo pintado.
 static func _koinobori(pivot: Node3D, s: float, alto: float) -> void:
-	# CUELGA DEL MASTIL, bajo la bandera: es el unico punto del barco medido
-	# de verdad. En popa no hay cubierta que medir y el primer intento salio
-	# flotando fuera del casco (visto en captura), ademas de enorme — una
-	# carpa de tela no puede medir un cuarto del barco.
+	# EL DIBUJO DEL PROPIO COLECCIONABLE en un quad a dos caras, meciendose
+	# bajo la bandera. El cono naranja del primer intento no tenia textura y
+	# no se distinguia que fuera un koinobori (dicho por el usuario): el
+	# dibujo trae las escamas, el ojo y hasta su asta.
+	if not ResourceLoader.exists("res://assets/ui/col_koinobori.png"):
+		return
+	# A alto*0.83: a 0.90 quedaba justo detras del paño de la bandera (que
+	# vuela a +x) y en captura solo asomaba una esquina.
 	var p := _prop(pivot,
-		Vector3(MASTIL_X * s, alto * 0.91, 0.0), 13.0, 2.4)
-	var carpa := MeshInstance3D.new()
-	var cono := CylinderMesh.new()
-	cono.top_radius = 0.012 * s
-	cono.bottom_radius = 0.030 * s
-	cono.height = 0.15 * s
-	carpa.mesh = cono
-	# Tumbada con la boca pegada al palo y la cola volando a -x (la bandera
-	# vuela a +x: cada tela a un lado del palo, que ademas se lee mejor).
-	carpa.rotation_degrees.z = 90.0
-	carpa.position = Vector3(-0.09 * s, 0.0, 0.0)
-	carpa.material_override = _mat(Color(0.86, 0.42, 0.16))
-	p.add_child(carpa)
-	var ojo := MeshInstance3D.new()
-	var esfera := SphereMesh.new()
-	esfera.radius = 0.012 * s
-	esfera.height = 0.024 * s
-	ojo.mesh = esfera
-	ojo.position = Vector3(-0.035 * s, 0.0, 0.026 * s)
-	ojo.material_override = _mat(Color(0.96, 0.94, 0.88))
-	p.add_child(ojo)
+		Vector3(MASTIL_X * s, alto * 0.83, 0.0), 12.0, 2.4)
+	for lado in [1.0, -1.0]:
+		var cara := MeshInstance3D.new()
+		var quad := QuadMesh.new()
+		quad.size = Vector2(0.19 * s, 0.19 * s)
+		cara.mesh = quad
+		cara.position = Vector3(-0.115 * s, 0.0, 0.001 * s * lado)
+		if lado < 0.0:
+			cara.rotation_degrees.y = 180.0
+		var m := StandardMaterial3D.new()
+		m.albedo_texture = load("res://assets/ui/col_koinobori.png")
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		cara.material_override = m
+		p.add_child(cara)
 
 
 ## EL FAROL FANTASMA, encendido en proa con su luz ESPECTRAL verde — la del
 ## Holandés Errante. Emisivo y sin luz de verdad: el mapa no gasta focos.
 static func _farol_fantasma(pivot: Node3D, s: float, alto: float) -> void:
-	# FAROL DE POPA, como los de verdad: cuelga de un brazo que SOBRESALE del
-	# castillo por +x, fuera del casco — dentro del castillo (el primer
-	# intento) solo se le veia el resplandor por una ventana. La popa sube
-	# hasta ~0.8 del alto (perfil medido por bandas de x).
-	var pos := Vector3(0.50 * s, alto * 0.58, 0.0)
-	var brazo := MeshInstance3D.new()
-	var cil := CylinderMesh.new()
-	cil.top_radius = 0.008 * s
-	cil.bottom_radius = 0.008 * s
-	cil.height = 0.10 * s
-	brazo.mesh = cil
-	brazo.rotation_degrees.z = 90.0
-	brazo.position = pos + Vector3(-0.04 * s, 0.055 * s, 0.0)
-	brazo.material_override = _mat(Color(0.22, 0.15, 0.09))
-	brazo.add_to_group("no_batch")
-	pivot.add_child(brazo)
-	var farol := MeshInstance3D.new()
-	var caja := BoxMesh.new()
-	caja.size = Vector3(0.055, 0.07, 0.055) * s
-	farol.mesh = caja
-	farol.position = pos
-	var m := _mat(Color(0.55, 0.95, 0.72))
-	m.emission_enabled = true
-	m.emission = Color(0.30, 0.95, 0.55)
-	m.emission_energy_multiplier = 0.9
-	farol.material_override = m
-	farol.add_to_group("no_batch")
-	pivot.add_child(farol)
+	# COLGADO DEL CANTO DE POPA, bajo la borda (donde señaló el usuario), y
+	# MAS PEQUEÑO: el cubo verde del primer intento era enorme y flotaba a
+	# media altura. Ahora es un farol de verdad — tapa y base de hierro,
+	# cristal emisivo en medio — con su DESTELLO (un quad aditivo con el
+	# gradiente radial `destello_farol.png`) y una luz corta de verdad.
+	var p := Node3D.new()
+	p.position = Vector3(0.475 * s, alto * 0.47, 0.0)
+	p.add_to_group("no_batch")
+	pivot.add_child(p)
+	var hierro := _mat(Color(0.15, 0.14, 0.13))
+	var gancho := MeshInstance3D.new()
+	var gc := CylinderMesh.new()
+	gc.top_radius = 0.005 * s
+	gc.bottom_radius = 0.005 * s
+	gc.height = 0.045 * s
+	gancho.mesh = gc
+	gancho.position = Vector3(0.0, 0.052 * s, 0.0)
+	gancho.material_override = hierro
+	p.add_child(gancho)
+	var tapa := MeshInstance3D.new()
+	var tc := CylinderMesh.new()
+	tc.top_radius = 0.010 * s
+	tc.bottom_radius = 0.022 * s
+	tc.height = 0.014 * s
+	tapa.mesh = tc
+	tapa.position = Vector3(0.0, 0.028 * s, 0.0)
+	tapa.material_override = hierro
+	p.add_child(tapa)
+	var cristal := MeshInstance3D.new()
+	var cc := CylinderMesh.new()
+	cc.top_radius = 0.016 * s
+	cc.bottom_radius = 0.018 * s
+	cc.height = 0.036 * s
+	cristal.mesh = cc
+	var mv := _mat(Color(0.62, 0.98, 0.76))
+	mv.emission_enabled = true
+	mv.emission = Color(0.30, 0.95, 0.55)
+	mv.emission_energy_multiplier = 1.0
+	cristal.material_override = mv
+	p.add_child(cristal)
+	var base := MeshInstance3D.new()
+	var bc := CylinderMesh.new()
+	bc.top_radius = 0.020 * s
+	bc.bottom_radius = 0.014 * s
+	bc.height = 0.010 * s
+	base.mesh = bc
+	base.position = Vector3(0.0, -0.023 * s, 0.0)
+	base.material_override = hierro
+	p.add_child(base)
+	# EL DESTELLO: cartel aditivo que siempre mira a camara.
+	if ResourceLoader.exists("res://assets/ui/destello_farol.png"):
+		var glow := MeshInstance3D.new()
+		var gq := QuadMesh.new()
+		gq.size = Vector2(0.16 * s, 0.16 * s)
+		glow.mesh = gq
+		var mg := StandardMaterial3D.new()
+		mg.albedo_texture = load("res://assets/ui/destello_farol.png")
+		mg.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mg.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		mg.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mg.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		glow.material_override = mg
+		p.add_child(glow)
+	# Y LUZ de verdad, corta y sin sombras: enciende la madera de popa.
+	var luz := OmniLight3D.new()
+	luz.light_color = Color(0.45, 1.0, 0.65)
+	luz.light_energy = 1.4
+	luz.omni_range = 0.55 * s
+	luz.shadow_enabled = false
+	p.add_child(luz)
 
 
 ## EL ARPÓN, apoyado contra la borda con la punta al cielo: asta larga y
@@ -277,16 +317,19 @@ static func sombrero_de_paja(skel: Skeleton3D, model_scale: float) -> void:
 ## cámara: caña vertical con su argolla, cepo cruzado y los dos brazos con
 ## sus uñas. Hierro oscuro.
 static func _ancla(pivot: Node3D, s: float, alto: float) -> void:
+	# A z=0.20*s: a 0.185 quedaba EMBEBIDA en la tabla del casco y en captura
+	# asomaba un pixel. Y un punto mas alta y gorda, que un ancla de respeto
+	# se tiene que ver desde el mapa.
 	var p := Node3D.new()
-	p.position = Vector3(-0.10 * s, alto * 0.17, 0.185 * s)
+	p.position = Vector3(-0.18 * s, alto * 0.33, 0.19 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var hierro := _mat(Color(0.16, 0.17, 0.20))
 	var cana := MeshInstance3D.new()
 	var cil := CylinderMesh.new()
-	cil.top_radius = 0.008 * s
-	cil.bottom_radius = 0.008 * s
-	cil.height = 0.14 * s
+	cil.top_radius = 0.011 * s
+	cil.bottom_radius = 0.011 * s
+	cil.height = 0.17 * s
 	cana.mesh = cil
 	cana.material_override = hierro
 	p.add_child(cana)
@@ -296,7 +339,8 @@ static func _ancla(pivot: Node3D, s: float, alto: float) -> void:
 	barra.bottom_radius = 0.007 * s
 	barra.height = 0.075 * s
 	cepo.mesh = barra
-	cepo.rotation_degrees.x = 90.0
+	# El cepo tambien en el plano del casco (tumbado en x, no saliendo en z).
+	cepo.rotation_degrees.z = 90.0
 	cepo.position = Vector3(0.0, 0.05 * s, 0.0)
 	cepo.material_override = hierro
 	p.add_child(cepo)
@@ -308,6 +352,8 @@ static func _ancla(pivot: Node3D, s: float, alto: float) -> void:
 	aro.position = Vector3(0.0, 0.078 * s, 0.0)
 	aro.material_override = hierro
 	p.add_child(aro)
+	# PLANA CONTRA EL CASCO (pedido por el usuario): los brazos se abren en
+	# el plano X-Y, pegados a la tabla, no hacia fuera en z.
 	for lado in [-1.0, 1.0]:
 		var brazo := MeshInstance3D.new()
 		var bc := CylinderMesh.new()
@@ -315,8 +361,8 @@ static func _ancla(pivot: Node3D, s: float, alto: float) -> void:
 		bc.bottom_radius = 0.009 * s
 		bc.height = 0.07 * s
 		brazo.mesh = bc
-		brazo.rotation_degrees.x = 55.0 * lado
-		brazo.position = Vector3(0.0, -0.058 * s, 0.026 * s * lado)
+		brazo.rotation_degrees.z = 55.0 * lado
+		brazo.position = Vector3(0.026 * s * lado, -0.058 * s, 0.0)
 		brazo.material_override = hierro
 		p.add_child(brazo)
 		var una := MeshInstance3D.new()
@@ -325,7 +371,7 @@ static func _ancla(pivot: Node3D, s: float, alto: float) -> void:
 		cono.bottom_radius = 0.013 * s
 		cono.height = 0.030 * s
 		una.mesh = cono
-		una.position = Vector3(0.0, -0.075 * s, 0.052 * s * lado)
+		una.position = Vector3(0.052 * s * lado, -0.075 * s, 0.0)
 		una.material_override = hierro
 		p.add_child(una)
 
@@ -334,40 +380,66 @@ static func _ancla(pivot: Node3D, s: float, alto: float) -> void:
 ## cámara. Se puede TOCAR en el menú: con la bala de cañón en la vitrina
 ## DISPARA (ver `main_menu._disparar_canon`), y sin ella Gigi protesta.
 static func _canon(pivot: Node3D, s: float, alto: float) -> Node3D:
+	# EN MITAD DE LA CUBIERTA, a la vista (donde señaló el usuario: el primer
+	# sitio quedaba tragado por el aparejo) y MÁS GRANDE. Hierro oscuro con
+	# anillos de bronce y boca marcada, sobre su cureña con ruedas.
 	var p := Node3D.new()
 	p.name = "ColCanon"
-	p.position = Vector3(-0.10 * s, alto * 0.30, 0.06 * s)
+	# Sobre la borda del costado de camara, a media cubierta (donde señaló el
+	# usuario) y DE PERFIL: apuntando a la camara el tubo se leia como un
+	# circulo. Medido con tinte de sonda: mas adentro la borda se lo tragaba
+	# y mas a proa se amontonaba con el ancla.
+	p.position = Vector3(-0.02 * s, alto * 0.26, 0.175 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
-	var bronce := _mat(Color(0.23, 0.20, 0.16))
+	var hierro := _mat(Color(0.28, 0.29, 0.34))
+	var bronce := _mat(Color(0.55, 0.42, 0.20))
 	var madera := _mat(Color(0.34, 0.23, 0.12))
 	var tubo := MeshInstance3D.new()
 	var cil := CylinderMesh.new()
-	cil.top_radius = 0.016 * s
-	cil.bottom_radius = 0.022 * s
-	cil.height = 0.11 * s
+	cil.top_radius = 0.030 * s
+	cil.bottom_radius = 0.040 * s
+	cil.height = 0.20 * s
 	tubo.mesh = cil
-	# Tumbado y apuntando a +z (hacia la cámara), con la boca algo alzada.
-	tubo.rotation_degrees.x = 78.0
-	tubo.position = Vector3(0.0, 0.035 * s, 0.02 * s)
-	tubo.material_override = bronce
+	# DE PERFIL: el tubo a lo largo del eje del barco con la boca hacia PROA
+	# (-x) y algo alzada — apuntando a la camara se veia un circulo.
+	tubo.rotation_degrees.z = 78.0
+	tubo.position = Vector3(-0.01 * s, 0.062 * s, 0.0)
+	tubo.material_override = hierro
 	p.add_child(tubo)
+	# Los anillos de refuerzo y el labio de la boca, en bronce.
+	for datos in [[0.085, 0.039], [-0.012, 0.042], [-0.085, 0.045]]:
+		var anillo := MeshInstance3D.new()
+		var ac := CylinderMesh.new()
+		ac.top_radius = float(datos[1]) * s
+		ac.bottom_radius = float(datos[1]) * s
+		ac.height = 0.013 * s
+		anillo.mesh = ac
+		anillo.rotation_degrees.z = 78.0
+		var d: float = datos[0]
+		anillo.position = Vector3((-0.01 - d * 0.978) * s,
+			(0.062 + d * 0.208) * s, 0.0)
+		anillo.material_override = bronce
+		p.add_child(anillo)
+	# La direccion LOCAL de la boca, para que el disparo del menu salga por
+	# donde apunta el tubo (main_menu._disparar_canon la lee de aqui).
+	p.set_meta("dir_boca", Vector3(-0.978, 0.208, 0.25).normalized())
 	var cureña := MeshInstance3D.new()
 	var caja := BoxMesh.new()
-	caja.size = Vector3(0.055, 0.03, 0.07) * s
+	caja.size = Vector3(0.13, 0.05, 0.095) * s
 	cureña.mesh = caja
-	cureña.position = Vector3(0.0, 0.012 * s, 0.0)
+	cureña.position = Vector3(0.0, 0.020 * s, 0.0)
 	cureña.material_override = madera
 	p.add_child(cureña)
 	for lado in [-1.0, 1.0]:
 		var rueda := MeshInstance3D.new()
 		var rc := CylinderMesh.new()
-		rc.top_radius = 0.016 * s
-		rc.bottom_radius = 0.016 * s
-		rc.height = 0.012 * s
+		rc.top_radius = 0.028 * s
+		rc.bottom_radius = 0.028 * s
+		rc.height = 0.018 * s
 		rueda.mesh = rc
-		rueda.rotation_degrees.z = 90.0
-		rueda.position = Vector3(0.030 * s * lado, 0.008 * s, 0.0)
+		rueda.rotation_degrees.x = 90.0
+		rueda.position = Vector3(0.054 * s * lado, 0.013 * s, 0.030 * s)
 		rueda.material_override = madera
 		p.add_child(rueda)
 	return p
@@ -376,8 +448,12 @@ static func _canon(pivot: Node3D, s: float, alto: float) -> Node3D:
 ## EL HUEVO DEL PEZ DEL VIENTO (Link's Awakening): enorme, crema con motas,
 ## coronando el castillo de popa como corona su montaña.
 static func _huevo(pivot: Node3D, s: float, alto: float) -> void:
+	# ABAJO, EN CUBIERTA junto al pie del mástil (donde señaló el usuario: en
+	# lo alto de popa flotaba), y con las motas moradas EN LA TEXTURA
+	# (`huevo_moteado.png`, pintada por PIL y envuelta por la UV de la
+	# esfera) — las lentejas 3D del primer intento sobresalían de la cáscara.
 	var p := Node3D.new()
-	p.position = Vector3(0.36 * s, alto * 0.80, 0.0)
+	p.position = Vector3(0.005 * s, alto * 0.30, -0.09 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var huevo := MeshInstance3D.new()
@@ -385,42 +461,38 @@ static func _huevo(pivot: Node3D, s: float, alto: float) -> void:
 	esfera.radius = 0.055 * s
 	esfera.height = 0.15 * s
 	huevo.mesh = esfera
-	huevo.position = Vector3(0.0, 0.075 * s, 0.0)
-	huevo.material_override = _mat(Color(0.93, 0.89, 0.78))
+	huevo.position = Vector3(0.0, 0.072 * s, 0.0)
+	var m := _mat(Color(1, 1, 1))
+	if ResourceLoader.exists("res://assets/ui/huevo_moteado.png"):
+		m.albedo_texture = load("res://assets/ui/huevo_moteado.png")
+	else:
+		m.albedo_color = Color(0.93, 0.89, 0.78)
+	huevo.material_override = m
 	p.add_child(huevo)
-	# Las motas moradas del huevo, que son toda la referencia: unas lentejas
-	# hundidas a medias en la cáscara.
-	for datos in [[0.0, 0.10, 1.0], [2.1, 0.06, 0.72], [4.2, 0.085, 0.85],
-			[1.1, 0.045, 0.55], [3.3, 0.075, 0.62], [5.2, 0.055, 0.9]]:
-		var mota := MeshInstance3D.new()
-		var me := SphereMesh.new()
-		me.radius = 0.013 * s
-		me.height = 0.02 * s
-		mota.mesh = me
-		var ang: float = datos[0]
-		var alto_m: float = datos[2]
-		mota.position = Vector3(cos(ang) * 0.049 * s, alto_m * 0.14 * s,
-			sin(ang) * 0.049 * s)
-		mota.material_override = _mat(Color(0.48, 0.32, 0.55))
-		p.add_child(mota)
 
 
 ## LA VELA DE WIND WAKER: su emblema, calcado del propio coleccionable, como
 ## calcomanía sobre la vela del MASTIL (por las dos caras, que el timón ya
 ## deja ver el barco por detrás).
 static func _vela_ww(pivot: Node3D, s: float, alto: float) -> void:
-	if not ResourceLoader.exists("res://assets/ui/col_vela.png"):
+	if not ResourceLoader.exists("res://assets/ui/col_vela_emblema.png"):
 		return
+	# SOLO EL EMBLEMA (`col_vela_emblema.png`, el disco con la medialuna y la
+	# ola recortado del propio coleccionable), como calcomania pequeña sobre
+	# la vela de POPA. El primer intento pegaba el coleccionable ENTERO — una
+	# vela con su marco rojo — y salia una segunda vela gigante tapando media
+	# cubierta (visto en captura del usuario). Va en el plano de la vela
+	# (normal en x, medido por bandas de vertices) y por las dos caras.
 	for lado in [1.0, -1.0]:
 		var cara := MeshInstance3D.new()
 		var quad := QuadMesh.new()
-		quad.size = Vector2(0.16 * s, 0.19 * s)
+		quad.size = Vector2(0.14 * s, 0.14 * s)
 		cara.mesh = quad
-		cara.position = Vector3(MASTIL_X * s, alto * 0.62, 0.052 * s * lado)
-		if lado < 0.0:
-			cara.rotation_degrees.y = 180.0
+		cara.position = Vector3((0.176 if lado > 0.0 else 0.064) * s,
+			alto * 0.66, 0.0)
+		cara.rotation_degrees.y = 90.0 * lado
 		var m := StandardMaterial3D.new()
-		m.albedo_texture = load("res://assets/ui/col_vela.png")
+		m.albedo_texture = load("res://assets/ui/col_vela_emblema.png")
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
 		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		cara.material_override = m
@@ -436,11 +508,13 @@ static func morsa_en_isla(nivel: Node3D, caja_pos: Vector3) -> void:
 		return
 	if not ResourceLoader.exists("res://assets/ui/col_peluche_morsa.png"):
 		return
+	# GRANDE: ocupa la parte de arriba de la caja entera (pedido por el
+	# usuario — a 0.0016 de pixel_size casi no se veia).
 	var spr := Sprite3D.new()
 	spr.texture = load("res://assets/ui/col_peluche_morsa.png")
 	spr.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	spr.pixel_size = 0.0016
-	spr.position = caja_pos + Vector3(0.0, 0.9, 0.0)
+	spr.pixel_size = 0.0028
+	spr.position = caja_pos + Vector3(0.0, 1.05, 0.0)
 	spr.add_to_group("no_batch")
 	nivel.add_child(spr)
 
