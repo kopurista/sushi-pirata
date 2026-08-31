@@ -5166,7 +5166,59 @@ familia. Al añadir sonidos, volver a pasar esa comprobación.
   **Ojo con el moderador**: "convierte a este niño en una niña" salta como
   contenido marcado; hay que pedirlo como asset — "produce the FEMALE VARIANT
   of this character design, as a matching pair for a roster".
-- **Modelos 3D (imagen→3D)**: concepto low poly generado DESDE TEXTO (el
+## EL 3D LO HACE MESHY; LUDO SE QUEDA CON EL 2D (cambio del 31-8-2026)
+
+**Decidido por el usuario, no re-litigar**: los MODELOS los genera **Meshy**
+(meshy.ai) y las IMÁGENES (sprites, iconos, retratos, interfaz) las sigue
+generando **Ludo**. Todo lo que dice este archivo sobre `createImage`,
+`editImage` y `generateWithStyle` sigue vigente; lo que cambia es
+`create3DModel` / `rigModel`, que se sustituyen por Meshy.
+
+- **Acceso doble**: el **MCP oficial** `@meshy-ai/meshy-mcp-server`
+  (repo `meshy-dev/meshy-mcp-server`, MIT) está dado de alta en la
+  configuración **LOCAL** de Claude Code —fuera del repositorio, para que la
+  clave no viaje en git— con `claude mcp add-json meshy '{"command":"npx",
+  "args":["-y","@meshy-ai/meshy-mcp-server"],"env":{"MESHY_API_KEY":"msy_…"}}'`.
+  Expone 24 herramientas (`meshy_text_to_3d`, `meshy_image_to_3d`,
+  `meshy_rig`, `meshy_remesh`, `meshy_retexture`, `meshy_check_balance`…).
+- **Y `tools/meshy.py`**, que es lo que hay que usar para meter un modelo EN
+  EL JUEGO: el MCP devuelve una URL, pero un `.glb` suelto no sirve aquí.
+  La herramienta hace la CADENA COMPLETA de este proyecto de una vez —
+  generar → esperar → descargar → `glb_prepare` → `assets/models/<id>.glb` →
+  línea en `BUDGETS` del hook de decimado → `.import` con el hook, sin LODs y
+  sin malla de sombra → reimportar → `fix_texture_imports` (Basis + tope de
+  tamaño). Saltarse el final es lo que deja un modelo con textura **s3tc, que
+  en el export web móvil NO CARGA**, y a plena densidad de triángulos.
+      python tools/meshy.py saldo
+      python tools/meshy.py imagen <id> concepto.png [--poly 2500] [--rig]
+      python tools/meshy.py texto  <id> "prompt"     [--poly 2500] [--rig]
+      python tools/meshy.py estado <task_id>   ·   bajar <id> <task_id>
+- **LA CLAVE NUNCA VA AL REPOSITORIO**: vive en `.env.local` (en
+  `.gitignore`) y en la configuración local de Claude Code. `tools/meshy.py`
+  la lee de `MESHY_API_KEY` o de ese archivo.
+- **SUS URLs CADUCAN EN 3 DÍAS** (2 meses solo las de rigging), menos aún que
+  los 7 días de Ludo: descargar al momento no es una recomendación, es la
+  única forma de no perder el asset. La respuesta trae `expires_at` en
+  milisegundos.
+- **Diferencias de la API que importan aquí**: Text-to-3D va en `/openapi/v2`
+  y en DOS fases encadenadas (`preview` la geometría, `refine` las texturas,
+  unidas por `preview_task_id`); Image-to-3D va en `/openapi/v1` y **admite
+  data-URI en base64**, así que se acabó lo de subir el concepto a la rama
+  `tmp-rig` para tener una URL pública (ver el bloque de rigModel, que sigue
+  ahí como histórico). `model_type: "smart-topology"` da malla limpia con
+  tope de 15.000 triángulos, que encaja con los presupuestos de este juego
+  (800-9.000). `enable_pbr` va en **false**: este juego es GL Compatibility y
+  sin sonda de reflexión el metallic solo oscurece.
+- **El rigging de Meshy es SOLO humanoide bípedo**, la misma limitación que
+  ya se sufrió con `rigModel`, así que las reglas del concepto siguen
+  valiendo enteras: piernas SEPARADAS con hueco de fondo hasta la cadera y
+  nada largo colgando por delante. La ventaja nueva es `pose_mode`
+  (`a-pose`/`t-pose`) en Text-to-3D: el modelo nace ya en pose riguéable.
+- Límites: 20 peticiones/s y 10-30 tareas en cola según plan; al pasarse,
+  HTTP 429 (`RateLimitExceeded` / `NoMoreConcurrentTasks`).
+
+- **(HISTÓRICO, la vía de Ludo) Modelos 3D (imagen→3D)**: concepto low poly
+  generado DESDE TEXTO (el
   restilizado de un sprite voxel se queda a medias), con el objeto flotando en
   fondo VACÍO sin sombra (una sombra pintada acaba convertida en malla pegada
   al pie, como le pasó al chef); `create3DModel` → `tools/glb_prepare.py`

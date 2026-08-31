@@ -35,3 +35,9 @@ __pycache__/
 # de cada uno viaja solo su .ogg convertido (unos pocos KB). Viven todas en
 # sounds/Sin utilizar/, que es la carcasa que las agrupa.
 /sounds/Sin utilizar/
+
+# CLAVES DE API (NUNCA al repositorio). La de Meshy la lee tools/meshy.py y
+# tambien vive en la configuracion LOCAL de Claude Code (~/.claude.json), que
+# esta fuera del proyecto: aqui no se guarda ninguna clave en claro.
+/.env.local
+/tools/.meshy_key
