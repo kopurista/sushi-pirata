@@ -5216,6 +5216,22 @@ generando **Ludo**. Todo lo que dice este archivo sobre `createImage`,
   (`a-pose`/`t-pose`) en Text-to-3D: el modelo nace ya en pose riguéable.
 - Límites: 20 peticiones/s y 10-30 tareas en cola según plan; al pasarse,
   HTTP 429 (`RateLimitExceeded` / `NoMoreConcurrentTasks`).
+- **MESHY DEJA LA TEXTURA EN UN ARCHIVO APARTE Y EN `.jpg`**, no embebida en
+  el `.glb` como Ludo. Eso destapó un agujero: `fix_texture_imports.py` solo
+  miraba `*.png.import`, así que la textura del primer modelo entró con
+  `compress/mode=2` (s3tc) — **una textura que en el export web móvil NO
+  CARGA**— y su `--check` decía "fuera de norma: 0". Ya mira png, jpg, jpeg y
+  webp. Al meter un formato nuevo por una vía nueva, comprobar que las
+  herramientas de norma lo VEN: una que no mira no es una que aprueba.
+- **Y PESA MENOS que lo de Ludo**: el primer cañón salió en 2,95 MB con su
+  textura de 2k, contra los 6-11 MB de los `.glb` que hay en el proyecto.
+- **El primer modelo de la casa es `canon_pirata.glb`** (Text-to-3D, 6.109
+  triángulos tras decimar): tubo de hierro con aros de latón y cureña con
+  ruedas de radios. Sus medidas, sacadas con sonda de vértices, viven en
+  `ColVisibles._canon`: mide 1.899 por el eje X, la boca cae en
+  (-0.802, 0.659, 0.014) y el eje del tubo es (-0.911, 0.412, 0.017) — o sea
+  que **apunta a -X con 24º de alza**, y se gira 90º en Y para que la boca
+  mire al mar. De ahí salen los metas `boca` y `dir_boca` que usa el disparo.
 
 - **(HISTÓRICO, la vía de Ludo) Modelos 3D (imagen→3D)**: concepto low poly
   generado DESDE TEXTO (el

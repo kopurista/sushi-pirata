@@ -415,73 +415,42 @@ static func _ancla(pivot: Node3D, s: float, alto: float) -> void:
 ## cámara. Se puede TOCAR en el menú: con la bala de cañón en la vitrina
 ## DISPARA (ver `main_menu._disparar_canon`), y sin ella Gigi protesta.
 static func _canon(pivot: Node3D, s: float, alto: float) -> Node3D:
-	# EN CUBIERTA (`CUBIERTA`, medida) Y APUNTANDO AL MAR por el costado que
-	# mira a la camara, que es como se coloca un cañon de andanada. Estuvo
-	# tumbado a lo largo del barco y flotando delante del casco: ni apuntaba
-	# a ninguna parte ni se apoyaba en nada, y el humo del disparo salia por
-	# detras de la madera. Con la boca asomando por encima de la borda, el
-	# fogonazo cae en cielo abierto.
+	# MODELO DE VERDAD (`canon_pirata.glb`, el primero generado con MESHY):
+	# tubo de hierro con sus aros de laton y cureña de madera con ruedas de
+	# radios. Antes se montaba con cilindros y cajas y se veia lo que era, un
+	# monton de primitivas de color plano.
+	#
+	# Va EN LA BORDA y apuntando AL MAR: apoyado en la cubierta se lo tragaba
+	# el propio costado (medido), y tumbado a lo largo del barco no apuntaba a
+	# ninguna parte. Medidas del modelo, sacadas con sonda de vertices: mide
+	# 1.899 de largo por el eje X, la boca cae en (-0.802, 0.659, 0.014) y el
+	# eje del tubo es (-0.911, 0.412, 0.017), o sea 24º de alza.
+	if not ResourceLoader.exists("res://assets/models/canon_pirata.glb"):
+		return null
+	const LARGO := 0.155         ## cuanto mide el cañon en unidades del barco
+	const CAJA_X := 1.899        ## largo del modelo por su eje X
+	const SUELO_Y := -0.657      ## su vertice mas bajo (para que apoye)
+	const BOCA := Vector3(-0.802, 0.659, 0.014)
+	const EJE := Vector3(-0.911, 0.412, 0.017)
+	var k := LARGO * s / CAJA_X
 	var p := Node3D.new()
 	p.name = "ColCanon"
-	p.position = Vector3(-0.20 * s, alto * BORDA, 0.070 * s)
+	p.position = Vector3(-0.20 * s, alto * BORDA - SUELO_Y * k, 0.070 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
-	var hierro := _mat(Color(0.24, 0.25, 0.29))
-	var bronce := _mat(Color(0.55, 0.42, 0.20))
-	var madera := _mat(Color(0.34, 0.23, 0.12))
-	# ELEVACION: el eje del tubo es (0, sin, cos) — 8º de alza sobre el mar.
-	var alza := 8.0
-	var eje := Vector3(0.0, sin(deg_to_rad(alza)), cos(deg_to_rad(alza)))
-	var giro := 90.0 - alza
-	var centro := Vector3(0.0, 0.050 * s, 0.010 * s)
-	var tubo := MeshInstance3D.new()
-	var cil := CylinderMesh.new()
-	cil.top_radius = 0.019 * s
-	cil.bottom_radius = 0.026 * s
-	cil.height = 0.135 * s
-	tubo.mesh = cil
-	tubo.rotation_degrees.x = giro
-	tubo.position = centro
-	tubo.material_override = hierro
-	p.add_child(tubo)
-	# Anillos de refuerzo y labio de la boca, repartidos por el eje del tubo.
-	for datos in [[0.060, 0.024], [-0.008, 0.028], [-0.058, 0.030]]:
-		var anillo := MeshInstance3D.new()
-		var ac := CylinderMesh.new()
-		ac.top_radius = float(datos[1]) * s
-		ac.bottom_radius = float(datos[1]) * s
-		ac.height = 0.010 * s
-		anillo.mesh = ac
-		anillo.rotation_degrees.x = giro
-		anillo.position = centro + eje * (float(datos[0]) * s)
-		anillo.material_override = bronce
-		p.add_child(anillo)
-	# La cureña, mas larga en z que ancha en x: sigue al tubo.
-	var cure := MeshInstance3D.new()
-	var caja := BoxMesh.new()
-	caja.size = Vector3(0.070, 0.038, 0.090) * s
-	cure.mesh = caja
-	cure.position = Vector3(0.0, 0.017 * s, 0.006 * s)
-	cure.material_override = madera
-	p.add_child(cure)
-	for lado in [-1.0, 1.0]:
-		for atras in [-1.0, 1.0]:
-			var rueda := MeshInstance3D.new()
-			var rc := CylinderMesh.new()
-			rc.top_radius = 0.017 * s
-			rc.bottom_radius = 0.017 * s
-			rc.height = 0.012 * s
-			rueda.mesh = rc
-			rueda.rotation_degrees.z = 90.0
-			rueda.position = Vector3(0.040 * s * lado, 0.012 * s,
-				0.030 * s * atras)
-			rueda.material_override = madera
-			p.add_child(rueda)
-	# La direccion LOCAL de la boca y el sitio de reposo, que es lo que
-	# necesita `main_menu._disparar_canon` para el fogonazo y el RETROCESO.
-	p.set_meta("dir_boca", eje)
+	var m := (load("res://assets/models/canon_pirata.glb") as PackedScene) 		.instantiate()
+	# El tubo nace apuntando a -X; girando 90º en Y la boca mira a +Z, que es
+	# el costado por el que se ve el barco (y por donde queda el mar).
+	m.rotation_degrees.y = 90.0
+	m.scale = Vector3.ONE * k
+	p.add_child(m)
+	# El mismo giro, aplicado a mano a la boca y al eje, es lo que necesita
+	# `main_menu._disparar_canon` para el fogonazo y el RETROCESO: asi mover o
+	# reorientar el cañon no descoloca el disparo.
+	var gira := func(v: Vector3) -> Vector3: return Vector3(v.z, v.y, -v.x)
+	p.set_meta("dir_boca", (gira.call(EJE) as Vector3).normalized())
+	p.set_meta("boca", (gira.call(BOCA) as Vector3) * k)
 	p.set_meta("reposo", p.position)
-	p.set_meta("boca", centro + eje * (0.085 * s))
 	return p
 
 

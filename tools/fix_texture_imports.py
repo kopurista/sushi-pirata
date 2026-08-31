@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Deja los .import de las TEXTURAS DE MODELO como pide el export movil.
 
+Mira TODOS los formatos que aparecen en assets/models (png, jpg, jpeg, webp):
+Meshy entrega la suya en .jpg y con el filtro viejo, que solo miraba .png, se
+colaba con compress/mode=2 y sin limite de tamano.
+
 Godot importa cada textura nueva con compress/mode=2 (s3tc) y sin limite de
 tamano: sin Basis Universal el export web no carga las texturas 3D en moviles.
 Este script fija el modo y, SOLO a las que no tienen limite puesto (0), les da
@@ -41,7 +45,13 @@ def size_limit(name: str) -> str:
 def main() -> int:
     check = "--check" in sys.argv
     bad = []
-    for path in sorted(MODELS.glob("*.png.import")):
+    # TODOS los formatos de textura de modelo, no solo PNG: MESHY entrega la
+    # suya en .jpg y se colaba en s3tc sin que nadie lo viera (en el export web
+    # movil eso es una textura que NO CARGA). Lo caza el --check de ahora.
+    rutas = []
+    for ext in ("png", "jpg", "jpeg", "webp"):
+        rutas += list(MODELS.glob("*.%s.import" % ext))
+    for path in sorted(rutas):
         # utf-8-sig se come el BOM si lo hubiera; luego se escribe sin el.
         text = path.read_text(encoding="utf-8-sig")
         out = text
