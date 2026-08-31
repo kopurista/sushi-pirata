@@ -495,7 +495,9 @@ func _setup_ui() -> void:
 	var album_ic := TextureRect.new()
 	album_ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	album_ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	album_ic.texture = load("res://assets/ui/ic_album.png")
+	# EL ICONO ES UNA PECERA (pedido por el usuario): el boton abre la
+	# pecera, no un libro.
+	album_ic.texture = load("res://assets/ui/ic_pecera.png")
 	album_ic.set_anchors_preset(Control.PRESET_FULL_RECT)
 	album_ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	album_btn.add_child(album_ic)
@@ -1799,45 +1801,64 @@ func _fill_chest_loot(fila: HBoxContainer, premio: Dictionary) -> void:
 
 # ------------------------------------------------------------------ LA PECERA
 #
-# EL ALBUM ES UNA PECERA (pedido por el usuario): los peces capturados NADAN
-# dentro de un tanque largo que se recorre con scroll HORIZONTAL, y tocar uno
-# abre su ficha. Los que faltan nadan en SILUETA oscura y sin nombre — la
-# misma regla del album viejo: no se desvela lo que queda por pescar.
+# EL ALBUM ES UNA PECERA DE VERDAD (tanda del 31-8-2026, pedida por el
+# usuario): tanque con ARTE PROPIO de Ludo — marco de laton con remaches
+# (`pecera_marco.png`, 9-slice con la banda de estirado elegida ENTRE
+# remaches), interior de agua/arena/algas que TILEA a lo ancho
+# (`pecera_fondo.png`, generado como sprite-tiling-horizontal) — y nada de
+# panel de madera. Encima, rayos de luz y burbujas dibujados.
 #
-# CADA TIPO DE PEZ NADA A SU MANERA (`NADOS` + `_tick_pez`): un tiburon cruza
-# rapido y recto, una rana esta quieta y da saltos, la tortuga rema despacio,
-# la medusa pulsa arriba y abajo, el pulpo va a chorros, el caballito flota de
-# pie y los del fondo (cangrejos, erizos, la basura) se arrastran por la arena.
+# SOLO NADAN LOS PECES CAPTURADOS, cada uno a su TALLA REAL (la horquilla de
+# `FishData.length_cm` pasada por una potencia 0.38: lineal, el tiburon
+# ballena de 7,5 m no cabria; y sin comprimir, el pez lapa de 6 cm no se
+# veria). La pecera CRECE a lo ancho con cada especie nueva.
 #
-# Los peces se DIBUJAN (draw_texture_rect por fotograma), no son cien nodos:
-# asi el volteo al cambiar de rumbo es un rectangulo negativo y el toque se
-# resuelve por distancia en `_input_pecera`.
+# CADA PEZ NADA DE VERDAD: su sprite lleva el shader `pez_nado.gdshader`
+# (ondulacion de cola, fuerte en anguilas y nula en la basura) y encima el
+# paseo por tipos de siempre (`NADOS`): tiburones cruzando, ranas a saltos,
+# medusas pulsando (su pulso va en la escala del nodo), pulpos a chorros...
+# Los peces son NODOS TextureRect (uno por captura, no cien): el shader pide
+# material por pez y el flip es `flip_h` + el uniforme `voltear`, porque
+# volteado el sprite la cola cambia de lado de la UV.
 
-## Ancho de columna del tanque (tres carriles por columna) y margenes.
-const PECERA_PASO := 150.0
-const PECERA_MARGEN := 130.0
-## Lado del dibujo de un pez corriente (los legendarios van algo mayores).
-const PECERA_PEZ := 84.0
-## Pixeles de dedo que separan un TOQUE de un arrastre (los del juego).
+## Paso base entre peces y margenes del tanque.
+const PECERA_PASO := 130.0
+const PECERA_MARGEN := 150.0
+## Pixeles de dedo que separan un TOQUE de un arrastre.
 const PECERA_DEADZONE := 14.0
+## Grosor de las barras del marco (medido sobre `pecera_marco.png`, que se
+## dibuja 1:1): el interior del tanque empieza donde acaba la barra.
+const PECERA_BARRA := 54.0
 
-## COMO NADA CADA TIPO: vel (px/s), amp y frec del vaiven vertical, y rango
-## de paseo alrededor de su sitio. `fondo` va pegado a la arena y `quieto`
-## (la basura) no nada: esta hundido.
+## COMO PASEA CADA TIPO: vel (px/s), amp y frec del vaiven vertical, rango de
+## paseo... y las perillas del SHADER de nado (s_amp, s_ondas, s_vel).
 const NADOS := {
-	"normal":    { "vel": 34.0, "amp": 10.0, "frec": 1.6, "rango": 110.0 },
-	"veloz":     { "vel": 86.0, "amp": 6.0, "frec": 2.2, "rango": 150.0 },
-	"tiburon":   { "vel": 64.0, "amp": 4.0, "frec": 0.9, "rango": 170.0 },
-	"serpiente": { "vel": 30.0, "amp": 22.0, "frec": 3.2, "rango": 120.0 },
-	"raya":      { "vel": 22.0, "amp": 26.0, "frec": 0.8, "rango": 130.0 },
-	"globo":     { "vel": 12.0, "amp": 14.0, "frec": 1.1, "rango": 60.0 },
-	"medusa":    { "vel": 5.0, "amp": 30.0, "frec": 1.4, "rango": 30.0 },
-	"caballito": { "vel": 7.0, "amp": 12.0, "frec": 2.4, "rango": 34.0 },
-	"tortuga":   { "vel": 14.0, "amp": 8.0, "frec": 0.7, "rango": 90.0 },
-	"rana":      { "vel": 0.0, "amp": 0.0, "frec": 0.0, "rango": 70.0 },
-	"jet":       { "vel": 10.0, "amp": 6.0, "frec": 1.0, "rango": 120.0 },
-	"fondo":     { "vel": 9.0, "amp": 0.0, "frec": 0.0, "rango": 55.0 },
-	"quieto":    { "vel": 0.0, "amp": 0.0, "frec": 0.0, "rango": 0.0 },
+	"normal":    { "vel": 34.0, "amp": 10.0, "frec": 1.6, "rango": 110.0,
+		"s_amp": 0.030, "s_ondas": 1.6, "s_vel": 3.4 },
+	"veloz":     { "vel": 86.0, "amp": 6.0, "frec": 2.2, "rango": 170.0,
+		"s_amp": 0.024, "s_ondas": 1.9, "s_vel": 6.0 },
+	"tiburon":   { "vel": 64.0, "amp": 4.0, "frec": 0.9, "rango": 210.0,
+		"s_amp": 0.018, "s_ondas": 1.2, "s_vel": 2.6 },
+	"serpiente": { "vel": 30.0, "amp": 22.0, "frec": 3.2, "rango": 130.0,
+		"s_amp": 0.060, "s_ondas": 2.8, "s_vel": 4.4 },
+	"raya":      { "vel": 22.0, "amp": 26.0, "frec": 0.8, "rango": 150.0,
+		"s_amp": 0.045, "s_ondas": 1.0, "s_vel": 1.8 },
+	"globo":     { "vel": 12.0, "amp": 14.0, "frec": 1.1, "rango": 70.0,
+		"s_amp": 0.016, "s_ondas": 1.4, "s_vel": 2.4 },
+	"medusa":    { "vel": 5.0, "amp": 30.0, "frec": 1.4, "rango": 34.0,
+		"s_amp": 0.020, "s_ondas": 0.8, "s_vel": 1.6 },
+	"caballito": { "vel": 7.0, "amp": 12.0, "frec": 2.4, "rango": 38.0,
+		"s_amp": 0.022, "s_ondas": 1.2, "s_vel": 2.8 },
+	"tortuga":   { "vel": 14.0, "amp": 8.0, "frec": 0.7, "rango": 100.0,
+		"s_amp": 0.020, "s_ondas": 0.9, "s_vel": 1.6 },
+	"rana":      { "vel": 0.0, "amp": 0.0, "frec": 0.0, "rango": 80.0,
+		"s_amp": 0.018, "s_ondas": 1.0, "s_vel": 2.2 },
+	"jet":       { "vel": 10.0, "amp": 6.0, "frec": 1.0, "rango": 130.0,
+		"s_amp": 0.034, "s_ondas": 1.1, "s_vel": 2.6 },
+	"fondo":     { "vel": 9.0, "amp": 0.0, "frec": 0.0, "rango": 60.0,
+		"s_amp": 0.012, "s_ondas": 1.0, "s_vel": 1.8 },
+	"quieto":    { "vel": 0.0, "amp": 0.0, "frec": 0.0, "rango": 0.0,
+		"s_amp": 0.0, "s_ondas": 1.0, "s_vel": 1.0 },
 }
 
 ## Que tipo de nado le toca a cada especie. Lo que no este aqui nada "normal".
@@ -1869,6 +1890,8 @@ const NADO_POR_PEZ := {
 ## Estado de la pecera abierta (una sola a la vez).
 var pecera_node: Control = null
 var pecera_overlay: Control = null
+var pecera_lienzo: Control = null
+var pecera_fx: Control = null
 var pecera_peces: Array = []
 var pecera_scroll := 0.0
 var pecera_ancho := 0.0
@@ -1876,6 +1899,15 @@ var _pec_touch := false
 var _pec_drag := false
 var _pec_start := 0.0
 var _pec_vel := 0.0
+
+
+## TALLA EN PANTALLA desde la talla REAL: potencia 0.38 sobre los cm tipicos
+## de la especie. Medido: lapa (6 cm) 39 px · sardina (27) 70 · tiburon
+## (~250) 163 · tiburon ballena (750) 247. Proporcional de verdad, sin que el
+## grande reviente el tanque ni el chico desaparezca.
+func _lado_pez(id: String) -> float:
+	var cm := float(FishData.length_cm(id, 0.5))
+	return clampf(20.0 * pow(maxf(cm, 2.0), 0.38), 30.0, 260.0)
 
 
 func _open_album() -> void:
@@ -1887,48 +1919,71 @@ func _open_album() -> void:
 	add_child(overlay)
 	pecera_overlay = overlay
 	var veil := ColorRect.new()
-	veil.color = Color(0, 0, 0, 0.5)
+	veil.color = Color(0, 0, 0, 0.55)
 	veil.set_anchors_preset(Control.PRESET_FULL_RECT)
 	veil.mouse_filter = Control.MOUSE_FILTER_STOP
 	overlay.add_child(veil)
 
+	# EL TANQUE OCUPA LA PANTALLA: su panel ES el marco de latón, sin
+	# pergamino de madera detras (pedido por el usuario).
 	var panel := Control.new()
 	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	panel.offset_left = 20.0
-	panel.offset_right = -20.0
-	panel.offset_top = 110.0 + GameState.safe_top()
-	panel.offset_bottom = -36.0 - GameState.safe_bottom()
+	panel.offset_left = 14.0
+	panel.offset_right = -14.0
+	panel.offset_top = 108.0 + GameState.safe_top()
+	panel.offset_bottom = -116.0 - GameState.safe_bottom()
 	overlay.add_child(panel)
-	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
-		PrepBoard.PANEL_MARGIN))
 
-	# Se cuentan las especies DEL CATALOGO, no las claves del guardado: un id
-	# renombrado dejaria una entrada huerfana y el contador se pasaria.
+	var tanque := Control.new()
+	tanque.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tanque.offset_left = PECERA_BARRA * 0.8
+	tanque.offset_right = -PECERA_BARRA * 0.8
+	tanque.offset_top = PECERA_BARRA * 0.9
+	tanque.offset_bottom = -PECERA_BARRA * 0.9
+	tanque.clip_contents = true
+	tanque.mouse_filter = Control.MOUSE_FILTER_STOP
+	panel.add_child(tanque)
+	tanque.gui_input.connect(_input_pecera)
+	pecera_node = tanque
+
+	# El lienzo interior: fondo tileado + peces. Es lo que se PANEA.
+	var lienzo := Control.new()
+	lienzo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tanque.add_child(lienzo)
+	pecera_lienzo = lienzo
+
+	# Rayos de luz y burbujas, fijos sobre el cristal (no viajan con el agua).
+	var fx := Control.new()
+	fx.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fx.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tanque.add_child(fx)
+	fx.draw.connect(_dibujar_fx_pecera)
+	pecera_fx = fx
+
+	# EL MARCO, por encima del agua: 9-slice con la banda de estirado elegida
+	# ENTRE LOS REMACHES de las barras (medidos: los de arriba caen en x 89,
+	# 199, 319, 439 y 549 de 640) — estirando una banda con remache, el
+	# remache salia como un churrete.
+	var marco := NinePatchRect.new()
+	marco.texture = load("res://assets/ui/pecera_marco.png")
+	marco.patch_margin_left = 240
+	marco.patch_margin_right = 350
+	marco.patch_margin_top = 250
+	marco.patch_margin_bottom = 126
+	marco.set_anchors_preset(Control.PRESET_FULL_RECT)
+	marco.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(marco)
+
+	# Se cuentan las especies DEL CATALOGO, no las claves del guardado.
 	var pescados := FishData.caught_count(GameState.fish_album)
 	var title := PrepBoard.make_title("Pecera: %d/%d" % [pescados,
 		FishData.total()])
 	title.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	title.offset_left = 90.0
-	title.offset_right = -90.0
-	title.offset_top = -26.0
+	title.offset_left = 110.0
+	title.offset_right = -110.0
+	title.offset_top = -34.0
 	panel.add_child(title)
 
-	# EL TANQUE: un Control que dibuja el agua y los peces, recortado a su
-	# marco. El paneo es propio (arrastre + inercia), no un ScrollContainer:
-	# TouchScroll solo sabe de vertical y aqui ademas hay que distinguir el
-	# toque sobre un pez del tiron que recorre la pecera.
-	var tanque := Control.new()
-	tanque.set_anchors_preset(Control.PRESET_FULL_RECT)
-	tanque.offset_left = 44.0
-	tanque.offset_top = 62.0
-	tanque.offset_right = -44.0
-	tanque.offset_bottom = -108.0
-	tanque.clip_contents = true
-	tanque.mouse_filter = Control.MOUSE_FILTER_STOP
-	panel.add_child(tanque)
-	tanque.draw.connect(_dibujar_pecera)
-	tanque.gui_input.connect(_input_pecera)
-	pecera_node = tanque
 	pecera_scroll = 0.0
 	_pec_vel = 0.0
 	_montar_peces.call_deferred()
@@ -1937,88 +1992,169 @@ func _open_album() -> void:
 	pista.text = "Desliza para recorrer la pecera  ·  toca un pez para su ficha"
 	pista.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pista.add_theme_font_size_override("font_size", 16)
-	pista.add_theme_color_override("font_color", FADED)
+	pista.add_theme_color_override("font_color", Color(0.85, 0.92, 1.0, 0.8))
+	pista.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	pista.add_theme_constant_override("outline_size", 6)
 	pista.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	pista.offset_top = -104.0
-	pista.offset_bottom = -84.0
+	pista.offset_top = -108.0 - GameState.safe_bottom()
+	pista.offset_bottom = -88.0 - GameState.safe_bottom()
 	pista.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_child(pista)
+	overlay.add_child(pista)
 
 	var cerrar := Button.new()
 	cerrar.text = "Cerrar"
 	PrepBoard.skin_button(cerrar)
 	cerrar.add_theme_font_size_override("font_size", 24)
 	cerrar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	cerrar.offset_left = 160.0
-	cerrar.offset_right = -160.0
-	cerrar.offset_top = -84.0
-	cerrar.offset_bottom = -30.0
-	panel.add_child(cerrar)
+	cerrar.offset_left = 200.0
+	cerrar.offset_right = -200.0
+	cerrar.offset_top = -82.0 - GameState.safe_bottom()
+	cerrar.offset_bottom = -22.0 - GameState.safe_bottom()
+	overlay.add_child(cerrar)
 	cerrar.pressed.connect(func() -> void:
 		album_abierto.emit(false)
 		pecera_node = null
 		pecera_overlay = null
+		pecera_lienzo = null
+		pecera_fx = null
 		pecera_peces.clear()
 		overlay.queue_free())
 
 
-## Reparte las cien especies por el tanque, en el ORDEN del catalogo (que ya
-## va de lo comun a lo legendario: nadar hacia la derecha es adentrarse). Se
-## llama en diferido porque necesita el alto REAL del tanque.
+## Monta el agua y SOLO los peces capturados, en el orden del catalogo (de lo
+## comun a lo legendario: nadar a la derecha es adentrarse). En diferido
+## porque necesita el alto real del tanque. LA PECERA CRECE con cada especie:
+## su ancho sale de cuantos peces nadan dentro.
 func _montar_peces() -> void:
 	if pecera_node == null or not is_instance_valid(pecera_node):
 		return
 	pecera_peces.clear()
 	var alto := pecera_node.size.y
-	var suelo := alto - 58.0
-	var i := 0
+	var vista := pecera_node.size.x
+	var suelo := alto - 66.0
+
+	# Primero el reparto de sitios, para saber el ancho total.
+	var sitios: Array = []
+	var cursor := PECERA_MARGEN
+	var carril := 0
+	var shader: Shader = load("res://shaders/pez_nado.gdshader")
 	for f in FishData.FISH:
 		var id := str(f["id"])
+		if not GameState.fish_album.has(id):
+			continue
 		var tipo: String = NADO_POR_PEZ.get(id, "normal")
-		var nado: Dictionary = NADOS[tipo]
-		# Tres carriles por columna; el azar es DETERMINISTA (del hash del
-		# id), asi que cada pez tiene su sitio y no se rebaraja al reabrir.
+		var lado := _lado_pez(id)
 		var azar := float(hash(id) % 1000) / 1000.0
-		var home := Vector2(
-			PECERA_MARGEN + floorf(i / 3.0) * PECERA_PASO \
-				+ (azar - 0.5) * 46.0,
-			alto * (0.16 + 0.26 * float(i % 3)) + (azar - 0.5) * 40.0)
+		var home: Vector2
 		if tipo == "fondo" or tipo == "quieto":
-			home.y = suelo
-		home.y = clampf(home.y, 54.0, suelo)
+			home = Vector2(cursor + lado * 0.5, suelo - lado * 0.22)
+			cursor += maxf(PECERA_PASO * 0.55, lado * 0.7)
+		elif lado >= 150.0:
+			# Los GRANDES nadan por el centro y se llevan su propio hueco:
+			# metidos en un carril arrollaban a los pequenos.
+			home = Vector2(cursor + lado * 0.55,
+				alto * (0.42 + 0.16 * azar))
+			cursor += lado * 0.95
+		else:
+			home = Vector2(cursor + 40.0,
+				alto * (0.16 + 0.22 * float(carril % 3)) + (azar - 0.5) * 34.0)
+			cursor += maxf(PECERA_PASO * 0.72, lado * 0.62)
+			carril += 1
+		home.y = clampf(home.y, 44.0 + lado * 0.3, suelo)
+		sitios.append({ "id": id, "tipo": tipo, "lado": lado, "home": home,
+			"azar": azar })
+	pecera_ancho = maxf(vista, cursor + PECERA_MARGEN)
+
+	# El AGUA: el tile de Ludo escalado al alto del tanque y repetido a lo
+	# ancho de TODA la pecera. Se DIBUJA a mano (draw_texture_rect por
+	# baldosa, con la textura PRECARGADA — la trampa del load() en _draw ya
+	# esta pagada): el camino del TextureRect con scale+STRETCH_TILE pintaba
+	# el tile a otra escala y en otro sitio, medido en captura.
+	var agua := Control.new()
+	agua.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# CON SU RECTANGULO DE VERDAD: un Control de tamano 0 que dibuja de mas
+	# se descarta entero en cuanto su origen sale de pantalla (el agua
+	# desaparecia al panear la pecera, medido en captura).
+	agua.size = Vector2(pecera_ancho, alto)
+	agua.set_meta("tex", load("res://assets/ui/pecera_fondo.png"))
+	agua.set_meta("alto", alto)
+	agua.set_meta("ancho", pecera_ancho)
+	agua.draw.connect(_dibujar_agua.bind(agua))
+	pecera_lienzo.add_child(agua)
+	agua.queue_redraw()
+
+	# Y LOS PECES: un TextureRect por captura con su MATERIAL de nado.
+	for st in sitios:
+		var id2 := str(st["id"])
+		var nado: Dictionary = NADOS[st["tipo"]]
+		var tex := FishData.get_icon(id2)
+		if tex == null:
+			continue
+		var lado2: float = st["lado"]
+		var alto_pez: float = lado2 * float(tex.get_height()) \
+			/ maxf(float(tex.get_width()), 1.0)
+		var nodo := TextureRect.new()
+		nodo.texture = tex
+		nodo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		nodo.stretch_mode = TextureRect.STRETCH_SCALE
+		nodo.size = Vector2(lado2, alto_pez)
+		nodo.pivot_offset = nodo.size * 0.5
+		nodo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var mat := ShaderMaterial.new()
+		mat.shader = shader
+		mat.set_shader_parameter("amp", float(nado["s_amp"]))
+		mat.set_shader_parameter("ondas", float(nado["s_ondas"]))
+		mat.set_shader_parameter("vel", float(nado["s_vel"]))
+		mat.set_shader_parameter("fase", float(st["azar"]) * TAU)
+		nodo.material = mat
+		pecera_lienzo.add_child(nodo)
+		var azar2: float = st["azar"]
 		pecera_peces.append({
-			"id": id, "tipo": tipo, "home": home, "pos": home,
-			"dir": -1.0 if azar < 0.5 else 1.0, "fase": azar * TAU,
-			"vel": float(nado["vel"]) * (0.85 + 0.3 * azar),
-			"salto": 0.0, "espera": 1.0 + azar * 3.0,
-			"lado": PECERA_PEZ * (1.2 if FishData.tier_of(id) >= 3 else 1.0),
-			"caught": GameState.fish_album.has(id),
-			# El icono se PRECARGA aqui: un load() dentro de _draw deja la
-			# textura rota (se dibuja como un cuadrado plano) y ademas se
-			# queda asi en cache. Medido con sonda: cargada fuera del draw se
-			# pinta perfecta, cargada dentro sale un rectangulo blanco.
-			"tex": FishData.get_icon(id),
+			"id": id2, "tipo": st["tipo"], "home": st["home"],
+			"pos": st["home"], "dir": -1.0 if azar2 < 0.5 else 1.0,
+			"fase": azar2 * TAU, "vel": float(nado["vel"]) * (0.85 + 0.3 * azar2),
+			"salto": 0.0, "espera": 1.0 + azar2 * 3.0,
+			"lado": lado2, "alto": alto_pez, "nodo": nodo, "mat": mat,
 		})
-		i += 1
-	pecera_ancho = PECERA_MARGEN * 2.0 + ceilf(pecera_peces.size() / 3.0) \
-		* PECERA_PASO
-	pecera_node.queue_redraw()
+	_colocar_peces()
 
 
-## El nado, tipo a tipo. La rana SALTA (parabola en `salto`), el jet va a
-## RAFAGAS (la espera dispara un empujon de velocidad), el resto pasea entre
-## los bordes de su rango con su vaiven vertical.
+## El nado, tipo a tipo, mas la inercia del paneo. Las posiciones viven en
+## coordenadas de PECERA; el lienzo entero se corre con el scroll.
 func _tick_pecera(delta: float) -> void:
 	if pecera_node == null or not is_instance_valid(pecera_node):
 		return
 	for p in pecera_peces:
 		_tick_pez(p, delta)
-	# La inercia del paneo.
 	if not _pec_touch and absf(_pec_vel) > 12.0:
 		pecera_scroll = clampf(pecera_scroll - _pec_vel * delta, 0.0,
 			maxf(pecera_ancho - pecera_node.size.x, 0.0))
 		_pec_vel *= pow(0.04, delta)
-	pecera_node.queue_redraw()
+	_colocar_peces()
+	if pecera_fx != null and is_instance_valid(pecera_fx):
+		pecera_fx.queue_redraw()
+
+
+func _colocar_peces() -> void:
+	if pecera_lienzo == null or not is_instance_valid(pecera_lienzo):
+		return
+	pecera_lienzo.position.x = -pecera_scroll
+	for p in pecera_peces:
+		var nodo: TextureRect = p["nodo"]
+		if nodo == null or not is_instance_valid(nodo):
+			continue
+		var pos: Vector2 = p["pos"]
+		nodo.position = pos - nodo.size * 0.5
+		# El volteo acompana al rumbo (los iconos miran a la izquierda), y el
+		# shader necesita saberlo o la ondulacion batiria la cabeza.
+		var derecha: bool = float(p["dir"]) > 0.0 and p["tipo"] != "quieto"
+		nodo.flip_h = derecha
+		(p["mat"] as ShaderMaterial).set_shader_parameter("voltear",
+			1.0 if derecha else 0.0)
+		# La MEDUSA pulsa con la escala del nodo (su nado es ese pulso).
+		if p["tipo"] == "medusa":
+			var k := 1.0 + 0.10 * sin(float(p["fase"]) * 2.0)
+			nodo.scale = Vector2(k, 2.0 - k)
 
 
 func _tick_pez(p: Dictionary, delta: float) -> void:
@@ -2031,7 +2167,7 @@ func _tick_pez(p: Dictionary, delta: float) -> void:
 	p["fase"] = float(p["fase"]) + delta * float(nado["frec"])
 	match tipo:
 		"rana":
-			# Quieta en el suelo; cada pocos segundos, un salto en parabola.
+			# Quieta en su sitio; cada pocos segundos, un salto en parabola.
 			p["espera"] = float(p["espera"]) - delta
 			if float(p["espera"]) <= 0.0 and float(p["salto"]) <= 0.0:
 				p["salto"] = 1.0
@@ -2057,7 +2193,6 @@ func _tick_pez(p: Dictionary, delta: float) -> void:
 			pos.x += float(p["dir"]) * float(p["vel"]) * empuje * delta
 			pos.y = home.y + sin(float(p["fase"])) * float(nado["amp"])
 		"medusa", "caballito":
-			# Casi clavados en su x; lo suyo es el vaiven vertical.
 			pos.x += float(p["dir"]) * float(p["vel"]) * delta
 			if absf(pos.x - home.x) > float(nado["rango"]):
 				p["dir"] = -float(p["dir"])
@@ -2070,72 +2205,39 @@ func _tick_pez(p: Dictionary, delta: float) -> void:
 	p["pos"] = pos
 
 
-func _dibujar_pecera() -> void:
-	var c := pecera_node
-	# Antes de `_montar_peces` (que va en diferido) el ancho es 0, y un
-	# fmod(x, 0) es NaN: las algas y las burbujas escupian avisos de
-	# normalize en los dos primeros fotogramas.
-	if c == null or not is_instance_valid(c) or pecera_ancho <= 0.0:
+## El agua tileada, baldosa a baldosa y escalada al alto del tanque.
+func _dibujar_agua(c: Control) -> void:
+	var tex: Texture2D = c.get_meta("tex")
+	var alto: float = c.get_meta("alto")
+	var ancho: float = c.get_meta("ancho")
+	var k := alto / float(tex.get_height())
+	var tw := float(tex.get_width()) * k
+	var n := int(ceil(ancho / tw)) + 1
+	for i in n:
+		c.draw_texture_rect(tex, Rect2(float(i) * tw, 0.0, tw, alto), false)
+
+
+## Los EFECTOS del cristal, fijos sobre el tanque: rayos de luz que respiran
+## y burbujas subiendo. Van encima del agua y de los peces, como lo que se ve
+## a traves del vidrio.
+func _dibujar_fx_pecera() -> void:
+	var c := pecera_fx
+	if c == null or not is_instance_valid(c):
 		return
 	var w := c.size.x
 	var h := c.size.y
-	# EL AGUA: bandas que oscurecen con la profundidad (un gradiente barato).
-	var arriba := Color(0.29, 0.55, 0.72)
-	var abajo := Color(0.10, 0.24, 0.42)
-	for i in 6:
-		var t0 := i / 6.0
-		c.draw_rect(Rect2(0, h * t0, w, h / 6.0 + 1.0),
-			arriba.lerp(abajo, t0))
-	# LA ARENA del fondo, con unas piedras.
-	c.draw_rect(Rect2(0, h - 44.0, w, 44.0), Color(0.76, 0.66, 0.46))
-	c.draw_rect(Rect2(0, h - 44.0, w, 4.0), Color(0.62, 0.53, 0.36))
-	for i in 9:
-		var rx := fmod(float(i) * 397.0 - pecera_scroll * 0.9, w + 80.0) - 40.0
-		c.draw_circle(Vector2(rx, h - 40.0 + float(i % 3) * 8.0),
-			7.0 + float(i % 4) * 3.0, Color(0.55, 0.47, 0.34))
-	# ALGAS al fondo del tanque, meciendose.
-	for i in 14:
-		var ax := fmod(float(i) * 431.0 - pecera_scroll, pecera_ancho)
-		if ax < -30.0 or ax > w + 30.0:
-			continue
-		var alto_alga := 46.0 + float(i % 4) * 22.0
-		var vaiven := sin(_t * 1.1 + float(i)) * 9.0
-		var base := Vector2(ax, h - 40.0)
-		c.draw_line(base, base + Vector2(vaiven, -alto_alga),
-			Color(0.16, 0.44, 0.26, 0.9), 5.0, true)
-		c.draw_line(base + Vector2(8, 0),
-			base + Vector2(vaiven * 0.6 + 8.0, -alto_alga * 0.7),
-			Color(0.20, 0.52, 0.30, 0.8), 4.0, true)
-	# BURBUJAS subiendo.
-	for i in 10:
-		var bx := fmod(float(i) * 613.0 - pecera_scroll, pecera_ancho)
-		if bx < 0.0 or bx > w:
-			continue
-		var by := h - fmod(_t * (26.0 + float(i % 3) * 12.0) \
-			+ float(i) * 97.0, h)
-		# Rellenas y tenues, no un aro: draw_arc antialiased escupe avisos de
-		# normalize con arcos pequenos, y a este tamano no se distingue.
-		c.draw_circle(Vector2(bx, by), 4.0 + float(i % 3) * 2.0,
-			Color(1, 1, 1, 0.22))
-	# LOS PECES. El volteo es un rectangulo de ancho negativo: los iconos
-	# miran a la IZQUIERDA, asi que nadando a la derecha se voltean.
-	for p in pecera_peces:
-		var pos: Vector2 = p["pos"]
-		var x := pos.x - pecera_scroll
-		var lado: float = p["lado"]
-		if x < -lado or x > w + lado:
-			continue
-		var tex: Texture2D = p["tex"]
-		if tex == null:
-			continue
-		var tinte := Color.WHITE if bool(p["caught"]) \
-			else Color(0.06, 0.10, 0.14, 0.82)
-		var r := Rect2(Vector2(x - lado * 0.5, pos.y - lado * 0.5),
-			Vector2(lado, lado))
-		if float(p["dir"]) > 0.0 and p["tipo"] != "quieto":
-			r = Rect2(Vector2(x + lado * 0.5, pos.y - lado * 0.5),
-				Vector2(-lado, lado))
-		c.draw_texture_rect(tex, r, false, tinte)
+	for i in 4:
+		var x0 := w * (0.10 + 0.26 * float(i)) + sin(_t * 0.4 + float(i)) * 14.0
+		var alfa := 0.05 + 0.03 * sin(_t * 0.7 + float(i) * 1.7)
+		c.draw_colored_polygon(PackedVector2Array([
+			Vector2(x0, 0.0), Vector2(x0 + 46.0, 0.0),
+			Vector2(x0 + 150.0, h), Vector2(x0 + 74.0, h)]),
+			Color(1.0, 1.0, 0.92, alfa))
+	for i in 12:
+		var bx := fmod(float(i) * 613.0 + sin(_t * 0.8 + float(i)) * 9.0, w)
+		var by := h - fmod(_t * (26.0 + float(i % 3) * 12.0) + float(i) * 97.0, h)
+		c.draw_circle(Vector2(bx, by), 3.0 + float(i % 3) * 2.0,
+			Color(1, 1, 1, 0.20))
 
 
 ## Paneo con inercia y toque sobre pez, en el mismo gesto: hasta
@@ -2166,14 +2268,16 @@ func _input_pecera(ev: InputEvent) -> void:
 func _tocar_pez(punto: Vector2) -> void:
 	var mundo := Vector2(punto.x + pecera_scroll, punto.y)
 	var mejor: Dictionary = {}
-	var mejor_d := 62.0
+	var mejor_d := 3000.0
 	for p in pecera_peces:
-		var d: float = (p["pos"] as Vector2).distance_to(mundo)
-		if d < mejor_d:
+		# El radio de toque crece con el pez: un tiburon se toca en cualquier
+		# parte del cuerpo y una lapa con un colchon minimo alrededor.
+		var d: float = (p["pos"] as Vector2).distance_to(mundo) \
+			- maxf(float(p["lado"]) * 0.5, 40.0)
+		if d < mejor_d and d < 0.0:
 			mejor_d = d
 			mejor = p
-	# Los que faltan no abren nada: la silueta es toda la pista que hay.
-	if not mejor.is_empty() and bool(mejor["caught"]):
+	if not mejor.is_empty():
 		_open_ficha(str(mejor["id"]), pecera_overlay)
 
 

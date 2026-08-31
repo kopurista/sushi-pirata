@@ -655,188 +655,274 @@ func _build_pantry_entry(ing: String) -> Control:
 ## arriba. Los bloqueados van en SILUETA y con "???", sin ninguna pista de cómo
 ## conseguirlos; los conseguidos abren su ficha al tocarlos. El triángulo
 ## dorado enseña además cuántos fragmentos hay reunidos (si hay alguno).
-## LA COLECCIÓN ES UNA VITRINA DE TROFEOS (pedido por el usuario): tres
-## BALDAS de madera que se recorren con scroll HORIZONTAL, con cada pieza
-## apoyada sobre su balda. El orden del catálogo se conserva en columnas de
-## tres, así que avanzar hacia la derecha es avanzar por la colección.
-## Los bloqueados siguen en SILUETA oscura con "???" y sin pista alguna.
+## LA COLECCIÓN ES UNA VITRINA DE TROFEOS CON ARTE PROPIO (tanda del
+## 31-8-2026, pedida por el usuario): marco de madera barnizada con esquinas
+## de latón (`vitrina_marco.png`, 9-slice), interior de tablones con DOS
+## baldas que tilea a lo ancho (`vitrina_fondo.png`) y una ETIQUETA de latón
+## con el nombre bajo cada pieza (`vitrina_etiqueta.png`). Encima, el brillo
+## del cristal dibujado. Se recorre con scroll HORIZONTAL.
+##
+## SOLO SE EXPONE LO CONSEGUIDO — más lo AVISTADO: una pieza cuyo escenario
+## ya se superó (tiene pista) sale en silueta con su "?", y la trifuerza con
+## fragmentos enseña su cuenta. El resto del catálogo NO se enseña: una
+## vitrina es lo que has ganado, no un pedido pendiente.
+##
+## Y NO OCUPA LA PANTALLA ENTERA (pedido por el usuario): dos baldas bastan,
+## así que el mueble mide `VIT_ALTO` y va centrado en su pestaña.
+
+## Alto del mueble y grosor de las barras del marco (dibujadas 1:1).
+const VIT_ALTO := 700.0
+const VIT_BARRA := 44.0
+## Ancho de celda por pieza y márgenes interiores del expositor.
+const VIT_CELDA := 168.0
+const VIT_MARGEN := 60.0
+## Dónde APOYA cada fila, en fracción del interior: la superficie de las dos
+## baldas, MEDIDA sobre `vitrina_fondo.png` (filas oscuras en y 513-604 y
+## 776-819 de 820).
+const VIT_BALDAS := [0.615, 0.918]
+
+
 func _build_collection() -> Control:
 	var host := Control.new()
 	host.set_anchors_preset(Control.PRESET_FULL_RECT)
-	host.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
-		PrepBoard.PANEL_MARGIN))
 
 	var header := Label.new()
 	header.text = "Coleccionables: %d / %d" % [GameState.collectibles.size(),
 		CollectibleData.total()]
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	header.add_theme_font_size_override("font_size", 24)
-	header.add_theme_color_override("font_color", Color(0.42, 0.26, 0.10))
+	header.add_theme_font_size_override("font_size", 26)
+	header.add_theme_color_override("font_color", Color(1, 0.93, 0.78))
+	header.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	header.add_theme_constant_override("outline_size", 8)
 	header.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	header.offset_top = 30.0
-	header.offset_bottom = 64.0
+	header.offset_top = 6.0
+	header.offset_bottom = 44.0
 	host.add_child(header)
 
-	# El scroll va en HORIZONTAL (TouchScroll con su modo nuevo) y el alto lo
-	# reparten las tres baldas a partes iguales.
+	# EL MUEBLE, centrado en el hueco de la pestaña.
+	var caso := Control.new()
+	caso.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	caso.offset_left = -352.0
+	caso.offset_right = 352.0
+	caso.offset_top = 64.0
+	caso.offset_bottom = 64.0 + VIT_ALTO
+	host.add_child(caso)
+
+	var interior := Control.new()
+	interior.set_anchors_preset(Control.PRESET_FULL_RECT)
+	interior.offset_left = VIT_BARRA
+	interior.offset_right = -VIT_BARRA
+	interior.offset_top = VIT_BARRA
+	interior.offset_bottom = -VIT_BARRA
+	interior.clip_contents = true
+	caso.add_child(interior)
+
+	# Lo expuesto: conseguidos y avistados, en el orden del catálogo.
+	var piezas: Array = []
+	for it in CollectibleData.ITEMS:
+		var id := str(it["id"])
+		var owned := GameState.has_collectible(id)
+		var pista := "" if owned else _pista_coleccionable(id)
+		var frag: bool = id == "trifuerza" and GameState.triforce_pieces > 0
+		if owned or pista != "" or frag:
+			piezas.append({ "it": it, "owned": owned, "pista": pista })
+
 	var scroll := ScrollContainer.new()
 	TouchScroll.attach(scroll, true)
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
-	scroll.offset_left = 30.0
-	scroll.offset_top = 76.0
-	scroll.offset_right = -30.0
-	scroll.offset_bottom = -64.0
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	host.add_child(scroll)
+	interior.add_child(scroll)
 
-	var columnas := VBoxContainer.new()
-	columnas.add_theme_constant_override("separation", 6)
-	scroll.add_child(columnas)
+	var columnas := int(ceil(piezas.size() / 2.0))
+	var ancho_int := maxf(interior.size.x,
+		VIT_MARGEN * 2.0 + float(columnas) * VIT_CELDA)
+	var lienzo := Control.new()
+	lienzo.custom_minimum_size = Vector2(ancho_int, 0)
+	lienzo.mouse_filter = Control.MOUSE_FILTER_PASS
+	scroll.add_child(lienzo)
 
-	# Tres filas; cada una lleva su BALDA por detrás (el tablón del submenú
-	# del mapa, 9-slice solo horizontal, con el mismo tinte de madera cálida).
-	var filas: Array = []
-	var capas: Array = []
-	for i in 3:
-		var capa := Control.new()
-		capa.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		columnas.add_child(capa)
-		capas.append(capa)
-		var balda := NinePatchRect.new()
-		balda.texture = load("res://assets/ui/submenu_mapa.png")
-		balda.patch_margin_left = 84
-		balda.patch_margin_right = 84
-		balda.modulate = Color(1.22, 0.94, 0.66)
-		balda.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-		balda.offset_top = -34.0
-		balda.offset_bottom = 6.0
-		balda.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		capa.add_child(balda)
-		var fila := HBoxContainer.new()
-		fila.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		fila.offset_bottom = -14.0
-		fila.add_theme_constant_override("separation", 4)
-		capa.add_child(fila)
-		filas.append(fila)
+	# El fondo de tablones con sus baldas, tileado a mano (la misma pieza que
+	# el agua de la pecera: draw_texture_rect con la textura precargada).
+	var fondo := Control.new()
+	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Con su rectangulo puesto: un Control de tamano 0 que dibuja de mas se
+	# descarta entero al hacer scroll (la leccion del agua de la pecera).
+	fondo.size = Vector2(ancho_int, VIT_ALTO)
+	fondo.set_meta("tex", load("res://assets/ui/vitrina_fondo.png"))
+	fondo.set_meta("ancho", ancho_int)
+	fondo.draw.connect(_dibujar_fondo_vitrina.bind(fondo))
+	lienzo.add_child(fondo)
 
-	var i := 0
-	for it in CollectibleData.ITEMS:
-		filas[i % 3].add_child(_collection_card(it))
-		i += 1
-	# EL ANCHO DE CADA BALDA SE PONE CONTADO: la fila y la balda van ANCLADAS
-	# dentro de su capa, y un hijo anclado no aporta tamaño mínimo — sin esto
-	# la vitrina entera se aplastaba a ancho cero y solo asomaba la primera
-	# pieza (pasó, y la pantalla salía en blanco).
-	for f in 3:
-		var n: int = (filas[f] as HBoxContainer).get_child_count()
-		(capas[f] as Control).custom_minimum_size.x = n * 126.0 			+ maxf(n - 1, 0) * 4.0
-	# Y EL ALTO TAMBIÉN, en diferido (el scroll aún no está medido): el
-	# EXPAND_FILL de las capas no estiraba nada porque el VBox dentro del
-	# scroll mide su mínimo, y el mínimo de una capa de hijos anclados es 0.
-	var repartir := func() -> void:
-		if not is_instance_valid(scroll):
+	# LAS PIEZAS, apoyadas en su balda y con su etiqueta. El alto interior no
+	# está medido hasta el primer fotograma: se coloca en diferido.
+	var colocar := func() -> void:
+		if not is_instance_valid(interior):
 			return
-		var alto: float = (scroll.size.y - 12.0) / 3.0
-		for f2 in 3:
-			(capas[f2] as Control).custom_minimum_size.y = alto
-	repartir.call_deferred()
+		var alto_int := interior.size.y
+		fondo.set_meta("alto", alto_int)
+		fondo.queue_redraw()
+		var i := 0
+		for p in piezas:
+			var fila := i % 2
+			var x := VIT_MARGEN + float(i / 2) * VIT_CELDA
+			var base := alto_int * float(VIT_BALDAS[fila])
+			lienzo.add_child(_pieza_vitrina(p, Vector2(x, base)))
+			i += 1
+	colocar.call_deferred()
 
-	var pista := Label.new()
-	pista.text = "Desliza para recorrer la vitrina"
-	pista.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pista.add_theme_font_size_override("font_size", 16)
-	pista.add_theme_color_override("font_color", FADED)
-	pista.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	pista.offset_top = -56.0
-	pista.offset_bottom = -32.0
-	pista.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	host.add_child(pista)
+	# El CRISTAL: dos brillos diagonales fijos sobre el mueble.
+	var cristal := Control.new()
+	cristal.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cristal.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cristal.draw.connect(_dibujar_cristal.bind(cristal))
+	interior.add_child(cristal)
+
+	# El marco, por encima de todo.
+	var marco := NinePatchRect.new()
+	marco.texture = load("res://assets/ui/vitrina_marco.png")
+	marco.patch_margin_left = 80
+	marco.patch_margin_right = 80
+	marco.patch_margin_top = 70
+	marco.patch_margin_bottom = 70
+	marco.set_anchors_preset(Control.PRESET_FULL_RECT)
+	marco.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	caso.add_child(marco)
+
+	if piezas.is_empty():
+		var vacio := Label.new()
+		vacio.text = "Aún no hay tesoros que lucir.\nLos irás ganando navegando y pescando."
+		vacio.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vacio.add_theme_font_size_override("font_size", 21)
+		vacio.add_theme_color_override("font_color", Color(0.95, 0.88, 0.7))
+		vacio.add_theme_color_override("font_outline_color", Color(0.1, 0.05, 0.02))
+		vacio.add_theme_constant_override("outline_size", 6)
+		vacio.set_anchors_preset(Control.PRESET_CENTER)
+		vacio.offset_left = -300.0
+		vacio.offset_right = 300.0
+		vacio.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		caso.add_child(vacio)
+
+	var pista_l := Label.new()
+	pista_l.text = "Desliza para recorrer la vitrina"
+	pista_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pista_l.add_theme_font_size_override("font_size", 16)
+	pista_l.add_theme_color_override("font_color", Color(0.9, 0.85, 0.72, 0.8))
+	pista_l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+	pista_l.add_theme_constant_override("outline_size", 5)
+	pista_l.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	pista_l.offset_top = 74.0 + VIT_ALTO
+	pista_l.offset_bottom = 98.0 + VIT_ALTO
+	pista_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.add_child(pista_l)
 	return host
 
 
-## UNA PIEZA EN SU BALDA: el objeto apoyado sobre la madera y el nombre en
-## pequeño debajo del objeto. Sin tarjeta alrededor: en una vitrina lo que se
-## mira son los trofeos, no ciento veinte marcos.
-func _collection_card(it: Dictionary) -> Control:
+## El fondo de tablones, baldosa a baldosa y escalado al alto del interior.
+func _dibujar_fondo_vitrina(c: Control) -> void:
+	var tex: Texture2D = c.get_meta("tex")
+	var alto: float = c.get_meta("alto", 0.0)
+	if alto <= 0.0:
+		return
+	var ancho: float = c.get_meta("ancho")
+	var k := alto / float(tex.get_height())
+	var tw := float(tex.get_width()) * k
+	for i in int(ceil(ancho / tw)) + 1:
+		c.draw_texture_rect(tex, Rect2(float(i) * tw, 0.0, tw, alto), false)
+
+
+## El brillo del cristal de la puerta: dos vetas diagonales tenues, fijas.
+func _dibujar_cristal(c: Control) -> void:
+	var w := c.size.x
+	var h := c.size.y
+	for datos in [[0.16, 60.0, 0.055], [0.30, 26.0, 0.045]]:
+		var x0: float = w * float(datos[0])
+		var grosor: float = datos[1]
+		c.draw_colored_polygon(PackedVector2Array([
+			Vector2(x0, 0.0), Vector2(x0 + grosor, 0.0),
+			Vector2(x0 + grosor + h * 0.35, h), Vector2(x0 + h * 0.35, h)]),
+			Color(1.0, 1.0, 0.96, float(datos[2])))
+
+
+## UNA PIEZA EN SU BALDA: el objeto APOYADO sobre la madera (anclado por su
+## base) y, si es suyo, la etiqueta de latón con el nombre colgada del canto
+## de la balda. El avistado va en silueta con su "?", sin etiqueta: la
+## vitrina no desvela lo que aún no se ha ganado.
+func _pieza_vitrina(p: Dictionary, base: Vector2) -> Control:
+	var it: Dictionary = p["it"]
 	var id := str(it["id"])
-	var owned := GameState.has_collectible(id)
-	var card := Button.new()
-	card.custom_minimum_size = Vector2(126, 0)
-	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var owned: bool = p["owned"]
+	var celda := Button.new()
+	celda.position = Vector2(base.x, base.y - 150.0)
+	celda.size = Vector2(VIT_CELDA - 12.0, 196.0)
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
-		card.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+		celda.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 
 	var ic := TextureRect.new()
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.texture = CollectibleData.get_icon(id)
-	# Apoyado en la balda: anclado ABAJO de la celda, encima del nombre.
-	ic.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	ic.offset_left = 8.0
-	ic.offset_right = -8.0
-	ic.offset_top = -184.0
-	ic.offset_bottom = -36.0
-	# La silueta OSCURA es la única pista que dan los bloqueados.
-	ic.modulate = Color.WHITE if owned else Color(0.12, 0.09, 0.07, 0.85)
+	ic.position = Vector2((celda.size.x - 128.0) * 0.5, 14.0)
+	ic.size = Vector2(128, 128)
+	ic.modulate = Color.WHITE if owned else Color(0.10, 0.08, 0.06, 0.88)
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.add_child(ic)
+	celda.add_child(ic)
+	# La sombra de apoyo, para que el objeto no flote sobre la balda.
+	var sombra := ColorRect.new()
+	sombra.color = Color(0.1, 0.06, 0.02, 0.30)
+	sombra.position = Vector2(celda.size.x * 0.5 - 40.0, 138.0)
+	sombra.size = Vector2(80.0, 7.0)
+	sombra.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	celda.add_child(sombra)
+	celda.move_child(sombra, 0)
 
-	# Fragmentos del triángulo reunidos: se enseñan solo si ya hay alguno.
 	if id == "trifuerza" and not owned and GameState.triforce_pieces > 0:
 		var frag := Label.new()
 		frag.text = "%d/%d" % [GameState.triforce_pieces,
 			CollectibleData.TRIFORCE_PIECES]
 		frag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		frag.add_theme_font_size_override("font_size", 22)
+		frag.add_theme_font_size_override("font_size", 24)
 		frag.add_theme_color_override("font_color", Color(1, 0.86, 0.4))
 		frag.add_theme_color_override("font_outline_color", Color(0.13, 0.07, 0.02))
 		frag.add_theme_constant_override("outline_size", 8)
-		frag.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-		frag.offset_top = -110.0
-		frag.offset_bottom = -74.0
+		frag.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+		frag.offset_top = 56.0
+		frag.offset_bottom = 92.0
 		frag.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		card.add_child(frag)
+		celda.add_child(frag)
 
-	var nombre := str(it["name"]) if owned else "???"
-	var name_l := Label.new()
-	name_l.text = nombre
-	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_l.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	name_l.add_theme_font_size_override("font_size",
-		11 if nombre.length() > 20 else 13)
-	name_l.add_theme_constant_override("line_spacing", -6)
-	name_l.add_theme_color_override("font_color",
-		Color(0.42, 0.26, 0.10) if owned else Color(0.55, 0.47, 0.36))
-	# Dos renglones como mucho; el segundo cae sobre el canto de la balda,
-	# que queda detrás y no lo tapa.
-	name_l.max_lines_visible = 2
-	name_l.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	name_l.offset_left = 2.0
-	name_l.offset_right = -2.0
-	name_l.offset_top = -34.0
-	name_l.offset_bottom = 12.0
-	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.add_child(name_l)
+	if owned:
+		# LA ETIQUETA de latón, colgada del canto de la balda bajo la pieza.
+		var placa := TextureRect.new()
+		placa.texture = load("res://assets/ui/vitrina_etiqueta.png")
+		placa.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		placa.stretch_mode = TextureRect.STRETCH_SCALE
+		placa.position = Vector2((celda.size.x - 140.0) * 0.5, 150.0)
+		placa.size = Vector2(140, 36)
+		placa.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		celda.add_child(placa)
+		var name_l := Label.new()
+		name_l.text = str(it["name"])
+		name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		name_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		name_l.max_lines_visible = 2
+		name_l.add_theme_font_size_override("font_size",
+			10 if str(it["name"]).length() > 18 else 12)
+		name_l.add_theme_constant_override("line_spacing", -6)
+		name_l.add_theme_color_override("font_color", Color(0.30, 0.19, 0.06))
+		name_l.position = placa.position + Vector2(8, 2)
+		name_l.size = Vector2(124, 32)
+		name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		celda.add_child(name_l)
 
-	# UNA PIEZA QUE SE ESCAPÓ NO SE QUEDA EN MISTERIO. Si su escenario ya está
-	# superado, la ficha se puede abrir para leer DONDE sale y QUE hay que
-	# hacer: el jugador estuvo allí y lo dejó escapar, así que escondérselo
-	# después solo sería castigarle dos veces.
-	var pista := "" if owned else _pista_coleccionable(id)
-	if owned or pista != "":
-		card.pressed.connect(_open_collectible_sheet.bind(id))
-		PrepBoard.add_press_feedback(card, 0.92)
-	# EL "?" ES LA ÚNICA SEÑAL de que esa silueta tiene algo que contar: sin
-	# él, las que se pueden abrir y las que no se ven igual y nadie las
-	# toca. Solo sale en las BLOQUEADAS con pista: la conseguida ya se explica
-	# sola al abrirla.
-	if pista != "":
+	celda.pressed.connect(_open_collectible_sheet.bind(id))
+	PrepBoard.add_press_feedback(celda, 0.94)
+	if not owned and str(p["pista"]) != "":
 		var b := _boton_pista(id)
-		b.position = Vector2(86, 8)
-		card.add_child(b)
-	return card
+		b.position = Vector2(celda.size.x - 44.0, 6.0)
+		celda.add_child(b)
+	return celda
 
 
 ## Chapa con un "?" en la esquina de la tarjeta. Es un botón de verdad —y no

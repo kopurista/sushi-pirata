@@ -1028,6 +1028,75 @@ def build_perk_square() -> None:
     save(img, "boton_perk_cuadrado")
 
 
+def tile_horizontal(img: Image.Image, banda: int) -> Image.Image:
+    """Convierte una imagen opaca en tileable A LO ANCHO: se recorta la cola
+    derecha (`banda` columnas) y se FUNDE sobre el arranque, de modo que la
+    ultima columna del resultado empalma con la primera igual que dos
+    columnas vecinas del original. Para fondos de escena vale de sobra (una
+    textura de ruido pide tilear por construccion, ver `foam_ww`)."""
+    w, h = img.size
+    nuevo_w = w - banda
+    out = img.crop((0, 0, nuevo_w, h))
+    for x in range(banda):
+        k = x / float(banda - 1)
+        cola = img.crop((nuevo_w + x, 0, nuevo_w + x + 1, h))
+        cabeza = img.crop((x, 0, x + 1, h))
+        out.paste(Image.blend(cola, cabeza, k), (x, 0))
+    return out
+
+
+def build_pecera() -> None:
+    """LA PECERA del album de pesca (tanda del 31-8-2026, pedida por el
+    usuario: la pecera con graficos PROPIOS, nada de panel de madera).
+
+    - `ic_pecera`: el icono del boton del album (tanque de laton con su pez).
+    - `pecera_marco`: marco de laton con remaches, centro vacio -> 9-slice.
+      El blanco de DENTRO esta encerrado por el marco, asi que ademas de la
+      inundacion desde los bordes necesita `fill_white_holes`.
+    - `pecera_fondo`: interior del tanque (agua, arena, algas y coral),
+      generado como sprite-tiling-horizontal: tilea a lo ancho, que es por
+      donde crece la pecera. Va OPACO tal cual.
+    """
+    ic = drop_specks(drop_white(Image.open(RAW / "pecera" / "ic1.webp").convert("RGBA")))
+    save(fit_max(crop_alpha(ic), 160), "ic_pecera")
+    marco = fill_white_holes(drop_white(
+        Image.open(RAW / "pecera" / "marco1.webp").convert("RGBA")))
+    marco = crop_alpha(marco)
+    save(fit_width(solidify(marco), 640), "pecera_marco")
+    # EL FONDO ES UN `fixed_background` VERTICAL, no el sprite-tiling: el
+    # tiling de Ludo solo pintaba una banda de 180 px (el resto era alfa, que
+    # aplastado a RGB salia NEGRO — se vio en captura como un tanque a
+    # oscuras con una franja de agua). El fixed_background llena el lienzo
+    # entero; el tileado horizontal se FABRICA fundiendo el canto izquierdo
+    # sobre el derecho en una banda de mezcla.
+    fondo = Image.open(RAW / "pecera" / "fondo_v2b.webp").convert("RGB")
+    fondo = tile_horizontal(fondo, 90)
+    fondo.thumbnail((10000, 960), Image.LANCZOS)
+    fondo.save(OUT / "pecera_fondo.png")
+    print("pecera_fondo   ", fondo.size)
+
+
+def build_vitrina() -> None:
+    """LA VITRINA de trofeos (misma tanda): marco de madera barnizada con
+    esquinas de laton (9-slice), fondo de tablones con DOS baldas que tilea a
+    lo ancho, y la etiqueta de laton para el nombre de cada pieza."""
+    marco = fill_white_holes(drop_white(
+        Image.open(RAW / "vitrina" / "marco1.webp").convert("RGBA")))
+    save(fit_width(solidify(crop_alpha(marco)), 640), "vitrina_marco")
+    # Mismo camino que el fondo de la pecera (fixed_background vertical +
+    # tileado fabricado), y ademas se RECORTAN los marcos laterales que el
+    # generador pinto aunque el prompt los prohibiera: con ellos, cada
+    # baldosa traeria su propio marco en mitad de la vitrina.
+    fondo = Image.open(RAW / "vitrina" / "fondo_v2b.webp").convert("RGB")
+    fondo = fondo.crop((70, 0, fondo.width - 70, fondo.height))
+    fondo = tile_horizontal(fondo, 90)
+    fondo.thumbnail((10000, 820), Image.LANCZOS)
+    fondo.save(OUT / "vitrina_fondo.png")
+    print("vitrina_fondo  ", fondo.size)
+    etiqueta = drop_white(Image.open(RAW / "vitrina" / "etiqueta1.webp").convert("RGBA"))
+    save(fit_width(crop_alpha(etiqueta), 300), "vitrina_etiqueta")
+
+
 def build_mult_badges() -> None:
     """Chapas x2..x20 del multiplicador de variedad, DIBUJADAS (como la barra),
     no generadas: la tanda de Ludo salía con estallidos de cómic que no

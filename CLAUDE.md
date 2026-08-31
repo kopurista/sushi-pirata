@@ -2531,24 +2531,43 @@ La GUÍA lleva su sección ("El canto de sirena").
     (`no_size`: su ficha no habla de centímetros ni de récord) y la bota se
     mide en **número de calzado** (`size_unit: "talla"`, 34–48), no en cm —
     de ahí `FishData.size_text()`, que devuelve ya la unidad puesta.
-    **EL ÁLBUM ES UNA PECERA** (`_open_album` y el bloque `pecera_*`, pedido
-    por el usuario): los peces capturados NADAN en un tanque largo que se
-    recorre con scroll HORIZONTAL (paneo propio con inercia: `TouchScroll`
-    aquí no vale porque hay que separar el toque sobre un pez del tirón que
-    recorre el tanque), y tocar uno abre su ficha de siempre. Los que faltan
-    nadan en SILUETA oscura, sin nombre y sin ficha. **Cada tipo nada a su
-    manera** (`NADOS`/`NADO_POR_PEZ`): los tiburones cruzan rápido, las ranas
-    saltan en parábola, la tortuga rema despacio, la medusa pulsa, los pulpos
-    van a chorros, los caballitos flotan de pie, las anguilas serpentean y los
-    del fondo (cangrejos, erizos, la basura) se quedan en la arena. El tanque
-    se DIBUJA por fotograma (agua en bandas, arena, algas, burbujas) y los
-    peces son `draw_texture_rect`, no cien nodos; el volteo al cambiar de
-    rumbo es un rectángulo de ancho negativo (los iconos miran a la
-    izquierda). Dos trampas pagadas: **un `load()` DENTRO de `_draw` deja la
-    textura rota para siempre** (se dibuja como un cuadrado plano y se queda
-    así en caché — los iconos se precargan en `_montar_peces`), y antes del
-    montaje diferido el ancho del tanque es 0, con lo que `fmod(x, 0)` daba
-    NaN y las algas escupían avisos de normalize.
+    **EL ÁLBUM ES UNA PECERA CON ARTE PROPIO** (`_open_album` y el bloque
+    `pecera_*`; rehecha el 31-8-2026 a petición del usuario: nada de panel de
+    madera): marco de latón con remaches (`pecera_marco.png`, 9-slice con la
+    banda de estirado elegida ENTRE remaches — estirando una banda con
+    remache, el remache salía churrete), interior de agua/arena/algas
+    (`pecera_fondo.png`) y su botón con icono de pecera (`ic_pecera.png`).
+    Se recorre con scroll HORIZONTAL (paneo propio con inercia: `TouchScroll`
+    aquí no vale porque hay que separar el toque sobre un pez del tirón), y
+    tocar un pez abre su ficha.
+    · **SOLO NADAN LOS CAPTURADOS** (pedido por el usuario), y la pecera
+      CRECE a lo ancho con cada especie nueva (`pecera_ancho` sale del
+      reparto de sitios). Nada de siluetas.
+    · **CADA PEZ VA A SU TALLA REAL** (`_lado_pez`): los cm típicos de la
+      especie (`FishData.length_cm`) pasados por una potencia 0.38 — lineal,
+      el tiburón ballena de 7,5 m no cabría; sin comprimir, la lapa de 6 cm
+      no se vería. Medido: lapa 40 px, tiburón 117, ballena 247. Los GRANDES
+      (>=150 px) nadan por el centro con hueco propio.
+    · **CADA PEZ NADA DE VERDAD**: su sprite lleva `shaders/pez_nado.gdshader`
+      (ondulación de cola: amplitud creciente hacia la cola, fuerte en
+      anguilas, nula en la basura; el uniforme `voltear` acompaña al `flip_h`
+      o el volteado batiría la CABEZA) y encima el paseo por tipos
+      (`NADOS`/`NADO_POR_PEZ`): tiburones cruzando, ranas a saltos en
+      parábola, tortugas remando, medusas pulsando (su pulso va en la escala
+      del nodo), pulpos a chorros, caballitos de pie, los del fondo en la
+      arena. Los peces son NODOS TextureRect (uno por captura) con material
+      propio, no cien draw_texture_rect: el shader pide material por pez.
+    · Encima del agua, los efectos del cristal dibujados (rayos de luz que
+      respiran y burbujas), fijos — no viajan con el paneo.
+    · Trampas pagadas: **un `load()` DENTRO de `_draw` deja la textura rota
+      para siempre** (se dibuja como un cuadrado plano y queda así en caché:
+      precargar SIEMPRE); **un Control de tamaño 0 que dibuja de más se
+      descarta entero en cuanto su origen sale de pantalla** (el agua
+      desaparecía al panear: el nodo del fondo lleva su `size` real); y el
+      `sprite-tiling-horizontal` de Ludo pintó solo una banda de 180 px con
+      el resto en alfa — el fondo bueno es un `fixed_background` VERTICAL
+      hecho tileable A MANO (`ui2_prep.tile_horizontal`, funde la cola
+      derecha sobre el arranque).
     Cada captura trae un **TAMAÑO** (size 0..1, sorteado ANTES de la sombra)
     que decide sus doblones dentro de la horquilla de su rareza — **común
     45–65 · raro 60–80 · épico 85–120 · legendario 130–190** — y el largo
@@ -3042,16 +3061,25 @@ La GUÍA lleva su sección ("El canto de sirena").
     abajo-izquierda y punta LARGA saliendo por abajo-derecha) y el emblema
     como DOS formas verdes separadas (medialuna arriba + ola que se enrosca
     en espiral debajo), con el círculo crema pálido detrás.
-  · La pestaña **Colección** es una **VITRINA DE TROFEOS** (pedido por el
-    usuario): tres BALDAS de madera (el tablón del submenú del mapa con su
-    tinte cálido) que se recorren con scroll HORIZONTAL, cada pieza APOYADA
-    sobre su balda y el nombre debajo — sin tarjeta alrededor. El catálogo va
-    en columnas de tres, los bloqueados en SILUETA oscura con "???" y el "?"
-    de pista donde toca; los conseguidos abren su ficha al tocarlos.
-    **`TouchScroll` aprende HORIZONTAL** (`attach(scroll, true)`) para esto.
-    OJO: la fila y la balda van ANCLADAS dentro de su capa, y un hijo anclado
-    no aporta tamaño mínimo — el ancho y el alto de cada balda se ponen
-    CONTADOS, o la vitrina entera se aplasta a cero y sale en blanco (pasó).
+  · La pestaña **Colección** es una **VITRINA DE TROFEOS CON ARTE PROPIO**
+    (rehecha el 31-8-2026, pedida por el usuario): marco de madera barnizada
+    con esquinas de latón (`vitrina_marco.png`, 9-slice), interior de
+    tablones con DOS baldas (`vitrina_fondo.png`, `fixed_background` vertical
+    recortado de sus marcos laterales y tileado con `tile_horizontal`),
+    ETIQUETA de latón con el nombre bajo cada pieza (`vitrina_etiqueta.png`)
+    y el brillo del cristal dibujado encima. Scroll HORIZONTAL
+    (**`TouchScroll` aprende horizontal**: `attach(scroll, true)`).
+    · **SOLO SE EXPONE LO CONSEGUIDO — más lo AVISTADO** (pedido por el
+      usuario): una pieza con pista (su escenario superado) sale en silueta
+      con su "?", y la trifuerza con fragmentos enseña su cuenta. El resto
+      del catálogo NO aparece.
+    · **Y NO OCUPA LA PANTALLA ENTERA**: dos baldas bastan (`VIT_ALTO` 700,
+      centrada en su pestaña). Las piezas APOYAN en la superficie de las
+      baldas, MEDIDA sobre el propio dibujo (`VIT_BALDAS`, filas oscuras del
+      png en y 513-604 y 776-819 de 820), con su sombra de apoyo.
+    · La ficha de una pieza enseña su fecha y procedencia (`collectible_meta`,
+      ver arriba); el fondo del expositor lleva su `size` real puesto (la
+      lección del agua de la pecera).
   · **CADA PIEZA PAGA EXPERIENCIA al ganarse** (`GameState.col_xp()`: 25 + 5
     por nivel del cocinero, la pendiente de las medallas) y la ventana del
     coleccionable la canta en su renglón azul. Y **apunta su FECHA y su
