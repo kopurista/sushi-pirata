@@ -22,6 +22,10 @@ extends EditorScenePostImport
 ## Triángulos máximos por modelo (nombre de archivo sin extensión).
 const BUDGETS := {
 	# Entrado por Meshy (tools/meshy.py).
+	"chef_ov_rig": 4000,
+	# Entrado por Meshy (tools/meshy.py).
+	"chef_ov": 3500,
+	# Entrado por Meshy (tools/meshy.py).
 	"canon_pirata": 3000,
 	# Atrezzo estático, se ve a pocos píxeles desde la cámara isométrica.
 	"caja": 800,

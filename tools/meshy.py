@@ -229,10 +229,12 @@ def cmd_imagen(a) -> None:
         base64.b64encode(img.read_bytes()).decode("ascii"))
     print("Image-to-3D desde %s (%.0f KB)" % (img.name,
         img.stat().st_size / 1024))
+    # `smart-topology` da malla limpia con tope de 15.000 triangulos, que
+    # encaja con los presupuestos de este proyecto (800-9.000). OJO: la API lo
+    # RECHAZA con ai_model "latest" (HTTP 400: "smart-topology requires
+    # ai_model meshy-t1 or meshy-t2"), asi que va emparejado con meshy-t2.
     tid = pide("/openapi/v1/image-to-3d", {
-        "image_url": uri, "ai_model": "latest",
-        # `smart-topology` da malla limpia con tope de 15.000 triangulos, que
-        # encaja con los presupuestos de este proyecto (800-9.000).
+        "image_url": uri, "ai_model": "meshy-t2",
         "model_type": "smart-topology",
         "target_polycount": min(max(a.poly * 3, 4000), 15000),
         "should_remesh": True, "topology": "triangle",
@@ -253,9 +255,15 @@ def _bajar_y_rematar(mid: str, res: dict, poly: int, rig: bool) -> None:
             "input_task_id": res["id"], "height_meters": 1.7,
         })["result"]
         rr = esperar("/openapi/v1/rigging", tid)
-        rurls = rr.get("model_urls", {}) or rr.get("result", {})
-        if "glb" in rurls:
-            crudo = descargar(rurls["glb"], CRUDOS / ("%s_rig.glb" % mid))
+        # OJO: el rigging NO devuelve `model_urls` como las demas tareas, sino
+        # `result.rigged_character_glb_url` (mas las animaciones basicas de
+        # andar y correr en `result.basic_animations`, que aqui no se usan: el
+        # juego anima por codigo con CharacterAnim). Buscarlo en `model_urls`
+        # dejaba el rigueo pagado y sin descargar.
+        rurls = (rr.get("result") or {})
+        url_rig = rurls.get("rigged_character_glb_url", "")
+        if url_rig != "":
+            crudo = descargar(url_rig, CRUDOS / ("%s_rig.glb" % mid))
             mid = mid if mid.endswith("_rig") else mid + "_rig"
         else:
             print("  AVISO: el rigging no devolvio .glb; se usa el sin riguear")
