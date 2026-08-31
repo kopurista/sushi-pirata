@@ -1486,6 +1486,17 @@ La GUÍA lleva su sección ("El canto de sirena").
 - **Los ingredientes GRATIS (coste 0) no se piden ni se gastan**:
   `ingredients_for_selection` los salta. El sésamo estaba dejando el uramaki
   California sin poder jugarse por un ingrediente que la tienda ni vende.
+  `has_ingredients_for` sigue la MISMA regla (los saltó tarde: esa función
+  vetaba recetas por el sésamo en el selector y en los fichajes del arcade).
+- **"JUGAR IGUALMENTE" CON GÉNERO FALTANDO FUNCIONA DE VERDAD** (level3d,
+  rama aventura): la receta impagable SE CAE DE LA CARTA al montar el nivel
+  — que es lo que el aviso de Gigi promete — y solo se rebota a prep_screen
+  si NO queda ni una pagable (o sin arroz). Antes
+  `consume_ingredients_for_level` devolvía false con CUALQUIER ingrediente a
+  0 y el nivel rebotaba entero, así que el botón "Jugar" del aviso parecía
+  no hacer nada. No se filtran ni las cartas de puerto `free_ingredients` ni
+  las recetas aún no desbloqueadas (esas no piden despensa: David las regala
+  dentro del nivel).
 - **`recipes_for_port` tiene que mirar TAMBIÉN `reward_recipes_3`**: desde que
   las recompensas van en dos escalones, contar solo `reward_recipes` dejaba las
   de 3 estrellas fuera de la carta de todos los puertos siguientes.
@@ -3151,6 +3162,25 @@ La GUÍA lleva su sección ("El canto de sirena").
     a ojo, el koinobori salió flotando fuera del casco y el farol enterrado
     en el castillo. `GeometryBatch.bake` no los toca: solo funde hijos
     DIRECTOS de la raíz, y todo esto cuelga del pivote del barco.
+    **La 2ª pasada (feedback con capturas) dejó reglas que no repetir**: la
+    vela WW va como calcomanía de SOLO su emblema (`col_vela_emblema.png`,
+    recortado por el disco crema del propio icono — el coleccionable entero
+    era una segunda vela gigante) y EN EL PLANO de la vela (normal en x); el
+    koinobori es un quad con el DIBUJO del coleccionable a alto*0.83 (a 0.90
+    lo tapaba el paño de la bandera); el farol es pequeño, colgado del canto
+    de popa, con destello billboard aditivo (`destello_farol.png`) y
+    OmniLight corta; el ancla va PLANA contra el casco (brazos en X-Y) y en
+    la AMURA DE PROA (x −0.18·s, y alto·0.33, z 0.19·s — en el costado la
+    tapaban el escorzo del casco y el TIMÓN de la interfaz, medido con tinte
+    magenta de sonda); el cañón va DE PERFIL a media cubierta (apuntando a
+    cámara se leía como un círculo) con la dirección de la boca en su meta
+    `dir_boca`, que es lo que dispara `_disparar_canon`; y el huevo baja a
+    cubierta junto al mástil con las motas EN LA TEXTURA
+    (`huevo_moteado.png` por PIL, envuelta por la UV de la esfera — las
+    lentejas 3D sobresalían de la cáscara). El trío de la TIENDA
+    (`shop_screen._trofeos_tienda`): maneki sobre la caja, daruma sobre el
+    barril y omamori en el mostrador, Sprite3D con el icono del propio
+    coleccionable.
 - **LA FICHA SE ENSEÑA TAMBIÉN AL CONSEGUIR LA PIEZA**, no solo en la
   vitrina y en el álbum: la ventana del coleccionable
   (`NoticeLayer._show_collectible`) pinta su `desc` bajo el nombre y el
@@ -3500,6 +3530,17 @@ La GUÍA lleva su sección ("El canto de sirena").
   dibujo de David con el loro chillando y solo cambia el nombre del tablón.
   Gigi tiene mal genio, se enfada con los clientes y es quien salta cuando el
   jugador se equivoca; David hace de contrapunto (`loro_resignado`).
+  **EL ARTE DE DAVID/GIGI CAMBIA CON DOS COLECCIONABLES**
+  (`DialogueBox._variante_de`): el PAÑUELO pirata se lo pone David y el
+  TRICORNIO se lo queda Gigi. Cuatro estados = cuatro juegos de retratos:
+  base `david_<mood>.png` (sin nada — REHECHO: al viejo, que traía a Gigi ya
+  con tricornio, se le quitó por `editImage` y hoy es `_tricornio`),
+  `_panuelo`, `_tricornio` y `_panuelo_tricornio`. Los compone
+  `tools/david_variantes.py` de `_gen/david_var/` (inundación umbral 232 por
+  el ruido de papel de editImage, resize directo al lienzo del vigente). CAI
+  hace lo mismo con el sombrero de paja (`cai_<mood>_sombrero.png`,
+  `tools/cai_sombrero.py`). La caída es doble: variante → mood base → serio,
+  así que un mood sin variante nunca deja la caja pelada.
   **LOS CLIENTES DE SIEMPRE TAMBIÉN HABLAN**, y en sus DOS GÉNEROS: `grumete`,
   `pirata`, `capitan` y sus `_f`. Son retratos sin nombre propio para cuando un
   guion necesita que hable el que está sentado en la barra (el pirata del nivel
