@@ -71,16 +71,18 @@ static func _bandera_pirata(pivot: Node3D, s: float, alto: float) -> void:
 	var cil := CylinderMesh.new()
 	cil.top_radius = 0.008 * s
 	cil.bottom_radius = 0.010 * s
-	cil.height = 0.16 * s
+	cil.height = 0.12 * s
 	palo.mesh = cil
-	palo.position = Vector3(0.0, 0.04 * s, 0.0)
+	palo.position = Vector3(0.0, 0.03 * s, 0.0)
 	palo.material_override = _mat(Color(0.24, 0.16, 0.09))
 	p.add_child(palo)
 	var pano := MeshInstance3D.new()
 	var caja := BoxMesh.new()
-	caja.size = Vector3(0.30 * s, 0.17 * s, 0.012 * s)
+	# Mas pequena que el primer intento (0.30 x 0.17): a esa talla competia
+	# con las velas y el usuario la bajo.
+	caja.size = Vector3(0.21 * s, 0.12 * s, 0.010 * s)
 	pano.mesh = caja
-	pano.position = Vector3(0.16 * s, 0.02 * s, 0.0)
+	pano.position = Vector3(0.115 * s, 0.015 * s, 0.0)
 	pano.material_override = _mat(Color(0.07, 0.07, 0.09))
 	p.add_child(pano)
 	# El cráneo, una calcomanía por cada cara del paño.
@@ -88,9 +90,9 @@ static func _bandera_pirata(pivot: Node3D, s: float, alto: float) -> void:
 		for lado in [1.0, -1.0]:
 			var cara := MeshInstance3D.new()
 			var quad := QuadMesh.new()
-			quad.size = Vector2(0.11 * s, 0.11 * s)
+			quad.size = Vector2(0.078 * s, 0.078 * s)
 			cara.mesh = quad
-			cara.position = pano.position + Vector3(0.0, 0.0, 0.008 * s * lado)
+			cara.position = pano.position + Vector3(0.0, 0.0, 0.007 * s * lado)
 			if lado < 0.0:
 				cara.rotation_degrees.y = 180.0
 			var m := StandardMaterial3D.new()

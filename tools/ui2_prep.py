@@ -1087,8 +1087,10 @@ def build_vitrina() -> None:
     # tileado fabricado), y ademas se RECORTAN los marcos laterales que el
     # generador pinto aunque el prompt los prohibiera: con ellos, cada
     # baldosa traeria su propio marco en mitad de la vitrina.
-    fondo = Image.open(RAW / "vitrina" / "fondo_v2b.webp").convert("RGB")
-    fondo = fondo.crop((70, 0, fondo.width - 70, fondo.height))
+    # v3: TRES baldas (la de dos dejaba media vitrina de aire por arriba,
+    # dicho por el usuario) y sin marcos laterales pintados, asi que ya no
+    # hay que recortar nada antes de tilear.
+    fondo = Image.open(RAW / "vitrina" / "fondo_v3a.webp").convert("RGB")
     fondo = tile_horizontal(fondo, 90)
     fondo.thumbnail((10000, 820), Image.LANCZOS)
     fondo.save(OUT / "vitrina_fondo.png")

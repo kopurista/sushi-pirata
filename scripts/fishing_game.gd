@@ -1974,15 +1974,35 @@ func _open_album() -> void:
 	marco.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(marco)
 
-	# Se cuentan las especies DEL CATALOGO, no las claves del guardado.
+	# EL CONTADOR VA GRABADO EN UNA PLACA DE LATÓN sobre la barra de arriba
+	# del propio tanque (pedido por el usuario: fuera el lazo rojo), como la
+	# chapa de un acuario de verdad. Se cuentan las especies DEL CATALOGO,
+	# no las claves del guardado.
 	var pescados := FishData.caught_count(GameState.fish_album)
-	var title := PrepBoard.make_title("Pecera: %d/%d" % [pescados,
-		FishData.total()])
-	title.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	title.offset_left = 110.0
-	title.offset_right = -110.0
-	title.offset_top = -34.0
-	panel.add_child(title)
+	var placa := Control.new()
+	placa.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	placa.offset_left = -125.0
+	placa.offset_right = 125.0
+	placa.offset_top = -6.0
+	placa.offset_bottom = 58.0
+	placa.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(placa)
+	var placa_tex := TextureRect.new()
+	placa_tex.texture = load("res://assets/ui/vitrina_etiqueta.png")
+	placa_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	placa_tex.stretch_mode = TextureRect.STRETCH_SCALE
+	placa_tex.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	placa_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	placa.add_child(placa_tex)
+	var placa_l := Label.new()
+	placa_l.text = "Peces: %d / %d" % [pescados, FishData.total()]
+	placa_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	placa_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	placa_l.add_theme_font_size_override("font_size", 23)
+	placa_l.add_theme_color_override("font_color", Color(0.30, 0.19, 0.06))
+	placa_l.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	placa_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	placa.add_child(placa_l)
 
 	pecera_scroll = 0.0
 	_pec_vel = 0.0

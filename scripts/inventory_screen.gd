@@ -671,41 +671,34 @@ func _build_pantry_entry(ing: String) -> Control:
 ## así que el mueble mide `VIT_ALTO` y va centrado en su pestaña.
 
 ## Alto del mueble y grosor de las barras del marco (dibujadas 1:1).
-const VIT_ALTO := 700.0
+const VIT_ALTO := 740.0
 const VIT_BARRA := 44.0
 ## Ancho de celda por pieza y márgenes interiores del expositor.
-const VIT_CELDA := 168.0
-const VIT_MARGEN := 60.0
-## Dónde APOYA cada fila, en fracción del interior: la superficie de las dos
-## baldas, MEDIDA sobre `vitrina_fondo.png` (filas oscuras en y 513-604 y
-## 776-819 de 820).
-const VIT_BALDAS := [0.615, 0.918]
+const VIT_CELDA := 184.0
+const VIT_MARGEN := 56.0
+## Dónde APOYA cada fila, en fracción del interior: la superficie de las TRES
+## baldas, MEDIDA sobre `vitrina_fondo.png` v3 (sus frentes de balda caen en
+## y 248-316, 514-583 y 788-819 de 820). Con dos baldas la mitad de arriba
+## del mueble era puro aire (dicho por el usuario).
+# La tercera va un pelo por ENCIMA de su ledge (0.925, no 0.945): con la
+# fracción exacta sus etiquetas quedaban mordidas por el marco de abajo, y
+# la sombra de apoyo ya vende el contacto.
+const VIT_BALDAS := [0.288, 0.618, 0.925]
+## La zona de la ficha bajo el mueble (ver `_ficha_abajo`).
+var vitrina_ficha: Control = null
 
 
 func _build_collection() -> Control:
 	var host := Control.new()
 	host.set_anchors_preset(Control.PRESET_FULL_RECT)
 
-	var header := Label.new()
-	header.text = "Coleccionables: %d / %d" % [GameState.collectibles.size(),
-		CollectibleData.total()]
-	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	header.add_theme_font_size_override("font_size", 26)
-	header.add_theme_color_override("font_color", Color(1, 0.93, 0.78))
-	header.add_theme_color_override("font_outline_color", Color(0, 0, 0))
-	header.add_theme_constant_override("outline_size", 8)
-	header.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	header.offset_top = 6.0
-	header.offset_bottom = 44.0
-	host.add_child(header)
-
-	# EL MUEBLE, centrado en el hueco de la pestaña.
+	# EL MUEBLE, arriba de la pestaña; debajo queda la zona de la ficha.
 	var caso := Control.new()
 	caso.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	caso.offset_left = -352.0
 	caso.offset_right = 352.0
-	caso.offset_top = 64.0
-	caso.offset_bottom = 64.0 + VIT_ALTO
+	caso.offset_top = 26.0
+	caso.offset_bottom = 26.0 + VIT_ALTO
 	host.add_child(caso)
 
 	var interior := Control.new()
@@ -734,7 +727,7 @@ func _build_collection() -> Control:
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	interior.add_child(scroll)
 
-	var columnas := int(ceil(piezas.size() / 2.0))
+	var columnas := int(ceil(piezas.size() / 3.0))
 	var ancho_int := maxf(interior.size.x,
 		VIT_MARGEN * 2.0 + float(columnas) * VIT_CELDA)
 	var lienzo := Control.new()
@@ -764,8 +757,8 @@ func _build_collection() -> Control:
 		fondo.queue_redraw()
 		var i := 0
 		for p in piezas:
-			var fila := i % 2
-			var x := VIT_MARGEN + float(i / 2) * VIT_CELDA
+			var fila := i % 3
+			var x := VIT_MARGEN + float(i / 3) * VIT_CELDA
 			var base := alto_int * float(VIT_BALDAS[fila])
 			lienzo.add_child(_pieza_vitrina(p, Vector2(x, base)))
 			i += 1
@@ -789,6 +782,13 @@ func _build_collection() -> Control:
 	marco.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	caso.add_child(marco)
 
+	# EL CONTADOR VA GRABADO EN UNA PLACA DE LATÓN sobre el propio mueble
+	# (pedido por el usuario: nada de un rótulo flotando encima), como la
+	# chapa de un expositor de museo.
+	caso.add_child(_placa_laton("Tesoros: %d / %d" % [
+		GameState.collectibles.size(), CollectibleData.total()],
+		Vector2(352.0, 22.0), 280.0, 21))
+
 	if piezas.is_empty():
 		var vacio := Label.new()
 		vacio.text = "Aún no hay tesoros que lucir.\nLos irás ganando navegando y pescando."
@@ -803,19 +803,128 @@ func _build_collection() -> Control:
 		vacio.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		caso.add_child(vacio)
 
-	var pista_l := Label.new()
-	pista_l.text = "Desliza para recorrer la vitrina"
-	pista_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pista_l.add_theme_font_size_override("font_size", 16)
-	pista_l.add_theme_color_override("font_color", Color(0.9, 0.85, 0.72, 0.8))
-	pista_l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
-	pista_l.add_theme_constant_override("outline_size", 5)
-	pista_l.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	pista_l.offset_top = 74.0 + VIT_ALTO
-	pista_l.offset_bottom = 98.0 + VIT_ALTO
-	pista_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	host.add_child(pista_l)
+	# LA ZONA DE LA FICHA, en el vacío bajo el mueble (pedido por el usuario:
+	# tocar una pieza ya no abre ventana — su historia se lee aquí abajo).
+	vitrina_ficha = Control.new()
+	vitrina_ficha.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vitrina_ficha.offset_top = 40.0 + VIT_ALTO
+	vitrina_ficha.offset_left = 26.0
+	vitrina_ficha.offset_right = -26.0
+	vitrina_ficha.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.add_child(vitrina_ficha)
+	_ficha_abajo("")
 	return host
+
+
+## Una placa de latón con texto grabado (la etiqueta de la vitrina en
+## grande), centrada en `centro`.
+func _placa_laton(texto: String, centro: Vector2, ancho: float,
+		cuerpo: int) -> Control:
+	var placa := Control.new()
+	var alto := ancho * 0.26 / 1.4
+	placa.position = centro - Vector2(ancho * 0.5, alto * 0.5)
+	placa.size = Vector2(ancho, alto)
+	placa.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tex := TextureRect.new()
+	tex.texture = load("res://assets/ui/vitrina_etiqueta.png")
+	tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tex.stretch_mode = TextureRect.STRETCH_SCALE
+	tex.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	placa.add_child(tex)
+	var l := Label.new()
+	l.text = texto
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.add_theme_font_size_override("font_size", cuerpo)
+	l.add_theme_color_override("font_color", Color(0.30, 0.19, 0.06))
+	l.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	placa.add_child(l)
+	return placa
+
+
+## LA FICHA DE ABAJO: el hueco vacío bajo el mueble cuenta la pieza tocada —
+## dibujo, nombre, historia y cuándo/dónde se consiguió. Con "" enseña la
+## invitación. Sin ventanas: la vitrina se queda a la vista mientras se lee.
+func _ficha_abajo(id: String) -> void:
+	if vitrina_ficha == null or not is_instance_valid(vitrina_ficha):
+		return
+	for c in vitrina_ficha.get_children():
+		c.queue_free()
+	if id == "":
+		var invita := Label.new()
+		invita.text = "Toca una pieza de la vitrina para leer su historia.\nDesliza para recorrerla."
+		invita.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		invita.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		invita.add_theme_font_size_override("font_size", 19)
+		invita.add_theme_color_override("font_color", Color(0.9, 0.85, 0.72, 0.85))
+		invita.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+		invita.add_theme_constant_override("outline_size", 6)
+		invita.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		invita.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vitrina_ficha.add_child(invita)
+		return
+	var tengo := GameState.has_collectible(id)
+	var ic := TextureRect.new()
+	ic.texture = CollectibleData.get_icon(id)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.position = Vector2(8.0, 12.0)
+	ic.size = Vector2(148, 148)
+	if not tengo:
+		ic.modulate = Color(0.12, 0.09, 0.07, 0.85)
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vitrina_ficha.add_child(ic)
+
+	var nombre := Label.new()
+	nombre.text = CollectibleData.item_name(id) if tengo else "???"
+	nombre.add_theme_font_size_override("font_size", 27)
+	nombre.add_theme_color_override("font_color", Color(1, 0.93, 0.78))
+	nombre.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	nombre.add_theme_constant_override("outline_size", 8)
+	nombre.position = Vector2(172.0, 10.0)
+	nombre.size = Vector2(vitrina_ficha.size.x - 180.0, 38.0)
+	nombre.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vitrina_ficha.add_child(nombre)
+
+	# La historia (o la pista, si aún no es suya): con RichTextLabel, que la
+	# pista trae palabras clave entre ** y con un Label los asteriscos se
+	# leían tal cual.
+	var desc := RichTextLabel.new()
+	desc.bbcode_enabled = true
+	desc.fit_content = true
+	desc.scroll_active = false
+	desc.text = DialogueBox.format_keywords(
+		CollectibleData.describe(id) if tengo else _pista_coleccionable(id))
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc.add_theme_font_size_override("normal_font_size", 19)
+	desc.add_theme_font_size_override("bold_font_size", 19)
+	desc.add_theme_color_override("default_color", Color(0.94, 0.89, 0.78))
+	desc.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.75))
+	desc.add_theme_constant_override("outline_size", 6)
+	desc.position = Vector2(172.0, 52.0)
+	desc.size = Vector2(vitrina_ficha.size.x - 180.0, 108.0)
+	desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vitrina_ficha.add_child(desc)
+
+	# CUÁNDO Y DE DÓNDE, si la pieza lo trae apuntado.
+	var meta: Dictionary = GameState.collectible_meta.get(id, {})
+	if tengo and not meta.is_empty():
+		var linea := "Conseguido el %s" % str(meta.get("fecha", ""))
+		if str(meta.get("donde", "")) != "":
+			linea += "  ·  %s" % str(meta.get("donde", ""))
+		var obt := Label.new()
+		obt.text = linea
+		obt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		obt.add_theme_font_size_override("font_size", 16)
+		obt.add_theme_color_override("font_color", Color(0.78, 0.72, 0.58))
+		obt.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+		obt.add_theme_constant_override("outline_size", 5)
+		obt.position = Vector2(8.0, 168.0)
+		obt.size = Vector2(vitrina_ficha.size.x - 16.0, 44.0)
+		obt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vitrina_ficha.add_child(obt)
 
 
 ## El fondo de tablones, baldosa a baldosa y escalado al alto del interior.
@@ -853,8 +962,8 @@ func _pieza_vitrina(p: Dictionary, base: Vector2) -> Control:
 	var id := str(it["id"])
 	var owned: bool = p["owned"]
 	var celda := Button.new()
-	celda.position = Vector2(base.x, base.y - 150.0)
-	celda.size = Vector2(VIT_CELDA - 12.0, 196.0)
+	celda.position = Vector2(base.x, base.y - 138.0)
+	celda.size = Vector2(VIT_CELDA - 12.0, 192.0)
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		celda.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 
@@ -862,15 +971,15 @@ func _pieza_vitrina(p: Dictionary, base: Vector2) -> Control:
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.texture = CollectibleData.get_icon(id)
-	ic.position = Vector2((celda.size.x - 128.0) * 0.5, 14.0)
-	ic.size = Vector2(128, 128)
+	ic.position = Vector2((celda.size.x - 122.0) * 0.5, 8.0)
+	ic.size = Vector2(122, 122)
 	ic.modulate = Color.WHITE if owned else Color(0.10, 0.08, 0.06, 0.88)
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	celda.add_child(ic)
 	# La sombra de apoyo, para que el objeto no flote sobre la balda.
 	var sombra := ColorRect.new()
 	sombra.color = Color(0.1, 0.06, 0.02, 0.30)
-	sombra.position = Vector2(celda.size.x * 0.5 - 40.0, 138.0)
+	sombra.position = Vector2(celda.size.x * 0.5 - 40.0, 126.0)
 	sombra.size = Vector2(80.0, 7.0)
 	sombra.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	celda.add_child(sombra)
@@ -893,12 +1002,14 @@ func _pieza_vitrina(p: Dictionary, base: Vector2) -> Control:
 
 	if owned:
 		# LA ETIQUETA de latón, colgada del canto de la balda bajo la pieza.
+		# MÁS GRANDE que la primera tanda (140×36 a cuerpo 12, que no se
+		# leía — dicho por el usuario): la placa ocupa el ancho de la celda.
 		var placa := TextureRect.new()
 		placa.texture = load("res://assets/ui/vitrina_etiqueta.png")
 		placa.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		placa.stretch_mode = TextureRect.STRETCH_SCALE
-		placa.position = Vector2((celda.size.x - 140.0) * 0.5, 150.0)
-		placa.size = Vector2(140, 36)
+		placa.position = Vector2((celda.size.x - 168.0) * 0.5, 140.0)
+		placa.size = Vector2(168, 46)
 		placa.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		celda.add_child(placa)
 		var name_l := Label.new()
@@ -908,15 +1019,17 @@ func _pieza_vitrina(p: Dictionary, base: Vector2) -> Control:
 		name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		name_l.max_lines_visible = 2
 		name_l.add_theme_font_size_override("font_size",
-			10 if str(it["name"]).length() > 18 else 12)
+			12 if str(it["name"]).length() > 18 else 15)
 		name_l.add_theme_constant_override("line_spacing", -6)
 		name_l.add_theme_color_override("font_color", Color(0.30, 0.19, 0.06))
-		name_l.position = placa.position + Vector2(8, 2)
-		name_l.size = Vector2(124, 32)
+		name_l.position = placa.position + Vector2(10, 2)
+		name_l.size = Vector2(148, 42)
 		name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		celda.add_child(name_l)
 
-	celda.pressed.connect(_open_collectible_sheet.bind(id))
+	# Tocar una pieza rellena la FICHA DE ABAJO, sin ventana emergente
+	# (pedido por el usuario): la vitrina se queda a la vista mientras lees.
+	celda.pressed.connect(_ficha_abajo.bind(id))
 	PrepBoard.add_press_feedback(celda, 0.94)
 	if not owned and str(p["pista"]) != "":
 		var b := _boton_pista(id)
@@ -948,7 +1061,7 @@ func _boton_pista(id: String) -> Control:
 	var hundida := chapa.duplicate()
 	hundida.bg_color = Color(0.30, 0.18, 0.06)
 	b.add_theme_stylebox_override("pressed", hundida)
-	b.pressed.connect(_open_collectible_sheet.bind(id))
+	b.pressed.connect(_ficha_abajo.bind(id))
 	PrepBoard.add_press_feedback(b, 0.86)
 	return b
 
