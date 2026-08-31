@@ -655,6 +655,11 @@ func _build_pantry_entry(ing: String) -> Control:
 ## arriba. Los bloqueados van en SILUETA y con "???", sin ninguna pista de cómo
 ## conseguirlos; los conseguidos abren su ficha al tocarlos. El triángulo
 ## dorado enseña además cuántos fragmentos hay reunidos (si hay alguno).
+## LA COLECCIÓN ES UNA VITRINA DE TROFEOS (pedido por el usuario): tres
+## BALDAS de madera que se recorren con scroll HORIZONTAL, con cada pieza
+## apoyada sobre su balda. El orden del catálogo se conserva en columnas de
+## tres, así que avanzar hacia la derecha es avanzar por la colección.
+## Los bloqueados siguen en SILUETA oscura con "???" y sin pista alguna.
 func _build_collection() -> Control:
 	var host := Control.new()
 	host.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -672,44 +677,106 @@ func _build_collection() -> Control:
 	header.offset_bottom = 64.0
 	host.add_child(header)
 
+	# El scroll va en HORIZONTAL (TouchScroll con su modo nuevo) y el alto lo
+	# reparten las tres baldas a partes iguales.
 	var scroll := ScrollContainer.new()
-	TouchScroll.attach(scroll)
+	TouchScroll.attach(scroll, true)
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	scroll.offset_left = 30.0
-	scroll.offset_top = 72.0
+	scroll.offset_top = 76.0
 	scroll.offset_right = -30.0
-	scroll.offset_bottom = -30.0
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.offset_bottom = -64.0
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	host.add_child(scroll)
 
-	var grid := GridContainer.new()
-	grid.columns = 4
-	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	grid.add_theme_constant_override("h_separation", 8)
-	grid.add_theme_constant_override("v_separation", 10)
-	scroll.add_child(grid)
+	var columnas := VBoxContainer.new()
+	columnas.add_theme_constant_override("separation", 6)
+	scroll.add_child(columnas)
+
+	# Tres filas; cada una lleva su BALDA por detrás (el tablón del submenú
+	# del mapa, 9-slice solo horizontal, con el mismo tinte de madera cálida).
+	var filas: Array = []
+	var capas: Array = []
+	for i in 3:
+		var capa := Control.new()
+		capa.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		columnas.add_child(capa)
+		capas.append(capa)
+		var balda := NinePatchRect.new()
+		balda.texture = load("res://assets/ui/submenu_mapa.png")
+		balda.patch_margin_left = 84
+		balda.patch_margin_right = 84
+		balda.modulate = Color(1.22, 0.94, 0.66)
+		balda.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+		balda.offset_top = -34.0
+		balda.offset_bottom = 6.0
+		balda.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		capa.add_child(balda)
+		var fila := HBoxContainer.new()
+		fila.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		fila.offset_bottom = -14.0
+		fila.add_theme_constant_override("separation", 4)
+		capa.add_child(fila)
+		filas.append(fila)
+
+	var i := 0
 	for it in CollectibleData.ITEMS:
-		grid.add_child(_collection_card(it))
+		filas[i % 3].add_child(_collection_card(it))
+		i += 1
+	# EL ANCHO DE CADA BALDA SE PONE CONTADO: la fila y la balda van ANCLADAS
+	# dentro de su capa, y un hijo anclado no aporta tamaño mínimo — sin esto
+	# la vitrina entera se aplastaba a ancho cero y solo asomaba la primera
+	# pieza (pasó, y la pantalla salía en blanco).
+	for f in 3:
+		var n: int = (filas[f] as HBoxContainer).get_child_count()
+		(capas[f] as Control).custom_minimum_size.x = n * 126.0 			+ maxf(n - 1, 0) * 4.0
+	# Y EL ALTO TAMBIÉN, en diferido (el scroll aún no está medido): el
+	# EXPAND_FILL de las capas no estiraba nada porque el VBox dentro del
+	# scroll mide su mínimo, y el mínimo de una capa de hijos anclados es 0.
+	var repartir := func() -> void:
+		if not is_instance_valid(scroll):
+			return
+		var alto: float = (scroll.size.y - 12.0) / 3.0
+		for f2 in 3:
+			(capas[f2] as Control).custom_minimum_size.y = alto
+	repartir.call_deferred()
+
+	var pista := Label.new()
+	pista.text = "Desliza para recorrer la vitrina"
+	pista.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pista.add_theme_font_size_override("font_size", 16)
+	pista.add_theme_color_override("font_color", FADED)
+	pista.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	pista.offset_top = -56.0
+	pista.offset_bottom = -32.0
+	pista.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.add_child(pista)
 	return host
 
 
+## UNA PIEZA EN SU BALDA: el objeto apoyado sobre la madera y el nombre en
+## pequeño debajo del objeto. Sin tarjeta alrededor: en una vitrina lo que se
+## mira son los trofeos, no ciento veinte marcos.
 func _collection_card(it: Dictionary) -> Control:
 	var id := str(it["id"])
 	var owned := GameState.has_collectible(id)
 	var card := Button.new()
-	card.custom_minimum_size = Vector2(152, 176)
+	card.custom_minimum_size = Vector2(126, 0)
+	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		card.add_theme_stylebox_override(st, StyleBoxEmpty.new())
-	var skin := PrepBoard.make_nine_patch(PrepBoard.CARD_TEX, PrepBoard.CARD_MARGIN)
-	skin.modulate = Color.WHITE if owned else Color(1, 1, 1, 0.55)
-	card.add_child(skin)
 
 	var ic := TextureRect.new()
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.texture = CollectibleData.get_icon(id)
-	ic.position = Vector2(29, 10)
-	ic.size = Vector2(94, 94)
+	# Apoyado en la balda: anclado ABAJO de la celda, encima del nombre.
+	ic.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	ic.offset_left = 8.0
+	ic.offset_right = -8.0
+	ic.offset_top = -184.0
+	ic.offset_bottom = -36.0
 	# La silueta OSCURA es la única pista que dan los bloqueados.
 	ic.modulate = Color.WHITE if owned else Color(0.12, 0.09, 0.07, 0.85)
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -721,13 +788,13 @@ func _collection_card(it: Dictionary) -> Control:
 		frag.text = "%d/%d" % [GameState.triforce_pieces,
 			CollectibleData.TRIFORCE_PIECES]
 		frag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		frag.add_theme_font_size_override("font_size", 24)
+		frag.add_theme_font_size_override("font_size", 22)
 		frag.add_theme_color_override("font_color", Color(1, 0.86, 0.4))
 		frag.add_theme_color_override("font_outline_color", Color(0.13, 0.07, 0.02))
 		frag.add_theme_constant_override("outline_size", 8)
-		frag.set_anchors_preset(Control.PRESET_TOP_WIDE)
-		frag.offset_top = 48.0
-		frag.offset_bottom = 84.0
+		frag.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+		frag.offset_top = -110.0
+		frag.offset_bottom = -74.0
 		frag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		card.add_child(frag)
 
@@ -735,24 +802,21 @@ func _collection_card(it: Dictionary) -> Control:
 	var name_l := Label.new()
 	name_l.text = nombre
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_l.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	# UN NOMBRE LARGO SE ENCOGE EN VEZ DE CORTARSE. "Peluche de un mono con 3
-	# cabezas" pide TRES renglones y la Exo 2 reserva ~1.9x el cuerpo por
-	# línea, así que a 15 el tercero se salía de la tarjeta y se leía
-	# "Peluche de un mono con 3" con la palabra cortada por el canto. Con el
-	# cuerpo menor Y el interlineado negativo (la misma perilla de
-	# `make_big_title`) los tres renglones caben.
-	var largo := nombre.length() > 20
-	name_l.add_theme_font_size_override("font_size", 13 if largo else 15)
+	name_l.add_theme_font_size_override("font_size",
+		11 if nombre.length() > 20 else 13)
 	name_l.add_theme_constant_override("line_spacing", -6)
 	name_l.add_theme_color_override("font_color",
 		Color(0.42, 0.26, 0.10) if owned else Color(0.55, 0.47, 0.36))
-	name_l.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	name_l.offset_left = 8.0
-	name_l.offset_right = -8.0
-	name_l.offset_top = -70.0
-	name_l.offset_bottom = -10.0
+	# Dos renglones como mucho; el segundo cae sobre el canto de la balda,
+	# que queda detrás y no lo tapa.
+	name_l.max_lines_visible = 2
+	name_l.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	name_l.offset_left = 2.0
+	name_l.offset_right = -2.0
+	name_l.offset_top = -34.0
+	name_l.offset_bottom = 12.0
 	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(name_l)
 
@@ -769,7 +833,9 @@ func _collection_card(it: Dictionary) -> Control:
 	# toca. Solo sale en las BLOQUEADAS con pista: la conseguida ya se explica
 	# sola al abrirla.
 	if pista != "":
-		card.add_child(_boton_pista(id))
+		var b := _boton_pista(id)
+		b.position = Vector2(86, 8)
+		card.add_child(b)
 	return card
 
 
@@ -896,6 +962,27 @@ func _open_collectible_sheet(id: String) -> void:
 	desc.offset_bottom = 448.0
 	panel.add_child(desc)
 
+	# CUÁNDO Y DE DÓNDE (pedido por el usuario): la fecha y la procedencia
+	# que apuntó `unlock_collectible`. Las piezas de guardados anteriores no
+	# la tienen y su ficha se queda como estaba.
+	var meta: Dictionary = GameState.collectible_meta.get(id, {})
+	if tengo and not meta.is_empty():
+		var linea := "Conseguido el %s" % str(meta.get("fecha", ""))
+		if str(meta.get("donde", "")) != "":
+			linea += "  ·  %s" % str(meta.get("donde", ""))
+		var obt := Label.new()
+		obt.text = linea
+		obt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		obt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		obt.add_theme_font_size_override("font_size", 17)
+		obt.add_theme_color_override("font_color", FADED)
+		obt.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		obt.offset_left = 44.0
+		obt.offset_right = -44.0
+		obt.offset_top = 448.0
+		obt.offset_bottom = 492.0
+		panel.add_child(obt)
+
 	var cerrar := Button.new()
 	cerrar.text = "Cerrar"
 	PrepBoard.skin_button(cerrar)
@@ -903,8 +990,8 @@ func _open_collectible_sheet(id: String) -> void:
 	cerrar.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	cerrar.offset_left = 150.0
 	cerrar.offset_right = -150.0
-	cerrar.offset_top = 460.0
-	cerrar.offset_bottom = 522.0
+	cerrar.offset_top = 496.0
+	cerrar.offset_bottom = 552.0
 	cerrar.pressed.connect(overlay.queue_free)
 	panel.add_child(cerrar)
 

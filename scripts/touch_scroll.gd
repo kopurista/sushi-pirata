@@ -30,6 +30,9 @@ const STOP_SPEED := 12.0
 const VEL_SMOOTH := 0.75
 
 var _scroll: ScrollContainer = null
+## En horizontal el arrastre mueve `scroll_horizontal` (la vitrina de
+## trofeos); lo de siempre es vertical.
+var _horizontal := false
 var _touching := false
 var _dragging := false
 var _start := Vector2.ZERO
@@ -37,10 +40,11 @@ var _velocity := 0.0
 
 
 ## Le da arrastre táctil e inercia a este ScrollContainer.
-static func attach(scroll: ScrollContainer) -> TouchScroll:
+static func attach(scroll: ScrollContainer, horizontal := false) -> TouchScroll:
 	var ts := TouchScroll.new()
 	ts.name = "TouchScroll"
 	ts._scroll = scroll
+	ts._horizontal = horizontal
 	scroll.add_child(ts)
 	return ts
 
@@ -68,9 +72,10 @@ func _input(event: InputEvent) -> void:
 		if not _dragging and _start.distance_to(event.position) < DEADZONE:
 			return
 		_dragging = true
-		_move(-event.relative.y)
+		var paso: float = -event.relative.x if _horizontal else -event.relative.y
+		_move(paso)
 		var dt := maxf(get_process_delta_time(), 0.0001)
-		_velocity = lerpf(_velocity, -event.relative.y / dt, VEL_SMOOTH)
+		_velocity = lerpf(_velocity, paso / dt, VEL_SMOOTH)
 		get_viewport().set_input_as_handled()
 
 
@@ -89,6 +94,12 @@ func _process(delta: float) -> void:
 
 ## Mueve el scroll y frena la inercia al llegar a un extremo.
 func _move(amount: float) -> void:
+	if _horizontal:
+		var antes := _scroll.scroll_horizontal
+		_scroll.scroll_horizontal = int(round(antes + amount))
+		if _scroll.scroll_horizontal == antes and absf(amount) >= 1.0:
+			_velocity = 0.0
+		return
 	var before := _scroll.scroll_vertical
 	_scroll.scroll_vertical = int(round(before + amount))
 	if _scroll.scroll_vertical == before and absf(amount) >= 1.0:
