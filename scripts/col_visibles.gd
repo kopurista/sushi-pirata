@@ -52,6 +52,25 @@ const CALAVERA_TEX := "res://assets/ui/calavera_vacio.png"
 ## 1.00 × 0.897 × 0.376. Todo lo demás se coloca en fracciones de eso, así
 ## que vale a cualquier escala del barco.
 const MASTIL_X := 0.0986
+## LA CUBIERTA, MEDIDA (no a ojo): las caras hacia arriba del casco caen en
+## y de modelo -0.18, o sea la fraccion 0.298 del alto. Todo lo que se APOYE
+## en el barco va aqui — el primer intento puso el huevo y el cañon a ojo y
+## salieron FLOTANDO delante del casco (dicho por el usuario).
+const CUBIERTA := 0.298
+## La VELA DE MESANA (la de mas a popa) es el panel de x=0.262: abarca
+## y[0.045,0.239] y z[-0.146,0.144]. Sale de la sonda de paneles claros.
+const MESANA_X := 0.262
+const MESANA_Y := 0.657     ## fraccion del alto = centro de la vela
+## La ANDANA BAJA: la franja BAJA del costado (y de modelo -0.32). Medida
+## contra la captura, no a ojo: a la altura de la borda el arpon se recortaba
+## contra el CIELO por encima del casco, que es justo lo contrario de estar
+## tendido en la andana.
+const ANDANA := 0.208
+## Y LA BORDA, el canto de arriba del costado: lo que se apoye en la CUBIERTA
+## queda TAPADO por el propio casco desde esta camara (medido: a media eslora
+## el costado llega a z 0.16 y la cubierta esta a 0.08), asi que el cañon va
+## montado sobre la borda, con la boca asomando por fuera.
+const BORDA := 0.365
 const ALTO_MESH := 0.897
 
 
@@ -232,23 +251,27 @@ static func _farol_fantasma(pivot: Node3D, s: float, alto: float) -> void:
 ## EL ARPÓN, apoyado contra la borda con la punta al cielo: asta larga y
 ## cabeza de metal con su lengüeta.
 static func _arpon(pivot: Node3D, s: float, alto: float) -> void:
+	# TENDIDO A LO LARGO DE LA ANDANA BAJA (pedido por el usuario), de popa a
+	# proa y con la punta hacia delante, apoyado contra el costado por fuera
+	# del casco. De pie sobre el castillo de popa —donde estuvo— no se
+	# entendia que fuera un arpon ni por que estaba ahi.
 	var p := Node3D.new()
-	# Apoyado en la cara DELANTERA del castillo de popa (la que mira a la
-	# camara), asomando por encima de la borda: a media popa y bajo quedaba
-	# dentro del casco y no se veia.
-	p.position = Vector3(0.26 * s, alto * 0.30, 0.13 * s)
-	p.rotation_degrees.z = 22.0
-	p.rotation_degrees.x = -8.0
+	p.position = Vector3(0.18 * s, alto * ANDANA, 0.185 * s)
+	# El cilindro nace con su eje en +Y; girando 90º en Z pasa a -X, o sea
+	# que la punta mira a PROA.
+	p.rotation_degrees.z = 90.0
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var asta := MeshInstance3D.new()
 	var cil := CylinderMesh.new()
-	cil.top_radius = 0.008 * s
-	cil.bottom_radius = 0.010 * s
-	cil.height = 0.34 * s
+	cil.top_radius = 0.010 * s
+	cil.bottom_radius = 0.012 * s
+	cil.height = 0.30 * s
 	asta.mesh = cil
-	asta.position = Vector3(0.0, 0.17 * s, 0.0)
-	asta.material_override = _mat(Color(0.36, 0.25, 0.14))
+	asta.position = Vector3(0.0, 0.15 * s, 0.0)
+	# Madera OSCURA: sobre el costado del barco, un asta del tono de la
+	# cubierta se perdia contra ella.
+	asta.material_override = _mat(Color(0.20, 0.13, 0.07))
 	p.add_child(asta)
 	var punta := MeshInstance3D.new()
 	var cono := CylinderMesh.new()
@@ -256,9 +279,20 @@ static func _arpon(pivot: Node3D, s: float, alto: float) -> void:
 	cono.bottom_radius = 0.016 * s
 	cono.height = 0.07 * s
 	punta.mesh = cono
-	punta.position = Vector3(0.0, 0.375 * s, 0.0)
+	punta.position = Vector3(0.0, 0.33 * s, 0.0)
 	punta.material_override = _mat(Color(0.72, 0.74, 0.78))
 	p.add_child(punta)
+	# Las dos ligaduras de cuerda que lo amarran al costado.
+	for d in [0.06, 0.26]:
+		var lazo := MeshInstance3D.new()
+		var tc := CylinderMesh.new()
+		tc.top_radius = 0.014 * s
+		tc.bottom_radius = 0.014 * s
+		tc.height = 0.016 * s
+		lazo.mesh = tc
+		lazo.position = Vector3(0.0, d * s, 0.0)
+		lazo.material_override = _mat(Color(0.62, 0.52, 0.34))
+		p.add_child(lazo)
 
 
 ## EL SOMBRERO DE PAJA, puesto en la cabeza del CHEF dentro del nivel: copa y
@@ -317,11 +351,12 @@ static func sombrero_de_paja(skel: Skeleton3D, model_scale: float) -> void:
 ## cámara: caña vertical con su argolla, cepo cruzado y los dos brazos con
 ## sus uñas. Hierro oscuro.
 static func _ancla(pivot: Node3D, s: float, alto: float) -> void:
-	# A z=0.20*s: a 0.185 quedaba EMBEBIDA en la tabla del casco y en captura
-	# asomaba un pixel. Y un punto mas alta y gorda, que un ancla de respeto
-	# se tiene que ver desde el mapa.
+	# ESTIBADA EN LA AMURA DE PROA, contra la tabla y por FUERA del casco
+	# (ahi el casco llega a z 0.07-0.10, asi que a 0.11 se ve entera). Estuvo
+	# a media eslora y se la comia el escorzo del propio casco: "el ancla
+	# desaparece a la mitad", dicho por el usuario.
 	var p := Node3D.new()
-	p.position = Vector3(-0.18 * s, alto * 0.33, 0.19 * s)
+	p.position = Vector3(-0.28 * s, alto * 0.253, 0.11 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var hierro := _mat(Color(0.16, 0.17, 0.20))
@@ -380,80 +415,86 @@ static func _ancla(pivot: Node3D, s: float, alto: float) -> void:
 ## cámara. Se puede TOCAR en el menú: con la bala de cañón en la vitrina
 ## DISPARA (ver `main_menu._disparar_canon`), y sin ella Gigi protesta.
 static func _canon(pivot: Node3D, s: float, alto: float) -> Node3D:
-	# EN MITAD DE LA CUBIERTA, a la vista (donde señaló el usuario: el primer
-	# sitio quedaba tragado por el aparejo) y MÁS GRANDE. Hierro oscuro con
-	# anillos de bronce y boca marcada, sobre su cureña con ruedas.
+	# EN CUBIERTA (`CUBIERTA`, medida) Y APUNTANDO AL MAR por el costado que
+	# mira a la camara, que es como se coloca un cañon de andanada. Estuvo
+	# tumbado a lo largo del barco y flotando delante del casco: ni apuntaba
+	# a ninguna parte ni se apoyaba en nada, y el humo del disparo salia por
+	# detras de la madera. Con la boca asomando por encima de la borda, el
+	# fogonazo cae en cielo abierto.
 	var p := Node3D.new()
 	p.name = "ColCanon"
-	# Sobre la borda del costado de camara, a media cubierta (donde señaló el
-	# usuario) y DE PERFIL: apuntando a la camara el tubo se leia como un
-	# circulo. Medido con tinte de sonda: mas adentro la borda se lo tragaba
-	# y mas a proa se amontonaba con el ancla.
-	p.position = Vector3(-0.02 * s, alto * 0.26, 0.175 * s)
+	p.position = Vector3(-0.20 * s, alto * BORDA, 0.070 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
-	var hierro := _mat(Color(0.28, 0.29, 0.34))
+	var hierro := _mat(Color(0.24, 0.25, 0.29))
 	var bronce := _mat(Color(0.55, 0.42, 0.20))
 	var madera := _mat(Color(0.34, 0.23, 0.12))
+	# ELEVACION: el eje del tubo es (0, sin, cos) — 8º de alza sobre el mar.
+	var alza := 8.0
+	var eje := Vector3(0.0, sin(deg_to_rad(alza)), cos(deg_to_rad(alza)))
+	var giro := 90.0 - alza
+	var centro := Vector3(0.0, 0.050 * s, 0.010 * s)
 	var tubo := MeshInstance3D.new()
 	var cil := CylinderMesh.new()
-	cil.top_radius = 0.030 * s
-	cil.bottom_radius = 0.040 * s
-	cil.height = 0.20 * s
+	cil.top_radius = 0.019 * s
+	cil.bottom_radius = 0.026 * s
+	cil.height = 0.135 * s
 	tubo.mesh = cil
-	# DE PERFIL: el tubo a lo largo del eje del barco con la boca hacia PROA
-	# (-x) y algo alzada — apuntando a la camara se veia un circulo.
-	tubo.rotation_degrees.z = 78.0
-	tubo.position = Vector3(-0.01 * s, 0.062 * s, 0.0)
+	tubo.rotation_degrees.x = giro
+	tubo.position = centro
 	tubo.material_override = hierro
 	p.add_child(tubo)
-	# Los anillos de refuerzo y el labio de la boca, en bronce.
-	for datos in [[0.085, 0.039], [-0.012, 0.042], [-0.085, 0.045]]:
+	# Anillos de refuerzo y labio de la boca, repartidos por el eje del tubo.
+	for datos in [[0.060, 0.024], [-0.008, 0.028], [-0.058, 0.030]]:
 		var anillo := MeshInstance3D.new()
 		var ac := CylinderMesh.new()
 		ac.top_radius = float(datos[1]) * s
 		ac.bottom_radius = float(datos[1]) * s
-		ac.height = 0.013 * s
+		ac.height = 0.010 * s
 		anillo.mesh = ac
-		anillo.rotation_degrees.z = 78.0
-		var d: float = datos[0]
-		anillo.position = Vector3((-0.01 - d * 0.978) * s,
-			(0.062 + d * 0.208) * s, 0.0)
+		anillo.rotation_degrees.x = giro
+		anillo.position = centro + eje * (float(datos[0]) * s)
 		anillo.material_override = bronce
 		p.add_child(anillo)
-	# La direccion LOCAL de la boca, para que el disparo del menu salga por
-	# donde apunta el tubo (main_menu._disparar_canon la lee de aqui).
-	p.set_meta("dir_boca", Vector3(-0.978, 0.208, 0.25).normalized())
-	var cureña := MeshInstance3D.new()
+	# La cureña, mas larga en z que ancha en x: sigue al tubo.
+	var cure := MeshInstance3D.new()
 	var caja := BoxMesh.new()
-	caja.size = Vector3(0.13, 0.05, 0.095) * s
-	cureña.mesh = caja
-	cureña.position = Vector3(0.0, 0.020 * s, 0.0)
-	cureña.material_override = madera
-	p.add_child(cureña)
+	caja.size = Vector3(0.070, 0.038, 0.090) * s
+	cure.mesh = caja
+	cure.position = Vector3(0.0, 0.017 * s, 0.006 * s)
+	cure.material_override = madera
+	p.add_child(cure)
 	for lado in [-1.0, 1.0]:
-		var rueda := MeshInstance3D.new()
-		var rc := CylinderMesh.new()
-		rc.top_radius = 0.028 * s
-		rc.bottom_radius = 0.028 * s
-		rc.height = 0.018 * s
-		rueda.mesh = rc
-		rueda.rotation_degrees.x = 90.0
-		rueda.position = Vector3(0.054 * s * lado, 0.013 * s, 0.030 * s)
-		rueda.material_override = madera
-		p.add_child(rueda)
+		for atras in [-1.0, 1.0]:
+			var rueda := MeshInstance3D.new()
+			var rc := CylinderMesh.new()
+			rc.top_radius = 0.017 * s
+			rc.bottom_radius = 0.017 * s
+			rc.height = 0.012 * s
+			rueda.mesh = rc
+			rueda.rotation_degrees.z = 90.0
+			rueda.position = Vector3(0.040 * s * lado, 0.012 * s,
+				0.030 * s * atras)
+			rueda.material_override = madera
+			p.add_child(rueda)
+	# La direccion LOCAL de la boca y el sitio de reposo, que es lo que
+	# necesita `main_menu._disparar_canon` para el fogonazo y el RETROCESO.
+	p.set_meta("dir_boca", eje)
+	p.set_meta("reposo", p.position)
+	p.set_meta("boca", centro + eje * (0.085 * s))
 	return p
 
 
 ## EL HUEVO DEL PEZ DEL VIENTO (Link's Awakening): enorme, crema con motas,
 ## coronando el castillo de popa como corona su montaña.
 static func _huevo(pivot: Node3D, s: float, alto: float) -> void:
-	# ABAJO, EN CUBIERTA junto al pie del mástil (donde señaló el usuario: en
-	# lo alto de popa flotaba), y con las motas moradas EN LA TEXTURA
-	# (`huevo_moteado.png`, pintada por PIL y envuelta por la UV de la
-	# esfera) — las lentejas 3D del primer intento sobresalían de la cáscara.
+	# APOYADO EN LA CUBIERTA de verdad (`CUBIERTA`, medida), en el lado de
+	# dentro para no pelearse con el cañon, y con las motas moradas EN LA
+	# TEXTURA (`huevo_moteado.png`, pintada por PIL y envuelta por la UV de
+	# la esfera) — las lentejas 3D del primer intento sobresalian de la
+	# cascara, y el huevo entero FLOTABA delante del casco.
 	var p := Node3D.new()
-	p.position = Vector3(0.005 * s, alto * 0.30, -0.09 * s)
+	p.position = Vector3(-0.17 * s, alto * CUBIERTA, -0.05 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var huevo := MeshInstance3D.new()
@@ -478,18 +519,18 @@ static func _vela_ww(pivot: Node3D, s: float, alto: float) -> void:
 	if not ResourceLoader.exists("res://assets/ui/col_vela_emblema.png"):
 		return
 	# SOLO EL EMBLEMA (`col_vela_emblema.png`, el disco con la medialuna y la
-	# ola recortado del propio coleccionable), como calcomania pequeña sobre
-	# la vela de POPA. El primer intento pegaba el coleccionable ENTERO — una
-	# vela con su marco rojo — y salia una segunda vela gigante tapando media
-	# cubierta (visto en captura del usuario). Va en el plano de la vela
-	# (normal en x, medido por bandas de vertices) y por las dos caras.
+	# ola recortado del propio coleccionable), calcado en la VELA DE MESANA
+	# (la de mas a popa, `MESANA_X`, localizada con la sonda de paneles
+	# claros). El primer intento pegaba el coleccionable ENTERO —una vela con
+	# su marco rojo— y el segundo lo puso en un x donde NO HAY VELA, asi que
+	# el emblema flotaba entre dos palos. Va por las dos caras.
 	for lado in [1.0, -1.0]:
 		var cara := MeshInstance3D.new()
 		var quad := QuadMesh.new()
-		quad.size = Vector2(0.14 * s, 0.14 * s)
+		quad.size = Vector2(0.13 * s, 0.13 * s)
 		cara.mesh = quad
-		cara.position = Vector3((0.176 if lado > 0.0 else 0.064) * s,
-			alto * 0.66, 0.0)
+		cara.position = Vector3((MESANA_X + 0.008 * lado) * s,
+			alto * MESANA_Y, 0.0)
 		cara.rotation_degrees.y = 90.0 * lado
 		var m := StandardMaterial3D.new()
 		m.albedo_texture = load("res://assets/ui/col_vela_emblema.png")

@@ -819,13 +819,23 @@ func _disparar_canon(canon: Node3D) -> void:
 	mh.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	humo.material_override = mh
 	add_child(humo)
-	# La boca del tubo: su direccion LOCAL viene apuntada en el propio nodo
-	# (col_visibles la deja en el meta "dir_boca"), asi que recolocar o girar
-	# el cañon no descoloca el disparo.
+	# La boca del tubo: su sitio y su direccion LOCALES vienen apuntados en el
+	# propio nodo (col_visibles deja los metas "boca" y "dir_boca"), asi que
+	# recolocar o girar el cañon no descoloca ni el humo ni la bala. Estuvo
+	# calculado a ojo con un desvio fijo y el fogonazo salia POR DETRAS de la
+	# madera, que es el "apenas se ve el humo" que dijo el usuario.
 	var dir_local: Vector3 = canon.get_meta("dir_boca", Vector3(0, 0.2, 1))
+	var boca_local: Vector3 = canon.get_meta("boca", dir_local * 0.10 * s)
 	var dir: Vector3 = (canon.global_transform.basis * dir_local).normalized()
-	humo.global_position = canon.global_position \
-		+ dir * 0.16 * s + Vector3(0.0, 0.05 * s, 0.0)
+	humo.global_position = canon.to_global(boca_local) + dir * 0.025 * s
+	# EL RETROCESO: el cañon salta hacia atras por su propio eje y vuelve a su
+	# sitio. Un cañonazo sin culatazo se lee como un adorno que hace ruido.
+	var reposo: Vector3 = canon.get_meta("reposo", canon.position)
+	var culatazo := create_tween()
+	culatazo.tween_property(canon, "position", reposo - dir_local * 0.05 * s,
+		0.06).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	culatazo.tween_property(canon, "position", reposo, 0.42) \
+		.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 	var th := create_tween().set_parallel()
 	th.tween_property(humo, "scale", Vector3.ONE * 3.2, 0.55) \
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
