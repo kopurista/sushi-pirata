@@ -3073,13 +3073,26 @@ La GUÍA lleva su sección ("El canto de sirena").
       usuario): una pieza con pista (su escenario superado) sale en silueta
       con su "?", y la trifuerza con fragmentos enseña su cuenta. El resto
       del catálogo NO aparece.
-    · **Y NO OCUPA LA PANTALLA ENTERA**: dos baldas bastan (`VIT_ALTO` 700,
-      centrada en su pestaña). Las piezas APOYAN en la superficie de las
-      baldas, MEDIDA sobre el propio dibujo (`VIT_BALDAS`, filas oscuras del
-      png en y 513-604 y 776-819 de 820), con su sombra de apoyo.
-    · La ficha de una pieza enseña su fecha y procedencia (`collectible_meta`,
-      ver arriba); el fondo del expositor lleva su `size` real puesto (la
-      lección del agua de la pecera).
+    · **TRES BALDAS** (fondo v3; con dos, la mitad de arriba del mueble era
+      puro aire — dicho por el usuario) y `VIT_ALTO` 740. Las piezas APOYAN
+      en la superficie de las baldas, MEDIDA sobre el propio dibujo
+      (`VIT_BALDAS`; la tercera va a 0.925 y no a su fracción exacta, porque
+      con ella el marco de abajo mordía las etiquetas — la sombra de apoyo
+      ya vende el contacto).
+    · **El CONTADOR va grabado en una placa de latón sobre el propio mueble**
+      (`_placa_laton`, la etiqueta en grande), no en un rótulo flotando: es
+      la chapa de un expositor de museo. La PECERA lleva la suya igual
+      ("Peces: N/M" en la barra de arriba del tanque, que sustituyó al lazo
+      rojo — pedido por el usuario).
+    · **TOCAR UNA PIEZA YA NO ABRE VENTANA**: rellena la FICHA DE ABAJO
+      (`_ficha_abajo`, en el vacío bajo el mueble) — dibujo, nombre,
+      historia y el "Conseguido el … · En …" de `collectible_meta`. La
+      vitrina se queda a la vista mientras se lee, y el "?" de las avistadas
+      lleva al mismo sitio. `_open_collectible_sheet` sigue existiendo sin
+      llamadas, por si alguna escena futura quiere la ficha en modal.
+    · Las etiquetas van GRANDES (168×46, cuerpo 15/12): a 140×36 con cuerpo
+      12 no se leían (dicho por el usuario). El fondo del expositor lleva su
+      `size` real puesto (la lección del agua de la pecera).
   · **CADA PIEZA PAGA EXPERIENCIA al ganarse** (`GameState.col_xp()`: 25 + 5
     por nivel del cocinero, la pendiente de las medallas) y la ventana del
     coleccionable la canta en su renglón azul. Y **apunta su FECHA y su
