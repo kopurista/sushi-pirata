@@ -2531,6 +2531,24 @@ La GUÍA lleva su sección ("El canto de sirena").
     (`no_size`: su ficha no habla de centímetros ni de récord) y la bota se
     mide en **número de calzado** (`size_unit: "talla"`, 34–48), no en cm —
     de ahí `FishData.size_text()`, que devuelve ya la unidad puesta.
+    **EL ÁLBUM ES UNA PECERA** (`_open_album` y el bloque `pecera_*`, pedido
+    por el usuario): los peces capturados NADAN en un tanque largo que se
+    recorre con scroll HORIZONTAL (paneo propio con inercia: `TouchScroll`
+    aquí no vale porque hay que separar el toque sobre un pez del tirón que
+    recorre el tanque), y tocar uno abre su ficha de siempre. Los que faltan
+    nadan en SILUETA oscura, sin nombre y sin ficha. **Cada tipo nada a su
+    manera** (`NADOS`/`NADO_POR_PEZ`): los tiburones cruzan rápido, las ranas
+    saltan en parábola, la tortuga rema despacio, la medusa pulsa, los pulpos
+    van a chorros, los caballitos flotan de pie, las anguilas serpentean y los
+    del fondo (cangrejos, erizos, la basura) se quedan en la arena. El tanque
+    se DIBUJA por fotograma (agua en bandas, arena, algas, burbujas) y los
+    peces son `draw_texture_rect`, no cien nodos; el volteo al cambiar de
+    rumbo es un rectángulo de ancho negativo (los iconos miran a la
+    izquierda). Dos trampas pagadas: **un `load()` DENTRO de `_draw` deja la
+    textura rota para siempre** (se dibuja como un cuadrado plano y se queda
+    así en caché — los iconos se precargan en `_montar_peces`), y antes del
+    montaje diferido el ancho del tanque es 0, con lo que `fmod(x, 0)` daba
+    NaN y las algas escupían avisos de normalize.
     Cada captura trae un **TAMAÑO** (size 0..1, sorteado ANTES de la sombra)
     que decide sus doblones dentro de la horquilla de su rareza — **común
     45–65 · raro 60–80 · épico 85–120 · legendario 130–190** — y el largo
@@ -3024,9 +3042,39 @@ La GUÍA lleva su sección ("El canto de sirena").
     abajo-izquierda y punta LARGA saliendo por abajo-derecha) y el emblema
     como DOS formas verdes separadas (medialuna arriba + ola que se enrosca
     en espiral debajo), con el círculo crema pálido detrás.
-  · La pestaña **Colección** del inventario es la vitrina: rejilla de 4, los
-    bloqueados en SILUETA oscura con "???" y sin ninguna pista, los
-    conseguidos abren su ficha al tocarlos.
+  · La pestaña **Colección** es una **VITRINA DE TROFEOS** (pedido por el
+    usuario): tres BALDAS de madera (el tablón del submenú del mapa con su
+    tinte cálido) que se recorren con scroll HORIZONTAL, cada pieza APOYADA
+    sobre su balda y el nombre debajo — sin tarjeta alrededor. El catálogo va
+    en columnas de tres, los bloqueados en SILUETA oscura con "???" y el "?"
+    de pista donde toca; los conseguidos abren su ficha al tocarlos.
+    **`TouchScroll` aprende HORIZONTAL** (`attach(scroll, true)`) para esto.
+    OJO: la fila y la balda van ANCLADAS dentro de su capa, y un hijo anclado
+    no aporta tamaño mínimo — el ancho y el alto de cada balda se ponen
+    CONTADOS, o la vitrina entera se aplasta a cero y sale en blanco (pasó).
+  · **CADA PIEZA PAGA EXPERIENCIA al ganarse** (`GameState.col_xp()`: 25 + 5
+    por nivel del cocinero, la pendiente de las medallas) y la ventana del
+    coleccionable la canta en su renglón azul. Y **apunta su FECHA y su
+    PROCEDENCIA** (`collectible_meta`, deducida de los datos: el escenario
+    que la entrega o el cofre de la pesca), que la ficha de la vitrina enseña
+    como "Conseguido el … · En …". Las piezas de guardados anteriores no
+    llevan meta y su ficha se queda como estaba.
+  · **ALGUNAS PIEZAS SE LUCEN EN EL JUEGO** (`scripts/col_visibles.gd`,
+    `ColVisibles`; pedido por el usuario): la BANDERA pirata ondea en lo alto
+    del mástil del barco del menú/mapa (paño negro con el cráneo de
+    `calavera_vacio.png` por las dos caras y vaivén de `ColProp`), el
+    KOINOBORI vuela bajo ella, el FAROL FANTASMA cuelga de popa con su luz
+    espectral verde, el ARPÓN se apoya en el castillo y el SOMBRERO DE PAJA
+    se lo pone el CHEF en el nivel (hueso Head vía BoneAttachment3D, como los
+    utensilios de la muñeca). La cabecera del archivo lleva el reparto
+    PENSADO para el resto del catálogo (qué pieza iría dónde y qué le falta);
+    los tesoros pequeños no se lucen — a escala de mapa serían un píxel.
+    **El barco se decora en `_setup_ship`** (una pieza nueva luce al volver
+    al menú) y las medidas salen de una SONDA de vértices sobre
+    `map_barco.glb` (el mástil en x≈0.0986, perfil de alturas por bandas):
+    a ojo, el koinobori salió flotando fuera del casco y el farol enterrado
+    en el castillo. `GeometryBatch.bake` no los toca: solo funde hijos
+    DIRECTOS de la raíz, y todo esto cuelga del pivote del barco.
 - **LA FICHA SE ENSEÑA TAMBIÉN AL CONSEGUIR LA PIEZA**, no solo en la
   vitrina y en el álbum: la ventana del coleccionable
   (`NoticeLayer._show_collectible`) pinta su `desc` bajo el nombre y el

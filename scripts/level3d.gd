@@ -2110,6 +2110,10 @@ func _setup_chef() -> void:
 		else:
 			var inst: Node3D = chef_pivot.get_child(0)
 			_make_chef_tools(skels[0], inst.scale.x)
+			# EL SOMBRERO DE PAJA, si esta en la vitrina: el chef lo lleva
+			# puesto (colgado del hueso Head, como los utensilios de la
+			# muneca). Ver `ColVisibles`.
+			ColVisibles.sombrero_de_paja(skels[0], inst.scale.x)
 	# El ingrediente/etapa en curso se muestra sobre la mesa del chef.
 	chef_prop = Sprite3D.new()
 	chef_prop.billboard = BaseMaterial3D.BILLBOARD_ENABLED

@@ -906,6 +906,10 @@ func _setup_ship() -> void:
 	ship_pivot.position.y = -0.06
 	ship_pivot.set_meta("y0", -0.06)
 	ship_pivot.rotation_degrees.y = SHIP_YAW
+	# LOS COLECCIONABLES QUE SE LUCEN: la bandera pirata en el mastil, el
+	# koinobori, el farol fantasma... (ver `ColVisibles`). Se montan aqui, al
+	# construir el barco, asi que una pieza nueva luce al volver al menu.
+	ColVisibles.decorar_barco(ship_pivot)
 	# El barco lleva su mancha, que viaja con él (ver _update_ship_visual).
 	# MÁS PEQUEÑA QUE LA HUELLA DEL BARCO, a propósito. Es una sombra plana a
 	# ras de agua y, con la cámara isométrica, lo que está BAJO y CERCA queda
