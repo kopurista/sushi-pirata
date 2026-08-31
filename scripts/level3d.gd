@@ -1554,6 +1554,15 @@ func _scenery_island() -> void:
 	# de arriba-izquierda y se veian atravesados. Se quita en vez de moverla:
 	# el arenal ya tiene barriles y rocas de sobra.)
 	_spawn_barrels([Vector3(-6.0, 0.0, -1.0), Vector3(5.0, 0.0, 3.2)], 1)
+	# EL PELUCHE DE MORSA (coleccionable), dormido sobre una caja del arenal:
+	# la caja se pone aqui SOLO si el peluche es tuyo — una caja vacia porque
+	# si ya se quito una vez de esta escena (chocaba con una palmera).
+	if GameState.has_collectible("peluche_morsa") \
+			and ResourceLoader.exists("res://assets/models/caja.glb"):
+		var caja_morsa := _spawn_model(load("res://assets/models/caja.glb"),
+			Vector3(4.9, 0.0, 1.6), 0.66, self)
+		_tint_model(caja_morsa, CRATE_TINT)
+		ColVisibles.morsa_en_isla(self, Vector3(4.9, 0.0, 1.6))
 
 
 ## Cabaña de playa: MODELO 3D con su textura. Es el punto del que "vienen" los
@@ -2110,10 +2119,6 @@ func _setup_chef() -> void:
 		else:
 			var inst: Node3D = chef_pivot.get_child(0)
 			_make_chef_tools(skels[0], inst.scale.x)
-			# EL SOMBRERO DE PAJA, si esta en la vitrina: el chef lo lleva
-			# puesto (colgado del hueso Head, como los utensilios de la
-			# muneca). Ver `ColVisibles`.
-			ColVisibles.sombrero_de_paja(skels[0], inst.scale.x)
 	# El ingrediente/etapa en curso se muestra sobre la mesa del chef.
 	chef_prop = Sprite3D.new()
 	chef_prop.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -3533,6 +3538,12 @@ func _aviso_canto() -> void:
 func _empezar_canto(dur := -1.0) -> void:
 	canto_activo = true
 	canto_t = dur if dur > 0.0 else randf_range(canto_dur.x, canto_dur.y)
+	# LOS TAPONES DE CERA de Ulises (coleccionable): con ellos en el barco,
+	# cada canto de sirena dura un tercio menos. Es el primer coleccionable
+	# con efecto de juego, y va aqui y no en el planificador para que recorte
+	# tambien los cantos que fuerza un guion.
+	if GameState.has_collectible("tapones_cera"):
+		canto_t *= CollectibleData.TAPONES_CANTO
 	canto_total += 1
 	Audio.loop_on("sirena_canto", -4.0)
 

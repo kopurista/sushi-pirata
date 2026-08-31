@@ -2188,10 +2188,23 @@ func _sin_nada() -> void:
 		unlock_collectible("soja_vacia")
 
 
+## Estrellas reunidas en TODA la campaña (suma de `level_stars`): la vara
+## del coleccionable del timón.
+func estrellas_totales() -> int:
+	var total := 0
+	for k in level_stars:
+		total += int(level_stars[k])
+	return total
+
+
 func _run_achievement_check() -> void:
 	_ach_check_queued = false
 	# Coleccionables que dependen de una ESTADÍSTICA.
-	if get_stat("helm_turns") >= HELM_TURNS_GOAL:
+	# EL TIMÓN SE GANA POR ESTRELLAS (pedido por el usuario): 45 en total por
+	# la campaña. Hasta tenerlo, el timón del menú NI APARECE — al ganarlo se
+	# estrena, y girarlo gira también el BARCO (ver main_menu). La vía vieja
+	# de las 5 vueltas murió con él: sin timón no hay vueltas que dar.
+	if estrellas_totales() >= CollectibleData.TIMON_ESTRELLAS:
 		unlock_collectible("timon")
 	if get_stat("fed_sombrero") >= 20:
 		unlock_collectible("sombrero_paja")
@@ -2222,6 +2235,9 @@ func _run_achievement_check() -> void:
 	# tambien si ya se habia pescado antes de que existiera la pieza.
 	if fish_album.has(CollectibleData.ESMERALDA_PEZ):
 		unlock_collectible("esmeralda_caos")
+	# Y EL COFRE DEL TESORO lo trae el PEZ COFRE, por el mismo camino.
+	if fish_album.has(CollectibleData.COFRE_PEZ):
+		unlock_collectible("cofre")
 	# EL RECETARIO COMPLETO: todas las recetas VISIBLES aprendidas (las
 	# ocultas —barco, combinados, tempuras fallidas— no se aprenden nunca).
 	var todas := true

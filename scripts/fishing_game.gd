@@ -2304,6 +2304,9 @@ func _tocar_pez(punto: Vector2) -> void:
 func _open_ficha(fish_id: String, album_overlay: Control) -> void:
 	var rareza := FishData.rarity_of(fish_id)
 	var veil := ColorRect.new()
+	# Tocar un pez SUENA (pedido por el usuario): la ficha es una ventana y
+	# habla con la toma de las ventanas — abre, y al cerrarse vuelve a sonar.
+	Audio.ventana(veil)
 	veil.color = Color(0, 0, 0, 0.45)
 	veil.set_anchors_preset(Control.PRESET_FULL_RECT)
 	veil.mouse_filter = Control.MOUSE_FILTER_STOP

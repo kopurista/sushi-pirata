@@ -347,9 +347,10 @@ const RECIPE_FALLBACK := 230
 ##   catalejo y bala de cañón. El resto de piratas (tricornio, pistola,
 ##   cañón, barril...) se ganará en aventura o en arcade, no aquí.
 const FISHING_COLLECTIBLES: Array = [
-	# Del fondo del mar.
+	# Del fondo del mar (el BARRIL entro en la tanda del 31-8, pedido por el
+	# usuario: un barril se draga, no se compra).
 	"botella", "ancla", "bala_canon", "calavera", "hueso", "pata_palo",
-	"tentaculo", "garfio", "brujula", "catalejo",
+	"tentaculo", "garfio", "brujula", "catalejo", "barril",
 	# De la cocina del barco (el único de los suyos que sale del mar).
 	"maneki_neko",
 	# Piratas del Caribe.
@@ -361,8 +362,9 @@ const FISHING_COLLECTIBLES: Array = [
 	# One Piece.
 	"pendientes_espadachin", "naranja", "tirachinas", "sarten", "cuerno_reno",
 	"sombrero_vaquero", "botella_cola", "violin_esqueleto", "caracol_telefono",
-	# La Isla del Tesoro, Peter Pan y Popeye.
-	"marca_negra", "reloj_cocodrilo", "lata_espinacas",
+	# Peter Pan y Popeye (la MARCA NEGRA se fue del sorteo: sera de una
+	# mision de mapa del tesoro, pedido por el usuario).
+	"reloj_cocodrilo", "lata_espinacas",
 	# Del naufragio (piratas genericos que uno draga del fondo).
 	"botella_mensaje", "farol_aceite", "astrolabio_roto", "bitacora_roto",
 	# Moby Dick, 20.000 leguas, El Holandes Errante, Buscando a Nemo,

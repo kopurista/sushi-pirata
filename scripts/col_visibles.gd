@@ -5,27 +5,41 @@ extends RefCounted
 ## los personajes — en cuanto se consiguen. La vitrina las guarda; esto las
 ## LUCE, que es lo que hace que ganar una se note al volver al barco.
 ##
-## EL REPARTO PENSADO, pieza a pieza (las marcadas ✔ están implementadas; el
-## resto espera su hueco o su modelo — la regla es que solo entra lo que se
-## puede construir con geometría y quedar BIEN a la escala del mapa, nada de
-## pegatinas 2D flotando sobre el 3D):
+## EL REPARTO DECIDIDO, pieza a pieza (tanda del 31-8-2026, pedida por el
+## usuario; ✔ = implementado, · = pendiente de su sistema o de su modelo):
 ##   ✔ bandera          → BANDERA PIRATA negra ondeando en lo alto del mástil
-##   ✔ koinobori        → la carpa de tela al viento en un asta de popa
-##   ✔ farol_fantasma   → farol de luz ESPECTRAL verde encendido en proa
-##   ✔ arpon            → arpón apoyado contra la borda
-##   ✔ sombrero_paja    → el CHEF lo lleva puesto en el nivel (hueso Head)
-##   · timon            → dorar el timón del menú (pide tintar el modelo)
-##   · ancla            → un ancla de respeto colgada del casco (pide modelo)
-##   · canon            → cañón pequeño en cubierta (pide modelo)
-##   · catalejo         → en la cofa, apuntando al horizonte (pide cofa)
+##   ✔ koinobori        → la carpa de tela al viento bajo la bandera
+##   ✔ farol_fantasma   → farol de luz ESPECTRAL verde colgado de popa
+##   ✔ arpon            → arpón apoyado contra el castillo
+##   ✔ ancla            → RECOGIDA contra el costado del casco (cara cámara)
+##   ✔ canon            → en cubierta y SE PUEDE TOCAR: con `bala_canon`
+##                        dispara (main_menu._disparar_canon) y sin ella Gigi
+##                        protesta. La pieza saldrá de una misión de mapa del
+##                        tesoro (sistema pendiente).
+##   ✔ huevo_montana    → el HUEVO del Pez del Viento, enorme, coronando popa
+##   ✔ vela             → el emblema de Wind Waker calcado en la vela del
+##                        mástil (por las dos caras: el timón gira el barco)
+##   ✔ peluche_morsa    → dormido sobre una caja en las ISLAS del nivel
+##                        (morsa_en_isla, la llama _scenery_island)
+##   ✔ sombrero_paja    → lo lleva CAI EN SU ARTE 2D desde que cae la pieza
+##                        (variante `_sombrero` de DialogueBox._variante_de;
+##                        el chef ya NO se lo pone — reasignado por el usuario)
+##   ✔ timon            → SE GANA A LAS 45 ESTRELLAS y desde entonces corona
+##                        el tablón del menú: girarlo GIRA EL BARCO (mirador)
+##   · tricornio        → SE LO QUEDA GIGI: variante `_tricornio` del arte de
+##                        David (mecanismo listo, ARTE pendiente de generar —
+##                        12 moods por editImage, la vía de Cai)
+##   · panuelo          → lo estrenará DAVID en su arte (misión de mapa del
+##                        tesoro; mismo mecanismo de variantes)
 ##   · maneki_neko      → sobre el mostrador de la TIENDA de Saverio
 ##   · daruma / omamori → estantería de la tienda, junto a los tarros
+##   · catalejo         → en la cofa, apuntando al horizonte (pide cofa)
 ##   · farol_aceite     → farol cálido de popa (pareja del fantasma)
-##   · tricornio        → percha del camarote (cuando exista el interior)
-##   · gorro_chef       → alternativa de gorro para el chef (como el de paja)
+##   · gorro_chef       → alternativa de gorro para el chef
 ##   · lata_espinacas / grog / botella_sake → botellas en la mesa del chef
 ##   · calavera_alada   → mascarón de proa (pide modelo digno)
-##   · koinobori dorado, banderines de One Piece... → más astas de popa
+## Con EFECTO de juego (no visual): tapones_cera → cada canto de sirena dura
+## un tercio menos (level3d._empezar_canto).
 ## Los tesoros pequeños (monedas, anillos, gafas, palillos...) NO se lucen:
 ## a la escala del mapa serían un píxel, y su sitio es la vitrina.
 
@@ -59,6 +73,14 @@ static func decorar_barco(pivot: Node3D) -> void:
 		_farol_fantasma(pivot, s, alto)
 	if GameState.has_collectible("arpon"):
 		_arpon(pivot, s, alto)
+	if GameState.has_collectible("ancla"):
+		_ancla(pivot, s, alto)
+	if GameState.has_collectible("canon"):
+		_canon(pivot, s, alto)
+	if GameState.has_collectible("huevo_montana"):
+		_huevo(pivot, s, alto)
+	if GameState.has_collectible("vela"):
+		_vela_ww(pivot, s, alto)
 
 
 ## LA BANDERA PIRATA, en lo alto del mástil: paño negro con el cráneo por las
@@ -249,6 +271,178 @@ static func sombrero_de_paja(skel: Skeleton3D, model_scale: float) -> void:
 	cinta.position = ala.position + Vector3(0.0, 0.02, 0.0)
 	cinta.material_override = _mat(Color(0.72, 0.16, 0.12))
 	raiz.add_child(cinta)
+
+
+## EL ANCLA de respeto, RECOGIDA contra el costado del casco que mira a la
+## cámara: caña vertical con su argolla, cepo cruzado y los dos brazos con
+## sus uñas. Hierro oscuro.
+static func _ancla(pivot: Node3D, s: float, alto: float) -> void:
+	var p := Node3D.new()
+	p.position = Vector3(-0.10 * s, alto * 0.17, 0.185 * s)
+	p.add_to_group("no_batch")
+	pivot.add_child(p)
+	var hierro := _mat(Color(0.16, 0.17, 0.20))
+	var cana := MeshInstance3D.new()
+	var cil := CylinderMesh.new()
+	cil.top_radius = 0.008 * s
+	cil.bottom_radius = 0.008 * s
+	cil.height = 0.14 * s
+	cana.mesh = cil
+	cana.material_override = hierro
+	p.add_child(cana)
+	var cepo := MeshInstance3D.new()
+	var barra := CylinderMesh.new()
+	barra.top_radius = 0.007 * s
+	barra.bottom_radius = 0.007 * s
+	barra.height = 0.075 * s
+	cepo.mesh = barra
+	cepo.rotation_degrees.x = 90.0
+	cepo.position = Vector3(0.0, 0.05 * s, 0.0)
+	cepo.material_override = hierro
+	p.add_child(cepo)
+	var aro := MeshInstance3D.new()
+	var toro := TorusMesh.new()
+	toro.inner_radius = 0.008 * s
+	toro.outer_radius = 0.016 * s
+	aro.mesh = toro
+	aro.position = Vector3(0.0, 0.078 * s, 0.0)
+	aro.material_override = hierro
+	p.add_child(aro)
+	for lado in [-1.0, 1.0]:
+		var brazo := MeshInstance3D.new()
+		var bc := CylinderMesh.new()
+		bc.top_radius = 0.007 * s
+		bc.bottom_radius = 0.009 * s
+		bc.height = 0.07 * s
+		brazo.mesh = bc
+		brazo.rotation_degrees.x = 55.0 * lado
+		brazo.position = Vector3(0.0, -0.058 * s, 0.026 * s * lado)
+		brazo.material_override = hierro
+		p.add_child(brazo)
+		var una := MeshInstance3D.new()
+		var cono := CylinderMesh.new()
+		cono.top_radius = 0.0
+		cono.bottom_radius = 0.013 * s
+		cono.height = 0.030 * s
+		una.mesh = cono
+		una.position = Vector3(0.0, -0.075 * s, 0.052 * s * lado)
+		una.material_override = hierro
+		p.add_child(una)
+
+
+## EL CAÑÓN PIRATA, en cubierta y apuntando al mar por el costado de la
+## cámara. Se puede TOCAR en el menú: con la bala de cañón en la vitrina
+## DISPARA (ver `main_menu._disparar_canon`), y sin ella Gigi protesta.
+static func _canon(pivot: Node3D, s: float, alto: float) -> Node3D:
+	var p := Node3D.new()
+	p.name = "ColCanon"
+	p.position = Vector3(-0.10 * s, alto * 0.30, 0.06 * s)
+	p.add_to_group("no_batch")
+	pivot.add_child(p)
+	var bronce := _mat(Color(0.23, 0.20, 0.16))
+	var madera := _mat(Color(0.34, 0.23, 0.12))
+	var tubo := MeshInstance3D.new()
+	var cil := CylinderMesh.new()
+	cil.top_radius = 0.016 * s
+	cil.bottom_radius = 0.022 * s
+	cil.height = 0.11 * s
+	tubo.mesh = cil
+	# Tumbado y apuntando a +z (hacia la cámara), con la boca algo alzada.
+	tubo.rotation_degrees.x = 78.0
+	tubo.position = Vector3(0.0, 0.035 * s, 0.02 * s)
+	tubo.material_override = bronce
+	p.add_child(tubo)
+	var cureña := MeshInstance3D.new()
+	var caja := BoxMesh.new()
+	caja.size = Vector3(0.055, 0.03, 0.07) * s
+	cureña.mesh = caja
+	cureña.position = Vector3(0.0, 0.012 * s, 0.0)
+	cureña.material_override = madera
+	p.add_child(cureña)
+	for lado in [-1.0, 1.0]:
+		var rueda := MeshInstance3D.new()
+		var rc := CylinderMesh.new()
+		rc.top_radius = 0.016 * s
+		rc.bottom_radius = 0.016 * s
+		rc.height = 0.012 * s
+		rueda.mesh = rc
+		rueda.rotation_degrees.z = 90.0
+		rueda.position = Vector3(0.030 * s * lado, 0.008 * s, 0.0)
+		rueda.material_override = madera
+		p.add_child(rueda)
+	return p
+
+
+## EL HUEVO DEL PEZ DEL VIENTO (Link's Awakening): enorme, crema con motas,
+## coronando el castillo de popa como corona su montaña.
+static func _huevo(pivot: Node3D, s: float, alto: float) -> void:
+	var p := Node3D.new()
+	p.position = Vector3(0.36 * s, alto * 0.80, 0.0)
+	p.add_to_group("no_batch")
+	pivot.add_child(p)
+	var huevo := MeshInstance3D.new()
+	var esfera := SphereMesh.new()
+	esfera.radius = 0.055 * s
+	esfera.height = 0.15 * s
+	huevo.mesh = esfera
+	huevo.position = Vector3(0.0, 0.075 * s, 0.0)
+	huevo.material_override = _mat(Color(0.93, 0.89, 0.78))
+	p.add_child(huevo)
+	# Las motas moradas del huevo, que son toda la referencia: unas lentejas
+	# hundidas a medias en la cáscara.
+	for datos in [[0.0, 0.10, 1.0], [2.1, 0.06, 0.72], [4.2, 0.085, 0.85],
+			[1.1, 0.045, 0.55], [3.3, 0.075, 0.62], [5.2, 0.055, 0.9]]:
+		var mota := MeshInstance3D.new()
+		var me := SphereMesh.new()
+		me.radius = 0.013 * s
+		me.height = 0.02 * s
+		mota.mesh = me
+		var ang: float = datos[0]
+		var alto_m: float = datos[2]
+		mota.position = Vector3(cos(ang) * 0.049 * s, alto_m * 0.14 * s,
+			sin(ang) * 0.049 * s)
+		mota.material_override = _mat(Color(0.48, 0.32, 0.55))
+		p.add_child(mota)
+
+
+## LA VELA DE WIND WAKER: su emblema, calcado del propio coleccionable, como
+## calcomanía sobre la vela del MASTIL (por las dos caras, que el timón ya
+## deja ver el barco por detrás).
+static func _vela_ww(pivot: Node3D, s: float, alto: float) -> void:
+	if not ResourceLoader.exists("res://assets/ui/col_vela.png"):
+		return
+	for lado in [1.0, -1.0]:
+		var cara := MeshInstance3D.new()
+		var quad := QuadMesh.new()
+		quad.size = Vector2(0.16 * s, 0.19 * s)
+		cara.mesh = quad
+		cara.position = Vector3(MASTIL_X * s, alto * 0.62, 0.052 * s * lado)
+		if lado < 0.0:
+			cara.rotation_degrees.y = 180.0
+		var m := StandardMaterial3D.new()
+		m.albedo_texture = load("res://assets/ui/col_vela.png")
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		cara.material_override = m
+		cara.add_to_group("no_batch")
+		pivot.add_child(cara)
+
+
+## EL PELUCHE DE MORSA (Link's Awakening), dormido encima de una caja en las
+## ISLAS del nivel: un Sprite3D con su propio dibujo, que a escala de nivel
+## un peluche es un dibujo. Lo llama `level3d._scenery_island`.
+static func morsa_en_isla(nivel: Node3D, caja_pos: Vector3) -> void:
+	if not GameState.has_collectible("peluche_morsa"):
+		return
+	if not ResourceLoader.exists("res://assets/ui/col_peluche_morsa.png"):
+		return
+	var spr := Sprite3D.new()
+	spr.texture = load("res://assets/ui/col_peluche_morsa.png")
+	spr.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	spr.pixel_size = 0.0016
+	spr.position = caja_pos + Vector3(0.0, 0.9, 0.0)
+	spr.add_to_group("no_batch")
+	nivel.add_child(spr)
 
 
 ## Pivote con el vaivén de `ColProp` ya puesto.

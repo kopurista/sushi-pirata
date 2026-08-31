@@ -520,6 +520,16 @@ func _plate_width() -> float:
 	return maxf(w + PLATE_PAD * 2.0, PLATE_MIN)
 
 
+## Sufijo de arte que le toca a este hablante por sus coleccionables.
+## Gigi comparte dibujo con David, asi que el tricornio les cambia a los dos.
+static func _variante_de(who: String) -> String:
+	if who == "cai" and GameState.has_collectible("sombrero_paja"):
+		return "sombrero"
+	if (who == "david" or who == "gigi") 			and GameState.has_collectible("tricornio"):
+		return "tricornio"
+	return ""
+
+
 func _set_plate_side(side: String) -> void:
 	var w := _plate_width()
 	if side == "left":
@@ -550,7 +560,16 @@ func _set_speaker(who: String, mood: String, lado := "") -> void:
 		_stage[otro] = ""
 		_portraits[otro].visible = false
 	_stage[side] = who
-	var path := "%s/%s_%s.png" % [info["dir"], info["file"], mood]
+	# EL ARTE CAMBIA CON ALGUNOS COLECCIONABLES (pedido por el usuario): Cai
+	# se pone el SOMBRERO DE PAJA al ganarse esa pieza, y Gigi el TRICORNIO.
+	# La variante es el mismo dibujo con sufijo (cai_serio_sombrero.png): si
+	# el archivo del mood no existe todavia, se cae al arte de siempre.
+	var sufijo := _variante_de(who)
+	var path := ""
+	if sufijo != "":
+		path = "%s/%s_%s_%s.png" % [info["dir"], info["file"], mood, sufijo]
+	if sufijo == "" or not ResourceLoader.exists(path):
+		path = "%s/%s_%s.png" % [info["dir"], info["file"], mood]
 	if not ResourceLoader.exists(path):
 		path = "%s/%s_%s.png" % [info["dir"], info["file"], info["mood"]]
 	var p: TextureRect = _portraits[side]

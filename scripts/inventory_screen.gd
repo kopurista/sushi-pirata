@@ -671,7 +671,7 @@ func _build_pantry_entry(ing: String) -> Control:
 ## así que el mueble mide `VIT_ALTO` y va centrado en su pestaña.
 
 ## Alto del mueble y grosor de las barras del marco (dibujadas 1:1).
-const VIT_ALTO := 740.0
+const VIT_ALTO := 775.0
 const VIT_BARRA := 44.0
 ## Ancho de celda por pieza y márgenes interiores del expositor.
 const VIT_CELDA := 184.0
@@ -806,8 +806,9 @@ func _build_collection() -> Control:
 	# LA ZONA DE LA FICHA, en el vacío bajo el mueble (pedido por el usuario:
 	# tocar una pieza ya no abre ventana — su historia se lee aquí abajo).
 	vitrina_ficha = Control.new()
-	vitrina_ficha.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vitrina_ficha.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	vitrina_ficha.offset_top = 40.0 + VIT_ALTO
+	vitrina_ficha.offset_bottom = 40.0 + VIT_ALTO + 224.0
 	vitrina_ficha.offset_left = 26.0
 	vitrina_ficha.offset_right = -26.0
 	vitrina_ficha.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -852,15 +853,19 @@ func _ficha_abajo(id: String) -> void:
 		return
 	for c in vitrina_ficha.get_children():
 		c.queue_free()
+	# EL PANEL DE MADERA de debajo (pedido por el usuario): el pergamino liso
+	# del set, que separa la ficha del mar del fondo.
+	var tabla := PrepBoard.make_nine_patch(PrepBoard.CARD_TEX,
+		PrepBoard.CARD_MARGIN)
+	tabla.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vitrina_ficha.add_child(tabla)
 	if id == "":
 		var invita := Label.new()
 		invita.text = "Toca una pieza de la vitrina para leer su historia.\nDesliza para recorrerla."
 		invita.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		invita.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		invita.add_theme_font_size_override("font_size", 19)
-		invita.add_theme_color_override("font_color", Color(0.9, 0.85, 0.72, 0.85))
-		invita.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
-		invita.add_theme_constant_override("outline_size", 6)
+		invita.add_theme_color_override("font_color", Color(0.5, 0.38, 0.24))
 		invita.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		invita.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		vitrina_ficha.add_child(invita)
@@ -870,8 +875,8 @@ func _ficha_abajo(id: String) -> void:
 	ic.texture = CollectibleData.get_icon(id)
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	ic.position = Vector2(8.0, 12.0)
-	ic.size = Vector2(148, 148)
+	ic.position = Vector2(22.0, 22.0)
+	ic.size = Vector2(142, 142)
 	if not tengo:
 		ic.modulate = Color(0.12, 0.09, 0.07, 0.85)
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -880,10 +885,8 @@ func _ficha_abajo(id: String) -> void:
 	var nombre := Label.new()
 	nombre.text = CollectibleData.item_name(id) if tengo else "???"
 	nombre.add_theme_font_size_override("font_size", 27)
-	nombre.add_theme_color_override("font_color", Color(1, 0.93, 0.78))
-	nombre.add_theme_color_override("font_outline_color", Color(0, 0, 0))
-	nombre.add_theme_constant_override("outline_size", 8)
-	nombre.position = Vector2(172.0, 10.0)
+	nombre.add_theme_color_override("font_color", Color(0.42, 0.26, 0.10))
+	nombre.position = Vector2(172.0, 22.0)
 	nombre.size = Vector2(vitrina_ficha.size.x - 180.0, 38.0)
 	nombre.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vitrina_ficha.add_child(nombre)
@@ -900,10 +903,8 @@ func _ficha_abajo(id: String) -> void:
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc.add_theme_font_size_override("normal_font_size", 19)
 	desc.add_theme_font_size_override("bold_font_size", 19)
-	desc.add_theme_color_override("default_color", Color(0.94, 0.89, 0.78))
-	desc.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.75))
-	desc.add_theme_constant_override("outline_size", 6)
-	desc.position = Vector2(172.0, 52.0)
+	desc.add_theme_color_override("default_color", Color(0.30, 0.20, 0.10))
+	desc.position = Vector2(172.0, 64.0)
 	desc.size = Vector2(vitrina_ficha.size.x - 180.0, 108.0)
 	desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vitrina_ficha.add_child(desc)
@@ -918,10 +919,8 @@ func _ficha_abajo(id: String) -> void:
 		obt.text = linea
 		obt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		obt.add_theme_font_size_override("font_size", 16)
-		obt.add_theme_color_override("font_color", Color(0.78, 0.72, 0.58))
-		obt.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
-		obt.add_theme_constant_override("outline_size", 5)
-		obt.position = Vector2(8.0, 168.0)
+		obt.add_theme_color_override("font_color", Color(0.55, 0.42, 0.26))
+		obt.position = Vector2(24.0, 172.0)
 		obt.size = Vector2(vitrina_ficha.size.x - 16.0, 44.0)
 		obt.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		vitrina_ficha.add_child(obt)

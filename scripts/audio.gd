@@ -234,6 +234,9 @@ const FAMILIAS := {
 	"barco_mover": [BA_ + "barco_mover.ogg"],
 	"barco_cruje": [BA_ + "barco_cruje.ogg"],
 	"gaviota": [BA_ + "gaviota_1.ogg", BA_ + "gaviota_2.ogg"],
+	# EL CAÑONAZO del cañón coleccionable del menú (un trueno de la librería
+	# GS1, que a falta de pólvora es lo que mejor truena).
+	"canon": [BA_ + "canon.ogg"],
 	# --- avisos de la jornada ----------------------------------------------
 	# LA CAMPANA DE LA JORNADA: suena al acabarse la preparación y al cerrar
 	# el turno. Es a propósito que sea la MISMA (pedido por el usuario): el
@@ -360,6 +363,9 @@ const VOL := {
 	"soltar": 1.7, "soplete": -19.1, "submenu": -2.2,
 	"tesoro": -1.3, "timon": -0.0, 
 	"velas": 10.5, "zarpar": 5.5,
+	# El cañonazo, MEDIDO contra el objetivo de la nivelación (canon.ogg da
+	# -22,5 LKFS; el objetivo común es -21,0).
+	"canon": 1.5,
 }
 
 ## AJUSTE GENERAL de los efectos, en dB. El juego entero sonaba alto: los

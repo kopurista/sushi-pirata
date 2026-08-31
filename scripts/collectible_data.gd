@@ -71,6 +71,13 @@ const DORAYAKI_PLATOS := 100
 ## que es la unica pieza que cuelga de pescar UNA especie concreta.
 const ANZUELO_PECES := 200
 const ESMERALDA_PEZ := "froggy"
+## El COFRE lo trae el pez cofre del álbum (mismo mecanismo que la esmeralda).
+const COFRE_PEZ := "pez_cofre"
+## El TIMÓN se gana reuniendo estrellas por la campaña (pedido por el
+## usuario; antes eran 5 vueltas al timón, que ahora no existe hasta tenerlo).
+const TIMON_ESTRELLAS := 45
+## Efecto de los TAPONES DE CERA: cada canto de sirena dura este factor.
+const TAPONES_CANTO := 0.65
 
 ## UN TROFEO POR JEFE DE MAR. La campana son 7 mares y cada uno cierra con
 ## el suyo; al rendirse deja su pieza. La stat la apunta
@@ -91,7 +98,7 @@ const BOSS_ITEMS := {
 ## `GameState.pending_col_scenes` y alguien la representa después (hoy
 ## `main_menu`, al cerrar la pesca). Son los que tienen algo que decir: el
 ## corazón lleva el apellido de David y el tenedor le da pie a su chiste.
-const SCENE_ITEMS := ["corazon_cofre", "tenedor"]
+const SCENE_ITEMS := ["corazon_cofre", "tenedor", "tricornio"]
 
 ## El logro "coleccionista" pide TODOS: sus metas viven en
 ## `achievement_data.gd` y la del oro tiene que ser ITEMS.size(). Al añadir un
@@ -103,7 +110,7 @@ const ITEMS: Array = [
 	# --- Tesoros del propio barco (los de mecánica viva, primero) ------------
 	{
 		"id": "timon", "name": "Timón",
-		"desc": "Dale cinco vueltas completas al timón del menú.",
+		"desc": "Reúne 45 estrellas por la campaña. Desde entonces corona el tablón del menú: gíralo y girará el barco.",
 		"icon": "res://assets/ui/timon.png",
 	},
 	{
@@ -140,12 +147,14 @@ const ITEMS: Array = [
 	{ "id": "brujula", "name": "Brújula",
 		"desc": "Salió de un cofre pescado en alta mar." },
 	{
-		"id": "cofre", "name": "Cofre del tesoro", "desc": "",
+		"id": "cofre", "name": "Cofre del tesoro",
+		"desc": "Lo trajo el pez cofre: un pez con forma de caja fuerte que ni el mar sabía abrir.",
 		"icon": "res://assets/ui/daily_cofre.png",
 	},
 	{ "id": "pluma_loro", "name": "Pluma de loro", "desc": "" },
 	{ "id": "pluma_escribir", "name": "Pluma de escribir", "desc": "" },
-	{ "id": "barril", "name": "Barril", "desc": "" },
+	{ "id": "barril", "name": "Barril",
+		"desc": "Dragado del fondo del mar en un cofre. Suena a vacío; huele a ron." },
 	{ "id": "saco_cafe", "name": "Saco de café", "desc": "" },
 	{ "id": "botella_mensaje", "name": "Botella con mensaje",
 		"desc": "Salió de un cofre pescado en alta mar. El mensaje sigue enrollado." },
@@ -179,7 +188,7 @@ const ITEMS: Array = [
 		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "pata_palo", "name": "Pata de palo",
 		"desc": "Salió de un cofre pescado en alta mar." },
-	# --- La cocina del barco y sus trofeos -----------------------------------
+	# --- La cocina del barco y sus trofeos ---------------------------------------
 	{ "id": "maneki_neko", "name": "Maneki-neko roto",
 		"desc": "Roto y pegado a mano. Salió de un cofre pescado en alta mar." },
 	# El dibujo trae los DOS ojos pintados (el generador no hace la asimetría
@@ -192,6 +201,8 @@ const ITEMS: Array = [
 	{ "id": "rallador_tiburon", "name": "Rallador de piel de tiburon",
 		"desc": "" },
 	{ "id": "sandalias_geta", "name": "Sandalias geta sucias", "desc": "" },
+	{ "id": "koinobori", "name": "Koinobori", "desc": "" },
+	{ "id": "omamori", "name": "Omamori", "desc": "" },
 	{ "id": "cuchillo_maestro", "name": "Cuchillo del maestro",
 		"desc": "Por bordar %d cortes lentos sin pasarte de rápido."
 			% CUCHILLO_CORTES },
@@ -200,24 +211,11 @@ const ITEMS: Array = [
 			% PIEDRA_CORTES },
 	{ "id": "plato_quemado", "name": "Plato quemado",
 		"desc": "El primero que se te fue al cubo. Se guarda para no repetirlo." },
-	# --- Los cuatro de TOCAR FONDO (ver GameState._sin_nada) ---
-	{ "id": "saco_vacio", "name": "Saco de arroz vacío",
-		"desc": "El día que se acabó el arroz. No se navega con la bodega así." },
-	{ "id": "lingote_roto", "name": "Lingote roto",
-		"desc": "Lo que queda cuando se gasta hasta el último lingote." },
-	{ "id": "monedero_roto", "name": "Saco de monedas roto",
-		"desc": "Con lo que había dentro no llegaba ni para un puñado de arroz." },
-	{ "id": "soja_vacia", "name": "Botella de soja vacía",
-		"desc": "Ni una gota. Ese servicio se sirvió soso." },
 	{ "id": "dorayaki_mordisco", "name": "Dorayaki con un mordisco",
 		"desc": "Por preparar %d dorayakis. Este te lo has ganado."
 			% DORAYAKI_PLATOS },
 	{ "id": "recetario", "name": "Recetario completo",
 		"desc": "Por aprender TODAS las recetas del juego." },
-	# --- Vaiana --------------------------------------------------------------
-	{ "id": "anzuelo_maui", "name": "Anzuelo mágico gigante",
-		"desc": "Por sacar %d capturas del mar. Ya vives de la caña."
-			% ANZUELO_PECES },
 	{ "id": "galon_oro", "name": "Galón de oro",
 		"desc": "Por aguantar hasta la oleada %d del Arcade." % GALON_OLEADA },
 	{ "id": "delantal_chamuscado", "name": "Delantal chamuscado",
@@ -226,8 +224,6 @@ const ITEMS: Array = [
 	{ "id": "campana_servicio", "name": "Campana del último servicio",
 		"desc": "Por cerrar una jornada con %d doblones de propina."
 			% CAMPANA_PROPINA },
-	{ "id": "koinobori", "name": "Koinobori", "desc": "" },
-	{ "id": "omamori", "name": "Omamori", "desc": "" },
 	{ "id": "palillos_madera", "name": "Palillos de madera",
 		"desc": "Por servir tus primeros %d platos." % PALILLOS_PLATOS[0] },
 	{ "id": "palillos_plata", "name": "Palillos de plata",
@@ -236,7 +232,16 @@ const ITEMS: Array = [
 	{ "id": "palillos_oro", "name": "Palillos de oro",
 		"desc": "Por servir %d platos. Esto ya es un oficio."
 			% PALILLOS_PLATOS[2] },
-	# --- Trofeos de los JEFES DE MAR (uno por mar; ver BOSS_ITEMS) -----------
+	# --- Los cuatro de TOCAR FONDO (ver GameState._sin_nada) ---------------------
+	{ "id": "saco_vacio", "name": "Saco de arroz vacío",
+		"desc": "El día que se acabó el arroz. No se navega con la bodega así." },
+	{ "id": "lingote_roto", "name": "Lingote roto",
+		"desc": "Lo que queda cuando se gasta hasta el último lingote." },
+	{ "id": "monedero_roto", "name": "Saco de monedas roto",
+		"desc": "Con lo que había dentro no llegaba ni para un puñado de arroz." },
+	{ "id": "soja_vacia", "name": "Botella de soja vacía",
+		"desc": "Ni una gota. Ese servicio se sirvió soso." },
+	# --- Trofeos de los JEFES DE MAR (uno por mar; ver BOSS_ITEMS) ---------------
 	{ "id": "diente_kappa", "name": "Diente de Kappa",
 		"desc": "Se le cayó al Kappa cuando por fin se dio por servido." },
 	{ "id": "lagrima_sirena", "name": "Lágrima de sirena",
@@ -307,7 +312,7 @@ const ITEMS: Array = [
 		"desc": "Salió de un cofre pescado en alta mar." },
 	# --- La Odisea -----------------------------------------------------------
 	{ "id": "tapones_cera", "name": "Tapones de cera",
-		"desc": "Salió de un cofre pescado en alta mar. Contra el canto de las sirenas." },
+		"desc": "Como los de Ulises: con ellos a bordo, cada canto de sirena dura un tercio menos." },
 	# --- Robinson Crusoe -----------------------------------------------------
 	{ "id": "huella_arena", "name": "Molde de una huella",
 		"desc": "Salió de un cofre pescado en alta mar. Alguien más pisó esa playa." },
@@ -359,6 +364,10 @@ const ITEMS: Array = [
 	# --- Los Goonies ---------------------------------------------------------
 	{ "id": "ojo_cobre", "name": "Ojo de cobre",
 		"desc": "Salió de un cofre pescado en alta mar." },
+	# --- Vaiana ------------------------------------------------------------------
+	{ "id": "anzuelo_maui", "name": "Anzuelo mágico gigante",
+		"desc": "Por sacar %d capturas del mar. Ya vives de la caña."
+			% ANZUELO_PECES },
 	# --- La Sirenita y las sirenas -------------------------------------------
 	{ "id": "tenedor", "name": "Tenedor",
 		"desc": "¿Podría utilizarse como peine?" },

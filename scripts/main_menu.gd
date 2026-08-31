@@ -672,6 +672,26 @@ func _escena_coleccionable(id: String) -> void:
 
 func _guion_coleccionable(id: String) -> Array:
 	match id:
+		"tricornio":
+			# GIGI SE QUEDA EL TRICORNIO (pedido por el usuario): desde esta
+			# escena su arte lo lleva puesto (la variante `tricornio` de
+			# DialogueBox._variante_de).
+			return [
+				{ "text": "Un tricornio de capitán. Buen fieltro, tres picos, "
+					+ "ni un agujero de bala. Una pieza seria.",
+					"mood": "hablando" },
+				{ "text": "¡MÍO! ¡RAAAK! ¡EL PÁJARO DEL SOMBRERO MANDA MÁS "
+					+ "QUE EL CALVO DEL TIMÓN!", "who": "gigi",
+					"mood": "loro_grito" },
+				{ "text": "Gigi, eso te queda como una carpa de circo. Ni "
+					+ "siquiera te tapa las dos plumas de arriba.",
+					"mood": "riendo" },
+				{ "text": "¡ENVIDIA! ¡RAAAK! ¡ENVIDIA DE CALVO!",
+					"who": "gigi", "mood": "loro_sorpresa" },
+				{ "text": "Está bien, está bien... El tricornio es del loro. "
+					+ "Pero cuando sople de verdad, no vengas llorando a "
+					+ "buscarlo a la vitrina.", "mood": "loro_resignado" },
+			]
 		"corazon_cofre":
 			# El cofre del hombre muerto, con el apellido de David dentro.
 			return [
@@ -747,7 +767,115 @@ func _unhandled_input(event: InputEvent) -> void:
 				and (event as InputEventScreenTouch).pressed:
 			_zarpar_de_la_portada()
 		return
+	# EL CAÑÓN DEL BARCO SE PUEDE TOCAR (coleccionable "canon"): con la bala
+	# en la vitrina dispara de verdad, y sin ella Gigi protesta. El toque se
+	# resuelve por distancia en pantalla al cañón proyectado.
+	if in_menu and not leaving and event is InputEventScreenTouch \
+			and (event as InputEventScreenTouch).pressed and ship_pivot != null:
+		var canon := ship_pivot.find_child("ColCanon", true, false)
+		if canon != null:
+			var px := cam.unproject_position((canon as Node3D).global_position)
+			if px.distance_to((event as InputEventScreenTouch).position) < 64.0:
+				_disparar_canon(canon as Node3D)
+				get_viewport().set_input_as_handled()
+				return
 	super._unhandled_input(event)
+
+
+## ¡FUEGO! Con la bala de cañón coleccionada, el cañonazo de verdad: fogonazo
+## de humo en la boca, la bala vuela en parábola y se hunde en el mar. Sin
+## bala, Gigi dice lo suyo — un cañón que no responde se leería como roto.
+var _canon_ocupado := false
+
+
+func _disparar_canon(canon: Node3D) -> void:
+	if _canon_ocupado:
+		return
+	if not GameState.has_collectible("bala_canon"):
+		_canon_ocupado = true
+		var caja := DialogueBox.new()
+		caja.z_index = 200
+		ui_layer.add_child(caja)
+		caja.say([
+			{ "text": "¡RAAAK! ¿¡CON QUÉ!? ¡NO HAY BALAS! ¡PESCA UNA BALA DE "
+				+ "CAÑÓN, COCINERO DE AGUA DULCE!", "who": "gigi",
+				"mood": "loro_grito" },
+		])
+		await caja.finished
+		await caja.close_and_free()
+		_canon_ocupado = false
+		return
+	_canon_ocupado = true
+	Audio.sfx("canon")
+	var s: float = float(canon.get_parent().get_meta("alto", 2.0)) / 0.897
+	# El humo: una nube gris que se hincha y se disipa en la boca del tubo.
+	var humo := MeshInstance3D.new()
+	var esfera_h := SphereMesh.new()
+	esfera_h.radius = 0.03 * s
+	esfera_h.height = 0.06 * s
+	humo.mesh = esfera_h
+	var mh := StandardMaterial3D.new()
+	mh.albedo_color = Color(0.85, 0.85, 0.82, 0.85)
+	mh.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	humo.material_override = mh
+	add_child(humo)
+	humo.global_position = canon.global_position \
+		+ canon.global_transform.basis.z * 0.14 * s \
+		+ Vector3(0.0, 0.06 * s, 0.0)
+	var th := create_tween().set_parallel()
+	th.tween_property(humo, "scale", Vector3.ONE * 3.2, 0.55) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	th.tween_property(mh, "albedo_color:a", 0.0, 0.55)
+	th.chain().tween_callback(humo.queue_free)
+	# La bala: sale por la boca y cae al mar en parábola.
+	var bala := MeshInstance3D.new()
+	var esfera_b := SphereMesh.new()
+	esfera_b.radius = 0.020 * s
+	esfera_b.height = 0.040 * s
+	bala.mesh = esfera_b
+	bala.material_override = StandardMaterial3D.new()
+	bala.material_override.albedo_color = Color(0.13, 0.13, 0.15)
+	add_child(bala)
+	var origen: Vector3 = humo.global_position
+	bala.global_position = origen
+	var dir: Vector3 = canon.global_transform.basis.z.normalized()
+	var destino: Vector3 = origen + dir * 5.0 * s
+	destino.y = -0.3
+	var tb := create_tween()
+	# La parábola: la x/z lineal y la y con subida y caída (dos tramos).
+	tb.set_parallel()
+	tb.tween_property(bala, "global_position:x", destino.x, 0.9)
+	tb.tween_property(bala, "global_position:z", destino.z, 0.9)
+	var ty := create_tween()
+	ty.tween_property(bala, "global_position:y", origen.y + 0.7 * s, 0.38) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	ty.tween_property(bala, "global_position:y", destino.y, 0.52) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	ty.tween_callback(func() -> void:
+		bala.queue_free()
+		_chapoteo_bala(Vector3(destino.x, 0.02, destino.z))
+		_canon_ocupado = false)
+
+
+## El chapoteo del impacto: un aro blanco que se abre a ras de agua.
+func _chapoteo_bala(pos: Vector3) -> void:
+	var aro := MeshInstance3D.new()
+	var toro := TorusMesh.new()
+	toro.inner_radius = 0.06
+	toro.outer_radius = 0.10
+	aro.mesh = toro
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(1, 1, 1, 0.85)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	aro.material_override = m
+	add_child(aro)
+	aro.global_position = pos
+	var tw := create_tween().set_parallel()
+	tw.tween_property(aro, "scale", Vector3(4.0, 1.0, 4.0), 0.6) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(m, "albedo_color:a", 0.0, 0.6)
+	tw.chain().tween_callback(aro.queue_free)
 
 
 ## Modo PORTADA: el barco amarrado al muelle, el logotipo y "Pulsa para
@@ -1435,6 +1563,12 @@ func _process(delta: float) -> void:
 		wheel.rotation += wheel_vel * delta
 		_bank_wheel_turns(absf(wheel_vel) * delta)
 		wheel_vel = lerpf(wheel_vel, 0.0, minf(delta * 1.6, 1.0))
+	# Y EL BARCO GIRA CON ÉL (pedido por el usuario): el timón es el mirador
+	# del barco — así se le ve la popa, el farol, la bandera... El giro va
+	# DESMULTIPLICADO (0.35: una vuelta de timón no es una pirueta) y siempre
+	# desde el rumbo de casa.
+	if wheel != null and ship_pivot != null:
+		ship_pivot.rotation.y = deg_to_rad(SHIP_YAW) - wheel.rotation * 0.35
 	# Mientras se retiran del encuadre las mueve su tween, no esta función.
 	if sky_leaving:
 		return
@@ -1551,23 +1685,29 @@ func _setup_menu_ui() -> void:
 	tabla.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	menu_panel.add_child(tabla)
 
-	# El timón va DESPUÉS de la textura del panel en el árbol: se dibuja POR
-	# DELANTE, superpuesto al tablón, cabalgando su canto superior.
-	var wheel_holder := Control.new()
-	wheel_holder.position = Vector2((MENU_PANEL_W - WHEEL_SIZE) * 0.5,
-		-WHEEL_PEEK)
-	wheel_holder.size = Vector2(WHEEL_SIZE, WHEEL_SIZE)
-	wheel_holder.mouse_filter = Control.MOUSE_FILTER_STOP
-	wheel_holder.gui_input.connect(_on_wheel_input)
-	menu_panel.add_child(wheel_holder)
-	wheel = TextureRect.new()
-	wheel.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	wheel.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	wheel.texture = load("res://assets/ui/timon.png")
-	wheel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	wheel.pivot_offset = Vector2(WHEEL_SIZE, WHEEL_SIZE) * 0.5
-	wheel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	wheel_holder.add_child(wheel)
+	# EL TIMÓN ES UN PREMIO (pedido por el usuario): no aparece hasta ganar su
+	# coleccionable (45 estrellas de campaña). Y desde entonces girarlo GIRA
+	# EL BARCO de la pantalla — el mirador para verlo por todos sus lados con
+	# los adornos que se hayan ganado (ver el acople en `_process`). OJO: esto
+	# va en un `if`, NO con un return — la función sigue montando los botones.
+	if GameState.has_collectible("timon"):
+		# El timón va DESPUÉS de la textura del panel en el árbol: se dibuja
+		# POR DELANTE, superpuesto al tablón, cabalgando su canto superior.
+		var wheel_holder := Control.new()
+		wheel_holder.position = Vector2((MENU_PANEL_W - WHEEL_SIZE) * 0.5,
+			-WHEEL_PEEK)
+		wheel_holder.size = Vector2(WHEEL_SIZE, WHEEL_SIZE)
+		wheel_holder.mouse_filter = Control.MOUSE_FILTER_STOP
+		wheel_holder.gui_input.connect(_on_wheel_input)
+		menu_panel.add_child(wheel_holder)
+		wheel = TextureRect.new()
+		wheel.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		wheel.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		wheel.texture = load("res://assets/ui/timon.png")
+		wheel.set_anchors_preset(Control.PRESET_FULL_RECT)
+		wheel.pivot_offset = Vector2(WHEEL_SIZE, WHEEL_SIZE) * 0.5
+		wheel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		wheel_holder.add_child(wheel)
 
 	# Los botones, en el hueco interior del tablón (medido sobre el PNG:
 	# x 0.10..0.90, y 0.245..0.845 — ver MENU_PANEL_INNER).
@@ -2950,6 +3090,13 @@ func _go_adventure() -> void:
 	if leaving:
 		return
 	leaving = true
+	# El rumbo vuelve a casa: si el timón dejó el barco girado, zarpar de
+	# costado (o de popa) hacia el mapa se veía rarísimo.
+	if ship_pivot != null:
+		ship_pivot.rotation.y = deg_to_rad(SHIP_YAW)
+	wheel_vel = 0.0
+	if wheel != null:
+		wheel.rotation = 0.0
 	_sonar_zarpe()
 	# Los contadores NO salen: se quedan y viajan a los extremos del mapa, y la
 	# BARRA DE NIVEL tampoco — se queda y se corre a la derecha con ellos.

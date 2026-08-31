@@ -2997,8 +2997,33 @@ La GUÍA lleva su sección ("El canto de sirena").
     del 12 o el primer cofre de la pesca, lo que llegue antes. Estuvo soltado a
     palo seco al empezar el puerto del 12, antes de que hubiera nada que
     enseñar, y sonaba a folleto.
+  · **LAS MISIONES DE MAPA DEL TESORO (SISTEMA PENDIENTE, reparto decidido
+    el 31-8-2026 por el usuario — GUARDAR)**: los mapas del tesoro serán
+    misiones secundarias con objetivos específicos, accesibles desde el menú
+    de mapas del modo aventura (el botón del submenú del mapa ya existe). El
+    coleccionable `mapa_tesoro` desbloquea un mapa ESPECIAL. Piezas que
+    saldrán de esas misiones: **canon** (el cañón de cubierta), **panuelo**
+    (que estrenará el arte de David), **pluma_loro** (una misión de dar de
+    comer A GIGI), **pluma_escribir**, **saco_cafe**, **marca_negra** (se
+    sacó del sorteo de la pesca) y **tapones_cera** (cuyo efecto ya está
+    implementado: cada canto de sirena dura un tercio menos,
+    `level3d._empezar_canto`).
+  · **Disparadores nuevos de la misma tanda**: `timon` a las **45 estrellas**
+    (`estrellas_totales`; la vía de las 5 vueltas murió — sin timón no hay
+    timón que girar), `cofre` al pescar el **pez cofre** (vía álbum, como la
+    esmeralda) y `barril` en el sorteo de la pesca.
+  · **EL ARTE DE UN PERSONAJE CAMBIA CON ALGUNOS COLECCIONABLES**
+    (`DialogueBox._variante_de`): la variante es el mismo dibujo con sufijo
+    (`cai_serio_sombrero.png`) y si el archivo no existe se cae al arte de
+    siempre. Hoy: CAI + `sombrero_paja` → `_sombrero` (arte generado por
+    `editImage` sobre los retratos compuestos y SIN su pañuelo azul —
+    pedido por el usuario: el sombrero va sobre el pelo suelto—, montado con
+    `tools/cai_sombrero.py`; sus lecciones en el docstring), y DAVID/GIGI +
+    `tricornio` → `_tricornio` (mecanismo y escena listos; el ARTE de los 12
+    moods queda pendiente de generar por la misma vía). El tricornio entró en
+    `SCENE_ITEMS`: al caer la pieza, Gigi se lo queda en una escena del menú.
   · **Sin disparador todavía**: lo que no esté en las listas de arriba (lo
-    que huele a tierra firme: tricornio, pistola, sartén, One Piece salvo el
+    que huele a tierra firme: pistola, sartén, One Piece salvo el
     sombrero...) — queda bloqueado y con `desc` genérica hasta que se decida
     su mecánica.
   · **Triángulo dorado**: 8 fragmentos (`GameState.add_triforce_piece`; su
@@ -3110,6 +3135,16 @@ La GUÍA lleva su sección ("El canto de sirena").
     utensilios de la muñeca). La cabecera del archivo lleva el reparto
     PENSADO para el resto del catálogo (qué pieza iría dónde y qué le falta);
     los tesoros pequeños no se lucen — a escala de mapa serían un píxel.
+    La tanda del 31-8 sumó el **ANCLA** recogida al costado, el **CAÑÓN** de
+    cubierta (tocarlo DISPARA si la bala de cañón está en la vitrina —
+    `main_menu._disparar_canon`, sonido `canon` de la librería GS1 nivelado a
+    +1,5 dB— y sin bala Gigi protesta), el **HUEVO del Pez del Viento**
+    coronando popa, el emblema de la **VELA de Wind Waker** calcado en la
+    vela del mástil y la **MORSA de peluche** dormida sobre una caja en las
+    islas del nivel. Y el **TIMÓN** del menú es ahora un premio: no existe
+    hasta las 45 estrellas, y girarlo GIRA EL BARCO (el mirador de los
+    adornos; el rumbo se endereza al zarpar, o salía de costado hacia el
+    mapa).
     **El barco se decora en `_setup_ship`** (una pieza nueva luce al volver
     al menú) y las medidas salen de una SONDA de vértices sobre
     `map_barco.glb` (el mástil en x≈0.0986, perfil de alturas por bandas):
