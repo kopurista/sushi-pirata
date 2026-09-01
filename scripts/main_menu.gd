@@ -80,9 +80,18 @@ const MENU_SHIP_SCALE := 2.75
 ## dónde queda el encuadre al cerrar el zoom (px de mapa; 85.3 px = 1 u).
 ## Calibrado para que en el zoom quepan el barco entero Y el muelle: el barco
 ## del menú es grande y con `size` 7.5 el puerto se quedaba fuera de cuadro.
-const SHOP_DOCK_AT := 7.9
+## El viaje a la tienda, en píxeles de MAPA y hacia ABAJO: dónde nace el puerto
+## (fuera de cuadro), dónde acaba, cuánto navega el barco y cuánto baja además
+## la cámara al cerrar el zoom.
+const SHOP_DOCK_LEJOS := 900.0
+const SHOP_DOCK_AT := 355.0
 const SHOP_SAIL := 300.0
-const SHOP_ZOOM_SIDE := 430.0
+## LA CAMARA BAJA MENOS QUE EL BARCO, y esa diferencia es a proposito: en el
+## menu la banda deja al barco arriba (`MENU_BAND_OFF`), asi que bajando lo
+## mismo que el se quedaria igual de arriba y el zoom lo sacaria de cuadro.
+## Bajando menos, el barco navega hacia el centro del encuadre.
+const SHOP_CAM_SAIL := 130.0
+const SHOP_ZOOM_DOWN := 165.0
 const SHOP_ZOOM_SIZE := 9.4
 ## SUBMENÚ inferior: la barra de madera oscura con cuerda (`submenu_barra.png`,
 ## estilo propio, distinto de los tablones) con los CINCO accesos del jugador:
@@ -197,6 +206,10 @@ var start_hint: Label = null
 ## Desplazamiento lateral del encuadre (px de mapa). Lo usa la transición a la
 ## tienda para que la cámara siga al barco mientras atraca.
 var cam_side := 0.0
+## Gemelo VERTICAL de `cam_side`: aparta la cámara del scroll sin pasar por
+## `cam_center`, que sí lo acotan los topes del mar. Lo usa el viaje a la
+## tienda, que baja por debajo del último escenario.
+var cam_down := 0.0
 
 
 func _ready() -> void:
@@ -1040,6 +1053,7 @@ func _show_menu(animate: bool) -> void:
 		ship_px = _fondeadero()
 		cam_center = _fondeadero().y
 		cam_side = MENU_OFF_X
+		cam_down = 0.0
 		_update_camera()
 	if ship_pivot != null:
 		ship_pivot.scale = Vector3.ONE * MENU_SHIP_SCALE
@@ -1071,6 +1085,7 @@ func _show_ficha() -> void:
 			caja.visible = false
 	menu_blend = 1.0
 	cam_side = MENU_OFF_X
+	cam_down = 0.0
 	ship_px = _fondeadero()
 	cam_center = _fondeadero().y
 	if ship_pivot != null:
@@ -1293,6 +1308,7 @@ func _enter_map(animate: bool) -> void:
 	if not animate:
 		menu_blend = 0.0
 		cam_side = 0.0
+		cam_down = 0.0
 		completar_mar()
 		_focus_last_port(false)
 		leaving = false
@@ -1386,7 +1402,7 @@ func _update_camera() -> void:
 		sh = Vector2(randf_range(-1.0, 1.0),
 			randf_range(-1.0, 1.0)) * cam_shake
 	var target := _world(Vector2(360.0 + cam_side + sh.x,
-		cam_center + off + sh.y))
+		cam_center + off + sh.y + cam_down))
 	cam.position = target + cam.transform.basis.z * 30.0
 
 
@@ -4276,26 +4292,32 @@ el nivel 2 de la Aventura.")
 	_ui_out(false)
 	_sky_out(0.9)
 
-	var here := _world(ship_px)
+	# LA TIENDA ESTÁ ABAJO, y el barco baja hasta ella (pedido por el usuario).
+	# Estuvo a la derecha, y desde que el fondeadero se mudó al costado del
+	# escenario de destino eso llevaba la cámara HACIA el archipiélago: se veían
+	# pasar todos los escenarios camino de la tienda. Se probó a mandarla a la
+	# izquierda y tampoco: el barco mira a la derecha y tendría que virar antes
+	# de arrancar, y por la izquierda está el puerto de la portada, así que
+	# navegar hacia allá tendría que llevar a ESE puerto y no a otro.
+	# Bajando, en cambio, el barco navega como navega siempre por el mapa —el
+	# mismo gesto que de isla a isla— y la cámara no se acerca ni un píxel a los
+	# escenarios: se queda a `MENU_OFF_X` de ellos todo el rato.
 	var dock := SceneBackdrop._spawn_model(self,
 		load("res://assets/models/map_puerto.glb"), 7.0)
-	dock.position = here + R_HAT * 20.0 + Vector3(0.0, -0.1, 0.0)
+	dock.position = _world(ship_px + Vector2(0.0, SHOP_DOCK_LEJOS)) 		+ Vector3(0.0, -0.1, 0.0)
 
 	var tw := create_tween().set_parallel(true)
-	tw.tween_property(dock, "position", here + R_HAT * SHOP_DOCK_AT
-		+ Vector3(0, -0.1, 0), 1.1) \
-			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tw.tween_property(self, "ship_px", ship_px + Vector2(SHOP_SAIL, 0.0), 1.1) \
-			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(dock, "position",
+		_world(ship_px + Vector2(0.0, SHOP_DOCK_AT)) + Vector3(0, -0.1, 0), 1.1) 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "ship_px", ship_px + Vector2(0.0, SHOP_SAIL), 1.1) 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	# La cámara ACOMPAÑA al barco mientras se acerca al muelle: quieta, el barco
-	# se salía del encuadre y el zoom caía sobre mar vacío.
-	tw.tween_property(self, "cam_side", SHOP_SAIL, 1.1) \
-			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	# se salía del encuadre y el zoom caía sobre mar vacío. Va por `cam_down` y
+	# no por `cam_center` porque este baja del último escenario del mar, y los
+	# topes del scroll cortarían el viaje.
+	tw.tween_property(self, "cam_down", SHOP_CAM_SAIL, 1.1) 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	# El zoom cierra sobre el atraque: entre el barco y el puesto del tendero.
-	tw.chain().tween_property(cam, "size", SHOP_ZOOM_SIZE, 0.9) \
-			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tw.parallel().tween_property(self, "cam_side", SHOP_ZOOM_SIDE, 0.9) \
-			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.chain().tween_property(cam, "size", SHOP_ZOOM_SIZE, 0.9) 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.parallel().tween_property(self, "cam_down", SHOP_ZOOM_DOWN, 0.9) 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.chain().tween_interval(0.15)
 	tw.chain().tween_callback(func() -> void:
 		GameState.transition = "tienda"
