@@ -157,9 +157,22 @@ static func _koinobori(pivot: Node3D, s: float, alto: float) -> void:
 	# despues no compensaba perder ese dibujo, que trae las escamas y el ojo).
 	# Lo que SI se queda es el sitio nuevo: en lo alto del palo de PROA, que
 	# corona en y +0.354, o sea alto*0.855 (medido con sonda de vertices).
-	if not ResourceLoader.exists("res://assets/ui/col_koinobori.png"):
+	# SIN EL PALO DIBUJADO (lo quitó el usuario: "no está bien encajado con el
+	# barco"). El icono de la VITRINA lo conserva —allí el palo es parte del
+	# objeto—; esto es la versión SOLO PEZ, recortada de él, y lo que lo ata al
+	# barco son HILOS de verdad que salen de su boca hasta el tope del palo de
+	# proa. Un koinobori se cuelga así: por la boca y con cabos, no clavado.
+	var tex := "res://assets/ui/col_koinobori_pez.png"
+	if not ResourceLoader.exists(tex):
 		return
-	var p := _prop(pivot, Vector3(-0.100 * s, alto * 0.855, 0.0), 12.0, 2.4)
+	# EL ANCLAJE es el tope del palo de PROA (y +0.354 = alto*0.855, medido con
+	# sonda de vértices); el pez vuela POR DELANTE, hacia la proa, con los
+	# cabos tendidos en medio.
+	var ancla := Vector3(-0.100 * s, alto * 0.855, 0.0)
+	# EL PEZ VUELA APARTADO DEL PALO, no pegado a él: con la boca casi
+	# tocando el anclaje los cabos no se veían y volvía a parecer clavado.
+	# Medido en captura: con 0.145 el vano era de 0.05·s y no se leía.
+	var p := _prop(pivot, ancla + Vector3(-0.255 * s, 0.020 * s, 0.0), 12.0, 2.4)
 	p.name = "ColKoinobori"
 	# EN CARTEL QUE SIEMPRE MIRA A LA CAMARA (billboard por el eje Y). El
 	# timon GIRA EL BARCO, y con el paño clavado a la jarcia bastaba un cuarto
@@ -169,26 +182,39 @@ static func _koinobori(pivot: Node3D, s: float, alto: float) -> void:
 	# perfil, y ademas basta UNA cara en vez de dos.
 	var cara := MeshInstance3D.new()
 	var quad := QuadMesh.new()
-	quad.size = Vector2(0.155 * s, 0.155 * s)
+	# A la PROPORCIÓN del dibujo (180x122): cuadrado, el pez salía achatado.
+	var ancho := 0.190 * s
+	quad.size = Vector2(ancho, ancho * 122.0 / 180.0)
 	cara.mesh = quad
-	# EL CARTEL CUELGA HACIA LA PROA (-x), que es adonde empuja el viento que
-	# hincha las velas: el pez se ata por la boca al palo y el cuerpo se va a
-	# favor. La CABEZA queda del lado del palo y la cola en punta.
-	cara.position = Vector3(-0.095 * s, 0.0, 0.0)
 	var m := StandardMaterial3D.new()
-	m.albedo_texture = load("res://assets/ui/col_koinobori.png")
+	m.albedo_texture = load(tex)
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
 	m.billboard_keep_scale = true
 	cara.material_override = m
 	p.add_child(cara)
-	# ...PERO EL BILLBOARD CLAVA EL DIBUJO A LA PANTALLA, no al barco: con la
-	# cabeza siempre a la izquierda, en cuanto la proa caía a la izquierda el
-	# pez volaba de morro CONTRA el viento de sus propias velas. `ColProp` lo
+	# EL BILLBOARD CLAVA EL DIBUJO A LA PANTALLA, no al barco: con la cabeza
+	# siempre a la izquierda, en cuanto la proa caía a la izquierda el pez
+	# volaba de morro CONTRA el viento de sus propias velas. `ColProp` lo
 	# arregla volteando la textura segun donde caiga la proa (-x en el modelo).
 	p.veleta_mat = m
 	p.veleta_dir = Vector3(-1.0, 0.0, 0.0)
+	p.veleta_cara = cara
+	p.veleta_semi = ancho * 0.5
+	# LOS HILOS cuelgan del BARCO, no del pez: su anclaje no se mece con él.
+	var hilos := MeshInstance3D.new()
+	hilos.name = "ColKoinoboriHilos"
+	hilos.mesh = ImmediateMesh.new()
+	var mh := StandardMaterial3D.new()
+	mh.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mh.albedo_color = Color(0.94, 0.90, 0.78)
+	mh.vertex_color_use_as_albedo = false
+	hilos.material_override = mh
+	hilos.add_to_group("no_batch")
+	pivot.add_child(hilos)
+	p.hilos = hilos
+	p.hilos_ancla = ancla
 
 
 ## EL FAROL FANTASMA, encendido en proa con su luz ESPECTRAL verde — la del
