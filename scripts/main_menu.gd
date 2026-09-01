@@ -1295,6 +1295,11 @@ func _enter_map(animate: bool) -> void:
 	if ship_pivot != null:
 		ship_pivot.position = _world(ship_px) + Vector3(0.0, -0.06 + marea(), 0.0)
 	_update_camera()
+	# Y EL PAISAJE ENTRA CON FUNDIDO. El salto del barco no se ve porque va con
+	# la cámara, pero lo que hay DEBAJO sí cambia de golpe: donde había mar
+	# abierto aparecen de pronto todos los escenarios del mar. Con el fundido
+	# se lee como que el mapa se abre, no como un parpadeo.
+	fundir_mar(true, ENTRADA_FUNDIDO)
 	var dur := 1.15
 	# El barco recupera su tamaño de ficha del mapa mientras navega.
 	var scale_tw := create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE)
@@ -2857,6 +2862,8 @@ const RUMBO_VUELTA := 0.45
 ## LO QUE NAVEGA EL BARCO AL ENTRAR EN EL MAPA, en píxeles de mapa. Es una
 ## APROXIMACIÓN, no una travesía: llega desde el sur a su escenario y atraca.
 const APROXIMACION := 760.0
+## Lo que tarda el mar en aparecer (y en irse) al entrar o salir del mapa.
+const ENTRADA_FUNDIDO := 0.55
 
 
 ## Mientras el rumbo vuelve a casa, `_process` NO acopla el barco al timón: los
@@ -3240,9 +3247,26 @@ func _back_to_menu() -> void:
 		Vector3.ONE * MENU_SHIP_SCALE, dur * 0.8).set_delay(dur * 0.2)
 	scale_tw.tween_property(ship_blob, "scale",
 		Vector3.ONE * MENU_SHIP_SCALE, dur * 0.8).set_delay(dur * 0.2)
+	# EL BARCO TAMPOCO DESANDA LA CAMPAÑA AL VOLVER (lo pidió el usuario):
+	# navega hacia el sur su `APROXIMACION` y, con el mar ya fundido, se
+	# teletransporta al fondeadero con la cámara. El salto no se ve porque los
+	# dos se corren lo mismo Y en el mismo fotograma.
+	fundir_mar(false, ENTRADA_FUNDIDO)
+	var salida := ship_px + Vector2(0.0, APROXIMACION)
 	ship_tween = create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	ship_tween.tween_property(self, "ship_px", MENU_ANCHOR, dur)
-	ship_tween.parallel().tween_property(self, "cam_center", MENU_ANCHOR.y, dur)
+	ship_tween.tween_property(self, "ship_px", salida, dur * 0.45)
+	ship_tween.parallel().tween_property(self, "cam_center",
+		cam_center + APROXIMACION, dur * 0.45)
+	ship_tween.tween_callback(func() -> void:
+		var dy := MENU_ANCHOR.y - ship_px.y
+		ship_px.y += dy
+		cam_center += dy
+		if ship_pivot != null:
+			ship_pivot.position = _world(ship_px) 				+ Vector3(0.0, -0.06 + marea(), 0.0)
+		_update_camera())
+	ship_tween.tween_property(self, "ship_px", MENU_ANCHOR, dur * 0.55)
+	ship_tween.parallel().tween_property(self, "cam_center", MENU_ANCHOR.y,
+		dur * 0.55)
 	create_tween().set_trans(Tween.TRANS_SINE).tween_property(
 		self, "menu_blend", 1.0, dur * 0.7)
 	# La interfaz vuelve con su propio temporizador: colgarla del tween del

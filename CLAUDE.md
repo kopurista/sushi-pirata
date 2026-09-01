@@ -698,11 +698,46 @@ al sur de su destino y solo navega esa entrada.
   el "tirón" que se veía. Con los dos recolocados a la vez, el mayor salto por
   fotograma baja a **3,5 px**.
 
-**LAS TRES TRAVESÍAS, MEDIDAS** (sonda por fotograma; al tocarlas, repetirla):
+**AL CRUZAR SE MONTAN LOS DOS MARES A LA VEZ** (idea del usuario: que los
+escenarios del mar nuevo "parezca que siempre estuvieron ahí"). El de destino
+se monta AL EMPEZAR la travesía, con sus escenarios todavía lejísimos fuera de
+cuadro, y el viejo se suelta AL LLEGAR, cuando ya ha quedado atrás. Así la
+cámara cruza la frontera con los primeros escenarios del mar nuevo YA puestos:
+entran en cuadro navegando en vez de aparecer de golpe. MEDIDO: 143 nodos con
+los dos montados, 82 al terminar. Cuesta un par de segundos lo que costaba el
+mapa entero antes de dividirlo, que es justo el rato en que hace falta.
+· Por eso el grupo es **uno por mar** (`_grupo(mar)`) y no uno solo.
+· Y por eso **`_montar_mar` es el ÚNICO constructor**: es quien pone
+  `mar_montando`, de donde sacan su grupo todos los `add_to_group` del
+  montaje. `_ready` llamaba a las tres funciones sueltas y `mar_montando` se
+  quedaba en su valor inicial (1), así que los nodos del mar 2 salían
+  etiquetados como del 1 — y al cruzar no se liberaba ninguno.
+
+**Y EL PAISAJE ENTRA Y SALE CON FUNDIDO** (`fundir_mar`, `transparency` de
+`GeometryInstance3D`, que es un fundido por instancia y no obliga a tocar los
+materiales). Hace falta porque el viaje entre el MENÚ y el MAPA no puede ser
+continuo —el fondeadero está a 14.000 px— así que la cámara se teletransporta;
+el barco no se ve saltar porque va con ella, pero lo que hay DEBAJO cambiaba de
+golpe: donde había mar abierto aparecían todos los escenarios.
+· **OJO con `find_children`**: estos nodos se crean por código y no tienen
+  dueño de escena, así que hay que pasarle `owned = false` — con el valor por
+  defecto no devuelve NI UNO y el fundido no fundía nada.
+· **Y `Array.filter` con una lambda TIPADA revienta** ("Cannot convert argument
+  1 from Object to Object"): las listas de nodos se rehacen a mano.
+
+**LAS CUATRO TRAVESÍAS, MEDIDAS** (sonda por fotograma; al tocarlas,
+repetirla). El detector de CORTES es el salto de la CÁMARA, no lo que se mueve
+el barco en pantalla: el barco va deprisa a propósito en mitad de un viaje.
 
     menu -> aventura   3,5 px de salto maximo en pantalla
     isla -> isla       1.112 px, aterriza clavado en el anclaje teorico
-    cruzar de mar      8,7 px de salto maximo; camara continua en la frontera
+    cruzar de mar      16,4 px/fotograma de camara (la velocidad del tween)
+    volver al menu     20 px, y sin desandar la campana
+
+**Y EL CARTEL DE SUBIR SE VE ENTERO**: desde el extremo norte del mar 1 cae en
+pantalla entre **y 231 y 454**, justo por debajo de la barra de arriba (que
+llega a la 210). Eso es lo que fija `MARGEN_MAR` (200): con 0 el cartel se
+quedaba medio detrás de la barra y no había forma de llegar a verlo.
 
 ## LOS MAPAS DEL TESORO: LAS MISIONES SECUNDARIAS (montadas el 1-9-2026)
 

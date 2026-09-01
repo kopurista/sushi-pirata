@@ -95,15 +95,17 @@ const SCROLL_SUELO := CampaignData.MAP_HEIGHT - 560.0
 var mar_actual := 1
 var scroll_min := SCROLL_TOPE
 var scroll_max := SCROLL_SUELO
-## Todo lo que se monta POR MAR va en este grupo: al cambiar de mar se libera
-## de golpe y se vuelve a construir. Es lo único que hace falta para que el
-## coste no crezca con la campaña.
-const GRUPO_MAR := "mapa_mar"
-## SIN RESPIRO (pedido por el usuario: "sin que sobre espacio por arriba o por
-## abajo"). La camara no pasa del primer ni del ultimo escenario del mar, asi
-## que el cartel de paso tiene que verse ENTERO desde ahi — de eso se encarga
-## `PASO_CARTEL`, que es lo que se aparta del ultimo nodo, medido en captura.
-const MARGEN_MAR := 0.0
+## Todo lo que se monta POR MAR va en el grupo de SU MAR. Es un grupo por mar y
+## no uno solo a propósito: al cruzar hacen falta LOS DOS montados a la vez un
+## par de segundos (ver `cambiar_de_mar`), o los escenarios del mar nuevo
+## aparecen de golpe en mitad de la travesía.
+func _grupo(mar: int) -> String:
+	return "mapa_mar_%d" % mar
+## RESPIRO MINIMO por encima y por debajo del mar: lo justo para que el cartel
+## de paso quepa ENTERO en cuadro, y ni un pixel mas ("sin que sobre espacio
+## por arriba o por abajo"). Estuvo a 0 y el cartel de SUBIR se quedaba pegado
+## a la barra de arriba, sin poder llegar a verlo (dicho por el usuario).
+const MARGEN_MAR := 200.0
 ## A que distancia del ultimo escenario se clava el cartel que lleva al mar
 ## siguiente. Va MAS CERCA que el margen, para que se vea antes de llegar.
 const PASO_CARTEL := 330.0
@@ -113,6 +115,11 @@ const PASO_VIAJE := 0.85
 const ENTRADA_VIAJE := 1.05
 ## Mientras dura, ni se toca otro nodo ni se vuelve a cambiar de mar.
 var cambiando_mar := false
+## El mar cuyos nodos se están construyendo AHORA (lo leen los `add_to_group`
+## repartidos por `_setup_nodes`, `_setup_route` y `_carteles_de_mar`). Casi
+## siempre es `mar_actual`; solo cambia mientras se monta el mar de destino de
+## una travesía, con el viejo todavía en pie.
+var mar_montando := 1
 
 ## EL PLANO DEL MAR TIENE QUE CUBRIR TAMBIÉN EL FONDEADERO DEL MENÚ, que está
 ## muy por debajo del mapa (`main_menu.MENU_ANCHOR`), y el puerto de la portada,
@@ -308,22 +315,18 @@ func _ready() -> void:
 	# salen todos de él.
 	mar_actual = CampaignData.sea_of(_puerto_de_partida())
 	_limites_del_mar()
-	_setup_route()
-	_setup_nodes()
-	_carteles_de_mar()
+	# POR `_montar_mar` Y NO A PELO: es quien pone `mar_montando`, que es de
+	# donde sacan su grupo todos los `add_to_group` del montaje. Llamando a las
+	# tres funciones sueltas, `mar_montando` se quedaba en su valor inicial (1)
+	# y los nodos del mar 2 acababan etiquetados como del 1 — así que al cruzar
+	# no se liberaba ninguno y el mapa se quedaba con los dos mares puestos.
+	_montar_mar(mar_actual)
 	_setup_ship()
 	_setup_camera()
-	# Los ~100 guiones de la ruta son geometría fija: se funden en una malla.
-	GeometryBatch.bake(self, "RouteBatch")
-	# LA RUTA VA PINTADA SOBRE EL AGUA, así que SUBE CON LA MAREA. Los guiones
-	# están a 0.025 de altura y la marea llega a 0.10: sin esto, la línea de
-	# puntos entre escenarios desaparecía bajo el agua en cada pleamar.
-	for hijo in get_children():
-		if hijo is MeshInstance3D and String(hijo.name).begins_with("RouteBatch"):
-			var mi: MeshInstance3D = hijo
-			mi.set_meta("y0", mi.position.y)
-			mi.add_to_group(GRUPO_MAR)
-			flotantes.append(mi)
+	# El fusionado de la ruta y su apunte en `flotantes` los hace ya
+	# `_montar_mar` (LA RUTA VA PINTADA SOBRE EL AGUA y sube con la marea: sus
+	# guiones están a 0.025 de altura y la marea llega a 0.10, así que sin eso
+	# la línea de puntos desaparecía bajo el agua en cada pleamar).
 	_setup_ui()
 
 	_focus_last_port(false)
@@ -411,8 +414,8 @@ func _mar_alcanzable(mar: int) -> bool:
 ## LOS CARTELES DE PASO, uno en cada punta de la travesía: son la única forma
 ## de cambiar de mar, y por eso se ven desde lejos. Van sobre el agua, en el
 ## carril del centro, con el nombre del mar al que llevan.
-func _carteles_de_mar() -> void:
-	var lista := CampaignData.ports_of_sea(mar_actual)
+func _carteles_de_mar(mar := mar_actual) -> void:
+	var lista := CampaignData.ports_of_sea(mar)
 	if lista.is_empty():
 		return
 	var y_arriba: float = INF
@@ -421,10 +424,10 @@ func _carteles_de_mar() -> void:
 		var y: float = CampaignData.map_pos(str(p["id"])).y
 		y_arriba = minf(y_arriba, y)
 		y_abajo = maxf(y_abajo, y)
-	if _mar_alcanzable(mar_actual + 1):
-		_cartel_de_paso(mar_actual + 1, _frontera(mar_actual, mar_actual + 1))
-	if _mar_alcanzable(mar_actual - 1):
-		_cartel_de_paso(mar_actual - 1, _frontera(mar_actual - 1, mar_actual))
+	if _mar_alcanzable(mar + 1):
+		_cartel_de_paso(mar + 1, _frontera(mar, mar + 1), mar)
+	if _mar_alcanzable(mar - 1):
+		_cartel_de_paso(mar - 1, _frontera(mar - 1, mar), mar)
 
 
 ## MODELO del cartel de paso, uno por sentido. La FLECHA va tallada en la
@@ -440,20 +443,20 @@ const CARTEL_MODELOS := {
 const CARTEL_FOOT := 3.1
 
 
-func _cartel_de_paso(mar: int, y_px: float) -> void:
+func _cartel_de_paso(mar: int, y_px: float, desde := mar_actual) -> void:
 	var pos := _world(Vector2(CampaignData.LANE_CENTER, y_px))
 	var raiz := Node3D.new()
 	raiz.name = "PasoMar%d" % mar
 	raiz.position = pos
-	raiz.add_to_group(GRUPO_MAR)
+	raiz.add_to_group(_grupo(mar_montando))
 	raiz.add_to_group("paso_mar")
 	raiz.set_meta("mar", mar)
 	add_child(raiz)
-	var ruta := str(CARTEL_MODELOS["arriba" if mar > mar_actual else "abajo"])
+	var ruta := str(CARTEL_MODELOS["arriba" if mar > desde else "abajo"])
 	var alto := 1.4
 	if ResourceLoader.exists(ruta):
 		var pivot := _spawn_model(load(ruta), pos, CARTEL_FOOT)
-		pivot.add_to_group(GRUPO_MAR)
+		pivot.add_to_group(_grupo(mar_montando))
 		# Los carteles no dan sombra, como los nodos: son geometría de adorno.
 		for m in pivot.find_children("*", "MeshInstance3D", true, false):
 			m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -491,83 +494,159 @@ func _mat_simple(c: Color) -> StandardMaterial3D:
 	return m
 
 
-## CAMBIA EL MAPA AL OTRO MAR: libera todo lo del grupo y lo vuelve a montar.
-## Es toda la división: el mapa, la cámara, los carriles y el barco no cambian
-## — lo único que cambia es CUÁNTO se monta.
+## MONTA UN MAR ENTERO: su ruta, sus escenarios y sus carteles de paso. Todo
+## queda en el grupo de ESE mar, así que se puede tener más de uno a la vez.
+func _montar_mar(mar: int) -> void:
+	var antes := mar_montando
+	mar_montando = mar
+	_setup_route(mar)
+	_setup_nodes(mar)
+	_carteles_de_mar(mar)
+	GeometryBatch.bake(self, "RouteBatch")
+	for hijo in get_children():
+		if hijo is MeshInstance3D and String(hijo.name).begins_with("RouteBatch") 				and not hijo.is_in_group(_grupo(mar)):
+			var mi: MeshInstance3D = hijo
+			mi.set_meta("y0", mi.position.y)
+			mi.add_to_group(_grupo(mar))
+			flotantes.append(mi)
+	mar_montando = antes
+
+
+## Suelta todo lo de ESE mar. Los nodos van marcados con su grupo desde que se
+## crean, así que no hay que llevar listas paralelas — solo limpiar de las
+## que sí existen (flotantes, nieblas y los overlays) lo que se acaba de ir.
+func _limpiar_mar(mar: int) -> void:
+	for n in get_tree().get_nodes_in_group(_grupo(mar)):
+		if is_instance_valid(n):
+			n.queue_free()
+	# LAS LISTAS SE REHACEN A MANO, no con `filter`: su lambda recibe los
+	# elementos como Object y una anotación `Node3D` revienta en tiempo de
+	# ejecución ("Cannot convert argument 1 from Object to Object"), que además
+	# dejaba la travesía a medias.
+	var vivos: Array[Node3D] = []
+	for f in flotantes:
+		if is_instance_valid(f) and not f.is_queued_for_deletion():
+			vivos.append(f)
+	flotantes = vivos
+	var nieblas_vivas: Array[Node3D] = []
+	for n2 in nieblas:
+		if is_instance_valid(n2) and not n2.is_queued_for_deletion():
+			nieblas_vivas.append(n2)
+	nieblas = nieblas_vivas
+	for p in CampaignData.ports_of_sea(mar):
+		node_world.erase(str(p["id"]))
+	node_world.erase("__mar%d" % (mar + 1))
+	node_world.erase("__mar%d" % (mar - 1))
+
+
+## APARECER Y DESAPARECER EL MAR ENTERO, con fundido.
+##
+## Hace falta porque el viaje entre el MENÚ y el MAPA no puede ser continuo: el
+## fondeadero del menú está a 14.000 px del sitio donde juega el jugador, y
+## recorrerlos era pasar por delante de toda la campaña (lo quitó el usuario).
+## Así que la cámara se teletransporta —barco y cámara a la vez, invisible— y
+## lo que SÍ cambia de golpe es el paisaje: donde había mar abierto aparecen de
+## pronto todos los escenarios. Eso es el parpadeo.
+##
+## `transparency` de `GeometryInstance3D` es un fundido POR INSTANCIA y no pide
+## tocar los materiales, así que vale para modelos que ni siquiera son míos.
+func fundir_mar(visible: bool, seg: float) -> void:
+	var piezas: Array[GeometryInstance3D] = []
+	for n in get_tree().get_nodes_in_group(_grupo(mar_actual)):
+		if not is_instance_valid(n) or not n is Node3D:
+			continue
+		if n is GeometryInstance3D:
+			piezas.append(n as GeometryInstance3D)
+		# `find_children` con `owned` a FALSE: estos nodos se crean por código
+		# y no tienen dueño de escena, así que con el valor por defecto (true)
+		# no devuelve NI UNO — y el fundido no fundía nada.
+		for m in (n as Node).find_children("*", "MeshInstance3D", true, false):
+			piezas.append(m as GeometryInstance3D)
+	if piezas.is_empty():
+		return
+	var a := 1.0 if visible else 0.0
+	var b := 0.0 if visible else 1.0
+	if seg <= 0.0:
+		for p in piezas:
+			p.transparency = b
+		return
+	var tw := create_tween()
+	tw.set_parallel(true)
+	for p in piezas:
+		p.transparency = a
+		tw.tween_property(p, "transparency", b, seg)
+
+
+## CAMBIA EL MAPA AL OTRO MAR. Es toda la división: el mapa, la cámara, los
+## carriles y el barco no cambian — lo único que cambia es CUÁNTO se monta.
+##
 ## `destino_id` fuerza en qué escenario se entra. Sin él manda el sentido del
 ## viaje. Lo usa `_select` cuando el escenario pedido es de otro mar —al cerrar
 ## la jornada del jefe, por ejemplo— para no aterrizar en otro sitio.
 func cambiar_de_mar(mar: int, destino_id := "") -> void:
 	if mar == mar_actual or not _mar_alcanzable(mar) or cambiando_mar:
 		return
-	var subiendo := mar > mar_actual
+	var viejo := mar_actual
+	var subiendo := mar > viejo
 	cambiando_mar = true
-	# --- 1) NAVEGAR HASTA LA FRONTERA -------------------------------------
-	# El barco y la cámara se van juntos hasta el punto medio del hueco entre
-	# los dos mares, que es donde está el cartel. Es la mitad visible del
-	# viaje: se ve salir del mar viejo.
-	var y_frontera: float = _frontera(mar_actual, mar)
-	# El tope del scroll no puede impedir llegar: la frontera está FUERA del
-	# mar en curso a propósito.
-	scroll_min = minf(scroll_min, y_frontera)
-	scroll_max = maxf(scroll_max, y_frontera)
+	var y_frontera: float = _frontera(viejo, mar)
+	# --- LOS DOS MARES A LA VEZ, y esto es lo que quita el parpadeo --------
+	# El mar de destino se monta AHORA, con el barco todavía en el suyo y sus
+	# escenarios lejísimos fuera de cuadro. Así, cuando la cámara cruza la
+	# frontera, los primeros escenarios del mar nuevo YA ESTABAN ahí: no
+	# aparecen de golpe, entran en cuadro navegando. El mar viejo se suelta al
+	# final, cuando ya ha quedado atrás. Tenerlos los dos montados cuesta un
+	# par de segundos lo que costaba el mapa entero antes de dividirlo — que es
+	# exactamente el rato en el que hace falta.
+	mar_actual = mar
+	_montar_mar(mar)
+	_limites_del_mar()
+	# El scroll tiene que abarcar los DOS mares mientras dura la travesía, o
+	# sus topes cortarían el viaje por la mitad.
+	scroll_min = minf(scroll_min,
+		minf(_extremo_del_mar(viejo, true) - MARGEN_MAR, y_frontera))
+	scroll_max = maxf(scroll_max,
+		maxf(_extremo_del_mar(viejo, false) + MARGEN_MAR, y_frontera))
+	_rehacer_overlays([viejo, mar])
+	# --- 1) HASTA LA FRONTERA ---------------------------------------------
 	await _viajar_barco(Vector2(CampaignData.LANE_CENTER, y_frontera),
 		y_frontera, PASO_VIAJE)
 	if not is_inside_tree():
 		return
-	# --- 2) EL RELEVO, SIN MOVER LA CÁMARA --------------------------------
-	# La frontera es el MISMO punto para los dos mares, así que aquí no hay
-	# nada que recolocar: se suelta uno, se monta el otro y la cámara sigue
-	# exactamente donde estaba. Lo único que cambia en cuadro es el cartel,
-	# que pasa a apuntar al mar del que se viene.
-	mar_actual = mar
-	_limpiar_mar()
-	_limites_del_mar()
-	scroll_min = minf(scroll_min, y_frontera)
-	scroll_max = maxf(scroll_max, y_frontera)
-	_setup_route()
-	_setup_nodes()
-	_carteles_de_mar()
-	GeometryBatch.bake(self, "RouteBatch")
-	for hijo in get_children():
-		if hijo is MeshInstance3D and String(hijo.name).begins_with("RouteBatch"):
-			var mi: MeshInstance3D = hijo
-			mi.set_meta("y0", mi.position.y)
-			mi.add_to_group(GRUPO_MAR)
-			flotantes.append(mi)
-	_rehacer_overlays()
-	# --- 3) ENTRAR EN EL MAR NUEVO ----------------------------------------
+	# --- 2) DENTRO DEL MAR NUEVO, hasta el ANCLAJE de su escenario ---------
 	# Al SUBIR se entra por su primer escenario; al BAJAR, por el último — que
 	# es de donde se venía, así que se lee como dar media vuelta. Y se viaja
 	# hasta su ANCLAJE, no hasta el carril: así el barco llega ya aparcado y no
 	# hay que colocarlo de golpe al final.
-	var lista := CampaignData.ports_of_sea(mar_actual)
+	var lista := CampaignData.ports_of_sea(mar)
 	if lista.is_empty():
 		cambiando_mar = false
 		return
 	var destino := str(lista[0]["id"]) if subiendo else str(lista.back()["id"])
-	if destino_id != "" and CampaignData.sea_of(destino_id) == mar_actual:
+	if destino_id != "" and CampaignData.sea_of(destino_id) == mar:
 		destino = destino_id
 	await _viajar_barco(_ship_anchor(destino),
 		CampaignData.map_pos(destino).y, ENTRADA_VIAJE)
 	if not is_inside_tree():
 		return
+	# --- 3) SOLTAR EL MAR VIEJO, que ya ha quedado atrás -------------------
+	_limpiar_mar(viejo)
 	_limites_del_mar()
+	_rehacer_overlays([mar])
 	cambiando_mar = false
 	_select(destino, false)
 
 
 ## LA FRONTERA ENTRE DOS MARES ES UN SOLO PUNTO, y de ahí sale todo lo demás:
-## el sitio del cartel de paso y el sitio donde se hace el cambiazo. Es el
-## punto medio del hueco que los separa.
+## el sitio del cartel de paso y el sitio donde se cruza.
 ##
 ## POR QUÉ IMPORTA QUE SEA UNO Y NO DOS: el primer intento tenía un borde por
 ## mar (cada uno a `PASO_CARTEL` de su escenario extremo) y, con el hueco de
 ## 1.000 px, esos dos bordes distaban 340 — así que al cambiar de mar la cámara
 ## daba un salto de 340 px. Eso era EL CORTE. Ahora el hueco entre mares vale
-## exactamente `2 × PASO_CARTEL` (`CampaignData.MAP_POS`), así que el punto
-## medio está a `PASO_CARTEL` de los dos y la cámara no se mueve ni un píxel al
-## hacer el relevo.
+## exactamente `2 × PASO_CARTEL` (`CampaignData.MAP_POS`), el punto medio está
+## a `PASO_CARTEL` de los dos y `_frontera` devuelve el mismo número se venga
+## del mar que se venga.
 func _frontera(mar_a: int, mar_b: int) -> float:
 	# LA TRAVESÍA VA DE SUR A NORTE Y EN EL MAPA MÁS `y` ES MÁS AL SUR, así que
 	# el mar de número MAYOR es el del NORTE (el 1 arranca en y=3220 y el 2
@@ -575,8 +654,6 @@ func _frontera(mar_a: int, mar_b: int) -> float:
 	# de la campaña ENTERA: medido, la cámara se iba a -7.354 en vez de -8.560.
 	var norte := maxi(mar_a, mar_b)
 	var sur := mini(mar_a, mar_b)
-	# Las dos orillas que se miran: lo más al norte del mar del sur y lo más al
-	# sur del mar del norte.
 	var y_sur := _extremo_del_mar(sur, true)
 	var y_norte := _extremo_del_mar(norte, false)
 	if is_inf(y_sur) or is_inf(y_norte):
@@ -596,7 +673,7 @@ func _extremo_del_mar(mar: int, arriba: bool) -> float:
 ## Lleva cámara y barco a la vez y espera a que lleguen. El barco va a un PUNTO
 ## del mapa (no a un carril fijo): así el último tramo de una travesía entre
 ## mares termina en el ANCLAJE del escenario y no hay que colocarlo de golpe al
-## final, que era el otro salto que se veía.
+## final, que era otro de los saltos que se veían.
 func _viajar_barco(destino: Vector2, y_camara: float, seg: float) -> void:
 	if scroll_tween != null:
 		scroll_tween.kill()
@@ -616,21 +693,6 @@ func _viajar_barco(destino: Vector2, y_camara: float, seg: float) -> void:
 	tw.tween_property(self, "ship_roll", 6.0 if subiendo else -6.0, seg * 0.35)
 	tw.chain().tween_property(self, "ship_roll", 0.0, seg * 0.4)
 	await tw.finished
-
-
-## Suelta todo lo que pertenece al mar que se deja. Los nodos van marcados con
-## `GRUPO_MAR` desde que se crean, así que no hay que llevar listas paralelas.
-func _limpiar_mar() -> void:
-	for n in get_tree().get_nodes_in_group(GRUPO_MAR):
-		if is_instance_valid(n):
-			n.queue_free()
-	# Las listas que los referenciaban se quedan con nodos muertos: se limpian
-	# aquí y no a base de `is_instance_valid` en cada fotograma.
-	flotantes.clear()
-	nieblas.clear()
-	node_world.clear()
-	node_overlays.clear()
-	selected_id = ""
 
 
 func _setup_environment() -> void:
@@ -699,12 +761,12 @@ func _setup_sea() -> void:
 
 
 ## Ruta discontinua entre niveles consecutivos: guiones planos sobre el agua.
-func _setup_route() -> void:
+func _setup_route(mar := mar_actual) -> void:
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color(1, 1, 1, 0.32)
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var lista := CampaignData.ports_of_sea(mar_actual)
+	var lista := CampaignData.ports_of_sea(mar)
 	for i in range(lista.size() - 1):
 		var a := _world(CampaignData.map_pos(lista[i].id))
 		var b := _world(CampaignData.map_pos(lista[i + 1].id))
@@ -721,20 +783,20 @@ func _setup_route() -> void:
 			dash.material_override = mat
 			dash.position = a + dir * ((t + e) * 0.5) + Vector3(0.0, 0.025, 0.0)
 			dash.rotation_degrees.y = rad_to_deg(atan2(dir.x, dir.z)) - 90.0
-			dash.add_to_group(GRUPO_MAR)
+			dash.add_to_group(_grupo(mar_montando))
 			add_child(dash)
 			t = e + 0.2
 
 
-func _setup_nodes() -> void:
-	for p in CampaignData.ports_of_sea(mar_actual):
+func _setup_nodes(mar := mar_actual) -> void:
+	for p in CampaignData.ports_of_sea(mar):
 		var id: String = p.id
 		var kind := CampaignData.get_kind(id)
 		var pos := _world(CampaignData.map_pos(id))
 		node_world[id] = pos
 		var pivot := _spawn_model(load(KIND_MODELS[kind]), pos,
 			float(KIND_FOOT.get(kind, 2.5)))
-		pivot.add_to_group(GRUPO_MAR)
+		pivot.add_to_group(_grupo(mar_montando))
 		# Los barcos se hunden un poco en el agua; las islas asientan su base.
 		pivot.position.y = -0.10 if kind != "abordaje" else -0.06
 		# Y LO QUE FLOTA, FLOTA: un barco enemigo sube y baja con la marea; una
@@ -748,7 +810,7 @@ func _setup_nodes() -> void:
 		if kind == "cueva":
 			base_cueva = _base_cueva(pos, float(KIND_FOOT.get(kind, 2.5)),
 				_textura_de(pivot))
-			base_cueva.add_to_group(GRUPO_MAR)
+			base_cueva.add_to_group(_grupo(mar_montando))
 			_niebla_cueva(pos, float(KIND_FOOT.get(kind, 2.5)))
 		# Los nodos NO proyectan sombra: son 9 modelos de ~40k triangulos y el
 		# pase de sombras los dibujaba otra vez enteros, para una mancha que
@@ -758,7 +820,7 @@ func _setup_nodes() -> void:
 		var foot: float = float(KIND_FOOT.get(kind, 2.5))
 		var blob := SceneBackdrop.blob_shadow(foot * 0.95, foot * 0.62)
 		blob.position = pos + Vector3(0.15, 0.03, 0.1)
-		blob.add_to_group(GRUPO_MAR)
+		blob.add_to_group(_grupo(mar_montando))
 		add_child(blob)
 		# La mancha es una sombra EN EL AGUA: sube con ella o se hunde.
 		blob.set_meta("y0", blob.position.y)
@@ -1021,7 +1083,7 @@ func _niebla_cueva(pos: Vector3, foot: float) -> void:
 		mi.set_meta("centro", mi.position)
 		mi.set_meta("giro", (1.0 if i == 0 else -1.0) * TAU / MANTO_VUELTA)
 		mi.set_meta("y0", float(MANTO_Y[i]) * foot)
-		mi.add_to_group(GRUPO_MAR)
+		mi.add_to_group(_grupo(mar_montando))
 		nieblas.append(mi)
 
 	# --- LOS JIRONES: carteles en órbita ---
@@ -1045,7 +1107,7 @@ func _niebla_cueva(pos: Vector3, foot: float) -> void:
 		mi.set_meta("dentro", (NIEBLA_DENTRO * foot) if i % 2 == 0 else 0.0)
 		# Balanceo vertical propio, para que no suban y bajen a la vez.
 		mi.set_meta("bob", 0.9 + 0.35 * float(i % 3))
-		mi.add_to_group(GRUPO_MAR)
+		mi.add_to_group(_grupo(mar_montando))
 		nieblas.append(mi)
 	# Colocados YA, sin esperar al primer `_process`: con "menos animaciones"
 	# ese bucle no corre y se quedarían amontonados en el origen del mundo.
@@ -1464,18 +1526,21 @@ func _orientar_boton_barco(arriba: bool) -> float:
 ## Los overlays 2D de los nodos DEL MAR EN CURSO, mas el de cada cartel de
 ## paso. Se rehacen enteros al cambiar de mar: son los botones con los que se
 ## toca el mapa, así que tienen que corresponderse con lo que hay montado.
-func _rehacer_overlays() -> void:
+func _rehacer_overlays(mares: Array = []) -> void:
 	if ui == null:
 		return
+	if mares.is_empty():
+		mares = [mar_actual]
 	for id in node_overlays:
 		var r: Node = node_overlays[id]["root"]
 		if is_instance_valid(r):
 			r.queue_free()
 	node_overlays.clear()
-	for p in CampaignData.ports_of_sea(mar_actual):
-		var ov := _build_node_overlay(p)
-		ui.add_child(ov["root"])
-		node_overlays[p.id] = ov
+	for mar: int in mares:
+		for p in CampaignData.ports_of_sea(mar):
+			var ov := _build_node_overlay(p)
+			ui.add_child(ov["root"])
+			node_overlays[p.id] = ov
 	# Y los dos carteles: su botón es más ancho porque su tabla lo es.
 	for nodo in get_tree().get_nodes_in_group("paso_mar"):
 		if not is_instance_valid(nodo) or not nodo.has_meta("mar"):
@@ -1492,10 +1557,14 @@ func _rehacer_overlays() -> void:
 func _build_paso_overlay(mar: int) -> Dictionary:
 	var root := Control.new()
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# EL BOTÓN CUBRE EL CARTEL ENTERO Y SU RÓTULO. El primero medía 260×150 y
+	# había que acertar en una zona muy concreta (dicho por el usuario): el
+	# letrero mide unos 300 px de ancho en pantalla y su nombre cuelga otros 90
+	# por debajo, así que el área se midió contra eso y no a ojo.
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(260, 150)
-	b.size = Vector2(260, 150)
-	b.position = Vector2(-130, -110)
+	b.custom_minimum_size = Vector2(400, 330)
+	b.size = Vector2(400, 330)
+	b.position = Vector2(-200, -215)
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 	b.set_meta("snd", "velas")
