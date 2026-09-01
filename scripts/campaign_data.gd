@@ -314,6 +314,46 @@ static func sea_of(port_id: String) -> int:
 	return maxi(int(get_port(port_id).get("sea", 1)), 1)
 
 
+## CUÁNTOS MARES hay escritos. El mapa monta uno cada vez (ver la sección de
+## la división por mares en CLAUDE.md), así que esto es lo que decide cuántos
+## carteles de "al mar siguiente" puede haber.
+static func sea_count() -> int:
+	var n := 1
+	for p in PORTS:
+		n = maxi(n, int(p.get("sea", 1)))
+	return n
+
+
+## Los escenarios de ESE mar, en orden. Es la lista que monta el mapa: con los
+## 250 de la campaña completa a la vez son 2,5 millones de triángulos y ~206 MB
+## de vídeo (medido), y el móvil no llega.
+static func ports_of_sea(mar: int) -> Array:
+	var out: Array = []
+	for p in PORTS:
+		if int(p.get("sea", 1)) == mar:
+			out.append(p)
+	return out
+
+
+## El PRIMER escenario de ese mar, o "" si el mar no existe.
+static func first_port_of_sea(mar: int) -> String:
+	for p in PORTS:
+		if int(p.get("sea", 1)) == mar:
+			return str(p["id"])
+	return ""
+
+
+## El NOMBRE del mar, para el cartel que lleva de uno a otro.
+const SEA_NAMES := {
+	1: "Mar de los Grumetes",
+	2: "Mar de las Sirenas",
+}
+
+
+static func sea_name(mar: int) -> String:
+	return str(SEA_NAMES.get(mar, "Mar %d" % mar))
+
+
 ## El NÚMERO que ve el jugador: su posición en la lista, que es lo único
 ## que se le ha enseñado nunca (los ids no se renumeran).
 static func port_number(port_id: String) -> int:

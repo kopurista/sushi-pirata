@@ -1286,7 +1286,7 @@ func _enter_map(animate: bool) -> void:
 	ship_tween = create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	ship_tween.tween_property(self, "ship_px", dest, dur)
 	ship_tween.parallel().tween_property(self, "cam_center",
-		clampf(CampaignData.map_pos(target).y, SCROLL_MIN, SCROLL_MAX), dur)
+		clampf(CampaignData.map_pos(target).y, scroll_min, scroll_max), dur)
 	ship_tween.parallel().tween_property(self, "ship_roll", 6.0, dur * 0.4)
 	ship_tween.parallel().tween_property(self, "ship_roll", 0.0, dur * 0.5) \
 			.set_delay(dur * 0.5)

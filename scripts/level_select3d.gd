@@ -80,8 +80,31 @@ const FICHA_BAJADA := 40.0
 ## hacia arriba TODO lo que hay por encima de la Cueva del Kappa: 1.872 px al
 ## pasar de 20 a 25 escenarios y otros 1.872 al pasar de 25 a 30. Si no se
 ## baja con ellos, la mitad norte del mapa queda fuera de alcance.
-const SCROLL_MIN := -18416.0
-const SCROLL_MAX := CampaignData.MAP_HEIGHT - 560.0
+## EL MAPA MONTA UN MAR CADA VEZ (ver CLAUDE.md, "dividir el mapa por mares").
+## Con la campaña entera a la vez son 2,5 millones de triángulos y ~206 MB de
+## vídeo — medido —, y el móvil no llega. Así que los topes del scroll ya no
+## son constantes de toda la travesía: los calcula `_limites_del_mar()` con los
+## escenarios del mar que se está enseñando.
+##
+## Los dos de abajo se quedan como TOPES ABSOLUTOS: el plano del agua tiene que
+## cubrir el mapa entero (el barco viaja de un mar a otro) y el fondeadero del
+## menú, que está muy por debajo.
+const SCROLL_TOPE := -18416.0
+const SCROLL_SUELO := CampaignData.MAP_HEIGHT - 560.0
+## El mar que se está enseñando, y los topes que le tocan.
+var mar_actual := 1
+var scroll_min := SCROLL_TOPE
+var scroll_max := SCROLL_SUELO
+## Todo lo que se monta POR MAR va en este grupo: al cambiar de mar se libera
+## de golpe y se vuelve a construir. Es lo único que hace falta para que el
+## coste no crezca con la campaña.
+const GRUPO_MAR := "mapa_mar"
+## Respiro por encima y por debajo del mar en curso: lo justo para que quepan
+## sus dos carteles de paso sin que la camara se salga a mar abierto.
+const MARGEN_MAR := 430.0
+## A que distancia del ultimo escenario se clava el cartel que lleva al mar
+## siguiente. Va MAS CERCA que el margen, para que se vea antes de llegar.
+const PASO_CARTEL := 330.0
 
 ## EL PLANO DEL MAR TIENE QUE CUBRIR TAMBIÉN EL FONDEADERO DEL MENÚ, que está
 ## muy por debajo del mapa (`main_menu.MENU_ANCHOR`), y el puerto de la portada,
@@ -90,7 +113,7 @@ const SCROLL_MAX := CampaignData.MAP_HEIGHT - 560.0
 ## Van en píxeles de mapa y en unidades de mundo respectivamente.
 const SEA_BOTTOM_PX := 5200.0
 ## El plano tiene que llegar del fondeadero del menu (abajo del todo) hasta el
-## tope de scroll, y su medida SE CALCULA: (SEA_BOTTOM_PX + 640 - SCROLL_MIN +
+## tope de scroll, y su medida SE CALCULA: (SEA_BOTTOM_PX + 640 - SCROLL_TOPE +
 ## 640) / PPU_Y, con un 2% de holgura. Hoy son 23.336 px = 474 u. Quedandose
 ## corto, la mitad norte del mar flota sobre el vacio (azul liso sin espuma).
 const SEA_SIZE := 516.0
@@ -176,7 +199,7 @@ var map_top_bar: Control = null
 var map_info_panel: Control = null
 var selected_id: String = ""
 ## Centro de la franja visible, en px de mapa (el equivalente del scroll 2D).
-var cam_center := SCROLL_MAX
+var cam_center := SCROLL_SUELO
 var scroll_tween: Tween = null
 ## Inercia del arrastre del mapa (px de mapa por segundo) y cómo se apaga.
 var scroll_speed := 0.0
@@ -266,8 +289,14 @@ func _ready() -> void:
 	Engine.max_fps = GameState.fps_for(false)
 	_setup_environment()
 	_setup_sea()
+	# EL MAR QUE TOCA: el del escenario en el que estaba el jugador. Se decide
+	# ANTES de montar nada, porque la ruta, los nodos y los topes del scroll
+	# salen todos de él.
+	mar_actual = CampaignData.sea_of(_puerto_de_partida())
+	_limites_del_mar()
 	_setup_route()
 	_setup_nodes()
+	_carteles_de_mar()
 	_setup_ship()
 	_setup_camera()
 	# Los ~100 guiones de la ruta son geometría fija: se funden en una malla.
@@ -279,6 +308,7 @@ func _ready() -> void:
 		if hijo is MeshInstance3D and String(hijo.name).begins_with("RouteBatch"):
 			var mi: MeshInstance3D = hijo
 			mi.set_meta("y0", mi.position.y)
+			mi.add_to_group(GRUPO_MAR)
 			flotantes.append(mi)
 	_setup_ui()
 
@@ -293,7 +323,7 @@ func _focus_last_port(animate: bool) -> void:
 	var start_id := _puerto_de_partida()
 	if not animate:
 		ship_px = _ship_anchor(start_id)
-		cam_center = clampf(CampaignData.map_pos(start_id).y, SCROLL_MIN, SCROLL_MAX)
+		cam_center = clampf(CampaignData.map_pos(start_id).y, scroll_min, scroll_max)
 		_update_camera()
 	_select(start_id, animate)
 
@@ -315,6 +345,192 @@ func last_open_port() -> String:
 		if GameState.is_port_unlocked(p.id):
 			start_id = p.id
 	return start_id
+
+
+## ------------------------------------------------------ LA DIVISIÓN POR MARES
+##
+## El mapa monta UN MAR CADA VEZ. Medido con la campaña de hoy: 60 escenarios
+## son 1.069 nodos, 551.789 triángulos y 45,4 MB de vídeo — y lo caro NO es el
+## fotograma (38 draw calls: el culling se lleva el 90%, porque en pantalla
+## caben tres o cuatro escenarios) sino la CARGA y la MEMORIA, que se pagan
+## enteras aunque no se vea nada. Con los 250 de la campaña completa serían 2,5
+## millones de triángulos y ~206 MB: el mismo muro contra el que ya se chocó
+## con los sprites 2D.
+##
+## Y hay una razón que no es de rendimiento y pesa igual: 35 escenarios ya son
+## ~11.000 px de scroll y 250 serían ~78.000. Eso no es navegar, es dragar.
+
+
+## Los topes del scroll para el mar en curso: de su primer escenario a su
+## último, con un respiro a cada lado para que quepan los carteles de paso.
+func _limites_del_mar() -> void:
+	var lista := CampaignData.ports_of_sea(mar_actual)
+	if lista.is_empty():
+		scroll_min = SCROLL_TOPE
+		scroll_max = SCROLL_SUELO
+		return
+	var arriba := INF
+	var abajo := -INF
+	for p in lista:
+		var y: float = CampaignData.map_pos(str(p["id"])).y
+		arriba = minf(arriba, y)
+		abajo = maxf(abajo, y)
+	scroll_min = arriba - MARGEN_MAR
+	scroll_max = abajo + MARGEN_MAR
+	# El mar 1 llega hasta el fondeadero del menú, que está muy por debajo de
+	# su primer escenario: sin esto, "Atrás" no podría bajar hasta el barco.
+	if mar_actual == 1:
+		scroll_max = maxf(scroll_max, SCROLL_SUELO)
+
+
+## ¿Se puede pasar a ese mar? El SIGUIENTE pide tenerlo abierto (o sea, haber
+## superado el jefe del anterior); el ANTERIOR siempre, que ya se jugó.
+func _mar_alcanzable(mar: int) -> bool:
+	if mar < 1 or mar > CampaignData.sea_count():
+		return false
+	if mar < mar_actual:
+		return true
+	var primero := CampaignData.first_port_of_sea(mar)
+	return primero != "" and GameState.is_port_unlocked(primero)
+
+
+## LOS CARTELES DE PASO, uno en cada punta de la travesía: son la única forma
+## de cambiar de mar, y por eso se ven desde lejos. Van sobre el agua, en el
+## carril del centro, con el nombre del mar al que llevan.
+func _carteles_de_mar() -> void:
+	var lista := CampaignData.ports_of_sea(mar_actual)
+	if lista.is_empty():
+		return
+	var y_arriba: float = INF
+	var y_abajo: float = -INF
+	for p in lista:
+		var y: float = CampaignData.map_pos(str(p["id"])).y
+		y_arriba = minf(y_arriba, y)
+		y_abajo = maxf(y_abajo, y)
+	if _mar_alcanzable(mar_actual + 1):
+		_cartel_de_paso(mar_actual + 1, y_arriba - PASO_CARTEL)
+	if _mar_alcanzable(mar_actual - 1):
+		_cartel_de_paso(mar_actual - 1, y_abajo + PASO_CARTEL)
+
+
+func _cartel_de_paso(mar: int, y_px: float) -> void:
+	var pos := _world(Vector2(CampaignData.LANE_CENTER, y_px))
+	var raiz := Node3D.new()
+	raiz.name = "PasoMar%d" % mar
+	raiz.position = pos
+	raiz.add_to_group(GRUPO_MAR)
+	add_child(raiz)
+	# La misma boya de madera que los carteles de escenario: dos postes y una
+	# tabla. Aquí la tabla es más ancha porque lleva un nombre, no un número.
+	var madera := _mat_simple(Color(0.42, 0.28, 0.16))
+	for lado in [-1.0, 1.0]:
+		var poste := MeshInstance3D.new()
+		var cil := CylinderMesh.new()
+		cil.top_radius = 0.055
+		cil.bottom_radius = 0.070
+		cil.height = 2.70
+		poste.mesh = cil
+		poste.material_override = madera
+		poste.position = R_HAT * (lado * 1.42) + Vector3(0.0, 0.48, 0.0) - D_HAT * 0.10
+		raiz.add_child(poste)
+	var tabla := MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	# LA TABLA SE MIDE CONTRA EL NOMBRE, no al revés: "Mar de los Grumetes" son
+	# 19 letras, que a cuerpo 74 y 0.0042 de escala miden ~2.95 u de ancho. Con
+	# los 2.60 del primer intento el rótulo se salía por los dos lados.
+	quad.size = Vector2(3.60, 1.36)
+	tabla.mesh = quad
+	tabla.position = Vector3(0.0, 1.42, 0.0)
+	tabla.rotation_degrees = Vector3(0.0, 45.0, 0.0)
+	var mt := StandardMaterial3D.new()
+	# LA MISMA MADERA que los carteles de escenario, no un color plano: son la
+	# misma clase de objeto —una tabla clavada en el agua— y con color liso
+	# este se leía como un botón de interfaz caído en el mar.
+	if ResourceLoader.exists(NUM_TEX_MADERA):
+		mt.albedo_texture = load(NUM_TEX_MADERA)
+		mt.uv1_scale = Vector3(2.6, 1.0, 1.0)
+	mt.albedo_color = Color(0.86, 0.74, 0.58)
+	mt.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	tabla.material_override = mt
+	raiz.add_child(tabla)
+	# EL RÓTULO va en un Label3D y no horneado: el nombre del mar es texto que
+	# puede cambiar, y son dos carteles en todo el mapa — no es geometría que
+	# haya que optimizar como los números de escenario.
+	var rot := Label3D.new()
+	rot.text = "%s
+%s" % ["▲" if mar > mar_actual else "▼",
+		CampaignData.sea_name(mar)]
+	rot.font_size = 74
+	rot.outline_size = 24
+	rot.modulate = Color(1.0, 0.94, 0.78)
+	rot.outline_modulate = Color(0.20, 0.12, 0.06)
+	rot.pixel_size = 0.0042
+	rot.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	rot.rotation_degrees = Vector3(0.0, 45.0, 0.0)
+	rot.position = Vector3(0.0, 1.42, 0.0) + D_HAT * -0.02
+	rot.no_depth_test = true
+	raiz.add_child(rot)
+	raiz.set_meta("mar", mar)
+	# Se toca como un escenario: `_unhandled_input` mira este grupo aparte.
+	raiz.add_to_group("paso_mar")
+	node_world["__mar%d" % mar] = pos
+
+
+func _mat_simple(c: Color) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = c
+	m.roughness = 0.9
+	return m
+
+
+## CAMBIA EL MAPA AL OTRO MAR: libera todo lo del grupo y lo vuelve a montar.
+## Es toda la división: el mapa, la cámara, los carriles y el barco no cambian
+## — lo único que cambia es CUÁNTO se monta.
+func cambiar_de_mar(mar: int) -> void:
+	if mar == mar_actual or not _mar_alcanzable(mar):
+		return
+	var subiendo := mar > mar_actual
+	mar_actual = mar
+	_limpiar_mar()
+	_limites_del_mar()
+	_setup_route()
+	_setup_nodes()
+	_carteles_de_mar()
+	GeometryBatch.bake(self, "RouteBatch")
+	for hijo in get_children():
+		if hijo is MeshInstance3D and String(hijo.name).begins_with("RouteBatch"):
+			var mi: MeshInstance3D = hijo
+			mi.set_meta("y0", mi.position.y)
+			mi.add_to_group(GRUPO_MAR)
+			flotantes.append(mi)
+	# Al SUBIR se entra por el primer escenario del mar nuevo; al BAJAR, por el
+	# último — que es justo de donde se venía, así que el viaje se lee como dar
+	# media vuelta y no como teletransportarse al principio.
+	var lista := CampaignData.ports_of_sea(mar_actual)
+	if lista.is_empty():
+		return
+	var destino := str(lista[0]["id"]) if subiendo else str(lista.back()["id"])
+	_rehacer_overlays()
+	_select(destino, false)
+	ship_px = _ship_anchor(destino)
+	cam_center = clampf(CampaignData.map_pos(destino).y, scroll_min, scroll_max)
+	_update_camera()
+	Audio.sfx("velas")
+
+
+## Suelta todo lo que pertenece al mar que se deja. Los nodos van marcados con
+## `GRUPO_MAR` desde que se crean, así que no hay que llevar listas paralelas.
+func _limpiar_mar() -> void:
+	for n in get_tree().get_nodes_in_group(GRUPO_MAR):
+		if is_instance_valid(n):
+			n.queue_free()
+	# Las listas que los referenciaban se quedan con nodos muertos: se limpian
+	# aquí y no a base de `is_instance_valid` en cada fotograma.
+	flotantes.clear()
+	nieblas.clear()
+	node_world.clear()
+	node_overlays.clear()
+	selected_id = ""
 
 
 func _setup_environment() -> void:
@@ -358,7 +574,7 @@ func _setup_sea() -> void:
 	# con el mar 2 la travesía sube hasta y=-7286 y el centrado viejo dejaba
 	# la mitad norte flotando sobre el vacío (azul liso sin espuma).
 	var abajo := maxf(CampaignData.MAP_HEIGHT, SEA_BOTTOM_PX) + 640.0
-	var arriba := SCROLL_MIN - 640.0
+	var arriba := SCROLL_TOPE - 640.0
 	mi.position = D_HAT * (((abajo + arriba) * 0.5) / PPU_Y)
 	var mat := ShaderMaterial.new()
 	# EL MAR VA CON `water_ww.gdshader`. Se probó también el "Toon Water Shader"
@@ -388,9 +604,10 @@ func _setup_route() -> void:
 	mat.albedo_color = Color(1, 1, 1, 0.32)
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	for i in range(CampaignData.PORTS.size() - 1):
-		var a := _world(CampaignData.map_pos(CampaignData.PORTS[i].id))
-		var b := _world(CampaignData.map_pos(CampaignData.PORTS[i + 1].id))
+	var lista := CampaignData.ports_of_sea(mar_actual)
+	for i in range(lista.size() - 1):
+		var a := _world(CampaignData.map_pos(lista[i].id))
+		var b := _world(CampaignData.map_pos(lista[i + 1].id))
 		var seg := b - a
 		var total := seg.length()
 		var dir := seg / total
@@ -404,18 +621,20 @@ func _setup_route() -> void:
 			dash.material_override = mat
 			dash.position = a + dir * ((t + e) * 0.5) + Vector3(0.0, 0.025, 0.0)
 			dash.rotation_degrees.y = rad_to_deg(atan2(dir.x, dir.z)) - 90.0
+			dash.add_to_group(GRUPO_MAR)
 			add_child(dash)
 			t = e + 0.2
 
 
 func _setup_nodes() -> void:
-	for p in CampaignData.PORTS:
+	for p in CampaignData.ports_of_sea(mar_actual):
 		var id: String = p.id
 		var kind := CampaignData.get_kind(id)
 		var pos := _world(CampaignData.map_pos(id))
 		node_world[id] = pos
 		var pivot := _spawn_model(load(KIND_MODELS[kind]), pos,
 			float(KIND_FOOT.get(kind, 2.5)))
+		pivot.add_to_group(GRUPO_MAR)
 		# Los barcos se hunden un poco en el agua; las islas asientan su base.
 		pivot.position.y = -0.10 if kind != "abordaje" else -0.06
 		# Y LO QUE FLOTA, FLOTA: un barco enemigo sube y baja con la marea; una
@@ -429,6 +648,7 @@ func _setup_nodes() -> void:
 		if kind == "cueva":
 			base_cueva = _base_cueva(pos, float(KIND_FOOT.get(kind, 2.5)),
 				_textura_de(pivot))
+			base_cueva.add_to_group(GRUPO_MAR)
 			_niebla_cueva(pos, float(KIND_FOOT.get(kind, 2.5)))
 		# Los nodos NO proyectan sombra: son 9 modelos de ~40k triangulos y el
 		# pase de sombras los dibujaba otra vez enteros, para una mancha que
@@ -438,6 +658,7 @@ func _setup_nodes() -> void:
 		var foot: float = float(KIND_FOOT.get(kind, 2.5))
 		var blob := SceneBackdrop.blob_shadow(foot * 0.95, foot * 0.62)
 		blob.position = pos + Vector3(0.15, 0.03, 0.1)
+		blob.add_to_group(GRUPO_MAR)
 		add_child(blob)
 		# La mancha es una sombra EN EL AGUA: sube con ella o se hunde.
 		blob.set_meta("y0", blob.position.y)
@@ -700,6 +921,7 @@ func _niebla_cueva(pos: Vector3, foot: float) -> void:
 		mi.set_meta("centro", mi.position)
 		mi.set_meta("giro", (1.0 if i == 0 else -1.0) * TAU / MANTO_VUELTA)
 		mi.set_meta("y0", float(MANTO_Y[i]) * foot)
+		mi.add_to_group(GRUPO_MAR)
 		nieblas.append(mi)
 
 	# --- LOS JIRONES: carteles en órbita ---
@@ -723,6 +945,7 @@ func _niebla_cueva(pos: Vector3, foot: float) -> void:
 		mi.set_meta("dentro", (NIEBLA_DENTRO * foot) if i % 2 == 0 else 0.0)
 		# Balanceo vertical propio, para que no suban y bajen a la vez.
 		mi.set_meta("bob", 0.9 + 0.35 * float(i % 3))
+		mi.add_to_group(GRUPO_MAR)
 		nieblas.append(mi)
 	# Colocados YA, sin esperar al primer `_process`: con "menos animaciones"
 	# ese bucle no corre y se quedarían amontonados en el origen del mundo.
@@ -980,10 +1203,7 @@ func _setup_ui() -> void:
 	add_child(ui)
 
 	# Overlays de nodo (debajo de la barra y el panel en orden de dibujo).
-	for p in CampaignData.PORTS:
-		var ov := _build_node_overlay(p)
-		ui.add_child(ov["root"])
-		node_overlays[p.id] = ov
+	_rehacer_overlays()
 
 	var vbox := VBoxContainer.new()
 	vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1065,9 +1285,9 @@ func _actualizar_boton_barco() -> void:
 	if boton_barco == null or not is_instance_valid(boton_barco):
 		return
 	# La distancia se mide contra el punto al que la cámara PUEDE llegar: el
-	# barco del escenario 1 queda más al sur que `SCROLL_MAX`, así que estando
+	# barco del escenario 1 queda más al sur que el tope, así que estando
 	# encima el bocadillo salía igual (le pasó al usuario).
-	var alcanzable: float = clampf(ship_px.y, SCROLL_MIN, SCROLL_MAX)
+	var alcanzable: float = clampf(ship_px.y, scroll_min, scroll_max)
 	# SOLO EN EL MAPA. La misma escena hace de menú y de portada, y allí el
 	# barco está fondeado MUY por debajo del mapa (`MENU_ANCHOR`): recortarlo
 	# al tope del scroll lo dejaba a 2.000 px de la cámara y el bocadillo
@@ -1141,6 +1361,49 @@ func _orientar_boton_barco(arriba: bool) -> float:
 
 ## Overlay 2D de un nodo: botón táctil transparente, estrellas conseguidas y
 ## cartel de madera con el número. Se reposiciona cada frame con la cámara.
+## Los overlays 2D de los nodos DEL MAR EN CURSO, mas el de cada cartel de
+## paso. Se rehacen enteros al cambiar de mar: son los botones con los que se
+## toca el mapa, así que tienen que corresponderse con lo que hay montado.
+func _rehacer_overlays() -> void:
+	if ui == null:
+		return
+	for id in node_overlays:
+		var r: Node = node_overlays[id]["root"]
+		if is_instance_valid(r):
+			r.queue_free()
+	node_overlays.clear()
+	for p in CampaignData.ports_of_sea(mar_actual):
+		var ov := _build_node_overlay(p)
+		ui.add_child(ov["root"])
+		node_overlays[p.id] = ov
+	# Y los dos carteles: su botón es más ancho porque su tabla lo es.
+	for nodo in get_tree().get_nodes_in_group("paso_mar"):
+		if not is_instance_valid(nodo) or not nodo.has_meta("mar"):
+			continue
+		var mar: int = int(nodo.get_meta("mar"))
+		var clave := "__mar%d" % mar
+		if not node_world.has(clave):
+			continue
+		var ov2 := _build_paso_overlay(mar)
+		ui.add_child(ov2["root"])
+		node_overlays[clave] = ov2
+
+
+func _build_paso_overlay(mar: int) -> Dictionary:
+	var root := Control.new()
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(260, 150)
+	b.size = Vector2(260, 150)
+	b.position = Vector2(-130, -110)
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	b.set_meta("snd", "velas")
+	b.pressed.connect(cambiar_de_mar.bind(mar))
+	root.add_child(b)
+	return { "root": root, "unlocked": true }
+
+
 func _build_node_overlay(port: Dictionary) -> Dictionary:
 	var id: String = port.id
 	var idx := CampaignData.port_index(id)
@@ -2096,6 +2359,15 @@ func _ship_anchor(id: String) -> Vector2:
 
 
 func _select(id: String, animate: bool) -> void:
+	# UN ESCENARIO DE OTRO MAR obliga a cambiar de mapa primero: pasa al cerrar
+	# la jornada del jefe, cuando `next_port_id` ya apunta al mar siguiente. Sin
+	# esto, el mapa intentaba enfocar un nodo que no está montado y la cámara se
+	# iba a mar abierto.
+	var suyo := CampaignData.sea_of(id)
+	if suyo != mar_actual and not CampaignData.get_port(id).is_empty():
+		cambiar_de_mar(suyo)
+		if suyo != mar_actual:
+			return
 	selected_id = id
 	# Se recuerda para cuando se vuelva de otra pantalla (ver
 	# `_puerto_de_partida`).
@@ -2196,7 +2468,7 @@ func _gigi_no_te_vas() -> void:
 
 
 func _scroll_to(point: Vector2) -> void:
-	var target := clampf(point.y, SCROLL_MIN, SCROLL_MAX)
+	var target := clampf(point.y, scroll_min, scroll_max)
 	if scroll_tween != null:
 		scroll_tween.kill()
 	scroll_tween = create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
@@ -2214,7 +2486,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if scroll_tween != null:
 			scroll_tween.kill()
 			scroll_tween = null
-		cam_center = clampf(cam_center - event.relative.y, SCROLL_MIN, SCROLL_MAX)
+		cam_center = clampf(cam_center - event.relative.y, scroll_min, scroll_max)
 		# Velocidad del dedo, suavizada, para que al soltar el mapa siga
 		# corriendo: un tirón fuerte recorre más ruta que un arrastre suave.
 		scroll_dragging = true
@@ -2496,7 +2768,7 @@ func _process(delta: float) -> void:
 		pass
 	elif absf(scroll_speed) > SCROLL_STOP and scroll_tween == null:
 		var target := clampf(cam_center + scroll_speed * delta,
-			SCROLL_MIN, SCROLL_MAX)
+			scroll_min, scroll_max)
 		if is_equal_approx(target, cam_center):
 			scroll_speed = 0.0  # tope del mapa: se para en seco
 		else:

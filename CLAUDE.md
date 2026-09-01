@@ -603,35 +603,54 @@ justo al volver de un nivel.
 primera vez que se entra en ellos (`logros_intro_done` /
 `inventario_intro_done`), no desde un nivel.
 
-## DIVIDIR EL MAPA POR MARES (medido el 1-9-2026; PENDIENTE de decidir)
+## EL MAPA VA POR MARES (montado el 1-9-2026 a petición del usuario)
 
-El mapa monta HOY todos los escenarios de la campaña a la vez, y con 250 eso
-no se sostiene. MEDIDO con una sonda sobre el mapa real (60 escenarios):
+El mapa monta **UN MAR CADA VEZ**. Antes montaba la campaña entera, y con 250
+escenarios eso no se sostiene. MEDIDO con una sonda sobre el mapa real:
 
-    nodos en el arbol   1.069        triangulos       551.789
-    MeshInstance3D        482        memoria de video    45,4 MB
-    draw calls/frame       38        primitivas/frame  55.603
+    la campaña entera (60 escenarios)   1.069 nodos   551.789 triángulos
+    un solo mar (el 2, 25 escenarios)     666 nodos   299.645 triángulos
 
 Lo que dice la medida, que no es lo que uno esperaría:
-- **El coste POR FOTOGRAMA no es el problema.** 38 draw calls y 55.000
-  primitivas dibujadas de 551.789 instanciadas: el culling se lleva el 90%,
-  porque en pantalla solo caben tres o cuatro escenarios.
-- **El problema es la CARGA y la MEMORIA**, que se pagan enteras aunque no se
-  vea nada. Extrapolado a los 250 escenarios de la campaña completa: **4.859
-  nodos, 2,5 millones de triángulos y ~206 MB de vídeo**. En el móvil eso es
-  la pestaña recargándose — es exactamente el mismo muro con el que ya se
-  chocó cuando los sprites 2D sumaban 295 MB (ver los topes de `size_limit`).
+- **El coste POR FOTOGRAMA no era el problema**: 38 draw calls y 55.000
+  primitivas dibujadas de las 551.789 instanciadas — el culling se lleva el
+  90%, porque en pantalla caben tres o cuatro escenarios.
+- **Lo caro es la CARGA y la MEMORIA**, que se pagan enteras aunque no se vea
+  nada. Extrapolado a los 250 de la campaña completa serían **2,5 millones de
+  triángulos y ~206 MB de vídeo**: el mismo muro contra el que ya se chocó
+  cuando los sprites 2D sumaban 295 MB y la pestaña del iPhone se recargaba.
+- Y hay una razón que no es de rendimiento y pesa igual: 35 escenarios ya son
+  ~11.000 px de scroll y 250 serían ~78.000. Eso no es navegar, es dragar.
 
-**LA RECOMENDACIÓN ES SÍ, DIVIDIR, pero no en escenas separadas**: basta con
-instanciar SOLO los nodos del mar en curso (y a lo sumo los del vecino), y
-poner en cada extremo un CARTEL que lleve al mar siguiente o al anterior. El
-mapa, la cámara, los carriles y el barco no cambian: lo único que cambia es
-CUÁNTO se monta. Con un mar de 35 escenarios en pantalla el coste vuelve a ser
-el de hoy (~320.000 triángulos, ~26 MB) y ya no crece con la campaña.
-
-Y hay una razón que no es de rendimiento y pesa igual: 35 escenarios ya son
-~11.000 px de scroll; 250 serían ~78.000. Encontrar algo ahí dentro no es
-navegar, es dragar.
+**CÓMO ESTÁ HECHO** (`level_select3d`): no hay escenas separadas ni nada
+duplicado — el mapa, la cámara, los carriles y el barco son los mismos. Lo
+único que cambia es CUÁNTO se monta.
+- Todo lo que pertenece a un mar nace en el grupo **`GRUPO_MAR`** (los nodos,
+  sus manchas de sombra, la base y la niebla de la cueva, los guiones de la
+  ruta y las mallas fundidas de `RouteBatch`). Cambiar de mar es liberar el
+  grupo y volver a montar: `cambiar_de_mar()`.
+- Los topes del scroll ya NO son constantes de toda la travesía: los calcula
+  `_limites_del_mar()` con los escenarios del mar en curso. `SCROLL_TOPE` y
+  `SCROLL_SUELO` se quedan como topes ABSOLUTOS, porque el plano del agua sí
+  tiene que cubrirlo todo (el barco viaja de un mar a otro y el fondeadero del
+  menú está muy por debajo del mapa).
+- **LOS CARTELES DE PASO** (`_cartel_de_paso`) son la única forma de cambiar:
+  una tabla de madera clavada en el agua, en el carril del centro, con una
+  flecha y el nombre del mar al que lleva. Uno por punta, y solo si ese mar es
+  alcanzable — hacia arriba pide tenerlo abierto (o sea, haber vencido al jefe
+  del anterior) y hacia abajo siempre, que ya se jugó.
+  · **La tabla se mide CONTRA EL NOMBRE**: "Mar de los Grumetes" son 19 letras,
+    que a cuerpo 74 y `pixel_size` 0.0042 miden ~2,95 u. Con los 2,60 del
+    primer intento el rótulo se salía por los dos lados.
+  · Lleva la MISMA madera que los carteles de escenario (`madera_cartel.webp`):
+    con color plano se leía como un botón de interfaz caído en el mar.
+- **`_select` cambia de mar solo** si el escenario pedido es de otro. Pasa al
+  cerrar la jornada del jefe, cuando `next_port_id` ya apunta al mar siguiente;
+  sin eso, el mapa intentaba enfocar un nodo que no estaba montado y la cámara
+  se iba a mar abierto.
+- Los **overlays 2D** (los botones con los que se toca cada nodo) se rehacen
+  con el mar, `_rehacer_overlays()`: son la mitad interactiva del mapa y tienen
+  que corresponderse con lo que hay montado.
 
 ## LOS MAPAS DEL TESORO: LAS MISIONES SECUNDARIAS (montadas el 1-9-2026)
 
