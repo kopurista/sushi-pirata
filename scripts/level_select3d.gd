@@ -321,6 +321,9 @@ func _ready() -> void:
 	# y los nodos del mar 2 acababan etiquetados como del 1 — así que al cruzar
 	# no se liberaba ninguno y el mapa se quedaba con los dos mares puestos.
 	_montar_mar(mar_actual)
+	_montar_bordes()
+	_rehacer_ruta()
+	_refrescar_carteles()
 	_setup_ship()
 	_setup_camera()
 	# El fusionado de la ruta y su apunte en `flotantes` los hace ya
@@ -448,7 +451,10 @@ func _cartel_de_paso(mar: int, y_px: float, desde := mar_actual) -> void:
 	var raiz := Node3D.new()
 	raiz.name = "PasoMar%d" % mar
 	raiz.position = pos
-	raiz.add_to_group(_grupo(mar_montando))
+	# NO VA EN EL GRUPO DE NINGÚN MAR: su vida la lleva `_refrescar_carteles`.
+	# Metido en uno, `mar_montando` ya estaba restaurado cuando se creaba, así
+	# que caía en el grupo equivocado y `_limpiar_mar` se lo llevaba por
+	# delante — al volver de cruzar no quedaba ni un cartel.
 	raiz.add_to_group("paso_mar")
 	raiz.set_meta("mar", mar)
 	add_child(raiz)
@@ -456,7 +462,6 @@ func _cartel_de_paso(mar: int, y_px: float, desde := mar_actual) -> void:
 	var alto := 1.4
 	if ResourceLoader.exists(ruta):
 		var pivot := _spawn_model(load(ruta), pos, CARTEL_FOOT)
-		pivot.add_to_group(_grupo(mar_montando))
 		# Los carteles no dan sombra, como los nodos: son geometría de adorno.
 		for m in pivot.find_children("*", "MeshInstance3D", true, false):
 			m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -496,20 +501,52 @@ func _mat_simple(c: Color) -> StandardMaterial3D:
 
 ## MONTA UN MAR ENTERO: su ruta, sus escenarios y sus carteles de paso. Todo
 ## queda en el grupo de ESE mar, así que se puede tener más de uno a la vez.
-func _montar_mar(mar: int) -> void:
+func _montar_mar(mar: int, solo: Array = []) -> void:
 	var antes := mar_montando
 	mar_montando = mar
-	_setup_route(mar)
-	_setup_nodes(mar)
-	_carteles_de_mar(mar)
+	_setup_nodes(mar, solo)
+	mar_montando = antes
+
+
+## LA RUTA SE REHACE ENTERA cada vez que cambia lo que hay montado, y ese es el
+## único sitio que la dibuja. Se intentó antes montarla por mar y no funciona
+## por dos motivos que se midieron:
+##   - `GeometryBatch.bake` funde TODOS los guiones que cuelguen de la raíz en
+##     UNA malla, vengan del mar que vengan. Esa malla acababa en el grupo del
+##     último mar montado, así que al soltar el otro se iba la ruta ENTERA (se
+##     midió: 0 triángulos de ruta después de cruzar).
+##   - Y volviendo a fusionar sobre lo ya fusionado, las líneas se repetían
+##     (5.004 triángulos pasaban a 17.268 tras un par de cruces).
+## Rehaciéndola de cero contra `montados`, la ruta siempre es exactamente la de
+## lo que está puesto.
+func _rehacer_ruta() -> void:
+	# SE BARRE TODO Y SE VUELVE A DIBUJAR. Y con `free()`, no `queue_free()`:
+	# el fusionado corre en esta misma llamada y con el borrado diferido se
+	# encontraba la ruta vieja todavía colgada de la raíz.
+	for h in get_children():
+		if h is MeshInstance3D and String(h.name).begins_with("RouteBatch"):
+			remove_child(h)
+			h.free()
+	for d in get_tree().get_nodes_in_group("route_dash"):
+		if is_instance_valid(d):
+			d.get_parent().remove_child(d)
+			d.free()
+	var vivos: Array[Node3D] = []
+	for f in flotantes:
+		if is_instance_valid(f) and not f.is_queued_for_deletion():
+			vivos.append(f)
+	flotantes = vivos
+	for mar in range(1, CampaignData.sea_count() + 1):
+		_setup_route(mar)
 	GeometryBatch.bake(self, "RouteBatch")
 	for hijo in get_children():
-		if hijo is MeshInstance3D and String(hijo.name).begins_with("RouteBatch") 				and not hijo.is_in_group(_grupo(mar)):
+		if hijo is MeshInstance3D and String(hijo.name).begins_with("RouteBatch") 				and not hijo.is_in_group("no_batch"):
 			var mi: MeshInstance3D = hijo
 			mi.set_meta("y0", mi.position.y)
-			mi.add_to_group(_grupo(mar))
+			# FUERA DEL PRÓXIMO FUSIONADO, o el siguiente `bake` se la traga y
+			# la vuelve a fundir sobre sí misma.
+			mi.add_to_group("no_batch")
 			flotantes.append(mi)
-	mar_montando = antes
 
 
 ## Suelta todo lo de ESE mar. Los nodos van marcados con su grupo desde que se
@@ -534,47 +571,106 @@ func _limpiar_mar(mar: int) -> void:
 			nieblas_vivas.append(n2)
 	nieblas = nieblas_vivas
 	for p in CampaignData.ports_of_sea(mar):
-		node_world.erase(str(p["id"]))
-	node_world.erase("__mar%d" % (mar + 1))
-	node_world.erase("__mar%d" % (mar - 1))
+		var pid := str(p["id"])
+		if str(montados.get(pid, "")) == _grupo(mar):
+			montados.erase(pid)
+			node_world.erase(pid)
 
 
-## APARECER Y DESAPARECER EL MAR ENTERO, con fundido.
+## EL VELO DEL MAR: tapa el instante en que la cámara se teletransporta entre
+## el fondeadero del menú y el mapa.
 ##
-## Hace falta porque el viaje entre el MENÚ y el MAPA no puede ser continuo: el
-## fondeadero del menú está a 14.000 px del sitio donde juega el jugador, y
-## recorrerlos era pasar por delante de toda la campaña (lo quitó el usuario).
-## Así que la cámara se teletransporta —barco y cámara a la vez, invisible— y
-## lo que SÍ cambia de golpe es el paisaje: donde había mar abierto aparecen de
-## pronto todos los escenarios. Eso es el parpadeo.
+## POR QUÉ HACE FALTA: ese viaje no puede ser continuo —el fondeadero está a
+## 14.000 px del sitio donde juega el jugador, y recorrerlos era pasar por
+## delante de toda la campaña, que es lo que el usuario quitó—. El barco no se
+## ve saltar porque va con la cámara, pero lo que hay DEBAJO cambia de golpe:
+## donde había mar abierto aparecen todos los escenarios.
 ##
-## `transparency` de `GeometryInstance3D` es un fundido POR INSTANCIA y no pide
-## tocar los materiales, así que vale para modelos que ni siquiera son míos.
-func fundir_mar(visible: bool, seg: float) -> void:
-	var piezas: Array[GeometryInstance3D] = []
-	for n in get_tree().get_nodes_in_group(_grupo(mar_actual)):
-		if not is_instance_valid(n) or not n is Node3D:
-			continue
-		if n is GeometryInstance3D:
-			piezas.append(n as GeometryInstance3D)
-		# `find_children` con `owned` a FALSE: estos nodos se crean por código
-		# y no tienen dueño de escena, así que con el valor por defecto (true)
-		# no devuelve NI UNO — y el fundido no fundía nada.
-		for m in (n as Node).find_children("*", "MeshInstance3D", true, false):
-			piezas.append(m as GeometryInstance3D)
-	if piezas.is_empty():
-		return
-	var a := 1.0 if visible else 0.0
-	var b := 0.0 if visible else 1.0
+## SE PROBÓ ANTES con `GeometryInstance3D.transparency`, que es un fundido por
+## instancia, y NO SIRVE: solo hace efecto si el material tiene la
+## transparencia habilitada, y estos modelos son opacos. Medido en captura —
+## con la transparencia puesta a 1, las islas seguían dibujándose enteras.
+##
+## Va del COLOR DEL MAR (medido sobre una captura: 19, 71, 153) y no a negro:
+## el menú y el mapa son los dos casi todo agua, así que se lee como que el mar
+## pasa por delante y no como un fundido a negro.
+const VELO_MAR := Color(0.075, 0.277, 0.599)
+var velo: ColorRect = null
+
+
+## Sube o baja el velo. Devuelve el tween para poder encadenar.
+func velo_mar(tapar: bool, seg: float) -> Tween:
+	if ui == null:
+		return null
+	if velo == null or not is_instance_valid(velo):
+		velo = ColorRect.new()
+		velo.color = Color(VELO_MAR.r, VELO_MAR.g, VELO_MAR.b, 0.0)
+		velo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		velo.set_anchors_preset(Control.PRESET_FULL_RECT)
+		velo.size = GameState.canvas_size()
+		velo.z_index = 90
+		ui.add_child(velo)
+	ui.move_child(velo, ui.get_child_count() - 1)
 	if seg <= 0.0:
-		for p in piezas:
-			p.transparency = b
-		return
+		velo.color.a = 1.0 if tapar else 0.0
+		return null
 	var tw := create_tween()
-	tw.set_parallel(true)
-	for p in piezas:
-		p.transparency = a
-		tw.tween_property(p, "transparency", b, seg)
+	tw.tween_property(velo, "color:a", 1.0 if tapar else 0.0, seg)
+	return tw
+
+
+## CUÁNTOS ESCENARIOS DEL MAR VECINO se dejan puestos aunque no toque
+## (pedido por el usuario). Estando en el mar de los grumetes, las dos primeras
+## islas del de las sirenas ya están ahí; estando en el de las sirenas, las dos
+## últimas del de los grumetes. Así, al cruzar, los escenarios que se ven al
+## otro lado de la frontera **no aparecen**: ya estaban.
+const BORDE_VECINO := 2
+
+
+## Monta el BORDE de los mares vecinos: sus `BORDE_VECINO` escenarios más
+## cercanos a la frontera con el mar en curso. Van en el grupo de SU mar, así
+## que si luego se cruza a él, `_montar_mar` completa el resto y estos ya no se
+## vuelven a montar (`montados` lo impide).
+func _montar_bordes() -> void:
+	for vecino: int in [mar_actual - 1, mar_actual + 1]:
+		if vecino < 1 or vecino > CampaignData.sea_count():
+			continue
+		_montar_mar(vecino, _borde_de(vecino, mar_actual))
+
+
+## Los ids de los `BORDE_VECINO` escenarios de `mar` más cercanos a `hacia`.
+func _borde_de(mar: int, hacia: int) -> Array:
+	var lista := CampaignData.ports_of_sea(mar)
+	if lista.is_empty():
+		return []
+	# El mar de número MAYOR está al NORTE: su borde con el del sur son sus
+	# PRIMEROS escenarios; el del sur da los ÚLTIMOS.
+	var ids: Array = []
+	if mar > hacia:
+		for i in mini(BORDE_VECINO, lista.size()):
+			ids.append(str(lista[i]["id"]))
+	else:
+		for i in mini(BORDE_VECINO, lista.size()):
+			ids.append(str(lista[lista.size() - 1 - i]["id"]))
+	return ids
+
+
+## LOS CARTELES DE PASO SE REHACEN ENTEROS, y son los del mar EN CURSO y de
+## nadie más. Colgaban del montaje de cada mar, y con dos montados a la vez
+## (que es lo que pasa al cruzar) salían DOS en la misma frontera, uno encima
+## del otro — el de bajar de un mar y el de subir del otro.
+func _refrescar_carteles() -> void:
+	for n in get_tree().get_nodes_in_group("paso_mar"):
+		if is_instance_valid(n):
+			var pv = n.get_meta("pivot", null)
+			if pv != null and is_instance_valid(pv):
+				pv.queue_free()
+			n.queue_free()
+	node_world.erase("__mar%d" % (mar_actual - 1))
+	node_world.erase("__mar%d" % (mar_actual + 1))
+	node_world.erase("__mar%d" % (mar_actual - 2))
+	node_world.erase("__mar%d" % (mar_actual + 2))
+	_carteles_de_mar(mar_actual)
 
 
 ## CAMBIA EL MAPA AL OTRO MAR. Es toda la división: el mapa, la cámara, los
@@ -599,7 +695,13 @@ func cambiar_de_mar(mar: int, destino_id := "") -> void:
 	# par de segundos lo que costaba el mapa entero antes de dividirlo — que es
 	# exactamente el rato en el que hace falta.
 	mar_actual = mar
+	# EL BORDE DEL MAR NUEVO YA ESTABA PUESTO (lo dejó `_montar_bordes` al
+	# llegar al mar viejo), así que esto solo completa el resto — y esos son
+	# justo los que quedan fuera de cuadro durante toda la travesía.
 	_montar_mar(mar)
+	_montar_bordes()
+	_rehacer_ruta()
+	_refrescar_carteles()
 	_limites_del_mar()
 	# El scroll tiene que abarcar los DOS mares mientras dura la travesía, o
 	# sus topes cortarían el viaje por la mitad.
@@ -630,9 +732,15 @@ func cambiar_de_mar(mar: int, destino_id := "") -> void:
 	if not is_inside_tree():
 		return
 	# --- 3) SOLTAR EL MAR VIEJO, que ya ha quedado atrás -------------------
+	# Se suelta el mar viejo ENTERO y se le vuelve a dejar su borde: dos
+	# escenarios al otro lado de la frontera, para que al volver tampoco
+	# aparezcan de la nada.
 	_limpiar_mar(viejo)
+	_montar_bordes()
+	_rehacer_ruta()
+	_refrescar_carteles()
 	_limites_del_mar()
-	_rehacer_overlays([mar])
+	_rehacer_overlays([mar, viejo])
 	cambiando_mar = false
 	_select(destino, false)
 
@@ -768,6 +876,11 @@ func _setup_route(mar := mar_actual) -> void:
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	var lista := CampaignData.ports_of_sea(mar)
 	for i in range(lista.size() - 1):
+		# SOLO ENTRE LOS QUE ESTÁN PUESTOS: con el borde de un mar vecino
+		# montado (dos escenarios sueltos), una línea hacia el tercero saldría
+		# de la nada y se perdería en el vacío.
+		if not montados.has(str(lista[i].id)) 				or not montados.has(str(lista[i + 1].id)):
+			continue
 		var a := _world(CampaignData.map_pos(lista[i].id))
 		var b := _world(CampaignData.map_pos(lista[i + 1].id))
 		var seg := b - a
@@ -783,14 +896,28 @@ func _setup_route(mar := mar_actual) -> void:
 			dash.material_override = mat
 			dash.position = a + dir * ((t + e) * 0.5) + Vector3(0.0, 0.025, 0.0)
 			dash.rotation_degrees.y = rad_to_deg(atan2(dir.x, dir.z)) - 90.0
-			dash.add_to_group(_grupo(mar_montando))
+			# MARCADOS, para que `_rehacer_ruta` pueda barrer los que el
+			# fusionado no se haya llevado: si queda alguno suelto, la pasada
+			# siguiente lo funde OTRA VEZ junto a los nuevos y las líneas se
+			# van doblando (medido: 5.628 triángulos pasaban a 18.072).
+			dash.add_to_group("route_dash")
 			add_child(dash)
 			t = e + 0.2
 
 
-func _setup_nodes(mar := mar_actual) -> void:
+## LOS ESCENARIOS SE MONTAN DE UNO EN UNO Y SE APUNTAN, para poder tener a la
+## vez un mar entero y el BORDE del vecino (ver `_montar_bordes`). `montados`
+## dice qué grupo tiene cada uno, así que montar dos veces el mismo es
+## imposible por construcción.
+var montados: Dictionary = {}
+
+
+func _setup_nodes(mar := mar_actual, solo: Array = []) -> void:
 	for p in CampaignData.ports_of_sea(mar):
 		var id: String = p.id
+		if montados.has(id) or (not solo.is_empty() and not id in solo):
+			continue
+		montados[id] = _grupo(mar_montando)
 		var kind := CampaignData.get_kind(id)
 		var pos := _world(CampaignData.map_pos(id))
 		node_world[id] = pos
@@ -1538,6 +1665,11 @@ func _rehacer_overlays(mares: Array = []) -> void:
 	node_overlays.clear()
 	for mar: int in mares:
 		for p in CampaignData.ports_of_sea(mar):
+			# SOLO LOS QUE ESTÁN MONTADOS. `_process` coloca cada overlay con
+			# `node_world[id]`, y el borde de un mar vecino deja ahí unos ids
+			# puestos y otros no: pidiendo uno que no está, revienta.
+			if not montados.has(str(p.id)):
+				continue
 			var ov := _build_node_overlay(p)
 			ui.add_child(ov["root"])
 			node_overlays[p.id] = ov

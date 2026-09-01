@@ -1287,6 +1287,7 @@ func _enter_map(animate: bool) -> void:
 	var dy := salida.y - ship_px.y
 	ship_px.y = salida.y
 	cam_center += dy
+	# (el velo ya está arriba: lo sube `_go_adventure` antes de llamar aquí)
 	# LOS DOS SE RECOLOCAN EN EL MISMO FOTOGRAMA. Esto corre en un callback de
 	# tween, que puede caer DESPUÉS del `_process` del mapa: moviendo solo la
 	# cámara, ese fotograma se dibujaba con la cámara nueva y el barco todavía
@@ -1295,11 +1296,6 @@ func _enter_map(animate: bool) -> void:
 	if ship_pivot != null:
 		ship_pivot.position = _world(ship_px) + Vector3(0.0, -0.06 + marea(), 0.0)
 	_update_camera()
-	# Y EL PAISAJE ENTRA CON FUNDIDO. El salto del barco no se ve porque va con
-	# la cámara, pero lo que hay DEBAJO sí cambia de golpe: donde había mar
-	# abierto aparecen de pronto todos los escenarios del mar. Con el fundido
-	# se lee como que el mapa se abre, no como un parpadeo.
-	fundir_mar(true, ENTRADA_FUNDIDO)
 	var dur := 1.15
 	# El barco recupera su tamaño de ficha del mapa mientras navega.
 	var scale_tw := create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE)
@@ -2863,7 +2859,17 @@ const RUMBO_VUELTA := 0.45
 ## APROXIMACIÓN, no una travesía: llega desde el sur a su escenario y atraca.
 const APROXIMACION := 760.0
 ## Lo que tarda el mar en aparecer (y en irse) al entrar o salir del mapa.
-const ENTRADA_FUNDIDO := 0.55
+## El velo del mar: lo que tarda en tapar y en despejarse. Sube deprisa (el
+## teletransporte va justo detrás) y baja despacio, con el barco ya navegando.
+const VELO_SUBE := 0.20
+const VELO_BAJA := 0.45
+## Lo que el velo se queda OPACO entre el salto y el despeje.
+const VELO_QUIETO := 0.14
+
+
+## Un `await` de usar y tirar para código que no puede ser corrutina.
+func _tras(seg: float, que: Callable) -> void:
+	get_tree().create_timer(seg).timeout.connect(que, CONNECT_ONE_SHOT)
 
 
 ## Mientras el rumbo vuelve a casa, `_process` NO acopla el barco al timón: los
@@ -3226,9 +3232,22 @@ func _go_adventure() -> void:
 	# El barco no leva anclas hasta que el logotipo y los botones han SALIDO
 	# del todo; si no, se ven irse a la vez que entra el mapa.
 	tw.tween_interval(OUT_TIME + 0.08)
+	# EL VELO DEL MAR sube justo antes del teletransporte y baja con el barco ya
+	# navegando: es lo que tapa el instante en que el paisaje cambia de golpe.
 	tw.tween_callback(func() -> void:
+		velo_mar(true, VELO_SUBE))
+	tw.tween_interval(VELO_SUBE)
+	tw.tween_callback(func() -> void:
+		# OPACO DEL TODO justo en el fotograma del teletransporte: subiendo con
+		# tween se quedaba en 0,88 y el paisaje se leía por debajo (medido en
+		# captura). El salto de 0,88 a 1 va tapado por el propio velo.
+		velo_mar(true, 0.0)
 		_set_menu_ui_visible(false)
-		_enter_map(true))
+		_enter_map(true)
+		# UN INSTANTE OPACO ANTES DE DESPEJAR. Encadenando el fundido en el
+		# mismo fotograma, el tween ya había avanzado para cuando se dibujaba y
+		# el velo salía al 0,83: el paisaje se leía por debajo (medido).
+		_tras(VELO_QUIETO, func() -> void: velo_mar(false, VELO_BAJA)))
 
 
 ## Vuelta del mapa al menú: el barco desanda el camino y todo reaparece.
@@ -3251,19 +3270,23 @@ func _back_to_menu() -> void:
 	# navega hacia el sur su `APROXIMACION` y, con el mar ya fundido, se
 	# teletransporta al fondeadero con la cámara. El salto no se ve porque los
 	# dos se corren lo mismo Y en el mismo fotograma.
-	fundir_mar(false, ENTRADA_FUNDIDO)
 	var salida := ship_px + Vector2(0.0, APROXIMACION)
 	ship_tween = create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	ship_tween.tween_property(self, "ship_px", salida, dur * 0.45)
 	ship_tween.parallel().tween_property(self, "cam_center",
 		cam_center + APROXIMACION, dur * 0.45)
 	ship_tween.tween_callback(func() -> void:
+		velo_mar(true, VELO_SUBE))
+	ship_tween.tween_interval(VELO_SUBE)
+	ship_tween.tween_callback(func() -> void:
+		velo_mar(true, 0.0)
 		var dy := MENU_ANCHOR.y - ship_px.y
 		ship_px.y += dy
 		cam_center += dy
 		if ship_pivot != null:
 			ship_pivot.position = _world(ship_px) 				+ Vector3(0.0, -0.06 + marea(), 0.0)
-		_update_camera())
+		_update_camera()
+		_tras(VELO_QUIETO, func() -> void: velo_mar(false, VELO_BAJA)))
 	ship_tween.tween_property(self, "ship_px", MENU_ANCHOR, dur * 0.55)
 	ship_tween.parallel().tween_property(self, "cam_center", MENU_ANCHOR.y,
 		dur * 0.55)

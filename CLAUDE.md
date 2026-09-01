@@ -698,32 +698,62 @@ al sur de su destino y solo navega esa entrada.
   el "tirón" que se veía. Con los dos recolocados a la vez, el mayor salto por
   fotograma baja a **3,5 px**.
 
-**AL CRUZAR SE MONTAN LOS DOS MARES A LA VEZ** (idea del usuario: que los
-escenarios del mar nuevo "parezca que siempre estuvieron ahí"). El de destino
-se monta AL EMPEZAR la travesía, con sus escenarios todavía lejísimos fuera de
-cuadro, y el viejo se suelta AL LLEGAR, cuando ya ha quedado atrás. Así la
-cámara cruza la frontera con los primeros escenarios del mar nuevo YA puestos:
-entran en cuadro navegando en vez de aparecer de golpe. MEDIDO: 143 nodos con
-los dos montados, 82 al terminar. Cuesta un par de segundos lo que costaba el
-mapa entero antes de dividirlo, que es justo el rato en que hace falta.
-· Por eso el grupo es **uno por mar** (`_grupo(mar)`) y no uno solo.
+**EL BORDE DEL MAR VECINO VA SIEMPRE PUESTO** (idea del usuario: que "parezca
+que siempre estuvieron ahí"). Estando en el mar de los grumetes, los
+`BORDE_VECINO` (2) primeros escenarios del de las sirenas ya están montados; y
+al revés, estando en las sirenas están los dos últimos de los grumetes. Así, al
+cruzar, lo que se ve al otro lado de la frontera NO aparece: ya estaba.
+Y durante la travesía se monta además el mar de destino ENTERO —sus escenarios
+lejanos quedan fuera de cuadro todo el rato— y el viejo se suelta al llegar,
+dejándole su borde. MEDIDO: en reposo `{mar 2: 25, mar 1: 2}`; a medio cruzar
+`{2: 25, 1: 35}`; al terminar `{1: 35, 2: 2}`.
+· Por eso el grupo es **uno por mar** (`_grupo(mar)`) y los escenarios se
+  montan **de uno en uno**, apuntados en `montados` — así montar dos veces el
+  mismo es imposible por construcción.
 · Y por eso **`_montar_mar` es el ÚNICO constructor**: es quien pone
-  `mar_montando`, de donde sacan su grupo todos los `add_to_group` del
-  montaje. `_ready` llamaba a las tres funciones sueltas y `mar_montando` se
-  quedaba en su valor inicial (1), así que los nodos del mar 2 salían
-  etiquetados como del 1 — y al cruzar no se liberaba ninguno.
+  `mar_montando`, de donde sacan su grupo todos los `add_to_group`. `_ready`
+  llamaba a las funciones sueltas y `mar_montando` se quedaba en 1, así que los
+  nodos del mar 2 salían etiquetados como del 1 — y al cruzar no se liberaba
+  ninguno.
 
-**Y EL PAISAJE ENTRA Y SALE CON FUNDIDO** (`fundir_mar`, `transparency` de
-`GeometryInstance3D`, que es un fundido por instancia y no obliga a tocar los
-materiales). Hace falta porque el viaje entre el MENÚ y el MAPA no puede ser
-continuo —el fondeadero está a 14.000 px— así que la cámara se teletransporta;
-el barco no se ve saltar porque va con ella, pero lo que hay DEBAJO cambiaba de
-golpe: donde había mar abierto aparecían todos los escenarios.
-· **OJO con `find_children`**: estos nodos se crean por código y no tienen
-  dueño de escena, así que hay que pasarle `owned = false` — con el valor por
-  defecto no devuelve NI UNO y el fundido no fundía nada.
-· **Y `Array.filter` con una lambda TIPADA revienta** ("Cannot convert argument
-  1 from Object to Object"): las listas de nodos se rehacen a mano.
+**LA RUTA TIENE UN SOLO DUEÑO** (`_rehacer_ruta`), y se rehace ENTERA cada vez
+que cambia lo que hay montado. Se intentó montarla por mar y no puede ser, por
+dos motivos medidos:
+· `GeometryBatch.bake` funde TODOS los guiones que cuelguen de la raíz en UNA
+  malla, vengan del mar que vengan. Esa malla acababa en el grupo del último
+  mar montado, así que al soltar el otro **se iba la ruta entera** (0
+  triángulos de ruta tras cruzar).
+· Y volviendo a fusionar sobre lo ya fusionado, **las líneas se doblaban**:
+  5.628 triángulos pasaban a 18.072 en dos cruces. Por eso el resultado del
+  fusionado entra en el grupo `no_batch`, los guiones sueltos van marcados
+  (`route_dash`) para poder barrerlos aunque el fusionado no se los lleve, y el
+  barrido usa `free()` y no `queue_free()` — con el borrado diferido, el
+  fusionado de esa misma llamada se encontraba la ruta vieja todavía colgada.
+  MEDIDO: 5.628 triángulos al empezar y **5.628 exactos** tras ir y volver.
+
+**Y LOS CARTELES DE PASO NO PERTENECEN A NINGÚN MAR**: los rehace enteros
+`_refrescar_carteles`, y son los del mar en curso y de nadie más. Colgando del
+montaje de cada mar salían **dos en la misma frontera** —el de bajar de uno y
+el de subir del otro, superpuestos— y además caían en el grupo equivocado
+(cuando se creaban, `mar_montando` ya estaba restaurado), así que `_limpiar_mar`
+se los llevaba y al volver de cruzar no quedaba ninguno.
+
+**EL SALTO ENTRE EL MENÚ Y EL MAPA VA TAPADO CON UN VELO DEL COLOR DEL MAR**
+(`velo_mar`). Ese viaje no puede ser continuo —el fondeadero está a 14.000 px—
+así que la cámara se teletransporta; el barco no se ve saltar porque va con
+ella, pero lo que hay DEBAJO cambiaba de golpe.
+· **SE PROBÓ ANTES con `GeometryInstance3D.transparency`** —un fundido por
+  instancia que no obliga a tocar los materiales— y **NO SIRVE**: solo hace
+  efecto si el material tiene la transparencia habilitada, y estos modelos son
+  opacos. MEDIDO en captura: con la transparencia a 1, las islas seguían
+  dibujándose enteras.
+· El velo es del color del agua (19, 71, 153, medido sobre una captura) y no
+  negro: el menú y el mapa son los dos casi todo mar, así que se lee como que
+  el agua pasa por delante.
+· **Y SE QUEDA OPACO UN INSTANTE** (`VELO_QUIETO`) entre el salto y el
+  despeje: encadenando el fundido en el mismo fotograma, el tween ya había
+  avanzado al dibujarse y el velo salía al 0,83 — el paisaje se leía por
+  debajo.
 
 **LAS CUATRO TRAVESÍAS, MEDIDAS** (sonda por fotograma; al tocarlas,
 repetirla). El detector de CORTES es el salto de la CÁMARA, no lo que se mueve
