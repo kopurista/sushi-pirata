@@ -4495,6 +4495,19 @@ La GUÍA lleva su sección ("El canto de sirena").
     entre sí. La CUEVA se fue con ellos —de −700 a −1664, para conservar su
     distancia de siete pasos— y con ella el tope de scroll (`SCROLL_MIN`), que
     es quien la deja alcanzable.
+- **EL ORDEN DE LOS OVERLAYS DEL MAPA DECIDE QUIÉN SE LLEVA EL TOQUE**
+  (`_rehacer_overlays`), y falla por partida doble si no se cuida: en una capa
+  de Control el toque se lo lleva el ÚLTIMO hijo.
+  · **Los CARTELES DE PASO se crean ANTES que los escenarios**, así que el
+    escenario pegado a uno le gana el toque donde se solapen. El botón del
+    cartel mide 400×330 —se agrandó porque había que acertar en una zona muy
+    concreta— y el escenario del extremo está a `PASO_CARTEL` (330 px): con el
+    cartel creado después, pulsar esa isla CAMBIABA DE MAR en vez de entrar.
+  · **Y todos ellos se mueven al PRINCIPIO de `ui`**, por debajo de la
+    interfaz. `add_child` los pone al FINAL, así que tras rehacerlos quedaban
+    por encima del "Atrás" y del panel: con un escenario debajo, el botón no
+    respondía. MEDIDO: 26 overlays en los índices 0-25 y la interfaz en 26-28.
+
 - **LA FICHA LLEVA GRÁFICO PROPIO** (`panel_ficha.png`: pergamino con marco
   de CUERDA y argollas de latón, `FICHA_MARGIN` 56) y **se cierra con un ASPA**
   en la esquina de arriba, no con un botón de "Cerrar" al pie — abajo solo

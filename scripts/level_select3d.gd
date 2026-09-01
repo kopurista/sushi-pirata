@@ -1861,6 +1861,28 @@ func _rehacer_overlays(mares: Array = []) -> void:
 		if is_instance_valid(r):
 			r.queue_free()
 	node_overlays.clear()
+	# EL ORDEN IMPORTA, y por partida doble: en una capa de Control el toque se
+	# lo lleva el ÚLTIMO hijo, o sea el que se dibuja encima.
+	#   1) LOS CARTELES DE PASO VAN PRIMERO, así que el escenario pegado a uno
+	#      le gana el toque donde se solapen. El botón del cartel mide 400×330
+	#      —se agrandó porque había que acertar en una zona muy concreta— y el
+	#      escenario del extremo está a `PASO_CARTEL` (330 px): con el cartel
+	#      después, pulsar esa isla cambiaba de mar en vez de entrar en ella.
+	#   2) Y TODOS ELLOS AL PRINCIPIO DE `ui`, por debajo de la interfaz.
+	#      `add_child` los pone al FINAL, así que tras rehacerlos quedaban por
+	#      encima del "Atrás" y del panel: con un escenario debajo, el botón no
+	#      respondía.
+	var creados: Array[Control] = []
+	for nodo in get_tree().get_nodes_in_group("paso_mar"):
+		if not is_instance_valid(nodo) or not nodo.has_meta("mar"):
+			continue
+		var mar_c: int = int(nodo.get_meta("mar"))
+		var clave := "__mar%d" % mar_c
+		if not node_world.has(clave):
+			continue
+		var ov2 := _build_paso_overlay(mar_c)
+		node_overlays[clave] = ov2
+		creados.append(ov2["root"])
 	for mar: int in mares:
 		for p in CampaignData.ports_of_sea(mar):
 			# SOLO LOS QUE ESTÁN MONTADOS. `_process` coloca cada overlay con
@@ -1869,19 +1891,11 @@ func _rehacer_overlays(mares: Array = []) -> void:
 			if not montados.has(str(p.id)):
 				continue
 			var ov := _build_node_overlay(p)
-			ui.add_child(ov["root"])
 			node_overlays[p.id] = ov
-	# Y los dos carteles: su botón es más ancho porque su tabla lo es.
-	for nodo in get_tree().get_nodes_in_group("paso_mar"):
-		if not is_instance_valid(nodo) or not nodo.has_meta("mar"):
-			continue
-		var mar: int = int(nodo.get_meta("mar"))
-		var clave := "__mar%d" % mar
-		if not node_world.has(clave):
-			continue
-		var ov2 := _build_paso_overlay(mar)
-		ui.add_child(ov2["root"])
-		node_overlays[clave] = ov2
+			creados.append(ov["root"])
+	for i in creados.size():
+		ui.add_child(creados[i])
+		ui.move_child(creados[i], i)
 
 
 func _build_paso_overlay(mar: int) -> Dictionary:
