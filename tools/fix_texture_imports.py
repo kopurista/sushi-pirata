@@ -31,6 +31,15 @@ BIG_PREFIXES = (
     "chef", "ayudante", "grumete", "pirata", "capitan", "vip", "tendero", "map_",
 )
 
+## LA PALETA DE KENNEY SE QUEDA EN LOSSLESS, y no es un descuido. Es una
+## tabla de bandas de color plano que tiñe LOS 72 MODELOS del mundo: comprimir
+## por bloques correria los colores en los cantos de cada banda, y como las UV
+## apuntan dentro de las bandas, eso se veria como un tinte raro en piezas
+## sueltas. Ocupa 1 MB de VRAM y colorea el juego entero: es una ganga. Y el
+## modo 0 (sin comprimir) carga en TODAS las plataformas — lo que no carga en
+## el movil web es el modo 2 (s3tc), que es contra lo que existe este script.
+EXENTAS = {"colormap.png.import"}
+
 RULES = {
     "compress/mode": "4",
     "compress/rdo_quality_loss": "4.0",
@@ -50,8 +59,12 @@ def main() -> int:
     # movil eso es una textura que NO CARGA). Lo caza el --check de ahora.
     rutas = []
     for ext in ("png", "jpg", "jpeg", "webp"):
-        rutas += list(MODELS.glob("*.%s.import" % ext))
+        # rglob, no glob: la paleta del kit de Kenney vive en una SUBCARPETA
+        # (assets/models/kenney/Textures) y con el filtro plano no se miraba.
+        rutas += list(MODELS.rglob("*.%s.import" % ext))
     for path in sorted(rutas):
+        if path.name in EXENTAS:
+            continue
         # utf-8-sig se come el BOM si lo hubiera; luego se escribe sin el.
         text = path.read_text(encoding="utf-8-sig")
         out = text

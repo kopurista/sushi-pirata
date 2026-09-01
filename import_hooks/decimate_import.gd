@@ -22,6 +22,8 @@ extends EditorScenePostImport
 ## Triángulos máximos por modelo (nombre de archivo sin extensión).
 const BUDGETS := {
 	# Entrado por Meshy (tools/meshy.py).
+	"isla_juego_ov": 6000,
+	# Entrado por Meshy (tools/meshy.py).
 	"chef_ov_rig": 4000,
 	# Entrado por Meshy (tools/meshy.py).
 	"chef_ov": 3500,

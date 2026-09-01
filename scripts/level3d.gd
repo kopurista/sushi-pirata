@@ -94,6 +94,22 @@ const SPAWN_PROGRESS := BELT_SIDE * 2.0
 ## Huella (ancho) de la palmera del escenario de isla.
 const PALM_FOOT := 3.4
 
+## EL MUNDO SALE DEL PIRATE KIT DE KENNEY (CC0) desde el 1-9-2026: barco,
+## isla, puerto, abordaje y todo el atrezzo. Lo trae `tools/kenney_kit.py`,
+## que ademas reescribe la paleta COMPARTIDA por los 72 modelos en su version
+## saturada, asi que el color de todo el mundo se cambia en UNA imagen. El
+## brillo de plastico lo pone `SceneBackdrop.acabado_juguete`.
+##
+## Por que se cambio: el atrezzo generado pesaba 417 MB y el barco enemigo no
+## bajaba de 16.410 triangulos; el kit entero son 2,9 MB y su galeon 1.938. Y
+## a la escala a la que se ve el nivel el facetado NO se nota: lo que se lee
+## es la silueta y el color (comprobado en captura al tamaño real).
+const KEN := "res://assets/models/kenney/%s.glb"
+## Las palmeras y las rocas se sortean para que el arenal no salga clonado.
+const KEN_PALMS := ["palm_detailed_bend", "palm_bend", "palm_straight",
+	"palm_detailed_straight"]
+const KEN_ROCKS := ["rocks_a", "rocks_b", "rocks_c"]
+
 const CHEF_H := 1.75
 const STOOL_H := 0.47
 const SEAT_ALONG := 0.9       ## separacion de cada taburete del centro del lado
@@ -1221,12 +1237,13 @@ func _cyl(top_r: float, bottom_r: float, h: float, pos: Vector3,
 
 
 func _spawn_barrels(spots: Array, tipped_idx: int = -1) -> void:
-	var barrel_path := "res://assets/models/barril.glb"
+	var barrel_path: String = KEN % "barrel"
 	if not ResourceLoader.exists(barrel_path):
 		return
 	var barrel: PackedScene = load(barrel_path)
 	for i in spots.size():
 		var b := _spawn_model(barrel, spots[i], 0.95, self)
+		SceneBackdrop.acabado_juguete(b)
 		if i == tipped_idx:
 			b.rotation_degrees = Vector3(90.0, 25.0, 0.0)
 			b.position.y = 0.33
@@ -1558,9 +1575,10 @@ func _scenery_island() -> void:
 	# clientes la ATRAVESABAN al rodear el mostrador. Reducida y apartada.
 	for r in [[Vector3(-5.4, 0.0, 0.4), 1.0], [Vector3(0.8, 0.0, -5.6), 1.35],
 			[Vector3(4.6, 0.0, -0.6), 1.0]]:
-		var rocks := _spawn_model(load("res://assets/models/rocas.glb"),
-			r[0], float(r[1]), self)
-		rocks.rotation_degrees.y = r[0].x * 37.0
+		var rocks := _ken(KEN_ROCKS[randi() % KEN_ROCKS.size()],
+			r[0], float(r[1]), r[0].x * 37.0)
+		if rocks == null:
+			continue
 		_add_blob_shadow(r[0] + Vector3(0.2, 0.02, 0.12),
 			float(r[1]) * 1.15, float(r[1]) * 0.75)
 	# (Aqui habia una caja en (-5.4,-2.2): caia dentro del tronco de la palmera
@@ -1570,21 +1588,24 @@ func _scenery_island() -> void:
 	# EL PELUCHE DE MORSA (coleccionable), dormido sobre una caja del arenal:
 	# la caja se pone aqui SOLO si el peluche es tuyo — una caja vacia porque
 	# si ya se quito una vez de esta escena (chocaba con una palmera).
-	if GameState.has_collectible("peluche_morsa") \
-			and ResourceLoader.exists("res://assets/models/caja.glb"):
-		var caja_morsa := _spawn_model(load("res://assets/models/caja.glb"),
-			Vector3(4.9, 0.0, 1.6), 0.66, self)
-		_tint_model(caja_morsa, CRATE_TINT)
-		ColVisibles.morsa_en_isla(self, Vector3(4.9, 0.0, 1.6))
+	if GameState.has_collectible("peluche_morsa"):
+		# El cajon de Kenney ya viene del color que toca: no lleva el tinte
+		# que necesitaba el de antes, que tiraba a terracota.
+		if _ken("crate", Vector3(4.9, 0.0, 1.6), 0.66) != null:
+			ColVisibles.morsa_en_isla(self, Vector3(4.9, 0.0, 1.6))
 
 
 ## Cabaña de playa: MODELO 3D con su textura. Es el punto del que "vienen" los
 ## clientes de la borda alta de la isla. Antes se montaba con cajas y faldones
 ## de techo, y al lado de las palmeras y las rocas con textura desentonaba.
 func _beach_hut(pos: Vector3) -> void:
-	var hut := _spawn_model(load("res://assets/models/cabana.glb"), pos, 3.6, self)
-	hut.rotation_degrees.y = 45.0
-	_add_blob_shadow(pos + Vector3(0.35, 0.02, 0.25), 4.0, 2.6)
+	# TORRE VIGIA del kit: la cabaña de playa no existe en Kenney, y una torre
+	# de vigia pega mas en una isla pirata que una choza. Sigue siendo el punto
+	# del que "vienen" los clientes de la borda alta.
+	var hut := _ken("tower_watch", pos, 4.2, 45.0)
+	if hut == null:
+		return
+	_add_blob_shadow(pos + Vector3(0.35, 0.02, 0.25), 3.4, 2.4)
 ## Palmera low poly: tronco inclinado + corona de hojas + cocos.
 ## Palmera: MODELO 3D (Ludo), no geometría por código. Se intentó montarla con
 ## cilindros y tablillas —tronco curvo y frondas articuladas— y desde la cámara
@@ -1592,9 +1613,12 @@ func _beach_hut(pos: Vector3) -> void:
 ## por muy arqueadas que estuvieran. El modelo trae la copa cerrada, los cocos
 ## y el anillado del tronco de una pieza.
 func _palm(pos: Vector3, yaw: float) -> void:
-	var pivot := _spawn_model(load("res://assets/models/palmera.glb"),
-		pos, PALM_FOOT, self)
-	pivot.rotation_degrees.y = yaw
+	# Sorteada entre las cuatro del kit: con una sola, las cuatro palmeras del
+	# arenal se leian como la misma copiada y pegada.
+	var pivot := _ken(KEN_PALMS[randi() % KEN_PALMS.size()], pos, PALM_FOOT,
+		yaw)
+	if pivot == null:
+		return
 	# Cada una con su porte: si todas miden igual cantan como copias.
 	var s := randf_range(0.88, 1.12)
 	pivot.scale = Vector3.ONE * s
@@ -2196,6 +2220,19 @@ func _tool_box(parent: Node3D, size: Vector3, pos: Vector3, color: Color) -> voi
 
 
 # ------------------------------------------------------- instanciacion GLB
+
+## Una pieza del kit de Kenney, ya con el acabado de juguete puesto. Se pide
+## por NOMBRE (sin ruta ni extension) y devuelve null si no esta, para que un
+## escenario no reviente por una pieza que aun no se haya copiado.
+func _ken(nombre: String, pos: Vector3, alto: float, yaw := 0.0) -> Node3D:
+	var ruta: String = KEN % nombre
+	if not ResourceLoader.exists(ruta):
+		return null
+	var pivot := _spawn_model(load(ruta), pos, alto, self)
+	pivot.rotation_degrees.y = yaw
+	SceneBackdrop.acabado_juguete(pivot)
+	return pivot
+
 
 func _spawn_model(scene: PackedScene, ground_pos: Vector3, target_h: float,
 		parent: Node) -> Node3D:
