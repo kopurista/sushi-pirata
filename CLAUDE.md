@@ -603,6 +603,36 @@ justo al volver de un nivel.
 primera vez que se entra en ellos (`logros_intro_done` /
 `inventario_intro_done`), no desde un nivel.
 
+## DIVIDIR EL MAPA POR MARES (medido el 1-9-2026; PENDIENTE de decidir)
+
+El mapa monta HOY todos los escenarios de la campaña a la vez, y con 250 eso
+no se sostiene. MEDIDO con una sonda sobre el mapa real (60 escenarios):
+
+    nodos en el arbol   1.069        triangulos       551.789
+    MeshInstance3D        482        memoria de video    45,4 MB
+    draw calls/frame       38        primitivas/frame  55.603
+
+Lo que dice la medida, que no es lo que uno esperaría:
+- **El coste POR FOTOGRAMA no es el problema.** 38 draw calls y 55.000
+  primitivas dibujadas de 551.789 instanciadas: el culling se lleva el 90%,
+  porque en pantalla solo caben tres o cuatro escenarios.
+- **El problema es la CARGA y la MEMORIA**, que se pagan enteras aunque no se
+  vea nada. Extrapolado a los 250 escenarios de la campaña completa: **4.859
+  nodos, 2,5 millones de triángulos y ~206 MB de vídeo**. En el móvil eso es
+  la pestaña recargándose — es exactamente el mismo muro con el que ya se
+  chocó cuando los sprites 2D sumaban 295 MB (ver los topes de `size_limit`).
+
+**LA RECOMENDACIÓN ES SÍ, DIVIDIR, pero no en escenas separadas**: basta con
+instanciar SOLO los nodos del mar en curso (y a lo sumo los del vecino), y
+poner en cada extremo un CARTEL que lleve al mar siguiente o al anterior. El
+mapa, la cámara, los carriles y el barco no cambian: lo único que cambia es
+CUÁNTO se monta. Con un mar de 35 escenarios en pantalla el coste vuelve a ser
+el de hoy (~320.000 triángulos, ~26 MB) y ya no crece con la campaña.
+
+Y hay una razón que no es de rendimiento y pesa igual: 35 escenarios ya son
+~11.000 px de scroll; 250 serían ~78.000. Encontrar algo ahí dentro no es
+navegar, es dragar.
+
 ## LOS MAPAS DEL TESORO: LAS MISIONES SECUNDARIAS (montadas el 1-9-2026)
 
 `scripts/treasure_data.gd` (datos, 50 mapas), `treasure_screen.gd` (la mesa) y
