@@ -471,14 +471,6 @@ const FLECHA_TEX := "res://assets/map/flecha_mar.png"
 ## la tabla es madera modelada a mano y a ras se comería la flecha, dejando
 ## asomar solo sus bordes por los huecos entre tablas.
 const FLECHA_CENTRO := Vector3(0.001, 0.167, 0.068)
-## Y LA OTRA VA DETRÁS, mirando al revés: el cartel tiene una flecha por cara
-## y lo que cambia al cruzar de mar no es el cartel, es qué cara se ve.
-## SU z SE MIDE, NO SE ESPEJA la de delante: la trasera de la tabla está a
-## -0,0815 y el POSTE llega a -0,0713, así que puesta a -0,068 —el espejo de la
-## de delante— la flecha quedaba DENTRO de la madera y solo asomaba lo que
-## sobresalía por los huecos, con el poste tapándole justo el asta (mide 0,092
-## de ancho contra los 0,097 del asta: la cubre entera).
-const FLECHA_FONDO := -0.088
 const FLECHA_ALTO := 0.34
 ## Cara de la tabla al frente (yaw 45, como el chef y su mesa en el nivel): el
 ## modelo mira a su propio -Z y con la cámara isométrica salía de tres cuartos,
@@ -492,6 +484,16 @@ const CARTEL_GIRO := 0.9
 ## mapa). Por el centro le pasaba por ENCIMA al cartel; apartado se ve pasar a
 ## su lado, que es lo que hace creíble el empujón.
 const CARTEL_ROCE := 95.0
+## El chapuzón del NOMBRE del mar: cuánto espera a que el barco acabe de pasar,
+## cuánto se hunde y lo que tarda en bajar y en volver a salir.
+## LOS TRES SUMAN MENOS DE LO QUE QUEDA DE TRAVESÍA tras el golpe (~0,85 s de
+## los 1,9 totales), y tiene que ser así: al llegar, el mapa REHACE los
+## carteles, y el nuevo nace ya con su nombre puesto — así que una animación
+## más larga se queda a medias y no se le ve emerger.
+const ROTULO_ESPERA := 0.16
+const ROTULO_CALADO := 0.85
+const ROTULO_BAJA := 0.28
+const ROTULO_SUBE := 0.32
 ## Huella a la que se normaliza (unidades de mundo). Se midió contra el nodo
 ## de escenario más pequeño: el cartel tiene que leerse sin competir con él.
 ## **NO ES 3,1 POR CAPRICHO: fija el ALTO en pantalla, y ese alto está
@@ -518,33 +520,32 @@ func _cartel_de_paso(mar: int, y_px: float, desde := mar_actual) -> void:
 	raiz.set_meta("mar", mar)
 	add_child(raiz)
 	var sube := mar > desde
+	# EL CARTEL QUE SE ESTÁ CRUZANDO NACE COMO ESTABA ANTES: con la flecha del
+	# viaje que se está haciendo y con el nombre del mar al que se va. Lo cambia
+	# todo el barco al pasar (`golpear_cartel`). Puesto ya en su sitio, la
+	# flecha y el nombre cambiarían solos al empezar la travesía.
+	var cruzando := mar == cartel_por_girar
 	var alto := 1.4
 	if ResourceLoader.exists(CARTEL_MODELO):
 		var pivot := _spawn_model(load(CARTEL_MODELO), pos, CARTEL_FOOT)
-		_pintar_flechas(pivot)
 		# Los carteles no dan sombra, como los nodos: son geometría de adorno.
 		for m in pivot.find_children("*", "MeshInstance3D", true, false):
 			m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		alto = float(pivot.get_meta("alto", 1.4))
-		# QUÉ CARA SE VE: la de delante lleva la flecha de subir, la de detrás
-		# la de bajar. Media vuelta y se lee lo contrario.
-		var yaw := CARTEL_YAW if sube else CARTEL_YAW + 180.0
-		raiz.set_meta("yaw", yaw)
-		# Y si este es el cartel que se está cruzando, nace SIN GIRAR todavía:
-		# lo gira el barco al pasar por debajo (`golpear_cartel`). Puesto ya en
-		# su sitio, la flecha cambiaría sola al empezar la travesía, que es
-		# justo lo que había antes y no explicaba nada.
-		if mar == cartel_por_girar:
-			yaw += 180.0
-		pivot.rotation_degrees.y = yaw
+		raiz.set_meta("flecha", _pintar_flecha(pivot, sube != cruzando))
+		# El cartel MIRA SIEMPRE DE FRENTE: lo que cambia al cruzar no es su
+		# cara, es la flecha — y se cambia en mitad de la vuelta, con la tabla
+		# de canto.
+		pivot.rotation_degrees.y = CARTEL_YAW
 		# Medio hundido en el agua, como los carteles de escenario: un poste
 		# clavado en el mar no se apoya en él.
 		pivot.position.y = -0.16
 		raiz.set_meta("pivot", pivot)
 	# EL NOMBRE DEL MAR va DEBAJO del letrero, no encima de la tabla: ahí está
-	# la flecha tallada, que es lo que tiene que leerse primero.
+	# la flecha, que es lo que tiene que leerse primero.
 	var rot := Label3D.new()
-	rot.text = CampaignData.sea_name(mar)
+	rot.text = CampaignData.sea_name(mar_actual if cruzando else mar)
+	raiz.set_meta("nombre", CampaignData.sea_name(mar))
 	rot.font_size = 66
 	rot.outline_size = 22
 	rot.modulate = Color(1.0, 0.95, 0.80)
@@ -555,6 +556,7 @@ func _cartel_de_paso(mar: int, y_px: float, desde := mar_actual) -> void:
 	rot.position = Vector3(0.0, -0.62, 0.0) - D_HAT * 0.42
 	rot.no_depth_test = true
 	raiz.add_child(rot)
+	raiz.set_meta("rotulo", rot)
 	node_world["__mar%d" % mar] = pos + Vector3(0.0, alto * 0.55, 0.0)
 
 
@@ -562,9 +564,14 @@ func _cartel_de_paso(mar: int, y_px: float, desde := mar_actual) -> void:
 ## modelo: es lo que permite que los dos sentidos sean el MISMO cartel. Cuelgan
 ## del modelo (no del pivote), así que sus medidas son las del propio `.glb` y
 ## no hay que deshacer la escala que le pone `_spawn_model`.
-func _pintar_flechas(pivot: Node3D) -> void:
+## LA FLECHA VA EN UNA SOLA CARA. Hubo una por cara y el reverso no convencía
+## (lo dijo el usuario): el modelo viene de imagen→3D y su trasera es una tabla
+## sin gracia, así que enseñarla era enseñar lo peor del cartel. Ahora el cartel
+## da la vuelta ENTERA (360°) y la flecha se cambia a mitad de giro, con la
+## tabla de canto: se ve girar, y al volver a mirar de frente apunta al revés.
+func _pintar_flecha(pivot: Node3D, sube: bool) -> Node3D:
 	if pivot.get_child_count() == 0 or not ResourceLoader.exists(FLECHA_TEX):
-		return
+		return null
 	var tex: Texture2D = load(FLECHA_TEX)
 	var quad := QuadMesh.new()
 	quad.size = Vector2(FLECHA_ALTO * tex.get_width() / float(tex.get_height()), FLECHA_ALTO)
@@ -576,22 +583,18 @@ func _pintar_flechas(pivot: Node3D) -> void:
 	mat.alpha_scissor_threshold = 0.4
 	mat.roughness = 0.95
 	mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-	var tabla: Node3D = pivot.get_child(0)
-	for detras in [false, true]:
-		var mi := MeshInstance3D.new()
-		mi.mesh = quad
-		mi.material_override = mat
-		mi.position = FLECHA_CENTRO
-		if detras:
-			# MEDIA VUELTA SOBRE X, no una escala en Y: con la escala negativa
-			# el triángulo se da la vuelta y el descarte de caras traseras se lo
-			# come. Girando sobre X, la cara mira a -Z (o sea, hacia atrás) y de
-			# paso la flecha queda del revés, que es justo lo que tiene que
-			# leerse por detrás.
-			mi.position.z = FLECHA_FONDO
-			mi.rotation_degrees.x = 180.0
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		tabla.add_child(mi)
+	var mi := MeshInstance3D.new()
+	mi.mesh = quad
+	mi.material_override = mat
+	mi.position = FLECHA_CENTRO
+	# Media vuelta sobre su propio eje para que apunte abajo, NO una escala
+	# negativa: la escala le da la vuelta al triángulo y el descarte de caras
+	# traseras se lo come.
+	if not sube:
+		mi.rotation_degrees.z = 180.0
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	pivot.get_child(0).add_child(mi)
+	return mi
 
 
 ## EL BARCO PASA POR DEBAJO Y LE DA MEDIA VUELTA AL CARTEL, que es lo que
@@ -609,14 +612,56 @@ func golpear_cartel(mar: int) -> void:
 		# el tono subido, porque lo que gira aquí es una tabla en su poste, no
 		# un barco entero.
 		Audio.sfx("barco_cruje", 0.0, randf_range(1.18, 1.34))
-		var tw := create_tween()
-		# TRANS_BACK a la salida: el cartel se pasa un poco de la media vuelta y
-		# vuelve, como una tabla que sigue oscilando en su poste después del
-		# empujón. Con una interpolación suave se leía como un giro motorizado.
+		# VUELTA ENTERA (360°) Y LA FLECHA SE CAMBIA A MITAD DE GIRO, con la
+		# tabla de canto: así el cartel acaba mirando de frente otra vez —nunca
+		# se le ve el reverso, que es lo que no convencía— y lo que ha cambiado
+		# es lo que está pintado.
+		# EL TWEEN CUELGA DEL PROPIO CARTEL, no del mapa: al terminar la
+		# travesía los carteles se rehacen, y un tween del mapa seguiría vivo
+		# apuntando a un nodo liberado ("Lambda capture at index 0 was freed").
+		var tw: Tween = pivot.create_tween()
+		# TRANS_BACK a la salida: se pasa un poco de la vuelta y vuelve, como
+		# una tabla que sigue oscilando en su poste después del empujón. Con una
+		# interpolación suave se leía como un giro motorizado.
 		tw.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		tw.tween_property(pivot, "rotation_degrees:y",
-			float(raiz.get_meta("yaw", CARTEL_YAW)), CARTEL_GIRO)
+			pivot.rotation_degrees.y + 360.0, CARTEL_GIRO)
+		var flecha = raiz.get_meta("flecha", null)
+		if flecha != null and is_instance_valid(flecha):
+			# A un cuarto de la vuelta la tabla está de canto y no se lee nada:
+			# ese es el hueco por el que se cambia la flecha sin que se vea.
+			var giro: float = float(flecha.rotation_degrees.z) + 180.0
+			var tf: Tween = flecha.create_tween()
+			tf.tween_interval(CARTEL_GIRO * 0.25)
+			tf.tween_property(flecha, "rotation_degrees:z", giro, 0.0)
+		_cambiar_rotulo(raiz)
 		return
+
+
+## EL NOMBRE DEL MAR SE SUMERGE Y VUELVE A EMERGER YA CAMBIADO (pedido por el
+## usuario): no cambia de golpe, se hunde en el agua mientras el barco termina
+## de pasar y sale con el nombre del mar que queda atrás. El rótulo va con
+## `no_depth_test`, así que el mar no lo tapa por sí solo: lo que vende el
+## chapuzón es que se hunda Y se apague a la vez.
+func _cambiar_rotulo(raiz: Node3D) -> void:
+	var rot = raiz.get_meta("rotulo", null)
+	if rot == null or not is_instance_valid(rot):
+		return
+	var nombre := str(raiz.get_meta("nombre", rot.text))
+	if nombre == rot.text:
+		return
+	var y0: float = rot.position.y
+	var tw: Tween = rot.create_tween()
+	tw.set_trans(Tween.TRANS_SINE)
+	# Se espera a que el barco haya pasado del todo antes de hundirlo.
+	tw.tween_interval(ROTULO_ESPERA)
+	tw.set_parallel(true)
+	tw.tween_property(rot, "position:y", y0 - ROTULO_CALADO, ROTULO_BAJA)
+	tw.tween_property(rot, "modulate:a", 0.0, ROTULO_BAJA)
+	tw.chain().tween_callback(rot.set_text.bind(nombre))
+	tw.set_parallel(true)
+	tw.tween_property(rot, "position:y", y0, ROTULO_SUBE)
+	tw.tween_property(rot, "modulate:a", 1.0, ROTULO_SUBE)
 
 
 func _mat_simple(c: Color) -> StandardMaterial3D:
@@ -848,8 +893,27 @@ func cambiar_de_mar(mar: int, destino_id := "") -> void:
 	# los dos tramos se encadenan con `EASE_IN` y `EASE_OUT`, o sea que el
 	# primero acelera y el segundo frena, sin el frenazo de en medio que dejaba
 	# el `EASE_IN_OUT` de serie.
-	await _viajar_barco(Vector2(CampaignData.LANE_CENTER + CARTEL_ROCE, y_frontera),
-		y_frontera, PASO_VIAJE, Tween.EASE_IN)
+	#
+	# Y EL REPARTO DEL TIEMPO SALE DE LAS DISTANCIAS, no de dos constantes.
+	# Con 0,85 s para el primer tramo y 1,05 para el segundo el barco llegaba
+	# al cartel a 331 px por cuatro fotogramas y salía a 100: no se paraba, pero
+	# el frenazo se veía igual — y es lo que se sentía como una parada junto al
+	# poste. Repartiendo el tiempo total en proporción al camino, la velocidad
+	# es la misma a un lado y a otro del cartel.
+	var lista := CampaignData.ports_of_sea(mar)
+	if lista.is_empty():
+		cambiando_mar = false
+		return
+	var destino := str(lista[0]["id"]) if subiendo else str(lista.back()["id"])
+	if destino_id != "" and CampaignData.sea_of(destino_id) == mar:
+		destino = destino_id
+	var paso := Vector2(CampaignData.LANE_CENTER + CARTEL_ROCE, y_frontera)
+	var meta := _ship_anchor(destino)
+	var d1 := ship_px.distance_to(paso)
+	var d2 := paso.distance_to(meta)
+	var total := PASO_VIAJE + ENTRADA_VIAJE
+	var frac: float = clampf(d1 / maxf(d1 + d2, 1.0), 0.15, 0.85)
+	await _viajar_barco(paso, y_frontera, total * frac, Tween.EASE_IN)
 	if not is_inside_tree():
 		return
 	# El barco está pasando justo al lado del cartel: aquí es donde lo golpea.
@@ -859,15 +923,8 @@ func cambiar_de_mar(mar: int, destino_id := "") -> void:
 	# es de donde se venía, así que se lee como dar media vuelta. Y se viaja
 	# hasta su ANCLAJE, no hasta el carril: así el barco llega ya aparcado y no
 	# hay que colocarlo de golpe al final.
-	var lista := CampaignData.ports_of_sea(mar)
-	if lista.is_empty():
-		cambiando_mar = false
-		return
-	var destino := str(lista[0]["id"]) if subiendo else str(lista.back()["id"])
-	if destino_id != "" and CampaignData.sea_of(destino_id) == mar:
-		destino = destino_id
-	await _viajar_barco(_ship_anchor(destino),
-		CampaignData.map_pos(destino).y, ENTRADA_VIAJE, Tween.EASE_OUT)
+	await _viajar_barco(meta, CampaignData.map_pos(destino).y,
+		total * (1.0 - frac), Tween.EASE_OUT)
 	if not is_inside_tree():
 		return
 	# --- 3) SOLTAR EL MAR VIEJO, que ya ha quedado atrás -------------------
@@ -938,8 +995,16 @@ func _viajar_barco(destino: Vector2, y_camara: float, seg: float,
 	tw.set_trans(Tween.TRANS_SINE).set_ease(suavizado)
 	tw.tween_property(self, "cam_center", y_camara, seg)
 	tw.tween_property(self, "ship_px", destino, seg)
-	tw.tween_property(self, "ship_roll", 6.0 if subiendo else -6.0, seg * 0.35)
-	tw.chain().tween_property(self, "ship_roll", 0.0, seg * 0.4)
+	# EL BALANCEO VA EN SU PROPIO TWEEN, y esto es lo que quitaba la PARADA del
+	# barco al llegar al cartel. Estaba encadenado con `chain()` a los de
+	# arriba, así que su vuelta a cero empezaba en el segundo `seg` y duraba
+	# otro 0,4·seg — y `await tw.finished` esperaba a ESO. O sea que el barco
+	# terminaba su viaje y se quedaba quieto casi medio segundo antes de que
+	# arrancara el tramo siguiente. Suelto, el viaje acaba cuando acaba.
+	var balanceo := create_tween()
+	balanceo.set_trans(Tween.TRANS_SINE)
+	balanceo.tween_property(self, "ship_roll", 6.0 if subiendo else -6.0, seg * 0.35)
+	balanceo.tween_property(self, "ship_roll", 0.0, seg * 0.4)
 	await tw.finished
 
 
