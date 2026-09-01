@@ -115,6 +115,11 @@ const PASO_VIAJE := 0.85
 const ENTRADA_VIAJE := 1.05
 ## Mientras dura, ni se toca otro nodo ni se vuelve a cambiar de mar.
 var cambiando_mar := false
+## EL CARTEL QUE ESTÁ POR GIRAR durante una travesía (el mar al que lleva, o 0
+## si no hay ninguno). Nace enseñando la cara de ANTES y lo voltea el barco al
+## pasar por debajo; sin esto, `_refrescar_carteles` lo dejaría ya volteado al
+## empezar el viaje y la flecha cambiaría sola.
+var cartel_por_girar := 0
 ## El mar cuyos nodos se están construyendo AHORA (lo leen los `add_to_group`
 ## repartidos por `_setup_nodes`, `_setup_route` y `_carteles_de_mar`). Casi
 ## siempre es `mar_actual`; solo cambia mientras se monta el mar de destino de
@@ -460,7 +465,23 @@ const FLECHA_TEX := "res://assets/map/flecha_mar.png"
 ## la tabla es madera modelada a mano y a ras se comería la flecha, dejando
 ## asomar solo sus bordes por los huecos entre tablas.
 const FLECHA_CENTRO := Vector3(0.001, 0.167, 0.068)
+## Y LA OTRA VA DETRÁS, mirando al revés: el cartel tiene una flecha por cara
+## y lo que cambia al cruzar de mar no es el cartel, es qué cara se ve.
+## SU z SE MIDE, NO SE ESPEJA la de delante: la trasera de la tabla está a
+## -0,0815 y el POSTE llega a -0,0713, así que puesta a -0,068 —el espejo de la
+## de delante— la flecha quedaba DENTRO de la madera y solo asomaba lo que
+## sobresalía por los huecos, con el poste tapándole justo el asta (mide 0,092
+## de ancho contra los 0,097 del asta: la cubre entera).
+const FLECHA_FONDO := -0.088
 const FLECHA_ALTO := 0.34
+## Cara de la tabla al frente (yaw 45, como el chef y su mesa en el nivel): el
+## modelo mira a su propio -Z y con la cámara isométrica salía de tres cuartos,
+## con la flecha escorzada — que es lo único que hay que leer de un vistazo.
+const CARTEL_YAW := 45.0
+## EL GIRO DEL CARTEL AL CRUZAR: el barco pasa por debajo y lo "golpea", y el
+## cartel da media vuelta enseñando su otra cara. No es un adorno — es lo que
+## explica por qué la flecha ahora apunta al revés.
+const CARTEL_GIRO := 0.9
 ## Huella a la que se normaliza (unidades de mundo). Se midió contra el nodo
 ## de escenario más pequeño: el cartel tiene que leerse sin competir con él.
 ## **NO ES 3,1 POR CAPRICHO: fija el ALTO en pantalla, y ese alto está
@@ -490,16 +511,22 @@ func _cartel_de_paso(mar: int, y_px: float, desde := mar_actual) -> void:
 	var alto := 1.4
 	if ResourceLoader.exists(CARTEL_MODELO):
 		var pivot := _spawn_model(load(CARTEL_MODELO), pos, CARTEL_FOOT)
-		_pintar_flecha(pivot, sube)
+		_pintar_flechas(pivot)
 		# Los carteles no dan sombra, como los nodos: son geometría de adorno.
 		for m in pivot.find_children("*", "MeshInstance3D", true, false):
 			m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		alto = float(pivot.get_meta("alto", 1.4))
-		# DE CARA A LA CÁMARA (yaw 45, como el chef y su mesa en el nivel): el
-		# modelo viene mirando a su propio -Z y con la cámara isométrica salía
-		# de tres cuartos, con la flecha escorzada — que es lo único que hay
-		# que leer de un vistazo.
-		pivot.rotation_degrees.y = 45.0
+		# QUÉ CARA SE VE: la de delante lleva la flecha de subir, la de detrás
+		# la de bajar. Media vuelta y se lee lo contrario.
+		var yaw := CARTEL_YAW if sube else CARTEL_YAW + 180.0
+		raiz.set_meta("yaw", yaw)
+		# Y si este es el cartel que se está cruzando, nace SIN GIRAR todavía:
+		# lo gira el barco al pasar por debajo (`golpear_cartel`). Puesto ya en
+		# su sitio, la flecha cambiaría sola al empezar la travesía, que es
+		# justo lo que había antes y no explicaba nada.
+		if mar == cartel_por_girar:
+			yaw += 180.0
+		pivot.rotation_degrees.y = yaw
 		# Medio hundido en el agua, como los carteles de escenario: un poste
 		# clavado en el mar no se apoya en él.
 		pivot.position.y = -0.16
@@ -521,11 +548,11 @@ func _cartel_de_paso(mar: int, y_px: float, desde := mar_actual) -> void:
 	node_world["__mar%d" % mar] = pos + Vector3(0.0, alto * 0.55, 0.0)
 
 
-## LA FLECHA VA PINTADA SOBRE LA TABLA, no tallada en el modelo: es lo que
-## permite que los dos carteles sean el MISMO objeto. Cuelga del modelo (no del
-## pivote), así que sus medidas son las del propio `.glb` y no hay que
-## deshacer la escala que le pone `_spawn_model`.
-func _pintar_flecha(pivot: Node3D, sube: bool) -> void:
+## LAS FLECHAS VAN PINTADAS SOBRE LA TABLA, una por CARA, y no talladas en el
+## modelo: es lo que permite que los dos sentidos sean el MISMO cartel. Cuelgan
+## del modelo (no del pivote), así que sus medidas son las del propio `.glb` y
+## no hay que deshacer la escala que le pone `_spawn_model`.
+func _pintar_flechas(pivot: Node3D) -> void:
 	if pivot.get_child_count() == 0 or not ResourceLoader.exists(FLECHA_TEX):
 		return
 	var tex: Texture2D = load(FLECHA_TEX)
@@ -539,17 +566,47 @@ func _pintar_flecha(pivot: Node3D, sube: bool) -> void:
 	mat.alpha_scissor_threshold = 0.4
 	mat.roughness = 0.95
 	mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-	var mi := MeshInstance3D.new()
-	mi.mesh = quad
-	mi.material_override = mat
-	mi.position = FLECHA_CENTRO
-	# Para bajar se gira 180° sobre su propio eje, NO se escala en Y: una escala
-	# negativa le da la vuelta al triángulo y el descarte de caras traseras se
-	# lo comería.
-	if not sube:
-		mi.rotation_degrees.z = 180.0
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	pivot.get_child(0).add_child(mi)
+	var tabla: Node3D = pivot.get_child(0)
+	for detras in [false, true]:
+		var mi := MeshInstance3D.new()
+		mi.mesh = quad
+		mi.material_override = mat
+		mi.position = FLECHA_CENTRO
+		if detras:
+			# MEDIA VUELTA SOBRE X, no una escala en Y: con la escala negativa
+			# el triángulo se da la vuelta y el descarte de caras traseras se lo
+			# come. Girando sobre X, la cara mira a -Z (o sea, hacia atrás) y de
+			# paso la flecha queda del revés, que es justo lo que tiene que
+			# leerse por detrás.
+			mi.position.z = FLECHA_FONDO
+			mi.rotation_degrees.x = 180.0
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		tabla.add_child(mi)
+
+
+## EL BARCO PASA POR DEBAJO Y LE DA MEDIA VUELTA AL CARTEL, que es lo que
+## explica que la flecha pase a apuntar al revés: no cambia el cartel, cambia
+## la cara que se ve. Va SIN await a propósito — el barco sigue su camino
+## mientras el cartel gira detrás, que es lo que se lee como un golpe al pasar.
+func golpear_cartel(mar: int) -> void:
+	for raiz in get_tree().get_nodes_in_group("paso_mar"):
+		if not is_instance_valid(raiz) or int(raiz.get_meta("mar", 0)) != mar:
+			continue
+		var pivot = raiz.get_meta("pivot", null)
+		if pivot == null or not is_instance_valid(pivot):
+			return
+		# Madera crujiendo, y AGUDA: es el crujido del casco (`barco_cruje`) con
+		# el tono subido, porque lo que gira aquí es una tabla en su poste, no
+		# un barco entero.
+		Audio.sfx("barco_cruje", 0.0, randf_range(1.18, 1.34))
+		var tw := create_tween()
+		# TRANS_BACK a la salida: el cartel se pasa un poco de la media vuelta y
+		# vuelve, como una tabla que sigue oscilando en su poste después del
+		# empujón. Con una interpolación suave se leía como un giro motorizado.
+		tw.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(pivot, "rotation_degrees:y",
+			float(raiz.get_meta("yaw", CARTEL_YAW)), CARTEL_GIRO)
+		return
 
 
 func _mat_simple(c: Color) -> StandardMaterial3D:
@@ -760,7 +817,12 @@ func cambiar_de_mar(mar: int, destino_id := "") -> void:
 	_montar_mar(mar)
 	_montar_bordes()
 	_rehacer_ruta()
+	# El cartel de la frontera que se va a cruzar es el del mar VIEJO (visto
+	# desde el nuevo, señala de vuelta). Nace todavía con la cara de antes y lo
+	# gira el barco al pasar.
+	cartel_por_girar = viejo
 	_refrescar_carteles()
+	cartel_por_girar = 0
 	_limites_del_mar()
 	# El scroll tiene que abarcar los DOS mares mientras dura la travesía, o
 	# sus topes cortarían el viaje por la mitad.
@@ -774,6 +836,8 @@ func cambiar_de_mar(mar: int, destino_id := "") -> void:
 		y_frontera, PASO_VIAJE)
 	if not is_inside_tree():
 		return
+	# El barco está justo debajo del cartel: aquí es donde lo golpea.
+	golpear_cartel(viejo)
 	# --- 2) DENTRO DEL MAR NUEVO, hasta el ANCLAJE de su escenario ---------
 	# Al SUBIR se entra por su primer escenario; al BAJAR, por el último — que
 	# es de donde se venía, así que se lee como dar media vuelta. Y se viaja
