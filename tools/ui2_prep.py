@@ -1433,6 +1433,185 @@ MODE_BTN_H = 96
 PALADAR_MULT = "x6"
 
 
+## Ancho al que se exporta la placa de tarjeta de Bonificadores. Se dibuja a
+## 584 en pantalla, asi que casi 1:1; el margen 9-slice se MIDE sobre el PNG
+## exportado (ver `perks_screen.CARTA_MARGIN`).
+CARTA_PERK_W = 440
+
+
+def derive_confirm_buttons() -> None:
+    """`boton_ok.png` NO se genera: se DERIVA de `boton_cerrar.png`.
+
+    Los carteles de confirmacion usaban `boton_si`/`boton_no`, que son PILDORAS
+    anchas pensadas para llevar rotulo al lado del icono: sin texto quedaban
+    con media pastilla vacia, y el usuario pidio botones "del tamano de la X y
+    la V". `boton_cerrar` ya es exactamente eso para el aspa —un boton
+    CUADRADO con su glifo—, asi que el visto se hace con la misma plancha:
+    campo en VERDE y la cruz sustituida por un ganchito, para que los dos se
+    lean como pareja y no como dos botones de sitios distintos.
+
+    El aspa (el "no") no hace falta derivarla: es `boton_cerrar.png` tal cual.
+
+    Trampas ya pagadas, las mismas de `derive_slider_knob`:
+      · la cruz hay que DILATARLA antes de borrarla (su antialias sobrevive y
+        deja el fantasma), y con halo ANCHO, porque va perfilada con una linea
+        de tinta oscura que el filtro por color no detecta;
+      · el hueco se rellena DIFUNDIENDO (Laplace), no interpolando: la cruz
+        toca los cuatro lados del campo y no hay campo bueno a los lados.
+    """
+    import math
+    src = Image.open(OUT / "boton_cerrar.png").convert("RGBA")
+    W, H = src.size
+    px = src.load()
+    cx0, cy0 = (W - 1) / 2.0, (H - 1) / 2.0
+
+    # La CRUZ: crema, poco saturada y cerca del centro (el marco dorado
+    # tambien es claro y no es la cruz).
+    cruz = [[False] * W for _ in range(H)]
+    for y in range(H):
+        for x in range(W):
+            r, g, b, a = px[x, y]
+            if a < 128 or math.hypot(x - cx0, y - cy0) > min(W, H) * 0.34:
+                continue
+            if min(r, g, b) > 165 and (max(r, g, b) - min(r, g, b)) < 70:
+                cruz[y][x] = True
+    assert any(any(f) for f in cruz), "no se ha encontrado la cruz"
+
+    DIL = 6
+    ancha = [[False] * W for _ in range(H)]
+    for y in range(H):
+        for x in range(W):
+            if not cruz[y][x]:
+                continue
+            for dy in range(-DIL, DIL + 1):
+                for dx in range(-DIL, DIL + 1):
+                    if 0 <= y + dy < H and 0 <= x + dx < W:
+                        ancha[y + dy][x + dx] = True
+
+    hueco = [(x, y) for y in range(H) for x in range(W)
+             if px[x, y][3] >= 128 and ancha[y][x]]
+    canal = [[[float(px[x, y][i]) for x in range(W)] for y in range(H)]
+             for i in range(3)]
+    borde = []
+    for x, y in hueco:
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            u, v2 = x + dx, y + dy
+            if 0 <= u < W and 0 <= v2 < H and px[u, v2][3] >= 128 \
+                    and not ancha[v2][u]:
+                borde.append(px[u, v2][:3])
+    media = [sum(c[i] for c in borde) / max(1, len(borde)) for i in range(3)]
+    for x, y in hueco:
+        for i in range(3):
+            canal[i][y][x] = media[i]
+    for _ in range(300):
+        for i in range(3):
+            capa = canal[i]
+            for x, y in hueco:
+                capa[y][x] = 0.25 * (
+                    capa[y][max(0, x - 1)] + capa[y][min(W - 1, x + 1)]
+                    + capa[max(0, y - 1)][x] + capa[min(H - 1, y + 1)][x])
+
+    plancha = Image.new("RGBA", (W, H))
+    dst = plancha.load()
+    for y in range(H):
+        for x in range(W):
+            dst[x, y] = px[x, y]
+    for x, y in hueco:
+        dst[x, y] = (int(round(canal[0][y][x])), int(round(canal[1][y][x])),
+                     int(round(canal[2][y][x])), 255)
+
+    # ROJO -> VERDE. El canal ROJO lleva todo el sombreado del campo, asi que
+    # se usa de factor y el bisel y la sombra del borde se conservan. El
+    # filtro es estrecho a proposito: el marco DORADO tambien tira a rojo,
+    # pero ahi el verde no se queda tan por debajo.
+    VERDE = (46, 132, 58)
+    ROJO_R = 176.0
+    for y in range(H):
+        for x in range(W):
+            r, g, b, a = dst[x, y]
+            if a < 8 or not (r > g + 46 and r > b + 46):
+                continue
+            k = r / ROJO_R
+            dst[x, y] = (min(255, int(VERDE[0] * k)), min(255, int(VERDE[1] * k)),
+                         min(255, int(VERDE[2] * k)), a)
+
+    # EL VISTO, con la silueta del icono del juego (`ic_hecho`) y pintado del
+    # MISMO crema que tenia la cruz: asi los dos botones son el mismo objeto
+    # con otro glifo.
+    crema = (0, 0, 0)
+    n_c = 0
+    for y in range(H):
+        for x in range(W):
+            if cruz[y][x]:
+                c = px[x, y]
+                crema = (crema[0] + c[0], crema[1] + c[1], crema[2] + c[2])
+                n_c += 1
+    crema = tuple(int(c / max(1, n_c)) for c in crema)
+    tick = Image.open(OUT / "ic_hecho.png").convert("RGBA")
+    lado = int(min(W, H) * 0.52)
+    tick = tick.resize((lado, lado), Image.LANCZOS)
+    m = tick.split()[3]
+    # Contorno oscuro alrededor del visto, como lo tiene la cruz.
+    orla = m.filter(ImageFilter.MaxFilter(7))
+    tinta = Image.new("RGBA", tick.size, (58, 30, 10, 255))
+    tinta.putalpha(orla)
+    cuerpo = Image.new("RGBA", tick.size, crema + (255,))
+    cuerpo.putalpha(m)
+    off = ((W - lado) // 2, (H - lado) // 2 - int(min(W, H) * 0.015))
+    plancha.alpha_composite(tinta, off)
+    plancha.alpha_composite(cuerpo, off)
+    save(plancha, "boton_ok")
+
+
+def build_perk_screen() -> None:
+    """Las dos piezas del REDISENO de la pantalla de Bonificadores.
+
+    `carta_perk` es la placa de cada bonificador: madera oscura de nogal con
+    ribete de laton y un remache en cada esquina. Va aparte del pergamino liso
+    de las tarjetas del resto del juego a proposito (pedido por el usuario:
+    "nuevos graficos y arte"): sobre la madera oscura el texto va en CREMA,
+    que es lo que hace a estas tarjetas leerse distintas de una ficha mas.
+
+    `medallon_perk` es el aro de laton portillo que enmarca el icono de cada
+    bonificador. El ESTADO se dice tinendo el aro (gris sin ganar, laton
+    normal ganado, dorado encendido al maximo), no con un rectangulo plano
+    como hacia la version anterior.
+    """
+    carta = drop_white(Image.open(RAW / "perks" / "carta_1.webp")
+        .convert("RGBA"))
+    save(fit_width(solidify(crop_alpha(keep_largest(carta))), CARTA_PERK_W),
+         "carta_perk")
+    aro = drop_white(Image.open(RAW / "perks" / "medallon_4.webp")
+        .convert("RGBA"))
+    # `fill_white_holes` NO: el hueco del aro tiene que quedar TRANSPARENTE y
+    # la inundacion desde los bordes no entra en el... asi que hay que vaciarlo
+    # a mano: se borra todo pixel CLARO y poco saturado del interior (el blanco
+    # del hueco), midiendo desde el centro.
+    aro = _vaciar_centro(crop_alpha(aro, 2))
+    save(fit_max(aro, 168), "medallon_perk")
+
+
+def _vaciar_centro(img: Image.Image) -> Image.Image:
+    """Transparenta el disco BLANCO interior de un aro.
+
+    `drop_white` inunda desde los bordes y el hueco de un aro queda encerrado:
+    sobrevivia como un disco blanco opaco que tapaba el icono. Se recorre el
+    tercio central y se borra lo casi blanco."""
+    img = img.copy()
+    px = img.load()
+    W, H = img.size
+    cx, cy = W // 2, H // 2
+    r = min(W, H) * 0.36
+    for y in range(H):
+        for x in range(W):
+            if (x - cx) ** 2 + (y - cy) ** 2 > r * r:
+                continue
+            c = px[x, y]
+            if c[3] > 0 and min(c[0], c[1], c[2]) > 215                     and max(c[0], c[1], c[2]) - min(c[0], c[1], c[2]) < 26:
+                px[x, y] = (0, 0, 0, 0)
+    return img
+
+
 def build_perk_icons() -> None:
     """Los iconos de los BONIFICADORES permanentes.
 

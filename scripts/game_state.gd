@@ -1061,11 +1061,14 @@ func plato_mas_caro_de_la_carta() -> String:
 const PERK_USO_LINGOTES := 1
 
 
-func comprar_uso_perk(id: String) -> bool:
-	if not is_perk_unlocked(id) or ingots < PERK_USO_LINGOTES:
+## `n` usos DE UNA VEZ: el cartel de compra lleva su "+" para pedir varios, y
+## comprarlos en un bucle guardaria el fichero una vez por uso.
+func comprar_uso_perk(id: String, n := 1) -> bool:
+	n = maxi(n, 1)
+	if not is_perk_unlocked(id) or ingots < PERK_USO_LINGOTES * n:
 		return false
-	ingots -= PERK_USO_LINGOTES
-	add_perk_uses(id, 1)
+	ingots -= PERK_USO_LINGOTES * n
+	add_perk_uses(id, n)
 	save_game()
 	return true
 

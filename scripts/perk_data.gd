@@ -41,6 +41,7 @@ const PERKS: Dictionary = {
 		# "%d%%" de 0.6 imprimía "0%". Quien lo aplica divide entre 100.
 		"levels": [60, 55, 50, 45, 40],
 		"level_text": "Enfriamientos al %d%% de lo normal.",
+		"short_text": "Enfriamiento %d%%",
 	},
 	"ayudante": {
 		"name": "Ayudante de cocina",
@@ -52,6 +53,7 @@ const PERKS: Dictionary = {
 		# Segundos de descanso entre plato y plato.
 		"levels": [60.0, 54.0, 48.0, 40.0, 30.0],
 		"level_text": "Descansa %d s entre plato y plato.",
+		"short_text": "Descanso %d s",
 	},
 	# EXPERIENCIA: devuelve —con creces— el 20% de XP que se recortó a toda la
 	# campaña (ver SkillData.XP_GANANCIA). Se gana BORDANDO un escenario: no
@@ -64,6 +66,7 @@ const PERKS: Dictionary = {
 		# Porcentaje EXTRA de experiencia.
 		"levels": [25, 32, 40, 50, 65],
 		"level_text": "Ganas un %d%% más de experiencia.",
+		"short_text": "Experiencia +%d%%",
 	},
 	"paladar": {
 		"name": "Paladar de capitán",
@@ -73,6 +76,7 @@ const PERKS: Dictionary = {
 		# Tope del multiplicador.
 		"levels": [6, 7, 8, 9, 10],
 		"level_text": "El multiplicador puede llegar a x%d.",
+		"short_text": "Multiplicador x%d",
 	},
 	# El BARCO es el único bonificador que no AÑADE algo nuevo, sino que habilita
 	# una mecánica que ya existía: sin él, su botón no aparece ni en los puertos
@@ -87,6 +91,7 @@ const PERKS: Dictionary = {
 		# Prima EXTRA (en %) sobre lo que paga el barco por su variedad.
 		"levels": [0, 15, 30, 50, 75],
 		"level_text": "El barco paga un %d%% más de prima por variedad.",
+		"short_text": "Prima +%d%%",
 		# EL NIVEL 1 DEL BARCO NO SUMA NADA: lo que da es el barco EN SÍ, que sin
 		# este bonificador no existe. Con la plantilla general decía "paga un 0%
 		# más de prima", que se lee como un bonificador roto.
@@ -144,6 +149,17 @@ static func level_text(id: String, level: int) -> String:
 	var plantilla := str(get_perk(id).get("level_text", ""))
 	if plantilla == "":
 		return ""
+	return plantilla % value_at(id, level)
+
+
+## EL EFECTO EN CORTO ("Enfriamiento 55%"), para el cartel de confirmación:
+## ahí lo que se compara son DOS niveles uno al lado del otro, y con la frase
+## entera ("Los enfriamientos duran un 55% de lo normal") la comparación se
+## perdía dentro de dos párrafos casi iguales.
+static func short_text(id: String, level: int) -> String:
+	var plantilla := str(get_perk(id).get("short_text", ""))
+	if plantilla == "":
+		return level_text(id, level)
 	return plantilla % value_at(id, level)
 
 

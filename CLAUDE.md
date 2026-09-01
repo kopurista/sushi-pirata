@@ -4283,53 +4283,83 @@ La GUÍA lleva su sección ("El canto de sirena").
   · **Perfil** abre `profile_screen` (el cartel de recompensa en pantalla
     propia; ya NO es pestaña de Opciones, que se quedó con Gráficos/Guía/
     Progreso a cuerpo 26).
-  · **Bonificadores** abre `perks_screen`, **rehecha con el lenguaje de
-    Maestrías**: rejilla de tarjetas en dos columnas, icono grande con MARCO
-    POR ESTADO (gris sin conseguir, verde conseguido, ORO al nivel máximo), el
-    nivel en ESTRELLAS —cinco niveles, cinco estrellas, igual que el rango de
-    una maestría—, los usos, el botón de mejorar con su precio dibujado y una
-    FICHA al tocar la tarjeta que enseña QUÉ HACE EN CADA UNO de los cinco
-    niveles con el vigente marcado. Era una lista de la compra: filas de alto
-    libre, una debajo de otra, con el texto peleándose con un botón. Son las
-    dos pantallas donde el jugador reparte oro en mejoras permanentes, así que
-    se leen igual.
-    · **LOS ICONOS VAN CENTRADOS A MANO** (anclas al 0.5 y offsets a media
-      anchura del marco). `set_anchors_preset(PRESET_CENTER_TOP, true)` NO
-      centra nada: conserva los offsets y, al llevarse el ancla al 0.5, empuja
-      el marco MEDIA TARJETA a la derecha — que es como se veían, todos
-      descolgados. Peor todavía porque en ese momento el anfitrión mide 0 (el
-      contenedor aún no ha repartido), así que el "conservar la posición" no
-      tiene contra qué compensar. Es la misma trampa del preset que ya costó
-      el globo de la barra de nivel.
+  · **Bonificadores** abre `perks_screen`, **rehecha entera el 1-9-2026**
+    (pedido por el usuario: "nuevos gráficos y arte... un rediseño
+    exhaustivo"). Habla el idioma de Maestrías —estado por color, el nivel en
+    ESTRELLAS, ficha al tocar— pero con ARTE PROPIO:
+    · Cada bonificador es una **PLACA** de madera de nogal con ribete de latón
+      (`carta_perk.png`, margen 9-slice **34**: por debajo, el estirado parte
+      un remache), a lo ancho de la hoja. Sobre la madera oscura el texto va en
+      CREMA, que es lo que hace que estas tarjetas no se lean como una ficha de
+      pergamino más. Estuvo en rejilla de dos columnas y una placa ancha cabe
+      el medallón, el nombre, las estrellas, el efecto Y la botonera sin
+      apretar nada.
+    · El icono vive en un **MEDALLÓN** de latón (`medallon_perk.png`, aro de
+      portillo) y el ESTADO lo dice el ARO: gris sin ganar, latón ganado y
+      ENCENDIDO hacia el oro al nivel máximo (su `modulate` va por encima de 1,
+      que multiplica), con un halo suave detrás. El icono va DEBAJO del aro en
+      el árbol, así que el latón lo recorta y el dibujo parece metido en el
+      portillo en vez de pegado encima.
+      · **EL HUECO DEL ARO HAY QUE VACIARLO A MANO** (`ui2_prep._vaciar_centro`):
+        `drop_white` inunda desde los bordes y el interior de un aro queda
+        ENCERRADO, así que sobrevivía como un disco blanco opaco que tapaba el
+        icono.
+    · **LOS DOS BOTONES DE CONFIRMAR SON CUADRADOS** (`boton_cerrar.png` y
+      `boton_ok.png`) y del tamaño de su glifo. Las píldoras de
+      `skin_action_button` están pensadas para llevar rótulo AL LADO del icono
+      y sin texto quedaban con media pastilla vacía. `boton_ok` **se DERIVA**
+      de `boton_cerrar` (`ui2_prep.derive_confirm_buttons`): la misma plancha
+      con el campo en verde y la cruz sustituida por el visto del juego, para
+      que los dos se lean como pareja. Las trampas son las de
+      `derive_slider_knob` — halo ANCHO (la cruz va perfilada con tinta oscura
+      que el filtro por color no ve) y relleno por DIFUSIÓN, porque la cruz
+      toca los cuatro lados y no hay campo bueno a los lados.
+    · **LOS CARTELES DE COMPRA VAN EN CORTO** (rediseño pedido por el usuario).
+      Eran cuatro renglones de prosa ("Cuesta 2000 doblones. Te quedarán
+      1774") y lo que el jugador necesita es COMPARAR, así que todo va en filas
+      de chips con la flecha del juego en medio, el ANTES en ROJO y el DESPUÉS
+      en VERDE:
+      `Cocina veloz · Nivel 2 ➜ Nivel 3 · Enfriamiento 55% ➜ 50% ·
+      Coste: 🪙2000 · 🪙3774 ➜ 🪙1774`.
+      El efecto en corto lo da **`PerkData.short_text`** ("Enfriamiento 55%"),
+      distinto del `level_text` de siempre: con la frase entera los dos niveles
+      salían como dos párrafos casi iguales y la comparación se perdía.
+    · **EL CARTEL DE USOS PIDE CUÁNTOS** (`[−] n [+]`, los discos del reparto
+      de Maestrías): el cartel es el sitio donde se decide la cantidad, así que
+      pedir tres es tocar tres veces el más y no abrirlo tres veces. Por eso
+      `GameState.comprar_uso_perk` toma un `n` — en un bucle guardaría el
+      fichero una vez por uso.
+    · **SIN RECUENTO EN LA CABECERA** (lo retiró el usuario): el "4 de 5
+      conseguidos" y la barra de "Niveles 8/25" se leían como estadística de
+      una pantalla que en realidad es un escaparate de compra. La lista empieza
+      arriba del todo.
+    · **UN BONIFICADOR CON SU COMPUERTA CERRADA NO ENSEÑA SU HAZAÑA**
+      (`GameState.perk_gate_open`): dice "Se presenta más adelante en la
+      travesía". Enseñar la condición exacta de algo que todavía no puede caer
+      era mandar al jugador a por un premio imposible.
     · `cocina_veloz` tiene **icono propio** (`perk_veloz.png`, reloj de
       bolsillo con cuchillo y estelas): le estaba robando el suyo al ARCADE.
     · **EL AYUDANTE SON DOS MANOS CON UN "+"** (`perk_ayudante.png`), no la
       cara de Alice: en una rejilla de bonificadores un retrato entre objetos
-      se leía como "un personaje" y no como "una mano de más en la cocina",
-      que es lo que el bonificador hace. La cara de Alice sigue siendo el
-      icono del BOTÓN de la tabla, que es donde sí se la está llamando a ella.
+      se leía como "un personaje" y no como "una mano de más en la cocina".
+      La cara de Alice sigue siendo el icono del BOTÓN de la tabla, que es
+      donde sí se la está llamando a ella.
     · **EL PALADAR LLEVA EL MULTIPLICADOR ESCRITO DENTRO DE LA MONEDA**
       ("x6", un EJEMPLO: el tope real va de x5 a x10 según el nivel). Era la
-      misma moneda con su flecha pero VACÍA, y así no decía de qué iba el
-      bonificador. No se regenera: se ESTAMPA la cifra sobre el original de
-      768 px (`_sellar_mult`) y se reduce después, por lo mismo que las chapas
-      del multiplicador se dibujan en vez de pedirse — el generador no sabe
-      escribir. Y el sitio no se pone a ojo: la moneda es el objeto más ancho
-      de la mitad de abajo y es redonda, así que la fila más ancha da su
-      diámetro y su centro y el borde inferior del alfa da su base.
+      misma moneda con su flecha pero VACÍA. No se regenera: se ESTAMPA la
+      cifra sobre el original de 768 px (`_sellar_mult`) y se reduce después,
+      por lo mismo que las chapas del multiplicador se dibujan en vez de
+      pedirse — el generador no sabe escribir.
     · **"MEJORAR" TIENE CHAPA PROPIA** (`boton_mejorar.png` +
-      `PrepBoard.skin_upgrade_button`): placa de latón sobre marco de madera
-      con remaches y un GALÓN DOBLE hacia arriba grabado en cada extremo, que
-      dice "sube de nivel" sin escribirlo. Va aparte del tablón de madera de
-      todo el juego a propósito: es la única acción de la pantalla y cuesta de
-      500 a 10.000 doblones, así que no podía parecer un "Cerrar" más. Es un
-      SPRITE FIJO, no un 9-slice —su marco es irregular y lleva remaches en las
-      cuatro esquinas—, así que `skin_upgrade_button` fija el alto a partir del
-      ancho con `UPGRADE_ASPECT`; si se regenera la chapa, volver a medirlo.
-    · La tarjeta mide **376** de alto, y el número se CUENTA (icono 104 +
-      nombre + estrellas + texto de hasta dos renglones + usos + la chapa).
-      Estuvo en 268 y en 340, y las dos veces la chapa se salía por el canto
-      inferior justo en las tarjetas de abajo, que son las de dos renglones.
+      `PrepBoard.skin_upgrade_button`): placa de latón con un GALÓN DOBLE hacia
+      arriba grabado en cada extremo, que dice "sube de nivel" sin escribirlo.
+      Es un SPRITE FIJO, no un 9-slice —su marco es irregular y lleva remaches
+      en las cuatro esquinas—, así que el alto sale del ancho con
+      `UPGRADE_ASPECT`; si se regenera la chapa, volver a medirlo.
+    · **EL "+1 USO" ES EL DISCO DE MÁS DEL JUEGO** (`boton_mas.png`) con el
+      lingote montado en su esquina, no la chapa de latón pequeña: esa NO
+      encoge (su margen 9-slice es 36 contra 54 de alto) y los remaches se
+      amontonaban con el "+1" encima de uno.
     Son los permanentes de `PerkData`; ya NO son la pestaña "Mejoras" del
     Inventario.
   · Las gaviotas y las nubes ENTRAN planeando desde arriba (`_sky_in` +
