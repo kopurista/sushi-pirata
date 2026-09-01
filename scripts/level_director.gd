@@ -106,6 +106,22 @@ func _run() -> void:
 			await _nivel_14()
 		"nivel_15":
 			await _nivel_15()
+		"nivel_16":
+			await _nivel_16()
+		"nivel_17":
+			await _nivel_17()
+		_:
+			# RED DE SEGURIDAD. Un `director` declarado en CampaignData SIN su
+			# rama aquí no da ningún error: el match no casa, `_run` devuelve
+			# sin llamar a `_play()` y `narrating` se queda en true para
+			# siempre — así que `level3d._ask_start` se planta esperando su
+			# tope de 90 s y el nivel NO ARRANCA (ni cartel de "¿Comenzamos?",
+			# ni cuenta atrás, ni clientes). Pasó de verdad con los dos
+			# escenarios nuevos del mar 1. Con esto, lo peor que puede ocurrir
+			# es quedarse sin guion; el turno se juega igual y el aviso queda
+			# en consola. `tools/auditar.gd` lo caza además antes de correr.
+			push_warning("Guion declarado sin rama en _run(): %s" % guion)
+			_play()
 
 
 ## Mientras una lección está en curso, TODO el que se siente entra con la
@@ -1284,6 +1300,9 @@ func _nivel_11() -> void:
 ## premio por casualidad.
 ##
 ## No bloquea: se lanza y se queda mirando, como `_vigilar_basura`.
+var _tesoro_cantado := false
+
+
 func _vigilar_tesoro() -> void:
 	if lv == null or lv.collectible_client.is_empty():
 		return
@@ -1322,6 +1341,9 @@ func _vigilar_tesoro() -> void:
 		lineas.append({ "text": "Apúntatelo: cuando lo tengas, **vuelve aquí con él en la carta**. Este no parece de los que cambian de antojo.", "mood": "hablando" })
 	await _say(lineas)
 	_play("Encargo: **%s**." % CampaignData.reto_texto(cfg))
+	# Bandera para los guiones que tienen algo que decir DESPUES del encargo
+	# (el del mapa del tesoro): hablar encima del cliente le pisaria su escena.
+	_tesoro_cantado = true
 
 
 ## EL HÁNDICAP DEL TIPO DE ESCENARIO, una vez por tipo en toda la partida:
@@ -1509,6 +1531,110 @@ func _nivel_14() -> void:
 	])
 	_play()
 	_vigilar_basura()
+
+
+# ------------------------------------------------------------------- nivel 16
+# Ensenada del Maridaje (ESCENARIO 8): EL MARIDAJE. Va pegado al de los postres
+# a propósito (pedido por el usuario): allí David lo menciona de pasada al
+# regalar el mochi —"si le sirves el mochi justo después de un té verde, paga
+# más"— y aquí se hace. Por eso la pareja del ejercicio es EXACTAMENTE esa: lo
+# que se oyó en el 7 es lo que se practica en el 8.
+#
+# Y los dos platos son REGALOS de guion (el té en el 5, el mochi en el 7), así
+# que a estas alturas los tiene cualquiera. La sopa de miso, que era la pareja
+# del primer borrador, ni siquiera existe todavía: es el premio de 3 estrellas
+# del escenario 10.
+
+const MARIDAJE_PICOTEO := "te_verde"
+const MARIDAJE_POSTRE := "mochi"
+const AVISO_MARIDAJE := "Sírvele el **té verde** y, en cuanto se lo termine, el **mochi**."
+
+
+func _nivel_16() -> void:
+	await _say([
+		{ "text": "**Ensenada del Maridaje**. Pocas bocas y ninguna con prisa: hoy se cocina pensando, no corriendo.", "mood": "hablando" },
+		{ "text": "Porque hay platos que **se buscan** entre ellos. Si le sirves uno justo detrás del otro al MISMO cliente, el segundo paga de más.", "mood": "serio" },
+		{ "text": "¡DINERO GRATIS! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "Gratis no, cabezota: por servir en el **orden** bueno. Y no hay que adivinarlo — cada plato lleva escrito con quién casa en su ficha del **recetario**.", "mood": "loro_resignado" },
+	])
+	_play()
+	_vigilar_basura()
+	await _tras_la_preparacion()
+
+	# --- El ejercicio, con alguien ya sentado y comiendo ---
+	await _esperar(func() -> bool:
+		return lv.ended or _comiendo() != null or _progreso() >= 0.30)
+	if lv.ended:
+		return
+	var pb: Control = lv.prep_board
+	var botones: Array = []
+	for rid: String in [MARIDAJE_PICOTEO, MARIDAJE_POSTRE]:
+		if pb.buttons.has(rid):
+			botones.append(pb.buttons[rid])
+	if not botones.is_empty():
+		await _focus_nodes(botones, 14.0)
+	await _say_raised([
+		{ "text": "Ahí la tienes, la pareja de la que te hablé: el **té verde** y el **mochi**. Ese postre casa con ese té.", "mood": "hablando" },
+		{ "text": "Primero el té. Y cuando se lo haya **terminado** —terminado, no servido— le sacas el mochi.", "mood": "serio" },
+		{ "text": "¡EL ORDEN! ¡QUE SE MIRA EL ÚLTIMO QUE COMIÓ! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "Eso mismo: si le cuelas otro plato en medio, se rompe. Pruébalo con uno y verás saltar el aviso sobre su cabeza.", "mood": "feliz" },
+	])
+	_play(AVISO_MARIDAJE)
+
+	# --- Hasta que lo consiga de verdad: la lección se cierra al verlo ---
+	await _esperar(func() -> bool:
+		return lv.ended or lv.maridajes_hechos >= 1)
+	if lv.ended:
+		return
+	await _say([
+		{ "text": "¡**Maridaje**! ¿Has visto el aviso? Eso son doblones que no estaban en la ficha del plato.", "mood": "feliz" },
+		{ "text": "Apúntatelo para toda la travesía, %s: una carta bien armada no son cuatro platos buenos, son **platos que se llevan bien**." % GameState.player_title(), "mood": "hablando" },
+	])
+	_play()
+
+
+# ------------------------------------------------------------------- nivel 17
+# Caleta del Cartógrafo (ESCENARIO 20): LOS MAPAS DEL TESORO. Lo trae un
+# GRUMETE (pedido por el usuario) que no pide un capricho de mesa sino la
+# JORNADA: "si haces un buen servicio, el mapa es tuyo" — o sea las tres
+# estrellas (`"reto": "estrellas"`).
+#
+# SU TRATO LO CANTA ÉL, no David: de eso se encarga `_vigilar_tesoro`, que
+# `_run` monta para cualquier escenario con cliente del tesoro. Este guion
+# ESPERA a que termine (`_tesoro_cantado`) y solo entonces explica el sistema —
+# hablar encima le pisaría su escena, y explicarlo ANTES sería un folleto sobre
+# algo que todavía no le han ofrecido a nadie.
+#
+# Y la lección va AQUÍ y no al cobrar el mapa: el mapa se cobra al CERRAR el
+# turno, y a esas alturas el cartel de resultados ya cierra las cajas de
+# cualquier guion (`level3d._show_results`). Con el trato encima de la mesa, el
+# jugador tiene toda la jornada para saber qué está persiguiendo.
+
+func _nivel_17() -> void:
+	await _say([
+		{ "text": "**Caleta del Cartógrafo**. Puerto pequeño, clientela rara: aquí no todos pagan en oro.", "mood": "hablando" },
+		{ "text": "¿QUE NO PAGAN? ¡PUES QUE COMAN PIEDRAS! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "Hay cosas que valen más que el oro, plumas. Tú sirve, y ya verás.", "mood": "loro_resignado" },
+	])
+	_play()
+	_vigilar_basura()
+
+	# --- El grumete ya ha soltado su trato: ahora sí, qué es un mapa ---
+	await _esperar(func() -> bool: return lv.ended or _tesoro_cantado)
+	if lv.ended:
+		return
+	await _pausa(0.7)
+	if lv.ended:
+		return
+	await _say([
+		{ "text": "Un **mapa del tesoro**, %s. Y no es un adorno de camarote: es un **encargo aparte** de la travesía." % GameState.player_title(), "mood": "hablando" },
+		{ "text": "Un mapa no te manda a otro sitio: te manda a **cocinar de otra manera**. Dar tres platos a cuatro bocas distintas, encadenar maridajes, cerrar sin tirar nada...", "mood": "serio" },
+		{ "text": "Lo cumples en la jornada que quieras y en el escenario que quieras. No es otra travesía: es la misma, mirando otra cosa.", "mood": "hablando" },
+		{ "text": "¡Y LOS HAY FÁCILES Y LOS HAY BRUTALES! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+		{ "text": "Tres marcas: **fácil**, **medio** y **difícil**. Los difíciles te cambian la jornada por debajo —clientela impaciente, reloj encima, tropiezos que se pagan— y por eso pagan más **oro** y más **experiencia**.", "mood": "hablando" },
+		{ "text": "Los llevas **sin abrir** hasta que los abras. Se abren en el **mapa de la travesía**, en el tablón de abajo, y ahí eliges cuál llevas armado — **uno cada vez**, o acabas persiguiendo seis cosas y no cumples ninguna.", "mood": "serio" },
+	])
+	_play("Cierra la jornada con **3 estrellas** y el mapa es tuyo.")
 
 
 # ---------------------------------------------------------------- mar 2 (8)

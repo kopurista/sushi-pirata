@@ -838,6 +838,7 @@ func _ready() -> void:
 	# MISIONES DE MAPA: casi todos sus objetivos son "en una misma jornada",
 	# asi que el progreso arranca de cero en cada partida.
 	GameState.treasure_reset()
+	_aplicar_mods_del_mapa()
 	_apply_perks()
 	# TUTORIAL: sin horario de llegadas ni fase de preparación — manda el guion
 	# de David (tutorial_director), que trae clientes y arranca o para el reloj.
@@ -3092,6 +3093,10 @@ func _process(delta: float) -> void:
 	# lleva el `_process` de GameState, que cuenta también los menús.
 	if not ended:
 		play_time += delta
+		# El reloj PROPIO del mapa del tesoro (ver `_tick_mapa`), que no es
+		# el del escenario: una isla no tiene reloj y un abordaje tiene el
+		# suyo, asi que la mision trae el suyo aparte.
+		_tick_mapa(delta)
 	# Contadores de maestria del HUD. Es una comparacion de tres enteros: solo
 	# toca las etiquetas cuando una cifra cambia de verdad.
 	_refresh_skill_counters()
@@ -4011,6 +4016,7 @@ func _on_client_finished(report: Dictionary, seat_idx: int) -> void:
 	# siguiente que se marche de vacío pagará un escalón más.
 	if bool(report.get("vacio", penalty > 0)):
 		empty_leavers += 1
+		mapa_tropiezo("vacio")
 		# PUERTO: al tercer vacío se pierde el escenario, como en el arcade.
 		if vacio_pierde:
 			_update_vacios_puerto()
@@ -4066,10 +4072,18 @@ func _check_treasure() -> void:
 
 ## ¿Ha cumplido el cliente del tesoro lo que pedía? Sin `reto` en el puerto es
 ## "N platos", que es como funcionaba antes de que existieran los encargos.
-## `hasta_el_final` NO se mira aquí: ese se resuelve al cerrar el turno.
+##
+## DOS ENCARGOS NO SE PUEDEN MIRAR AQUÍ y por eso salen por arriba:
+## `hasta_el_final` (pide que el cliente siga sentado al acabar el turno) y
+## `estrellas` (pide una jornada de N estrellas). Los dos se resuelven al
+## cerrar. Y no basta con "no tratarlos": cayendo en el `_:` de abajo se
+## resolvían como "N platos" con la `n` del encargo, así que el del grumete del
+## mapa habría soltado su mapa al tercer plato — el reto entero, regalado.
 func _reto_cumplido() -> bool:
 	var cfg := collectible_client
 	var reto := str(cfg.get("reto", "platos"))
+	if reto in ["hasta_el_final", "estrellas"]:
+		return false
 	var n := int(cfg.get("n", cfg.get("plates", 3)))
 	var comidos: Array = treasure_client.eaten_ids
 	match reto:
@@ -4169,6 +4183,77 @@ func _check_treasure_al_cerrar() -> void:
 	if not treasure_client in seat_clients:
 		return
 	_entregar_tesoro()
+
+
+## ------------------------------------------------------- MODS DEL MAPA
+##
+## LO QUE UN MAPA DEL TESORO LE HACE A LA JORNADA mientras está armado. Es lo
+## que separa las tres marcas: un mapa difícil no pide "lo mismo pero más
+## veces", pide lo mismo con la cocina en contra. Se aplican sobre CUALQUIER
+## escenario, así que salen de las mismas perillas que ya tenía el nivel y no
+## de un camino paralelo.
+##
+## OJO CON EL SENTIDO DE `patience_mult`: en este archivo MÁS es MÁS paciencia
+## (el arcade lo baja con `*= 0.985` por oleada). Así que "la clientela se
+## impacienta un 30% más rápido" se aplica DIVIDIENDO, no multiplicando.
+var mapa_vidas := 0             ## tropiezos que quedan (0 = el mapa no las usa)
+var mapa_falla := ""            ## qué las gasta: "cubo", "vacio" o "maridaje"
+var mapa_reloj := 0.0           ## segundos que le quedan al mapa (0 = sin reloj)
+
+
+func _aplicar_mods_del_mapa() -> void:
+	if GameState.is_tutorial():
+		return
+	var d: Dictionary = TreasureData.mods(GameState.treasure_map())
+	if d.is_empty():
+		return
+	patience_mult /= maxf(float(d.get("paciencia", 1.0)), 0.01)
+	bite_speed_mult *= float(d.get("bocado", 1.0))
+	mapa_reloj = float(d.get("tiempo", 0))
+	mapa_vidas = int(d.get("vidas", 0))
+	mapa_falla = str(d.get("falla", ""))
+
+
+## Un tropiezo de los que gasta vida. Lo llaman los sitios donde ya se sabía
+## que algo había salido mal; si el mapa no cuenta ESE tropiezo, no pasa nada.
+func mapa_tropiezo(clase: String) -> void:
+	if mapa_vidas <= 0 or clase != mapa_falla or GameState.treasure_bloqueado:
+		return
+	mapa_vidas -= 1
+	if mapa_vidas > 0:
+		_texto_cinta("Mapa: te queda%s %d fallo%s"
+				% ["" if mapa_vidas == 1 else "n", mapa_vidas,
+					"" if mapa_vidas == 1 else "s"])
+		return
+	GameState.treasure_bloqueado = true
+	_texto_cinta("¡El mapa ya no cuenta hoy!")
+
+
+## El reloj PROPIO del mapa, que no es el del escenario: una isla no tiene
+## reloj y un abordaje tiene el suyo, así que la misión trae el suyo aparte y
+## lo único que hace al agotarse es dejar de contar.
+func _tick_mapa(delta: float) -> void:
+	if mapa_reloj <= 0.0 or GameState.treasure_bloqueado:
+		return
+	mapa_reloj -= delta
+	if mapa_reloj <= 0.0:
+		mapa_reloj = 0.0
+		GameState.treasure_bloqueado = true
+		_texto_cinta("¡Se acabó el tiempo del mapa!")
+
+
+## El encargo `estrellas` (el grumete del mapa: "si haces un buen servicio, el
+## mapa es tuyo") no depende de lo que haya comido NADIE, sino de cómo ha ido
+## la jornada entera — así que es el único que se resuelve con las estrellas ya
+## contadas, dentro de `_finalize_results`. Ni siquiera hace falta que el
+## cliente siga sentado: prometió el mapa por el servicio, no por su mesa.
+func _check_treasure_estrellas(estrellas: int) -> void:
+	if treasure_given or collectible_client.is_empty():
+		return
+	if str(collectible_client.get("reto", "platos")) != "estrellas":
+		return
+	if estrellas >= int(collectible_client.get("n", 3)):
+		_entregar_tesoro()
 
 
 ## DINERO BASE: solo el precio de los platos. Es lo que marca el contador del
@@ -5044,6 +5129,12 @@ func _add_extra_clients() -> void:
 ## nace vacío con el nivel y muere con él.
 var platos_receta: Dictionary = {}
 
+## Cuántos MARIDAJES se han acertado en esta jornada. Lo sube `client3d` en el
+## mismo sitio donde ya detecta la pareja para el mapa del tesoro, y lo lee el
+## guion del maridaje para saber que el jugador lo ha CONSEGUIDO — no basta con
+## explicarlo: la lección se cierra cuando salta el aviso en pantalla.
+var maridajes_hechos := 0
+
 
 func _on_dish_served(recipe_id: String, price_override: int = 0, extras: Array = [],
 		level_override: int = 0, eat_mult_override: float = 0.0) -> void:
@@ -5142,6 +5233,8 @@ func _on_plate_discarded(recipe_id: String, plate: Node3D = null) -> void:
 	Audio.sfx("basura")
 	# Logro "aquí no se tira nada": la partida deja de ser limpia.
 	plates_wasted += 1
+	# ...y si el mapa armado cuenta los platos al cubo, una vida menos.
+	mapa_tropiezo("cubo")
 	# DÓNDE ha caído, para que el guion del nivel 1 pueda enfocar el cubo
 	# con el plato todavía volcándose dentro.
 	if plate != null and is_instance_valid(plate):
@@ -5323,6 +5416,11 @@ func _finalize_results() -> void:
 	# en caja — tres clientes yéndose sin comer pierden la jornada entera.
 	if lost_by_leavers:
 		stars = 0
+	# EL GRUMETE DEL MAPA cobra aquí: su encargo es la jornada entera, así que
+	# es el primer instante en que se sabe si se ha cumplido. Va DESPUÉS de
+	# todos los recortes (jefe y vacíos), o una jornada perdida seguiría
+	# pagándole el mapa.
+	_check_treasure_estrellas(stars)
 
 	# Lo que se cobra: platos + propinas + las primas por lo que ha sobrado.
 	bonus_clients = 0

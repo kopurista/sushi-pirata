@@ -395,6 +395,10 @@ var current_lucky := false
 var _leave_when_done := false
 var level_ref: Node = null
 
+## ¿Ya se ha apuntado este comensal en la misión de mapa "P platos a N clientes
+## distintos"? Es por CLIENTE y no por plato: ver `_roll_plate_tip`.
+var _contado_para_mapa := false
+
 ## El modelo cuelga de "body": el bob del andar y el ajuste de sentado van en
 ## body.position.y, y el giro de orientacion en la raiz.
 var _body: Node3D
@@ -1331,6 +1335,13 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 		var mar: Dictionary = recipe["maridaje"]
 		if str(eaten_ids[eaten_ids.size() - 2]) in (mar.get("con", []) as Array):
 			GameState.treasure_bump("maridajes")
+			if level_ref != null and "maridajes_hechos" in level_ref:
+				level_ref.maridajes_hechos += 1
+		elif level_ref != null and level_ref.has_method("mapa_tropiezo"):
+			# EL MARIDAJE FALLADO: un plato que PODÍA casar y se ha servido
+			# detrás de otra cosa. Solo lo cobran los mapas que declaran
+			# `"falla": "maridaje"`; para los demás no pasa nada.
+			level_ref.mapa_tropiezo("maridaje")
 	if recipe.get("leaves_seat", false) or recipe.get("snack", false):
 		if recipe.get("clears_boredom", false):
 			_limpiar_paladar()
@@ -1841,6 +1852,16 @@ func _roll_plate_tip() -> int:
 	GameState.treasure_record("un_cliente", plates)
 	if client_type == "G":
 		GameState.treasure_record("cliente_lleno", plates)
+	# "Dale al menos P platos a N clientes DISTINTOS": se cuenta UNA sola vez
+	# por comensal, justo al cruzar su P-esimo plato. Sumando por plato, un solo
+	# cliente comilon cumpliria la mision entera — que es justo lo contrario de
+	# lo que pide (repartir en vez de volcarse en uno).
+	if not _contado_para_mapa:
+		var mapa := GameState.treasure_map()
+		if str(mapa.get("tipo", "")) == "clientes_platos" \
+				and plates >= int(mapa.get("p", 3)):
+			_contado_para_mapa = true
+			GameState.treasure_bump("clientes_platos")
 	if rules.is_empty() or plates < int(rules.start):
 		return 0
 	var ramp: int = int(rules.get("ramp", rules.start))

@@ -2061,13 +2061,21 @@ func set_treasure_active(id: String) -> void:
 ## Al empezar una jornada. El progreso es POR JORNADA en casi todos los tipos.
 func treasure_reset() -> void:
 	treasure_progress = 0
+	treasure_bloqueado = false
+
+
+## LA MISIÓN SE HA CAÍDO POR HOY: se acabó su reloj (`mods.tiempo`) o se
+## gastaron sus vidas (`mods.vidas`). No se pierde el mapa —sigue armado— pero
+## esta jornada ya no cuenta, así que los sucesos dejan de sumarle. Lo levanta
+## `level3d` y lo baja `treasure_reset` con la jornada siguiente.
+var treasure_bloqueado := false
 
 
 ## Suma progreso al mapa armado si el suceso es del tipo que pide. Lo llaman
 ## los sitios donde YA ocurria el suceso (level3d, client3d, prep_board), asi
 ## que no hay contadores nuevos en la partida.
 func treasure_bump(tipo: String, cuanto := 1) -> void:
-	if treasure_active == "":
+	if treasure_active == "" or treasure_bloqueado:
 		return
 	var m: Dictionary = TreasureData.por_id(treasure_active)
 	if m.is_empty() or str(m.get("tipo", "")) != tipo:
@@ -2079,12 +2087,21 @@ func treasure_bump(tipo: String, cuanto := 1) -> void:
 ## el multiplicador de un cliente o los platos de uno solo, donde lo que vale
 ## es el mayor alcanzado y no la suma).
 func treasure_record(tipo: String, valor: int) -> void:
-	if treasure_active == "":
+	if treasure_active == "" or treasure_bloqueado:
 		return
 	var m: Dictionary = TreasureData.por_id(treasure_active)
 	if m.is_empty() or str(m.get("tipo", "")) != tipo:
 		return
 	treasure_progress = maxi(treasure_progress, valor)
+
+
+## EL MAPA ARMADO, o {} si no hay ninguno. Es la única puerta por la que el
+## nivel pregunta por la misión en curso: sus modificadores (`TreasureData.
+## mods`) los lee `level3d` al montar, y su `p` lo mira `client3d`.
+func treasure_map() -> Dictionary:
+	if treasure_active == "":
+		return {}
+	return TreasureData.por_id(treasure_active)
 
 
 ## ¿Está cumplido el mapa armado? Lo pregunta `level3d` al cerrar la jornada.
@@ -2103,7 +2120,12 @@ func claim_treasure() -> Dictionary:
 		return {}
 	var m: Dictionary = TreasureData.por_id(treasure_active)
 	var p: Dictionary = m.get("premio", {})
-	money += int(p.get("oro", 0))
+	# EL ORO Y LA EXPERIENCIA SALEN DE LA MARCA DEL MAPA (pedido por el
+	# usuario: "dependiendo de la dificultad de la misión, dará más o dará
+	# menos"), no de su ficha. Escritos mapa a mapa, tarde o temprano un
+	# difícil acabaría pagando menos que un fácil sin que nadie se enterara.
+	money += TreasureData.oro(m)
+	add_chef_xp(TreasureData.xp(m))
 	ingots += int(p.get("lingotes", 0))
 	bait += int(p.get("cebo", 0))
 	if int(p.get("arroz", 0)) > 0:

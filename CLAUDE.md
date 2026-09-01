@@ -84,34 +84,71 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   y `easy_next` se fueron con los potenciadores manuales que los encendían, y
   con ellos `_simplify_steps` y `recycle_recipe`.)
 
-## LA CAMPAÑA: EL MAR 1 SON 20 ESCENARIOS (reparto del 19-8-2026)
+## LA CAMPAÑA: EL MAR 1 SON 25 ESCENARIOS (reordenados el 1-9-2026)
 
-**9 islas, 6 puertos, 4 abordajes y 1 CUEVA** (el tipo nuevo, reservado a los
+**10 islas, 9 puertos, 5 abordajes y 1 CUEVA** (el tipo nuevo, reservado a los
 jefes). El detalle en la cabecera de `campaign_data.gd`; los ids NO se
-renumeran (el número que ve el jugador es la posición en `PORTS`).
+renumeran (el número que ve el jugador es la posición en `PORTS`, y por eso
+`nivel_16` es el 8 y `nivel_15` el 25).
+
+**EL RITMO ES LECCIÓN → PRÁCTICA** (pedido por el usuario): detrás de cada
+escenario que explica algo va uno que no explica nada, para poder aplicarlo.
+No sale perfecto y no puede salir: hay **14 lecciones contra 10 prácticas**,
+así que con 10 prácticas solo caben 11 bloques y cuatro lecciones van
+forzosamente pegadas a otra. **Se eligieron las cuatro parejas, no se dejaron
+al azar**, y cada una tiene su motivo:
+- **1+2** (jornada + cajas): las dos más suaves, y el arranque necesita ritmo.
+- **4+5** (picoteo + multiplicador/tienda): el picoteo es un regalo y dos
+  frases; el que pesa es el 5.
+- **7+8** (postres + maridaje): **pedida por el usuario**. En el 7 David
+  menciona el maridaje al regalar el mochi y en el 8 se practica, con la
+  MISMA pareja que nombró (té verde → mochi).
+- **22+23** (Alice se enrola + Alice explica los bonificadores): un solo arco
+  de personaje partido en dos jornadas.
 
 | # | Escenario | Tipo | Lección |
 |---|---|---|---|
 | 1 | Cala Tortuga | isla | paciencia, bocado, oro y papelera |
 | 2 | Playa del Coco | isla | las CAJAS (4 platos guardados) |
-| 3 | Ensenada del Mero | isla | PRÁCTICA |
+| 3 | Ensenada del Mero | isla | PRÁCTICA (3★: despensa de salmón×3 y aguacate×2) |
 | 4 | Isla del Bambú | isla | el PICOTEO (edamame) |
 | 5 | Arrecife del Ron | puerto | multiplicador, hastío y paladar; abre la TIENDA |
-| 6 | Caleta del Farol | isla | PRÁCTICA (3★: despensa de salmón×3 y aguacate×2) |
+| 6 | Caleta del Farol | isla | PRÁCTICA |
 | 7 | Cala del Calamar | isla | POSTRES, propinas y potenciadores |
-| 8 | Bahía del Kraken | puerto | los EXTRAS |
+| 8 | Ensenada del Maridaje | isla | el MARIDAJE (té verde → mochi), con ejercicio |
 | 9 | Rada del Pulpo | isla | PRÁCTICA (3★: 3 usos de cada extra) |
-| 10 | Estrecho del Rayo | abordaje | primer ABORDAJE, EL pirata y su BANDERA |
-| 11 | Isla de Gades | isla | CAI y la PESCA |
-| 12 | Paso de las Barracudas | abordaje | PRÁCTICA (3★: 1 cebo) |
-| 13 | Puerto Tormenta | puerto | SIN lección: el examen antes de Pablo |
-| 14 | Flota de Pablo | abordaje | CAPITANES, corte lento y LINGOTES |
-| 15 | Cala del Hambre | isla | bocado acelerado y el futomaki |
-| 16 | Ensenada del Naufragio | puerto | el capitán del TESORO pide una receta (sin lección) |
-| 17 | Rada de los Dos Fuegos | abordaje | ALICE y el AYUDANTE |
-| 18 | Muelle de las Bandejas | puerto | ALICE y los BONIFICADORES |
-| 19 | Bruma del Estrecho | puerto | la víspera, a pulso |
-| 20 | Cueva del Kappa | cueva | el JEFE; superarlo abre el ARCADE |
+| 10 | Bahía del Kraken | puerto | los EXTRAS |
+| 11 | Rada de las Tres Anclas | puerto | PRÁCTICA (el primer puerto de carta libre) |
+| 12 | Estrecho del Rayo | abordaje | primer ABORDAJE, EL pirata y su BANDERA |
+| 13 | Paso de las Barracudas | abordaje | PRÁCTICA (3★: 1 cebo) |
+| 14 | Isla de Gades | isla | CAI y la PESCA |
+| 15 | Puerto Tormenta | puerto | SIN lección: el examen antes de Pablo |
+| 16 | Flota de Pablo | abordaje | CAPITANES, corte lento y LINGOTES |
+| 17 | Paso de los Cangrejos | abordaje | PRÁCTICA |
+| 18 | Cala del Hambre | isla | bocado acelerado y el futomaki |
+| 19 | Ensenada del Naufragio | puerto | el capitán del TESORO pide una receta (sin lección) |
+| 20 | Caleta del Cartógrafo | puerto | los MAPAS DEL TESORO: un GRUMETE los trae |
+| 21 | Muelle del Farolero | puerto | PRÁCTICA |
+| 22 | Rada de los Dos Fuegos | abordaje | ALICE y el AYUDANTE |
+| 23 | Muelle de las Bandejas | puerto | ALICE y los BONIFICADORES |
+| 24 | Bruma del Estrecho | puerto | la víspera, a pulso |
+| 25 | Cueva del Kappa | cueva | el JEFE; superarlo abre el ARCADE |
+
+**AL REORDENAR LA CAMPAÑA HAY QUE REHACER CUATRO COSAS, y ninguna avisa si se
+olvida** (las cuatro se pagaron al ampliar el mar de 20 a 25):
+1. **`MAP_POS`**: la altura es `3220 − 312·(pos−1)` y el carril sale del ciclo
+   [CENTRO, IZQUIERDA, DERECHA] contado desde el 1. Metidos a ojo, el ciclo se
+   desfasó del 19 en adelante y la travesía dejó de serpentear.
+2. **`KINDS`**: `get_kind` cae a "isla" cuando falta, sin decir nada — un
+   abordaje se jugó SIN RELOJ y dos puertos salieron con palmeras.
+3. **`client_mix`**: los piratas no suben hasta el primer abordaje (hoy el 12)
+   y los capitanes hasta Pablo (el 16). Un escenario que se mueva hacia atrás
+   se lleva consigo clientela que todavía no existe.
+4. **`chef_rec`**: se MIDE con `tools/medir_chef_rec.gd` (el nivel al que se
+   llega bordando todo lo anterior, con la curva real), no se estima. La
+   fórmula vieja `ceil(n × 1.09)` está muerta.
+Y después, **`tools/auditar.gd`**: ya comprueba el tipo, el carril, los guiones
+declarados sin rama y los premios repetidos.
 
 **LOS HÁNDICAPS SON DEL TIPO, no del escenario** (pedido por el usuario, para
 que cada tipo tenga SU dificultad como la isla tiene su carta cerrada):
@@ -522,6 +559,62 @@ justo al volver de un nivel.
 **Explicaciones de PANTALLA**: los LOGROS y el INVENTARIO se explican la
 primera vez que se entra en ellos (`logros_intro_done` /
 `inventario_intro_done`), no desde un nivel.
+
+## LOS MAPAS DEL TESORO: LAS MISIONES SECUNDARIAS (montadas el 1-9-2026)
+
+`scripts/treasure_data.gd` (datos, 50 mapas), `treasure_screen.gd` (la mesa) y
+el estado en `GameState` (`treasure_open`, `treasure_done`, `treasure_active`,
+`treasure_progress`, `treasure_bloqueado`). Se entra por el tablón de abajo del
+mapa de la travesía.
+
+**QUÉ LAS SEPARA DE LA CAMPAÑA, que es lo que las justifica**: un escenario de
+aventura se gana con ORO, y aquí el oro da igual. Un mapa pide una **FORMA de
+jugar** —llevar a alguien al x5, repartir en vez de volcarse en uno, no tirar
+ni un plato, encadenar maridajes— así que **se cumplen jugando escenarios que
+ya existen**, con otro objetivo en la cabeza. No hacen falta escenarios nuevos
+y no compiten con la campaña: la reinterpretan.
+
+- **Se lleva UNO ARMADO cada vez** (`treasure_active`). Con todos activos,
+  cerrar una jornada cobraría media docena de carambola y ninguna se sentiría
+  ganada.
+- **TRES MARCAS: fácil, medio y difícil** (pedido por el usuario), y no son una
+  etiqueta. La marca decide **lo que paga** (150/340/700 doblones y 40/95/200
+  de experiencia, `DIF_ORO` y `DIF_XP`) **y lo que el mapa le hace a la
+  jornada** mientras está armado. Un mapa difícil no pide "lo mismo pero más
+  veces": pide lo mismo con la cocina en contra.
+- **EL ORO Y LA XP SALEN DE LA MARCA, no se escriben mapa a mapa.** Con dos
+  fuentes de verdad, tarde o temprano un difícil acaba pagando menos que un
+  fácil y nadie se entera. Lo que sí se escribe a mano es el premio ESPECIAL
+  (lingotes, cebo, despensa, coleccionable), que es lo que los distingue.
+- **LOS MODIFICADORES** (`mods`) salen de las perillas que el nivel ya tenía,
+  no de un camino paralelo: `paciencia` (la barra baja más deprisa),
+  `bocado` (mastican más rápido y vuelven antes a pedir), `tiempo` (segundos
+  para cumplirlo) y `vidas` + `falla` (tropiezos permitidos, y de qué clase:
+  "cubo", "vacio" o "maridaje").
+  · **OJO CON EL SENTIDO DE `patience_mult`**: en `level3d` MÁS es MÁS
+    paciencia (el arcade la baja con `*= 0.985` por oleada), así que
+    "impacientarse un 30% más rápido" se aplica **dividiendo**.
+  · **EL RELOJ DEL MAPA ES SUYO, no el del escenario** (`_tick_mapa`): una
+    isla no tiene reloj y un abordaje tiene el suyo, así que la misión trae el
+    suyo aparte y lo único que hace al agotarse es dejar de contar.
+  · **Fallar no pierde el mapa, lo aparca por hoy** (`treasure_bloqueado`, que
+    capa `treasure_bump`/`treasure_record`): sigue armado y la jornada
+    siguiente vuelve a contar. `treasure_reset` lo baja.
+- **LOS OBJETIVOS SON 17 TIPOS** y ninguno necesita contadores nuevos: se
+  enganchan donde el suceso YA ocurría. El de estreno es **`clientes_platos`**
+  ("dale al menos P platos a N clientes distintos"), que se cuenta **una vez
+  por comensal** al cruzar su P-ésimo plato — sumando por plato, un solo
+  comilón cumpliría la misión entera, que es justo lo contrario de lo que
+  pide. La misma misión reaparece en las tres marcas (t01 fácil 3 platos a 4
+  bocas, t18 medio 3 a 8 con la clientela impaciente, t35 difícil 5 a 8 en
+  60 s), para que se vea que la marca no cambia el QUÉ sino el CÓMO.
+- **UN TIPO QUE NADIE APUNTA ES UNA MISIÓN IMPOSIBLE**, y no da ningún error:
+  el mapa se arma, se juega y su contador se queda a cero para siempre. Pasó
+  con `punto_perfecto`. `tools/auditar.gd` lo comprueba ahora, igual que la
+  marca y los modificadores.
+- **Los entrega** el grumete del escenario 20, los cofres de la PESCA y el
+  bonus diario. El primero de todos es el del grumete, y por eso `t01` es el
+  más sencillo del catálogo.
 
 ## EL MAR 2: EL MAR DE LAS SIRENAS (25 escenarios, montado el 23-8-2026)
 
@@ -3008,17 +3101,13 @@ La GUÍA lleva su sección ("El canto de sirena").
     del 12 o el primer cofre de la pesca, lo que llegue antes. Estuvo soltado a
     palo seco al empezar el puerto del 12, antes de que hubiera nada que
     enseñar, y sonaba a folleto.
-  · **LAS MISIONES DE MAPA DEL TESORO (SISTEMA PENDIENTE, reparto decidido
-    el 31-8-2026 por el usuario — GUARDAR)**: los mapas del tesoro serán
-    misiones secundarias con objetivos específicos, accesibles desde el menú
-    de mapas del modo aventura (el botón del submenú del mapa ya existe). El
-    coleccionable `mapa_tesoro` desbloquea un mapa ESPECIAL. Piezas que
-    saldrán de esas misiones: **canon** (el cañón de cubierta), **panuelo**
-    (que estrenará el arte de David), **pluma_loro** (una misión de dar de
-    comer A GIGI), **pluma_escribir**, **saco_cafe**, **marca_negra** (se
-    sacó del sorteo de la pesca) y **tapones_cera** (cuyo efecto ya está
-    implementado: cada canto de sirena dura un tercio menos,
-    `level3d._empezar_canto`).
+  · **SIETE PIEZAS SALEN DE LAS MISIONES DE MAPA DEL TESORO** (ver su
+    sección, más abajo): **canon** (el cañón de cubierta), **panuelo** (que
+    estrenará el arte de David), **pluma_loro**, **pluma_escribir**,
+    **saco_cafe**, **marca_negra** (se sacó del sorteo de la pesca) y
+    **tapones_cera** (cuyo efecto ya está implementado: cada canto de sirena
+    dura un tercio menos, `level3d._empezar_canto`). Eran justo las siete que
+    no se ganaban de ninguna otra forma.
   · **Disparadores nuevos de la misma tanda**: `timon` a las **45 estrellas**
     (`estrellas_totales`; la vía de las 5 vueltas murió — sin timón no hay
     timón que girar), `cofre` al pescar el **pez cofre** (vía álbum, como la

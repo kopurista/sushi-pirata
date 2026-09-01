@@ -120,7 +120,30 @@ func _init() -> void:
 		if TreasureData.texto_objetivo(m).begins_with("Objetivo desconocido"):
 			print("  ! %s: sin frase de objetivo" % mid)
 			fallos += 1
-	print("  mapas: %d" % TreasureData.total())
+		# LA MARCA decide lo que paga y lo que le hace a la jornada, asi que un
+		# mapa sin ella cae a "facil" en silencio: pagaria de menos y no
+		# aplicaria ningun modificador.
+		if not str(m.get("dificultad", "")) in TreasureData.DIFICULTADES:
+			print("  ! %s: marca desconocida '%s'" % [mid, m.get("dificultad", "")])
+			fallos += 1
+		var mods: Dictionary = TreasureData.mods(m)
+		for k: String in mods.keys():
+			if not k in ["paciencia", "bocado", "tiempo", "vidas", "falla"]:
+				print("  ! %s: modificador desconocido '%s'" % [mid, k])
+				fallos += 1
+		# `vidas` sin `falla` no las gasta nadie, y `falla` sin `vidas` no
+		# existe: las dos cosas se leen como "un mapa dificil" y no lo son.
+		if mods.has("vidas") != mods.has("falla"):
+			print("  ! %s: vidas y falla van juntas o no van" % mid)
+			fallos += 1
+		if mods.has("falla") and not str(mods["falla"]) in ["cubo", "vacio", "maridaje"]:
+			print("  ! %s: falla desconocida '%s'" % [mid, mods["falla"]])
+			fallos += 1
+	var por_marca := {}
+	for m in TreasureData.MAPAS:
+		var d := TreasureData.dificultad(m)
+		por_marca[d] = int(por_marca.get(d, 0)) + 1
+	print("  mapas: %d  %s" % [TreasureData.total(), str(por_marca)])
 
 	print("=== LOGROS ===")
 	for a in AchievementData.ACHIEVEMENTS:
@@ -133,6 +156,133 @@ func _init() -> void:
 			print("  ! %s: metas desordenadas %s" % [aid, str(tiers)])
 			fallos += 1
 	print("  logros: %d" % AchievementData.ACHIEVEMENTS.size())
+
+	# --- PREMIOS: que ninguna receta se regale DOS veces --------------------
+	# Un premio repetido no da error: el segundo escenario simplemente no
+	# entrega nada nuevo y su 3 estrellas se queda sin recompensa. Paso dos
+	# veces al ampliar el mar 1 (el gunkan de tartar y el de ikura).
+	print("=== PREMIOS ===")
+	var quien_da := {}
+	for p in CampaignData.PORTS:
+		var id := str(p.get("id", ""))
+		for campo: String in ["reward_recipes", "reward_recipes_3"]:
+			for r in (p.get(campo, []) as Array):
+				var rid := str(r)
+				if quien_da.has(rid):
+					print("  ! la receta '%s' la regalan %s y %s"
+							% [rid, quien_da[rid], id])
+					fallos += 1
+				quien_da[rid] = id
+				if not RecipeData.RECIPES.has(rid):
+					print("  ! %s premia una receta inexistente '%s'" % [id, rid])
+					fallos += 1
+	print("  recetas repartidas por la campaña: %d" % quien_da.size())
+
+	# --- CARRIL Y ALTURA: que la travesia serpentee de verdad ---------------
+	# El sitio de un escenario en el mapa SALE DE SU POSICION, no de su id: si
+	# se reordena la campaña y no se rehace, dos escenarios seguidos caen en el
+	# mismo carril y la ruta deja de zigzaguear.
+	print("=== MAPA ===")
+	# CADA MAR TIENE SU CICLO: el 1 va [centro, izquierda, derecha] y el 2
+	# [centro, izquierda, centro, derecha]. No es un descuido — son dos
+	# serpenteos distintos, y el del mar 2 pasa mas veces por el centro porque
+	# alli el paso es mas largo (368 px contra 312).
+	var CICLO := {
+		1: [CampaignData.LANE_CENTER, CampaignData.LANE_LEFT,
+			CampaignData.LANE_RIGHT],
+		2: [CampaignData.LANE_CENTER, CampaignData.LANE_LEFT,
+			CampaignData.LANE_CENTER, CampaignData.LANE_RIGHT],
+	}
+	for mar in [1, 2]:
+		var carriles: Array = CICLO[mar]
+		var pos := 0
+		var antes := INF
+		for p in CampaignData.PORTS:
+			if int(p.get("sea", 1)) != mar:
+				continue
+			var id := str(p.get("id", ""))
+			if not CampaignData.MAP_POS.has(id):
+				continue
+			var v: Vector2 = CampaignData.MAP_POS[id]
+			var esperado: float = carriles[pos % carriles.size()]
+			if not is_equal_approx(v.x, esperado):
+				print("  ! %s (pos %d del mar %d) esta en el carril que no toca"
+						% [id, pos + 1, mar])
+				fallos += 1
+			if v.y >= antes:
+				print("  ! %s no va por encima del anterior en el mapa" % id)
+				fallos += 1
+			antes = v.y
+			pos += 1
+
+	# --- TIPOS: que ningun escenario se quede sin el suyo declarado ---------
+	# `get_kind` cae a "isla" cuando falta, y eso no da ningun error: cambia el
+	# escenario, la musica, el handicap y hasta SI HAY RELOJ. Paso con los cinco
+	# que ampliaron el mar 1: un abordaje se jugaba sin reloj y dos puertos
+	# salian con palmeras. Y una ISLA sin `fixed_recipes` es igual de raro: su
+	# carta la decide el diseño, no el jugador.
+	print("=== TIPOS DE ESCENARIO ===")
+	var por_tipo := {}
+	for p in CampaignData.PORTS:
+		var id := str(p.get("id", ""))
+		if not CampaignData.KINDS.has(id):
+			print("  ! %s no declara tipo: se juega como isla sin quererlo" % id)
+			fallos += 1
+		# OJO: aqui se lee la CONSTANTE, no `CampaignData.get_kind()`. Bajo
+		# `--script` no hay autoloads, asi que `campaign_data.gd` no termina de
+		# compilar (referencia a GameState) y sus FUNCIONES no existen: llamar a
+		# una revienta el _init a media auditoria, sin llegar nunca al quit(),
+		# y el proceso se queda colgado para siempre. Las CONSTANTES si valen.
+		var k := str(CampaignData.KINDS.get(id, "isla"))
+		por_tipo[k] = int(por_tipo.get(k, 0)) + 1
+		if k == "isla" and (p.get("fixed_recipes", []) as Array).is_empty():
+			print("  ! %s es isla y no lleva carta cerrada (fixed_recipes)" % id)
+			fallos += 1
+	print("  reparto: ", por_tipo)
+
+	# --- GUIONES: que todo `director` declarado tenga su rama en _run() -----
+	# Es el fallo MAS CARO del juego y no da ni un error: sin rama, `_run`
+	# vuelve sin llamar a `_play()`, `narrating` se queda en true y el nivel NO
+	# ARRANCA (level3d._ask_start espera su tope de 90 s). Hay red de seguridad
+	# en el `_:` del match, pero ese escenario se queda MUDO, que tampoco vale.
+	# Se lee el codigo fuente porque las ramas de un `match` no se pueden
+	# preguntar en tiempo de ejecucion.
+	print("=== GUIONES ===")
+	var fuente := FileAccess.get_file_as_string("res://scripts/level_director.gd")
+	var guiones := {}
+	for p in CampaignData.PORTS:
+		var g := str(p.get("director", ""))
+		if g == "":
+			continue
+		guiones[g] = true
+		if not fuente.contains('"%s":' % g):
+			print("  ! %s declara el guion '%s' y no tiene rama en _run()"
+					% [p.get("id", ""), g])
+			fallos += 1
+		if not fuente.contains("func _%s(" % g):
+			print("  ! el guion '%s' no tiene funcion _%s()" % [g, g])
+			fallos += 1
+	print("  guiones declarados: %d" % guiones.size())
+
+	# --- MISIONES: que cada tipo de objetivo se apunte en alguna parte ------
+	# Un tipo que nadie sube es una mision IMPOSIBLE, y tampoco da error: el
+	# mapa se arma, se juega y su contador se queda a cero para siempre. Paso
+	# con "punto_perfecto", que no se apuntaba en ningun sitio.
+	print("=== MISIONES ===")
+	var apuntados := {}
+	for ruta: String in ["res://scripts/level3d.gd", "res://scripts/client3d.gd",
+			"res://scripts/prep_board.gd", "res://scripts/game_state.gd"]:
+		var src := FileAccess.get_file_as_string(ruta)
+		for t: String in TreasureData.TIPOS:
+			if src.contains('treasure_bump("%s"' % t) \
+					or src.contains('treasure_record("%s"' % t):
+				apuntados[t] = true
+	for t: String in TreasureData.TIPOS:
+		if not apuntados.has(t):
+			print("  ! el objetivo '%s' no se apunta en ningun sitio: sus mapas"
+					% t + " no se pueden cumplir")
+			fallos += 1
+	print("  tipos de objetivo: %d" % TreasureData.TIPOS.size())
 
 	print("=== RESUMEN: %d cosas que no cuadran ===" % fallos)
 	quit()

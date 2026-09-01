@@ -216,6 +216,15 @@ func _carta(m: Dictionary) -> Button:
 	o.add_theme_color_override("font_color", Color(0.90, 0.84, 0.72))
 	o.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(o)
+	# LA MARCA en la propia carta: entre cincuenta rollos, es lo que deja
+	# escoger "hoy me apetece uno fácil" sin abrir ninguno.
+	var d := Label.new()
+	d.text = TreasureData.dif_nombre(m).to_upper()
+	d.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	d.add_theme_font_size_override("font_size", 13)
+	d.add_theme_color_override("font_color", TreasureData.dif_color(m))
+	d.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(d)
 	var e := Label.new()
 	e.text = "Cumplido" if hecho else ("EN CURSO" if armado else "Pendiente")
 	e.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -296,7 +305,26 @@ func _abrir_ficha(m: Dictionary, recien := false) -> void:
 		nuevo.add_theme_color_override("font_color", Color(0.70, 0.42, 0.12))
 		v.add_child(nuevo)
 
+	# LA MARCA, justo bajo el nombre y con SU color: es lo primero que hay que
+	# saber de un mapa, porque decide a la vez lo que paga y lo que le hace a
+	# la jornada. En la mesa, con muchos rollos abiertos, el color la distingue
+	# antes que la palabra.
+	var marca := Label.new()
+	marca.text = TreasureData.dif_nombre(m).to_upper()
+	marca.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	marca.add_theme_font_size_override("font_size", 21)
+	marca.add_theme_color_override("font_color", TreasureData.dif_color(m))
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		marca.add_theme_font_override("font", negrita)
+	v.add_child(marca)
+
 	v.add_child(_ficha_bloque("La misión", TreasureData.texto_objetivo(m)))
+	# LO QUE EL MAPA LE HACE A LA JORNADA solo sale si hace algo: los fáciles
+	# no tocan nada y un bloque vacío haría creer que sí.
+	var contra := TreasureData.texto_mods(m)
+	if contra != "":
+		v.add_child(_ficha_bloque("La cocina en contra", contra))
 	v.add_child(_ficha_bloque("El tesoro", TreasureData.texto_premio(m)))
 
 	var hecho := str(m.get("id", "")) in GameState.treasure_done

@@ -41,6 +41,7 @@ extends RefCounted
 ##   punto_perfecto   — clavar el punto de N frituras
 ##   cliente_lleno    — que un capitan se vaya habiendo comido N platos
 ##   racha_limpia     — N platos servidos sin un solo fallo (ni cubo ni corte)
+##   clientes_platos  — dar al menos P platos a N clientes DISTINTOS
 ##
 ## AL AÑADIR UN TIPO: una entrada aqui, su texto en `texto_objetivo` y su
 ## cuenta en `GameState.treasure_bump`. Nada mas.
@@ -48,8 +49,92 @@ const TIPOS := [
 	"mult_cliente", "platos_tiempo", "sin_basura", "sin_vacios", "maridajes",
 	"propina_jornada", "extras_jornada", "postres", "picoteos",
 	"variedad_carta", "un_cliente", "sin_repetir", "corte_perfecto",
-	"punto_perfecto", "cliente_lleno", "racha_limpia",
+	"punto_perfecto", "cliente_lleno", "racha_limpia", "clientes_platos",
 ]
+
+
+## ------------------------------------------------------------- DIFICULTAD
+##
+## TRES MARCAS (pedido por el usuario). Y no son una etiqueta: la marca decide
+## lo que PAGA el mapa —oro y experiencia— y, en medio y dificil, tambien lo
+## que el mapa le HACE A LA JORNADA mientras esta armado (ver `mods`).
+##
+## El oro y la XP salen de la marca y NO se escriben mapa a mapa: con dos
+## fuentes de verdad, tarde o temprano un mapa dificil acaba pagando menos que
+## uno facil. Lo que se escribe a mano es el premio ESPECIAL (lingotes, cebo,
+## despensa, coleccionable), que es lo que distingue a un mapa de otro.
+const DIFICULTADES := ["facil", "medio", "dificil"]
+const DIF_NOMBRE := { "facil": "Fácil", "medio": "Medio", "dificil": "Difícil" }
+const DIF_COLOR := {
+	"facil": Color(0.42, 0.72, 0.36),
+	"medio": Color(0.90, 0.70, 0.22),
+	"dificil": Color(0.84, 0.32, 0.26),
+}
+const DIF_ORO := { "facil": 150, "medio": 340, "dificil": 700 }
+const DIF_XP := { "facil": 40, "medio": 95, "dificil": 200 }
+
+
+## -------------------------------------------------------- MODIFICADORES
+##
+## LO QUE UN MAPA LE HACE A LA JORNADA mientras esta armado. Es lo que separa
+## de verdad las tres marcas: un mapa dificil no pide "lo mismo pero mas
+## veces", pide lo mismo con la cocina en contra. Los aplica `level3d` al
+## montar el nivel, sobre CUALQUIER escenario que se juegue con el mapa puesto.
+##
+##   paciencia — la barra de los clientes baja mas deprisa (1.3 = un 30% mas)
+##   bocado    — mastican mas deprisa, o sea que vuelven antes a pedir
+##   tiempo    — segundos de reloj para cumplir el objetivo (0 = sin reloj)
+##   vidas     — tropiezos permitidos; al agotarlos, el mapa no cuenta hoy
+##
+## `vidas` se gasta con lo que diga `falla`: "maridaje" (servir un plato que
+## rompe una pareja), "vacio" (un cliente que se va sin comer) o "cubo" (un
+## plato al cubo). Sin `vidas` no hay tropiezos que contar.
+static func mods(m: Dictionary) -> Dictionary:
+	return m.get("mods", {})
+
+
+static func dificultad(m: Dictionary) -> String:
+	var d := str(m.get("dificultad", "facil"))
+	return d if d in DIFICULTADES else "facil"
+
+
+static func dif_nombre(m: Dictionary) -> String:
+	return str(DIF_NOMBRE.get(dificultad(m), "Fácil"))
+
+
+static func dif_color(m: Dictionary) -> Color:
+	return DIF_COLOR.get(dificultad(m), DIF_COLOR["facil"])
+
+
+## Doblones que paga el mapa (de su marca, no del mapa).
+static func oro(m: Dictionary) -> int:
+	return int(DIF_ORO.get(dificultad(m), 150))
+
+
+## Experiencia que paga el mapa.
+static func xp(m: Dictionary) -> int:
+	return int(DIF_XP.get(dificultad(m), 40))
+
+
+## Frase de lo que el mapa le hace a la jornada, o "" si no le hace nada.
+static func texto_mods(m: Dictionary) -> String:
+	var d := mods(m)
+	if d.is_empty():
+		return ""
+	var trozos: Array[String] = []
+	if float(d.get("paciencia", 1.0)) > 1.0:
+		trozos.append("la clientela se impacienta un **%d%% más rápido**"
+			% int(round((float(d["paciencia"]) - 1.0) * 100.0)))
+	if float(d.get("bocado", 1.0)) > 1.0:
+		trozos.append("**comen más deprisa** y vuelven antes a pedir")
+	if int(d.get("tiempo", 0)) > 0:
+		trozos.append("tienes **%d segundos**" % int(d["tiempo"]))
+	if int(d.get("vidas", 0)) > 0:
+		var n := int(d["vidas"])
+		trozos.append("solo **%d fallo%s**" % [n, "" if n == 1 else "s"])
+	if trozos.is_empty():
+		return ""
+	return "Con este mapa armado: " + ", ".join(trozos) + "."
 
 
 ## Frase del objetivo, para la ficha del mapa y para el aviso en partida.
@@ -90,15 +175,19 @@ static func texto_objetivo(m: Dictionary) -> String:
 			return "Que un **capitan** se vaya habiendo comido **%d platos**." % n
 		"racha_limpia":
 			return "**%d platos** servidos sin un solo fallo." % n
+		"clientes_platos":
+			return "Dale al menos **%d platos** a **%d clientes distintos**." \
+				% [int(m.get("p", 3)), n]
 	return "Objetivo desconocido."
 
 
-## Frase de la recompensa, en el mismo formato.
+## Frase de la recompensa, en el mismo formato. El ORO y la EXPERIENCIA van
+## SIEMPRE los primeros y salen de la marca del mapa, no de su ficha.
 static func texto_premio(m: Dictionary) -> String:
 	var p: Dictionary = m.get("premio", {})
 	var trozos: Array[String] = []
-	if int(p.get("oro", 0)) > 0:
-		trozos.append("**%d doblones**" % int(p["oro"]))
+	trozos.append("**%d doblones**" % oro(m))
+	trozos.append("**%d de experiencia**" % xp(m))
 	if int(p.get("lingotes", 0)) > 0:
 		var n := int(p["lingotes"])
 		trozos.append("**%d lingote%s**" % [n, "" if n == 1 else "s"])
@@ -128,152 +217,194 @@ static func texto_premio(m: Dictionary) -> String:
 ## del loro, la de escribir, el saco de cafe, la marca negra y los tapones de
 ## cera estaban esperando exactamente a esto).
 const MAPAS := [
-	# --- los diez primeros: se cruzan con la campaña sin desviarse
-	{ "id": "t01", "nombre": "Cala de la Primera Marca",
-		"tipo": "mult_cliente", "n": 3,
-		"premio": { "oro": 120 } },
-	{ "id": "t02", "nombre": "Bajio del Cocinero Manco",
+	# EL PRIMERO ES EL DEL GRUMETE de la Caleta del Cartografo, y por eso pide
+	# algo que ya se hace jugando: repartir en vez de volcarse en uno. Es la
+	# misma mision que reaparece de MEDIO (t18) y de DIFICIL (t35), para que se
+	# vea de un vistazo que las marcas no piden otra cosa: piden lo mismo con
+	# la cocina en contra.
+	{ "id": "t01", "nombre": "Cala de las Cuatro Bocas", "dificultad": "facil",
+		"tipo": "clientes_platos", "n": 4, "p": 3,
+		"premio": {} },
+	{ "id": "t02", "nombre": "Bajio del Cocinero Manco", "dificultad": "facil",
 		"tipo": "picoteos", "n": 8,
-		"premio": { "oro": 140, "cebo": 3 } },
-	{ "id": "t03", "nombre": "Islote del Cubo Vacio",
+		"premio": { "cebo": 3 } },
+	{ "id": "t03", "nombre": "Islote del Cubo Vacio", "dificultad": "facil",
 		"tipo": "sin_basura", "n": 1,
-		"premio": { "oro": 160, "arroz": 1 } },
-	{ "id": "t04", "nombre": "Punta del Postre",
+		"premio": { "arroz": 1 } },
+	{ "id": "t04", "nombre": "Punta del Postre", "dificultad": "facil",
 		"tipo": "postres", "n": 5,
-		"premio": { "oro": 150, "extras": 3 } },
-	{ "id": "t05", "nombre": "Roca del Buen Servicio",
+		"premio": { "extras": 3 } },
+	{ "id": "t05", "nombre": "Roca del Buen Servicio", "dificultad": "facil",
 		"tipo": "sin_vacios", "n": 1,
-		"premio": { "oro": 180, "cebo": 3 } },
-	{ "id": "t06", "nombre": "Cala del Pulso Firme",
+		"premio": { "cebo": 3 } },
+	{ "id": "t06", "nombre": "Cala del Pulso Firme", "dificultad": "facil",
 		"tipo": "corte_perfecto", "n": 6,
-		"premio": { "oro": 170, "ingrediente": "atun_rojo", "ingrediente_n": 3 } },
-	{ "id": "t07", "nombre": "Arrecife del Comilon",
+		"premio": { "ingrediente": "atun_rojo", "ingrediente_n": 3 } },
+	{ "id": "t07", "nombre": "Arrecife del Comilon", "dificultad": "facil",
 		"tipo": "un_cliente", "n": 5,
-		"premio": { "oro": 190, "arroz": 1 } },
-	{ "id": "t08", "nombre": "Ensenada de la Propina",
+		"premio": { "arroz": 1 } },
+	{ "id": "t08", "nombre": "Ensenada de la Propina", "dificultad": "facil",
 		"tipo": "propina_jornada", "n": 30,
-		"premio": { "oro": 200, "lingotes": 1 } },
-	{ "id": "t09", "nombre": "Farallon del Sazon",
+		"premio": { "lingotes": 1 } },
+	{ "id": "t09", "nombre": "Farallon del Sazon", "dificultad": "facil",
 		"tipo": "extras_jornada", "n": 6,
-		"premio": { "oro": 180, "extras": 5 } },
-	{ "id": "t10", "nombre": "Playa de las Cinco Bocas",
+		"premio": { "extras": 5 } },
+	{ "id": "t10", "nombre": "Playa de las Cinco Bocas", "dificultad": "facil",
 		"tipo": "platos_tiempo", "n": 12, "t": 90,
-		"premio": { "oro": 220, "coleccionable": "canon" } },
-	# --- del 11 al 25: ya hay que proponerselo
-	{ "id": "t11", "nombre": "Rada del Maridaje", "tipo": "maridajes", "n": 3,
-		"premio": { "oro": 220, "cebo": 5 } },
-	{ "id": "t12", "nombre": "Cabo de la Carta Entera",
+		"premio": { "coleccionable": "canon" } },
+	{ "id": "t11", "nombre": "Rada del Maridaje", "dificultad": "facil",
+		"tipo": "maridajes", "n": 3,
+		"premio": { "cebo": 5 } },
+	{ "id": "t12", "nombre": "Cabo de la Carta Entera", "dificultad": "facil",
 		"tipo": "variedad_carta", "n": 1,
-		"premio": { "oro": 240, "arroz": 2 } },
-	{ "id": "t13", "nombre": "Banco del Sin Repetir", "tipo": "sin_repetir", "n": 8,
-		"premio": { "oro": 250, "lingotes": 1 } },
-	{ "id": "t14", "nombre": "Caleta del Punto Justo",
+		"premio": { "arroz": 2 } },
+	{ "id": "t13", "nombre": "Banco del Sin Repetir", "dificultad": "facil",
+		"tipo": "sin_repetir", "n": 8,
+		"premio": { "lingotes": 1 } },
+	{ "id": "t14", "nombre": "Caleta del Punto Justo", "dificultad": "facil",
 		"tipo": "punto_perfecto", "n": 3,
-		"premio": { "oro": 260, "extras": 5 } },
-	{ "id": "t15", "nombre": "Isla del Capitan Harto",
+		"premio": { "extras": 5 } },
+	{ "id": "t15", "nombre": "Isla del Capitan Harto", "dificultad": "facil",
 		"tipo": "cliente_lleno", "n": 6,
-		"premio": { "oro": 280, "coleccionable": "panuelo" } },
-	{ "id": "t16", "nombre": "Escollo del x4", "tipo": "mult_cliente", "n": 4,
-		"premio": { "oro": 260, "cebo": 5 } },
-	{ "id": "t17", "nombre": "Barra de los Veinte",
+		"premio": { "coleccionable": "panuelo" } },
+	{ "id": "t16", "nombre": "Escollo del x4", "dificultad": "facil",
+		"tipo": "mult_cliente", "n": 4,
+		"premio": { "cebo": 5 } },
+	{ "id": "t17", "nombre": "Barra de los Veinte", "dificultad": "facil",
 		"tipo": "platos_tiempo", "n": 20, "t": 130,
-		"premio": { "oro": 300, "lingotes": 1 } },
-	{ "id": "t18", "nombre": "Laguna del Picoteo", "tipo": "picoteos", "n": 15,
-		"premio": { "oro": 260, "arroz": 2 } },
-	{ "id": "t19", "nombre": "Cala de la Racha", "tipo": "racha_limpia", "n": 12,
-		"premio": { "oro": 320, "coleccionable": "pluma_escribir" } },
-	{ "id": "t20", "nombre": "Morro del Dulce", "tipo": "postres", "n": 12,
-		"premio": { "oro": 300, "extras": 8 } },
-	{ "id": "t21", "nombre": "Veril de la Propina Larga",
+		"premio": { "lingotes": 1 } },
+	{ "id": "t18", "nombre": "Rada de las Ocho Bocas", "dificultad": "medio",
+		"tipo": "clientes_platos", "n": 8, "p": 3,
+		"mods": { "paciencia": 1.3 },
+		"premio": { "arroz": 2 } },
+	{ "id": "t19", "nombre": "Cala de la Racha", "dificultad": "medio",
+		"tipo": "racha_limpia", "n": 12,
+		"mods": { "paciencia": 1.25 },
+		"premio": { "coleccionable": "pluma_escribir" } },
+	{ "id": "t20", "nombre": "Morro del Dulce", "dificultad": "medio",
+		"tipo": "postres", "n": 12,
+		"mods": { "bocado": 1.25 },
+		"premio": { "extras": 8 } },
+	{ "id": "t21", "nombre": "Veril de la Propina Larga", "dificultad": "medio",
 		"tipo": "propina_jornada", "n": 60,
-		"premio": { "oro": 340, "lingotes": 2 } },
-	{ "id": "t22", "nombre": "Restinga del Cuchillo",
+		"mods": { "paciencia": 1.2, "vidas": 3, "falla": "cubo" },
+		"premio": { "lingotes": 2 } },
+	{ "id": "t22", "nombre": "Restinga del Cuchillo", "dificultad": "medio",
 		"tipo": "corte_perfecto", "n": 15,
-		"premio": { "oro": 330, "coleccionable": "saco_cafe" } },
-	{ "id": "t23", "nombre": "Freu de los Dos Sabores",
+		"mods": { "paciencia": 1.25 },
+		"premio": { "coleccionable": "saco_cafe" } },
+	{ "id": "t23", "nombre": "Freu de los Dos Sabores", "dificultad": "medio",
 		"tipo": "maridajes", "n": 6,
-		"premio": { "oro": 350, "cebo": 8 } },
-	{ "id": "t24", "nombre": "Placer del Servicio Limpio",
+		"mods": { "bocado": 1.25 },
+		"premio": { "cebo": 8 } },
+	{ "id": "t24", "nombre": "Placer del Servicio Limpio", "dificultad": "medio",
 		"tipo": "sin_basura", "n": 1,
-		"premio": { "oro": 300, "arroz": 3 } },
-	{ "id": "t25", "nombre": "Seno del Comensal Eterno",
+		"mods": { "paciencia": 1.2, "vidas": 3, "falla": "cubo" },
+		"premio": { "arroz": 3 } },
+	{ "id": "t25", "nombre": "Seno del Comensal Eterno", "dificultad": "medio",
 		"tipo": "un_cliente", "n": 8,
-		"premio": { "oro": 380, "coleccionable": "pluma_loro" } },
-	# --- del 26 al 40: exigen jugar bien de verdad
-	{ "id": "t26", "nombre": "Bajo del x5", "tipo": "mult_cliente", "n": 5,
-		"premio": { "oro": 400, "lingotes": 2 } },
-	{ "id": "t27", "nombre": "Canal de las Treinta",
+		"mods": { "paciencia": 1.25 },
+		"premio": { "coleccionable": "pluma_loro" } },
+	{ "id": "t26", "nombre": "Bajo del x5", "dificultad": "medio",
+		"tipo": "mult_cliente", "n": 5,
+		"mods": { "bocado": 1.25 },
+		"premio": { "lingotes": 2 } },
+	{ "id": "t27", "nombre": "Canal de las Treinta", "dificultad": "medio",
 		"tipo": "platos_tiempo", "n": 30, "t": 150,
-		"premio": { "oro": 420, "coleccionable": "marca_negra" } },
-	{ "id": "t28", "nombre": "Golfo del Sazon Largo",
+		"mods": { "paciencia": 1.2, "vidas": 3, "falla": "cubo" },
+		"premio": { "coleccionable": "marca_negra" } },
+	{ "id": "t28", "nombre": "Golfo del Sazon Largo", "dificultad": "medio",
 		"tipo": "extras_jornada", "n": 14,
-		"premio": { "oro": 380, "extras": 10 } },
-	{ "id": "t29", "nombre": "Punta de la Mesa Llena",
+		"mods": { "paciencia": 1.25 },
+		"premio": { "extras": 10 } },
+	{ "id": "t29", "nombre": "Punta de la Mesa Llena", "dificultad": "medio",
 		"tipo": "sin_vacios", "n": 1,
-		"premio": { "oro": 400, "lingotes": 1 } },
-	{ "id": "t30", "nombre": "Bocana del Sin Fallo",
+		"mods": { "bocado": 1.25 },
+		"premio": { "lingotes": 1 } },
+	{ "id": "t30", "nombre": "Bocana del Sin Fallo", "dificultad": "medio",
 		"tipo": "racha_limpia", "n": 20,
-		"premio": { "oro": 450, "coleccionable": "tapones_cera" } },
-	{ "id": "t31", "nombre": "Arrecife de la Fritura",
+		"mods": { "paciencia": 1.2, "vidas": 3, "falla": "cubo" },
+		"premio": { "coleccionable": "tapones_cera" } },
+	{ "id": "t31", "nombre": "Arrecife de la Fritura", "dificultad": "medio",
 		"tipo": "punto_perfecto", "n": 8,
-		"premio": { "oro": 420, "arroz": 3 } },
-	{ "id": "t32", "nombre": "Cala de la Carta Completa",
+		"mods": { "paciencia": 1.25 },
+		"premio": { "arroz": 3 } },
+	{ "id": "t32", "nombre": "Cala de la Carta Completa", "dificultad": "medio",
 		"tipo": "variedad_carta", "n": 1,
-		"premio": { "oro": 440, "lingotes": 2 } },
-	{ "id": "t33", "nombre": "Estrecho del Sin Repetir",
+		"mods": { "bocado": 1.25 },
+		"premio": { "lingotes": 2 } },
+	{ "id": "t33", "nombre": "Estrecho del Sin Repetir", "dificultad": "medio",
 		"tipo": "sin_repetir", "n": 15,
-		"premio": { "oro": 460, "cebo": 10 } },
-	{ "id": "t34", "nombre": "Rompiente del Capitan",
+		"mods": { "paciencia": 1.2, "vidas": 3, "falla": "cubo" },
+		"premio": { "cebo": 10 } },
+	{ "id": "t34", "nombre": "Rompiente del Capitan", "dificultad": "medio",
 		"tipo": "cliente_lleno", "n": 9,
-		"premio": { "oro": 480, "lingotes": 2 } },
-	{ "id": "t35", "nombre": "Piedra del Bote Lleno",
-		"tipo": "propina_jornada", "n": 100,
-		"premio": { "oro": 500, "arroz": 4 } },
-	{ "id": "t36", "nombre": "Sirte del Postre Infinito",
+		"mods": { "paciencia": 1.25 },
+		"premio": { "lingotes": 2 } },
+	{ "id": "t35", "nombre": "Fosa de las Ocho Bocas", "dificultad": "dificil",
+		"tipo": "clientes_platos", "n": 8, "p": 5,
+		"mods": { "paciencia": 1.5, "bocado": 1.3, "tiempo": 60 },
+		"premio": { "arroz": 4 } },
+	{ "id": "t36", "nombre": "Sirte del Postre Infinito", "dificultad": "dificil",
 		"tipo": "postres", "n": 20,
-		"premio": { "oro": 480, "extras": 12 } },
-	{ "id": "t37", "nombre": "Cantil del Maridaje Doble",
+		"mods": { "paciencia": 1.3, "bocado": 1.35, "vidas": 2, "falla": "cubo" },
+		"premio": { "extras": 12 } },
+	{ "id": "t37", "nombre": "Cantil del Maridaje Doble", "dificultad": "dificil",
 		"tipo": "maridajes", "n": 10,
-		"premio": { "oro": 520, "lingotes": 3 } },
-	{ "id": "t38", "nombre": "Vado del Picoteo Sin Fin",
+		"mods": { "paciencia": 1.45, "bocado": 1.25 },
+		"premio": { "lingotes": 3 } },
+	{ "id": "t38", "nombre": "Vado del Picoteo Sin Fin", "dificultad": "dificil",
 		"tipo": "picoteos", "n": 25,
-		"premio": { "oro": 500, "cebo": 12 } },
-	{ "id": "t39", "nombre": "Laja del Cuchillo Fino",
+		"mods": { "paciencia": 1.35, "vidas": 1, "falla": "vacio" },
+		"premio": { "cebo": 12 } },
+	{ "id": "t39", "nombre": "Laja del Cuchillo Fino", "dificultad": "dificil",
 		"tipo": "corte_perfecto", "n": 25,
-		"premio": { "oro": 540, "lingotes": 2 } },
-	{ "id": "t40", "nombre": "Fondeadero de las Cuarenta",
+		"mods": { "paciencia": 1.4, "tiempo": 90 },
+		"premio": { "lingotes": 2 } },
+	{ "id": "t40", "nombre": "Fondeadero de las Cuarenta", "dificultad": "dificil",
 		"tipo": "platos_tiempo", "n": 40, "t": 150,
-		"premio": { "oro": 600, "lingotes": 3 } },
-	# --- del 41 al 50: para cuando ya no queda campaña
-	{ "id": "t41", "nombre": "Abismo del x6", "tipo": "mult_cliente", "n": 6,
-		"premio": { "oro": 620, "lingotes": 3 } },
-	{ "id": "t42", "nombre": "Sima del Servicio Perfecto",
+		"mods": { "paciencia": 1.3, "bocado": 1.35, "vidas": 2, "falla": "cubo" },
+		"premio": { "lingotes": 3 } },
+	{ "id": "t41", "nombre": "Abismo del x6", "dificultad": "dificil",
+		"tipo": "mult_cliente", "n": 6,
+		"mods": { "paciencia": 1.45, "bocado": 1.25 },
+		"premio": { "lingotes": 3 } },
+	{ "id": "t42", "nombre": "Sima del Servicio Perfecto", "dificultad": "dificil",
 		"tipo": "racha_limpia", "n": 30,
-		"premio": { "oro": 650, "arroz": 5 } },
-	{ "id": "t43", "nombre": "Fosa del Comilon",
+		"mods": { "paciencia": 1.35, "vidas": 1, "falla": "vacio" },
+		"premio": { "arroz": 5 } },
+	{ "id": "t43", "nombre": "Fosa del Comilon", "dificultad": "dificil",
 		"tipo": "un_cliente", "n": 12,
-		"premio": { "oro": 680, "lingotes": 3 } },
-	{ "id": "t44", "nombre": "Veta del Sazon Total",
+		"mods": { "paciencia": 1.4, "tiempo": 90 },
+		"premio": { "lingotes": 3 } },
+	{ "id": "t44", "nombre": "Veta del Sazon Total", "dificultad": "dificil",
 		"tipo": "extras_jornada", "n": 25,
-		"premio": { "oro": 640, "extras": 20 } },
-	{ "id": "t45", "nombre": "Talud del Bote Rebosante",
+		"mods": { "paciencia": 1.3, "bocado": 1.35, "vidas": 2, "falla": "cubo" },
+		"premio": { "extras": 20 } },
+	{ "id": "t45", "nombre": "Talud del Bote Rebosante", "dificultad": "dificil",
 		"tipo": "propina_jornada", "n": 160,
-		"premio": { "oro": 700, "lingotes": 4 } },
-	{ "id": "t46", "nombre": "Cañon del Punto Clavado",
+		"mods": { "paciencia": 1.45, "bocado": 1.25 },
+		"premio": { "lingotes": 4 } },
+	{ "id": "t46", "nombre": "Cañon del Punto Clavado", "dificultad": "dificil",
 		"tipo": "punto_perfecto", "n": 15,
-		"premio": { "oro": 700, "arroz": 5 } },
-	{ "id": "t47", "nombre": "Fondo del Sin Repetir",
+		"mods": { "paciencia": 1.35, "vidas": 1, "falla": "vacio" },
+		"premio": { "arroz": 5 } },
+	{ "id": "t47", "nombre": "Fondo del Sin Repetir", "dificultad": "dificil",
 		"tipo": "sin_repetir", "n": 25,
-		"premio": { "oro": 720, "lingotes": 4 } },
-	{ "id": "t48", "nombre": "Barra del Maridaje Maestro",
+		"mods": { "paciencia": 1.4, "tiempo": 90 },
+		"premio": { "lingotes": 4 } },
+	{ "id": "t48", "nombre": "Barra del Maridaje Maestro", "dificultad": "dificil",
 		"tipo": "maridajes", "n": 18,
-		"premio": { "oro": 760, "lingotes": 4 } },
-	{ "id": "t49", "nombre": "Sondaleza del Capitan Lleno",
+		"mods": { "paciencia": 1.3, "bocado": 1.35, "vidas": 2, "falla": "cubo" },
+		"premio": { "lingotes": 4 } },
+	{ "id": "t49", "nombre": "Sondaleza del Capitan Lleno", "dificultad": "dificil",
 		"tipo": "cliente_lleno", "n": 12,
-		"premio": { "oro": 800, "lingotes": 5 } },
-	{ "id": "t50", "nombre": "Ultimo Fondeadero",
+		"mods": { "paciencia": 1.45, "bocado": 1.25 },
+		"premio": { "lingotes": 5 } },
+	{ "id": "t50", "nombre": "Ultimo Fondeadero", "dificultad": "dificil",
 		"tipo": "platos_tiempo", "n": 50, "t": 150,
-		"premio": { "oro": 1000, "lingotes": 6, "arroz": 5 } },
+		"mods": { "paciencia": 1.35, "vidas": 1, "falla": "vacio" },
+		"premio": { "lingotes": 6, "arroz": 5 } },
 ]
 
 

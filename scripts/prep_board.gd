@@ -2085,6 +2085,10 @@ func _finish_fry(window: Dictionary, best_price: int = 0) -> void:
 	if price >= top:
 		Audio.sfx("perfecto")
 		GameState.bump_stat("fry_perfect")
+		# MISIÓN DE MAPA: este es el único sitio del juego donde se sabe que un
+		# punto de fritura ha salido clavado. Sin esta línea, los mapas de tipo
+		# "punto_perfecto" no se podían cumplir de ninguna manera.
+		GameState.treasure_bump("punto_perfecto")
 	_advance_step()
 
 
