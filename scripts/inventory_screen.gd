@@ -591,7 +591,7 @@ func _ingredient_known(ing: String) -> bool:
 	if int(RecipeData.INGREDIENTS.get(ing, {}).get("cost", 0)) <= 0:
 		return true
 	if ing in RecipeData.EXTRAS:
-		return GameState.extras_unlocked()
+		return GameState.has_extra(ing)
 	for rid in GameState.unlocked_recipes:
 		if ing in RecipeData.get_ingredients(str(rid)):
 			return true

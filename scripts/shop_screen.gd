@@ -696,8 +696,8 @@ func _refresh() -> void:
 	# tendero los tiene SIEMPRE, pequeños y centrados en su propia balda.
 	for c in extras_row.get_children():
 		c.queue_free()
-	if GameState.extras_unlocked():
-		for ing in RecipeData.EXTRAS:
+	for ing in RecipeData.EXTRAS:
+		if GameState.has_extra(str(ing)):
 			extras_row.add_child(_build_item(ing, true))
 
 

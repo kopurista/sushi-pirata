@@ -3,65 +3,77 @@ class_name CampaignData
 ##
 ## LA CAMPAÑA COMPLETA SON 250 ESCENARIOS en 7 mares, con un JEFE cada 10 y su
 ## escenario pagando el DOBLE de experiencia (`SkillData.XP_BOSS_MULT`). Aquí
-## están escritos los **25 del PRIMER MAR**, que se cierra con el Kappa.
+## están escritos los **30 del PRIMER MAR**, que se cierra con el Kappa.
 ##
 ## EL ORDEN LO DA LA POSICIÓN EN `PORTS`, NO EL ID. Los ids (`nivel_7`,
 ## `practica_2`...) son NOMBRES, no números de escenario: los guiones, los
 ## avisos previos del selector y las compuertas los referencian por ese nombre,
 ## y renumerarlos rompería las partidas guardadas y obligaría a tocar decenas
 ## de sitios. Lo que el jugador ve como "Escenario 12" es `port_index + 1`. Por
-## eso el Kappa sigue llamándose `nivel_15` aunque sea el escenario 25, y el
-## del maridaje `nivel_16` aunque sea el 8.
+## eso el Kappa sigue llamándose `nivel_15` aunque sea el escenario 30, y el
+## del maridaje `nivel_16` aunque sea el 11.
 ##
-## LECCIÓN, PRÁCTICA, LECCIÓN, PRÁCTICA (reordenado el 1-9-2026 a petición del
-## usuario): detrás de cada escenario que explica algo va uno que no explica
-## nada. NO SALE PERFECTO Y NO PUEDE SALIR — son 14 lecciones contra 10
-## prácticas, y con 10 prácticas solo caben 11 bloques, así que cuatro
-## lecciones van pegadas a otra. Las cuatro parejas están ELEGIDAS: 1+2 (las
-## dos más suaves, el arranque necesita ritmo), 4+5 (el picoteo es un regalo y
-## dos frases), 7+8 (postres y maridaje, PEDIDA por el usuario: en el 7 se
-## menciona al regalar el mochi y en el 8 se practica) y 22+23 (el arco de
-## Alice partido en dos jornadas). El reparto (entre paréntesis, el id):
+## LECCIÓN, PRÁCTICA, LECCIÓN, PRÁCTICA — y ahora sale ENTERO (pedido por el
+## usuario): cada una de las 13 lecciones tiene detrás su propio escenario de
+## práctica. Se llegó ahí añadiendo tres prácticas (`practica_5/6/7`); antes
+## eran 14 lecciones contra 10 prácticas y cuatro parejas de lecciones iban
+## pegadas por pura aritmética.
+##
+## LA EXCEPCIÓN SON LOS TRES EXTRAS (15, 16 y 17), y es una excepción PEDIDA:
+## cada uno estrena el suyo —wasabi, jengibre y soja— y cada uno ES su propia
+## práctica, porque la lección son dos frases y lo que hace falta es gastarlo.
+## Consecuencia dicha en voz alta: el 18 cae detrás del tercero, así que ahí
+## hay una lección pegada a otra. Es la única de todo el mar.
+##
+## El reparto (entre paréntesis, el id):
 ##    1 paciencia, bocado y oro — jornada normal          (nivel_1)
-##    2 las CAJAS de guardado; la despensa empieza a gastarse (nivel_2)
-##    3 PRÁCTICA                                          (practica_1)
-##    4 el PICOTEO: regalo del edamame                    (nivel_3)
-##    5 MULTIPLICADOR, hastío y paladar; abre la TIENDA    (nivel_4)
-##    6 PRÁCTICA                                          (practica_2)
-##    7 POSTRES, PROPINAS y potenciadores                 (nivel_5)
-##    8 el MARIDAJE, con ejercicio (té verde -> mochi)    (nivel_16)
-##    9 PRÁCTICA                                          (practica_3)
-##   10 los EXTRAS (jengibre, wasabi, soja)               (nivel_6)
-##   11 PRÁCTICA — el primer puerto de carta libre        (nivel_18)
-##   12 primer ABORDAJE y EL pirata de la bandera         (nivel_7)
-##   13 PRÁCTICA — el primer abordaje sin guion           (practica_4)
-##   14 CAI y la PESCA                                    (nivel_8)
-##   15 el examen mudo, antes de Pablo                    (nivel_9)
-##   16 Pablo el Rubio, los CAPITANES y el corte lento    (nivel_10)
-##   17 PRÁCTICA                                          (nivel_19)
-##   18 bocado acelerado y el futomaki                    (nivel_11)
-##   19 el capitán del TESORO (sin guion propio)          (nivel_12)
-##   20 los MAPAS DEL TESORO: los trae un GRUMETE         (nivel_17)
-##   21 PRÁCTICA                                          (nivel_20)
-##   22 ALICE se enrola: el AYUDANTE                      (nivel_13)
-##   23 ALICE explica los BONIFICADORES                   (nivel_14)
-##   24 la víspera: sin lecciones, a pulso                (vispera_kappa)
-##   25 JEFE: el Kappa                                    (nivel_15)
+##    2 PRÁCTICA                                          (practica_1)
+##    3 las CAJAS; la despensa empieza a gastarse         (nivel_2)
+##    4 PRÁCTICA de las cajas                             (practica_5)
+##    5 el PICOTEO: regalo del edamame                    (nivel_3)
+##    6 PRÁCTICA del picoteo                              (practica_2)
+##    7 MULTIPLICADOR, hastío y paladar; abre la TIENDA    (nivel_4)
+##    8 PRÁCTICA con la carta y la tienda abiertas        (practica_6)
+##    9 POSTRES, PROPINAS y potenciadores                 (nivel_5)
+##   10 PRÁCTICA                                          (practica_3)
+##   11 el MARIDAJE, con ejercicio (té verde -> mochi)    (nivel_16)
+##   12 PRÁCTICA de postres, propinas y parejas           (practica_7)
+##   13 primer ABORDAJE y EL pirata de la bandera         (nivel_7)
+##   14 PRÁCTICA del abordaje                             (practica_4)
+##   15 el WASABI, y con él los extras                    (nivel_6)
+##   16 el JENGIBRE                                       (nivel_21)
+##   17 la SOJA                                           (nivel_22)
+##   18 CAI y la PESCA                                    (nivel_8)
+##   19 PRÁCTICA: el examen antes de Pablo                (nivel_9)
+##   20 Pablo el Rubio, los CAPITANES y el corte lento    (nivel_10)
+##   21 PRÁCTICA de los capitanes                         (nivel_19)
+##   22 bocado acelerado y el futomaki                    (nivel_11)
+##   23 PRÁCTICA; el capitán del TESORO pide una receta   (nivel_12)
+##   24 los MAPAS DEL TESORO: los trae un GRUMETE         (nivel_17)
+##   25 PRÁCTICA con un mapa armado                       (nivel_18)
+##   26 ALICE se enrola: el AYUDANTE                      (nivel_13)
+##   27 PRÁCTICA del ayudante                             (nivel_20)
+##   28 ALICE explica los BONIFICADORES                   (nivel_14)
+##   29 la víspera: sin lecciones, a pulso                (vispera_kappa)
+##   30 JEFE: el Kappa                                    (nivel_15)
 ##
-## AL REORDENAR ESTO HAY QUE REHACER CUATRO COSAS, y ninguna avisa si se
-## olvida (las cuatro se pagaron al ampliar el mar de 20 a 25):
+## AL REORDENAR ESTO HAY QUE REHACER CINCO COSAS, y ninguna avisa si se olvida
+## (todas se pagaron ampliando el mar, primero a 25 y luego a 30):
 ##   1. `MAP_POS` — la altura es 3220 - 312*(pos-1) y el carril sale del ciclo
-##      [CENTRO, IZQUIERDA, DERECHA] contado desde el 1.
+##      [CENTRO, IZQUIERDA, DERECHA] contado desde el 1. La cueva va aparte.
 ##   2. `KINDS` — `get_kind` cae a "isla" en silencio: un abordaje se jugó SIN
 ##      RELOJ y dos puertos salieron con palmeras.
-##   3. `client_mix` — los piratas no suben hasta el primer abordaje (el 12) y
-##      los capitanes hasta Pablo (el 16).
+##   3. `client_mix` — los piratas no suben hasta el primer abordaje (el 13) y
+##      los capitanes hasta Pablo (el 20).
 ##   4. `chef_rec` — se MIDE con `tools/medir_chef_rec.gd`.
-## Y después, `tools/auditar.gd`, que comprueba las cuatro.
+##   5. Las texturas de número (`tools/num_map.py`, una por escenario) y, si el
+##      mar crece, `SCROLL_MIN` y `SEA_SIZE` de `level_select3d`: todo lo que
+##      hay por encima de la cueva se corre, el mar 2 entero incluido.
+## Y después, `tools/auditar.gd`, que comprueba las cinco.
 ##
 ## Recorrido MEDIDO con la curva de experiencia vigente, bordándolo todo: se
-## llega al escenario 25 con el cocinero en el nivel 16 y se sale del mar en el
-## 17. Los `chef_rec` de cada puerto son exactamente esa cuenta.
+## llega al escenario 30 con el cocinero en el nivel 19 y se sale del mar en el
+## 20. Los `chef_rec` de cada puerto son exactamente esa cuenta.
 ##
 ## LOS PRIMEROS ESCENARIOS SON TODOS DE GRUMETES a propósito: se aprende a
 ## cocinar antes de aprender a leer paladares. Piratas y capitanes entran en el
@@ -368,6 +380,32 @@ const PORTS: Array = [
 		"director": "nivel_1",
 	},
 	{
+		"id": "practica_1",
+		"chef_rec": 1,
+		"name": "Ensenada del Mero",
+		"desc": "Sin lecciones: solo tu cocina, cuatro grumetes y las cajas.",
+		"client_mix": { "E": 5 },
+		"arrival_span": 120.0,
+		"patience_mult": 1.05,
+		"arrival_scale": 0.9,
+		"goal_stars": 2,
+		"star_money": [16, 29, 46],
+		"reward_recipes": [],
+		"reward_recipes_3": [],
+		# SIN SACO DE ARROZ: los premios de escenario son RECETAS (regla del
+		# usuario). Este daba uno y desentonaba con el resto del mar.
+		"reward_ingredients_3": { "salmon": 3, "aguacate": 2 },
+		# Carta cerrada con lo aprendido en el 1 y el 2. El maki de pepino entra
+		# si se ganaron las 3 estrellas del 2; si no, el gunkan.
+		"fixed_recipes": ["maki_aguacate", "nigiri_salmon"],
+		"alt_recipes": ["maki_pepino", "gunkan_wakame"],
+		"no_powerups": true,
+		"no_extras": true,
+		"no_variety_ui": true,
+		"no_perks": true,
+		"near_seats": true,
+	},
+	{
 		"id": "nivel_2",
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
@@ -401,30 +439,25 @@ const PORTS: Array = [
 		"director": "nivel_2",
 	},
 	{
-		"id": "practica_1",
-		"chef_rec": 1,
-		"name": "Ensenada del Mero",
-		"desc": "Sin lecciones: solo tu cocina, cuatro grumetes y las cajas.",
+		"id": "practica_5",
+		"chef_rec": 2,
+		"name": "Playa de las Gaviotas",
+		"desc": "Sin lecciones: tu cocina, cinco grumetes y las cajas recién aprendidas.",
 		"client_mix": { "E": 5 },
-		"arrival_span": 120.0,
-		"patience_mult": 1.05,
+		"arrival_span": 118.0,
+		"patience_mult": 1.02,
 		"arrival_scale": 0.9,
 		"goal_stars": 2,
-		"star_money": [16, 29, 46],
+		"star_money": [17, 30, 48],
 		"reward_recipes": [],
 		"reward_recipes_3": [],
-		# SIN SACO DE ARROZ: los premios de escenario son RECETAS (regla del
-		# usuario). Este daba uno y desentonaba con el resto del mar.
-		"reward_ingredients_3": { "salmon": 3, "aguacate": 2 },
-		# Carta cerrada con lo aprendido en el 1 y el 2. El maki de pepino entra
-		# si se ganaron las 3 estrellas del 2; si no, el gunkan.
+		"reward_ingredients_3": { "salmon": 3, "pepino": 2 },
 		"fixed_recipes": ["maki_aguacate", "nigiri_salmon"],
 		"alt_recipes": ["maki_pepino", "gunkan_wakame"],
 		"no_powerups": true,
 		"no_extras": true,
 		"no_variety_ui": true,
 		"no_perks": true,
-		"near_seats": true,
 	},
 	{
 		"id": "nivel_3",
@@ -456,11 +489,35 @@ const PORTS: Array = [
 		"director": "nivel_3",
 	},
 	{
+		"id": "practica_2",
+		"chef_rec": 3,
+		"name": "Caleta del Farol",
+		"desc": "Una cala tranquila para asentar lo aprendido.",
+		"client_mix": { "E": 8 },
+		"arrival_span": 130.0,
+		"patience_mult": 1.0,
+		"arrival_scale": 0.85,
+		"goal_stars": 2,
+		"star_money": [28, 50, 78],
+		"reward_recipes": [],
+		"reward_recipes_3": [],
+		# Premio de 3 estrellas: DESPENSA para la pareja de la carta (decidido
+		# por el usuario). Van por `reward_ingredients_3`, el campo generico de
+		# usos de ingrediente.
+		"reward_ingredients_3": { "salmon": 3, "aguacate": 2 },
+		# Isla: carta CERRADA con lo aprendido hasta aqui. El hueco variable lo
+		# ocupa lo mejor que el jugador se haya ganado.
+		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "edamame"],
+		"alt_recipes": ["onigiri", "maki_pepino", "gunkan_wakame"],
+		"arrival_batch": 2,
+		"near_seats": true,
+	},
+	{
 		"id": "nivel_4",
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 2,
+		"chef_rec": 4,
 		"name": "Arrecife del Ron",
 		"desc": "Ocho bocas de dos en dos. Y corre la voz de que hay tienda en el puerto.",
 		"client_mix": { "E": 8 },
@@ -487,35 +544,29 @@ const PORTS: Array = [
 		"no_perks": true,
 	},
 	{
-		"id": "practica_2",
-		"chef_rec": 3,
-		"name": "Caleta del Farol",
-		"desc": "Una cala tranquila para asentar lo aprendido.",
+		"id": "practica_6",
+		"chef_rec": 4,
+		"name": "Fondeadero del Tonel",
+		"desc": "Practica con la carta que tu elijas y el puesto de Saverio recien abierto.",
 		"client_mix": { "E": 8 },
-		"arrival_span": 130.0,
-		"patience_mult": 1.0,
+		"arrival_span": 115.0,
+		"patience_mult": 0.98,
 		"arrival_scale": 0.85,
 		"goal_stars": 2,
-		"star_money": [28, 50, 78],
+		"star_money": [28, 50, 80],
 		"reward_recipes": [],
 		"reward_recipes_3": [],
-		# Premio de 3 estrellas: DESPENSA para la pareja de la carta (decidido
-		# por el usuario). Van por `reward_ingredients_3`, el campo generico de
-		# usos de ingrediente.
-		"reward_ingredients_3": { "salmon": 3, "aguacate": 2 },
-		# Isla: carta CERRADA con lo aprendido hasta aqui. El hueco variable lo
-		# ocupa lo mejor que el jugador se haya ganado.
-		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "edamame"],
-		"alt_recipes": ["onigiri", "maki_pepino", "gunkan_wakame"],
-		"arrival_batch": 2,
-		"near_seats": true,
+		"reward_ingredients_3": { "atun": 3, "aguacate": 3 },
+		"no_powerups": true,
+		"no_extras": true,
+		"no_perks": true,
 	},
 	{
 		"id": "nivel_5",
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 4,
+		"chef_rec": 5,
 		"name": "Cala del Calamar",
 		"desc": "El postre es la cuenta: aprende a despedir clientes y a llenar el bote.",
 		"client_mix": { "E": 5 },
@@ -541,8 +592,31 @@ const PORTS: Array = [
 		"no_perks": true,
 	},
 	{
+		"id": "practica_3",
+		"chef_rec": 6,
+		"name": "Rada del Pulpo",
+		"desc": "Postres, propinas y extras: todo junto y sin ayuda.",
+		"client_mix": { "E": 9 },
+		"arrival_span": 135.0,
+		"patience_mult": 0.98,
+		"arrival_scale": 0.85,
+		"goal_stars": 2,
+		"star_money": [34, 60, 95],
+		"reward_recipes": [],
+		"reward_recipes_3": [],
+		# Premio de 3 estrellas: 3 usos de CADA EXTRA (decidido por el usuario).
+		# Los extras viven en la misma despensa que los ingredientes, asi que
+		# entran por el mismo campo.
+		"reward_ingredients_3": { "jengibre": 3, "wasabi": 3, "soja": 3 },
+		# Isla: carta CERRADA con el postre de los grumetes dentro, que es lo
+		# que esta practica pone a prueba.
+		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "mochi"],
+		"alt_recipes": ["sopa_miso", "caldo_dashi", "onigiri", "gunkan_wakame"],
+		"arrival_batch": 2,
+	},
+	{
 		"id": "nivel_16",
-		"chef_rec": 4,
+		"chef_rec": 7,
 		"name": "Ensenada del Maridaje",
 		"desc": "Dos platos que se buscan: el dulce sabe mejor detras del te.",
 		# ESCENARIO 8, JUSTO DETRAS DEL DE LOS POSTRES (pedido por el usuario):
@@ -570,76 +644,29 @@ const PORTS: Array = [
 		"director": "nivel_16",
 	},
 	{
-		"id": "practica_3",
-		"chef_rec": 5,
-		"name": "Rada del Pulpo",
-		"desc": "Postres, propinas y extras: todo junto y sin ayuda.",
-		"client_mix": { "E": 9 },
-		"arrival_span": 135.0,
-		"patience_mult": 0.98,
+		"id": "practica_7",
+		"chef_rec": 7,
+		"name": "Islote de la Sal",
+		"desc": "Practica: postres, propinas y parejas, sin nadie explicando nada.",
+		"client_mix": { "E": 8 },
+		"arrival_span": 115.0,
+		"patience_mult": 0.95,
 		"arrival_scale": 0.85,
 		"goal_stars": 2,
-		"star_money": [34, 60, 95],
+		"star_money": [30, 54, 88],
 		"reward_recipes": [],
 		"reward_recipes_3": [],
-		# Premio de 3 estrellas: 3 usos de CADA EXTRA (decidido por el usuario).
-		# Los extras viven en la misma despensa que los ingredientes, asi que
-		# entran por el mismo campo.
-		"reward_ingredients_3": { "jengibre": 3, "wasabi": 3, "soja": 3 },
-		# Isla: carta CERRADA con el postre de los grumetes dentro, que es lo
-		# que esta practica pone a prueba.
-		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "mochi"],
-		"alt_recipes": ["sopa_miso", "caldo_dashi", "onigiri", "gunkan_wakame"],
-		"arrival_batch": 2,
-	},
-	{
-		"id": "nivel_6",
-		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
-		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
-		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 6,
-		"name": "Bahía del Kraken",
-		"desc": "Saverio saca los extras: jengibre, wasabi y soja sobre el plato hecho.",
-		"client_mix": { "E": 8 },
-		# Con solo DOS tandas la ventana se reparte entre ellas, así que un
-		# `arrival_span` largo dejaba un desierto en medio: con 90, las dos
-		# oleadas caen a los 5 y a los 54 s.
-		"arrival_span": 90.0,
-		"patience_mult": 0.95,
-		"arrival_scale": 0.8,
-		# Dos tandas de cuatro: la barra se llena de golpe dos veces.
-		"arrival_batch": 4,
-		"goal_stars": 2,
-		"star_money": [28, 52, 82],
-		"reward_recipes": [],
-		"reward_recipes_3": ["sopa_miso"],
-		"director": "nivel_6",
+		"reward_ingredients_3": { "matcha": 3, "te": 3 },
+		"fixed_recipes": ["nigiri_salmon", "maki_aguacate", "te_verde", "mochi"],
+		"no_extras": true,
 		"no_perks": true,
-	},
-	{
-		"id": "nivel_18",
-		"chef_rec": 7,
-		"name": "Rada de las Tres Anclas",
-		"desc": "Practica. Ni lecciones ni sorpresas: solo servicio.",
-		# ESCENARIO 11: la ultima jornada tranquila antes del primer abordaje,
-		# asi que sigue siendo de GRUMETES. Es el primer PUERTO con la carta
-		# libre de verdad —el 5 y el 10 venian con leccion—, y esa es su
-		# gracia: mucha boca del mismo tipo y tu decides con que llenarla.
-		"client_mix": { "E": 9 },
-		"arrival_span": 120.0,
-		"patience_mult": 0.92,
-		"arrival_scale": 0.82,
-		"goal_stars": 2,
-		"star_money": [36, 64, 100],
-		"reward_recipes": [],
-		"reward_recipes_3": ["nigiri_anguila"],
 	},
 	{
 		"id": "nivel_7",
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 7,
+		"chef_rec": 8,
 		"name": "Estrecho del Rayo",
 		"desc": "¡Abordaje! Reloj, clientela sin fin y los primeros piratas.",
 		# Abordaje: esta mezcla es solo la PRIMERA tanda.
@@ -685,7 +712,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "practica_4",
-		"chef_rec": 8,
+		"chef_rec": 9,
 		"name": "Paso de las Barracudas",
 		"desc": "Un abordaje corriente, sin nadie a quien impresionar.",
 		"client_mix": { "E": 5, "A": 2 },
@@ -703,11 +730,67 @@ const PORTS: Array = [
 		"reward_bait_3": 1,
 	},
 	{
+		"id": "nivel_6",
+		"chef_rec": 10,
+		"name": "Bahía del Kraken",
+		"desc": "Saverio abre su caja: el WASABI, sobre el plato ya terminado.",
+		# --- EL PRIMERO DE LOS TRES ESCENARIOS DE EXTRAS ------------------
+		# Los extras ya no llegan los tres de golpe (pedido por el usuario):
+		# cada uno tiene SU jornada —wasabi, jengibre y soja, seguidas— porque
+		# son lecciones de dos frases y lo que hace falta es USARLAS. Por eso
+		# estos tres NO llevan escenario de práctica detrás: cada uno ES su
+		# propia práctica.
+		"client_mix": { "E": 6, "A": 2 },
+		"arrival_span": 90.0,
+		"patience_mult": 0.95,
+		"arrival_scale": 0.8,
+		# Dos tandas de cuatro: la barra se llena de golpe dos veces.
+		"arrival_batch": 4,
+		"goal_stars": 2,
+		"star_money": [30, 54, 86],
+		"reward_recipes": [],
+		"reward_recipes_3": ["sopa_miso"],
+		"director": "nivel_6",
+		"no_perks": true,
+	},
+	{
+		"id": "nivel_21",
+		"chef_rec": 10,
+		"name": "Rada del Paladar Limpio",
+		"desc": "El JENGIBRE: borra lo que ha probado, a cambio de un punto de chapa.",
+		"client_mix": { "E": 6, "A": 2 },
+		"arrival_span": 95.0,
+		"patience_mult": 0.95,
+		"arrival_scale": 0.8,
+		"goal_stars": 2,
+		"star_money": [32, 56, 90],
+		"reward_recipes": [],
+		"reward_recipes_3": ["nigiri_inari"],
+		"director": "nivel_21",
+		"no_perks": true,
+	},
+	{
+		"id": "nivel_22",
+		"chef_rec": 11,
+		"name": "Ensenada de la Salazón",
+		"desc": "La SOJA: engorda la propina, pero el bocado se acaba antes.",
+		"client_mix": { "E": 6, "A": 3 },
+		"arrival_span": 100.0,
+		"patience_mult": 0.95,
+		"arrival_scale": 0.8,
+		"goal_stars": 2,
+		"star_money": [34, 60, 96],
+		"reward_recipes": [],
+		"reward_recipes_3": ["sashimi_tamago"],
+		"director": "nivel_22",
+		"no_perks": true,
+	},
+	{
 		"id": "nivel_8",
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 9,
+		"chef_rec": 12,
 		"name": "Isla de Gades",
 		"desc": "Un pescador silencioso espera en la orilla con su caña.",
 		# CAI SE SIENTA A COMER: es el PRIMER pirata que entra (`special_client`
@@ -736,7 +819,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 10,
+		"chef_rec": 12,
 		"name": "Puerto Tormenta",
 		"desc": "Diez bocas en dos oleadas, y la mitad son piratas.",
 		"client_mix": { "E": 6, "A": 4 },
@@ -760,7 +843,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 10,
+		"chef_rec": 13,
 		"name": "Flota del capitán Pablo el Rubio",
 		"desc": "Abordaje a la flota de un viejo conocido de David.",
 		"client_mix": { "E": 2, "A": 2, "G": 1 },
@@ -789,7 +872,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_19",
-		"chef_rec": 11,
+		"chef_rec": 14,
 		"name": "Paso de los Cangrejos",
 		"desc": "Abordaje corto y apretado: entran de dos en dos y no paran.",
 		"client_mix": { "E": 4, "A": 3, "G": 2 },
@@ -808,7 +891,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 12,
+		"chef_rec": 14,
 		"name": "Cala del Hambre",
 		"desc": "Tres bocas, una de ellas con un hambre que no es normal.",
 		"client_mix": { "E": 1, "A": 1, "G": 1 },
@@ -834,7 +917,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 12,
+		"chef_rec": 15,
 		"name": "Ensenada del Naufragio",
 		"desc": "Corre la voz de que alguien paga en tesoros, no en oro.",
 		"client_mix": { "E": 4, "A": 3, "G": 1 },
@@ -863,7 +946,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_17",
-		"chef_rec": 13,
+		"chef_rec": 16,
 		"name": "Caleta del Cartografo",
 		"desc": "Un grumete trae un mapa heredado y lo cambia por una buena jornada.",
 		"client_mix": { "E": 4, "A": 3, "G": 1 },
@@ -890,26 +973,29 @@ const PORTS: Array = [
 		"director": "nivel_17",
 	},
 	{
-		"id": "nivel_20",
-		"chef_rec": 14,
-		"name": "Muelle del Farolero",
-		"desc": "El ultimo puerto con clientela de verdad antes de la bruma.",
-		"client_mix": { "E": 5, "A": 4, "G": 2 },
-		"arrival_span": 135.0,
-		"patience_mult": 0.9,
-		"arrival_scale": 0.8,
+		"id": "nivel_18",
+		"chef_rec": 16,
+		"name": "Rada de las Tres Anclas",
+		"desc": "Practica. Ni lecciones ni sorpresas: solo servicio.",
+		# ESCENARIO 25: practica de la leccion de los MAPAS DEL TESORO, ya con
+		# la clientela completa. Estuvo en el 11 y era de grumetes a secas; al
+		# moverlo hasta aqui hubo que rehacerle la mezcla, que es la trampa de
+		# siempre al reordenar la campaña.
+		"client_mix": { "E": 4, "A": 3, "G": 2 },
+		"arrival_span": 120.0,
+		"patience_mult": 0.92,
+		"arrival_scale": 0.82,
 		"goal_stars": 2,
-		"star_money": [50, 90, 140],
-		"boat": true,
+		"star_money": [46, 82, 128],
 		"reward_recipes": [],
-		"reward_recipes_3": ["uramaki_california"],
+		"reward_recipes_3": ["nigiri_anguila"],
 	},
 	{
 		"id": "nivel_13",
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 14,
+		"chef_rec": 17,
 		"name": "Rada de los Dos Fuegos",
 		"desc": "Demasiadas comandas para un solo par de manos.",
 		"client_mix": { "E": 5, "A": 3, "G": 2 },
@@ -930,11 +1016,26 @@ const PORTS: Array = [
 		"reward_recipes_3": ["nigiri_pulpo"],
 	},
 	{
+		"id": "nivel_20",
+		"chef_rec": 17,
+		"name": "Muelle del Farolero",
+		"desc": "El ultimo puerto con clientela de verdad antes de la bruma.",
+		"client_mix": { "E": 5, "A": 4, "G": 2 },
+		"arrival_span": 135.0,
+		"patience_mult": 0.9,
+		"arrival_scale": 0.8,
+		"goal_stars": 2,
+		"star_money": [50, 90, 140],
+		"boat": true,
+		"reward_recipes": [],
+		"reward_recipes_3": ["uramaki_california"],
+	},
+	{
 		"id": "nivel_14",
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 15,
+		"chef_rec": 18,
 		"name": "Muelle de las Bandejas",
 		"desc": "Muelle largo y clientela sin prisa: buen día para probar cosas.",
 		"client_mix": { "E": 5, "A": 4, "G": 2 },
@@ -955,7 +1056,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "vispera_kappa",
-		"chef_rec": 16,
+		"chef_rec": 19,
 		"name": "Bruma del Estrecho",
 		"desc": "La última parada antes de la guarida. Aquí ya no se enseña nada.",
 		"client_mix": { "E": 6, "A": 4, "G": 2 },
@@ -974,7 +1075,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 16,
+		"chef_rec": 19,
 		"name": "Cueva del Kappa",
 		"desc": "Algo enorme y hambriento ronda estas aguas...",
 		"client_mix": { "E": 3, "A": 2, "G": 1 },
@@ -1451,16 +1552,25 @@ const KINDS: Dictionary = {
 	"practica_3": "isla",
 	"practica_4": "abordaje",
 	"vispera_kappa": "puerto",
-	# LOS CINCO QUE AMPLIARON EL MAR 1 A 25. Sin estas líneas `get_kind` caía a
-	# su valor por defecto ("isla") y NADIE avisaba: el Paso de los Cangrejos
-	# se jugaba SIN RELOJ pese a ser un abordaje, y los dos puertos salían con
-	# arenal y palmeras. Un escenario sin tipo declarado ya no pasa la
-	# auditoría. El mar 1 queda en 10 islas, 9 puertos, 5 abordajes y 1 cueva.
+	# LOS QUE AMPLIARON EL MAR 1, primero a 25 y luego a 30. Sin estas líneas
+	# `get_kind` caía a su valor por defecto ("isla") y NADIE avisaba: el Paso
+	# de los Cangrejos se jugaba SIN RELOJ pese a ser un abordaje, y dos
+	# puertos salían con arenal y palmeras. Un escenario sin tipo declarado ya
+	# no pasa la auditoría.
 	"nivel_16": "isla",
 	"nivel_17": "puerto",
 	"nivel_18": "puerto",
 	"nivel_19": "abordaje",
 	"nivel_20": "puerto",
+	# LOS TRES DE LOS EXTRAS van seguidos y los tres de PUERTO: el extra se
+	# echa sobre un plato ya hecho, y para eso hace falta poder elegir la carta
+	# —una isla la trae cerrada—. El primero es `nivel_6`, que ya existía.
+	"nivel_21": "puerto",
+	"nivel_22": "puerto",
+	# Las tres prácticas nuevas repiten el tipo de la lección que practican.
+	"practica_5": "isla",
+	"practica_6": "puerto",
+	"practica_7": "isla",
 	# --- MAR 2 (9 islas, 9 puertos, 6 abordajes y la cueva de la sirena) ---
 	"m2_01": "isla",
 	"m2_02": "isla",
@@ -1536,63 +1646,67 @@ const MAP_STEP := 215.0
 ## travesía deja de serpentear y se pone a zigzaguear en corto.
 const MAP_POS: Dictionary = {
 	"nivel_1": Vector2(LANE_CENTER, 3220.0),
-	"nivel_2": Vector2(LANE_LEFT, 2908.0),
-	"practica_1": Vector2(LANE_RIGHT, 2596.0),
-	"nivel_3": Vector2(LANE_CENTER, 2284.0),
-	"nivel_4": Vector2(LANE_LEFT, 1972.0),
+	"practica_1": Vector2(LANE_LEFT, 2908.0),
+	"nivel_2": Vector2(LANE_RIGHT, 2596.0),
+	"practica_5": Vector2(LANE_CENTER, 2284.0),
+	"nivel_3": Vector2(LANE_LEFT, 1972.0),
 	"practica_2": Vector2(LANE_RIGHT, 1660.0),
-	"nivel_5": Vector2(LANE_CENTER, 1348.0),
-	"nivel_16": Vector2(LANE_LEFT, 1036.0),
-	"practica_3": Vector2(LANE_RIGHT, 724.0),
-	"nivel_6": Vector2(LANE_CENTER, 412.0),
-	"nivel_18": Vector2(LANE_LEFT, 100.0),
-	"nivel_7": Vector2(LANE_RIGHT, -212.0),
-	"practica_4": Vector2(LANE_CENTER, -524.0),
-	"nivel_8": Vector2(LANE_LEFT, -836.0),
-	"nivel_9": Vector2(LANE_RIGHT, -1148.0),
-	"nivel_10": Vector2(LANE_CENTER, -1460.0),
-	"nivel_19": Vector2(LANE_LEFT, -1772.0),
-	"nivel_11": Vector2(LANE_RIGHT, -2084.0),
-	"nivel_12": Vector2(LANE_CENTER, -2396.0),
-	"nivel_17": Vector2(LANE_LEFT, -2708.0),
-	"nivel_20": Vector2(LANE_RIGHT, -3020.0),
-	"nivel_13": Vector2(LANE_CENTER, -3332.0),
-	"nivel_14": Vector2(LANE_LEFT, -3644.0),
-	"vispera_kappa": Vector2(LANE_RIGHT, -3956.0),
-	# LA CUEVA DEL KAPPA, a dos pasos del escenario 19 (el usuario la acerco:
-	# con el mar 2 continuando por encima, el aislamiento de antes ya no tenia
-	# sentido y dejaba un vacio enorme en la travesia).
-	"nivel_15": Vector2(LANE_CENTER, -4798.0),
+	"nivel_4": Vector2(LANE_CENTER, 1348.0),
+	"practica_6": Vector2(LANE_LEFT, 1036.0),
+	"nivel_5": Vector2(LANE_RIGHT, 724.0),
+	"practica_3": Vector2(LANE_CENTER, 412.0),
+	"nivel_16": Vector2(LANE_LEFT, 100.0),
+	"practica_7": Vector2(LANE_RIGHT, -212.0),
+	"nivel_7": Vector2(LANE_CENTER, -524.0),
+	"practica_4": Vector2(LANE_LEFT, -836.0),
+	"nivel_6": Vector2(LANE_RIGHT, -1148.0),
+	"nivel_21": Vector2(LANE_CENTER, -1460.0),
+	"nivel_22": Vector2(LANE_LEFT, -1772.0),
+	"nivel_8": Vector2(LANE_RIGHT, -2084.0),
+	"nivel_9": Vector2(LANE_CENTER, -2396.0),
+	"nivel_10": Vector2(LANE_LEFT, -2708.0),
+	"nivel_19": Vector2(LANE_RIGHT, -3020.0),
+	"nivel_11": Vector2(LANE_CENTER, -3332.0),
+	"nivel_12": Vector2(LANE_LEFT, -3644.0),
+	"nivel_17": Vector2(LANE_RIGHT, -3956.0),
+	"nivel_18": Vector2(LANE_CENTER, -4268.0),
+	"nivel_13": Vector2(LANE_LEFT, -4580.0),
+	"nivel_20": Vector2(LANE_RIGHT, -4892.0),
+	"nivel_14": Vector2(LANE_CENTER, -5204.0),
+	"vispera_kappa": Vector2(LANE_LEFT, -5516.0),
+	# LA CUEVA DEL KAPPA va CENTRADA y con su respiro: la guarida del jefe
+	# no comparte carril con nadie.
+	"nivel_15": Vector2(LANE_CENTER, -6670.0),
 	# --- MAR 2: sigue hacia el norte, con un salto de mar (1000 px) entre la
 	# cueva y su primera cala. PASO 368: cada mar gano +100 px de paso
 	# (pedido por el usuario) porque con los CARTELES puestos la travesia
 	# se veia mas apretada de lo que estaba. El jefe (m2_25) lleva su
 	# respiro extra.
-	"m2_01": Vector2(LANE_CENTER, -5798.0),
-	"m2_02": Vector2(LANE_LEFT, -6166.0),
-	"m2_03": Vector2(LANE_CENTER, -6534.0),
-	"m2_04": Vector2(LANE_RIGHT, -6902.0),
-	"m2_05": Vector2(LANE_CENTER, -7270.0),
-	"m2_06": Vector2(LANE_LEFT, -7638.0),
-	"m2_07": Vector2(LANE_CENTER, -8006.0),
-	"m2_08": Vector2(LANE_RIGHT, -8374.0),
-	"m2_09": Vector2(LANE_CENTER, -8742.0),
-	"m2_10": Vector2(LANE_LEFT, -9110.0),
-	"m2_11": Vector2(LANE_CENTER, -9478.0),
-	"m2_12": Vector2(LANE_RIGHT, -9846.0),
-	"m2_13": Vector2(LANE_CENTER, -10214.0),
-	"m2_14": Vector2(LANE_LEFT, -10582.0),
-	"m2_15": Vector2(LANE_CENTER, -10950.0),
-	"m2_16": Vector2(LANE_RIGHT, -11318.0),
-	"m2_17": Vector2(LANE_CENTER, -11686.0),
-	"m2_18": Vector2(LANE_LEFT, -12054.0),
-	"m2_19": Vector2(LANE_CENTER, -12422.0),
-	"m2_20": Vector2(LANE_RIGHT, -12790.0),
-	"m2_21": Vector2(LANE_CENTER, -13158.0),
-	"m2_22": Vector2(LANE_LEFT, -13526.0),
-	"m2_23": Vector2(LANE_CENTER, -13894.0),
-	"m2_24": Vector2(LANE_RIGHT, -14262.0),
-	"m2_25": Vector2(LANE_CENTER, -14830.0),
+	"m2_01": Vector2(LANE_CENTER, -7670.0),
+	"m2_02": Vector2(LANE_LEFT, -8038.0),
+	"m2_03": Vector2(LANE_CENTER, -8406.0),
+	"m2_04": Vector2(LANE_RIGHT, -8774.0),
+	"m2_05": Vector2(LANE_CENTER, -9142.0),
+	"m2_06": Vector2(LANE_LEFT, -9510.0),
+	"m2_07": Vector2(LANE_CENTER, -9878.0),
+	"m2_08": Vector2(LANE_RIGHT, -10246.0),
+	"m2_09": Vector2(LANE_CENTER, -10614.0),
+	"m2_10": Vector2(LANE_LEFT, -10982.0),
+	"m2_11": Vector2(LANE_CENTER, -11350.0),
+	"m2_12": Vector2(LANE_RIGHT, -11718.0),
+	"m2_13": Vector2(LANE_CENTER, -12086.0),
+	"m2_14": Vector2(LANE_LEFT, -12454.0),
+	"m2_15": Vector2(LANE_CENTER, -12822.0),
+	"m2_16": Vector2(LANE_RIGHT, -13190.0),
+	"m2_17": Vector2(LANE_CENTER, -13558.0),
+	"m2_18": Vector2(LANE_LEFT, -13926.0),
+	"m2_19": Vector2(LANE_CENTER, -14294.0),
+	"m2_20": Vector2(LANE_RIGHT, -14662.0),
+	"m2_21": Vector2(LANE_CENTER, -15030.0),
+	"m2_22": Vector2(LANE_LEFT, -15398.0),
+	"m2_23": Vector2(LANE_CENTER, -15766.0),
+	"m2_24": Vector2(LANE_RIGHT, -16134.0),
+	"m2_25": Vector2(LANE_CENTER, -16702.0),
 }
 
 

@@ -205,6 +205,10 @@ func _init() -> void:
 				continue
 			var v: Vector2 = CampaignData.MAP_POS[id]
 			var esperado: float = carriles[pos % carriles.size()]
+			# LA GUARIDA DEL JEFE VA CENTRADA Y APARTE, fuera del ciclo: no
+			# comparte carril con nadie porque no comparte nada con nadie.
+			if str(p.get("boss", "")) != "":
+				esperado = v.x
 			if not is_equal_approx(v.x, esperado):
 				print("  ! %s (pos %d del mar %d) esta en el carril que no toca"
 						% [id, pos + 1, mar])
@@ -214,6 +218,20 @@ func _init() -> void:
 				fallos += 1
 			antes = v.y
 			pos += 1
+
+	# --- EL CARTEL DE CADA ESCENARIO tiene su numero horneado ---------------
+	# `assets/map/num_N.png` se genera con `tools/num_map.py` y hay UNO POR
+	# ESCENARIO. Añadir escenarios sin volver a pasarlo deja el mapa escupiendo
+	# "Resource file not found" por cada cartel que falta, y eso solo se ve
+	# abriendo el mapa. Paso al ampliar el mar 1 de 25 a 30.
+	var faltan_num := 0
+	for i in range(1, CampaignData.PORTS.size() + 1):
+		if not ResourceLoader.exists("res://assets/map/num_%d.png" % i):
+			faltan_num += 1
+	if faltan_num > 0:
+		print("  ! faltan %d texturas de numero: pasar tools/num_map.py"
+				% faltan_num)
+		fallos += faltan_num
 
 	# --- TIPOS: que ningun escenario se quede sin el suyo declarado ---------
 	# `get_kind` cae a "isla" cuando falta, y eso no da ningun error: cambia el

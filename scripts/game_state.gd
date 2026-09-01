@@ -132,9 +132,17 @@ var unlocked_powerups: Array[String] = []
 var tutorial_done := false
 ## true cuando David ya ha presentado la TIENDA y a Saverio (tras el nivel 4).
 var shop_intro_done := false
-## Los EXTRAS (jengibre, wasabi, soja) llegan MÁS TARDE que la tienda: Saverio
-## los saca en el nivel 6, no el día que abre el puesto. Hasta entonces ni
-## aparecen en la tabla ni se venden.
+## Los EXTRAS llegan MÁS TARDE que la tienda: Saverio los saca a partir del
+## escenario 13, no el día que abre el puesto.
+##
+## Y NO LLEGAN LOS TRES DE GOLPE (pedido por el usuario): cada uno tiene SU
+## escenario —wasabi, jengibre y soja, seguidos—, así que lo que se guarda es
+## la LISTA de los que ya se han presentado y no un interruptor. Son lecciones
+## cortas y cada una se practica en su propia jornada, así que estos tres no
+## llevan escenario de práctica detrás.
+var unlocked_extras: Array[String] = []
+## Compatibilidad: los guardados anteriores traían un solo `extras_done`. Se
+## lee al cargar y, si estaba puesto, se rellena la lista con los tres.
 var extras_done := false
 ## David ya felicitó al jugador tras superar el NIVEL 1 (recompensas + invitación
 ## al 2) y ya explicó el BONUS DIARIO. Los dos van seguidos y una sola vez.
@@ -466,11 +474,30 @@ func fishing_unlocked() -> bool:
 	return true
 
 
-## Los EXTRAS (jengibre, wasabi, soja) los saca Saverio en el nivel 6, DOS
-## niveles después de abrir el puesto: la tienda ya es bastante novedad ella
-## sola, y los extras solo tienen sentido cuando el jugador conoce el hastío.
+## ¿Existe ya ALGÚN extra? Es la llave del sistema: la esquina de la tabla, la
+## balda de la tienda y la despensa del recetario se encienden con el primero.
+## Los saca Saverio bastante después de abrir el puesto: la tienda ya es
+## novedad de sobra ella sola, y un extra solo tiene sentido cuando el jugador
+## conoce el hastío.
 func extras_unlocked() -> bool:
-	return extras_done
+	return not unlocked_extras.is_empty()
+
+
+## ¿Está presentado ESE extra? Lo preguntan la tabla, la tienda y la despensa:
+## los tres tienen su escenario y hasta entonces no existen.
+func has_extra(id: String) -> bool:
+	return id in unlocked_extras
+
+
+## Presenta un extra (lo llama su guion). Devuelve si era nuevo, que es lo que
+## distingue "Saverio te lo saca" de repetir el escenario.
+func unlock_extra(id: String) -> bool:
+	if id in unlocked_extras or not id in RecipeData.EXTRAS:
+		return false
+	unlocked_extras.append(id)
+	extras_done = true
+	save_game()
+	return true
 
 
 ## Regala `RESCUE_GIFT` usos de cada ingrediente del que no quede nada. Es la
@@ -2691,6 +2718,7 @@ func save_game() -> void:
 		"tutorial_done": tutorial_done,
 		"shop_intro_done": shop_intro_done,
 		"extras_done": extras_done,
+		"unlocked_extras": unlocked_extras,
 		"level1_outro_done": level1_outro_done,
 		"daily_intro_done": daily_intro_done,
 		"trash_intro_done": trash_intro_done,
@@ -2923,6 +2951,19 @@ func load_game() -> void:
 	# Guardados de cuando los EXTRAS los abría la tienda: quien ya la tenía
 	# abierta se queda con ellos (quitárselos sería una regresión).
 	extras_done = bool(parsed.get("extras_done", shop_intro_done))
+	# LOS EXTRAS PASARON DE INTERRUPTOR A LISTA (uno por escenario). Un
+	# guardado anterior solo trae `extras_done`: si estaba puesto, ya los
+	# tenia los tres, asi que se rellena entera.
+	unlocked_extras.clear()
+	for e in (parsed.get("unlocked_extras", []) as Array):
+		if str(e) in RecipeData.EXTRAS and not str(e) in unlocked_extras:
+			unlocked_extras.append(str(e))
+	if unlocked_extras.is_empty() and extras_done:
+		# Uno a uno: `EXTRAS` es un Array sin tipar y esto es un Array[String],
+		# asi que un `duplicate()` a pelo revienta al cargar la partida.
+		for e in RecipeData.EXTRAS:
+			unlocked_extras.append(str(e))
+	extras_done = not unlocked_extras.is_empty()
 	level1_outro_done = bool(parsed.get("level1_outro_done", tutorial_done))
 	daily_intro_done = bool(parsed.get("daily_intro_done", tutorial_done))
 	trash_intro_done = bool(parsed.get("trash_intro_done", tutorial_done))
@@ -3045,6 +3086,7 @@ func _new_game() -> void:
 	tutorial_done = false
 	shop_intro_done = false
 	extras_done = false
+	unlocked_extras.clear()
 	level1_outro_done = false
 	daily_intro_done = false
 	trash_intro_done = false

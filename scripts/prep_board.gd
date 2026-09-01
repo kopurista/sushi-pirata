@@ -2829,6 +2829,12 @@ func _update_extra_buttons() -> void:
 	var usable: bool = state == State.READY and admite
 	for id in extra_buttons:
 		var b: Button = extra_buttons[id]
+		# CADA EXTRA TIENE SU ESCENARIO: los que Saverio no ha sacado
+		# todavia ni se dibujan. Antes era un unico interruptor para los
+		# tres, asi que el primero los encendia todos.
+		if not GameState.has_extra(str(id)):
+			b.visible = false
+			continue
 		var stock: int = GameState.get_ingredient_uses(id)
 		var picked: bool = extras_chosen.get(id, false)
 		var on: bool = usable and (stock > 0 or picked)

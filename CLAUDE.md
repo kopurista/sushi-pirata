@@ -84,58 +84,70 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   y `easy_next` se fueron con los potenciadores manuales que los encendían, y
   con ellos `_simplify_steps` y `recycle_recipe`.)
 
-## LA CAMPAÑA: EL MAR 1 SON 25 ESCENARIOS (reordenados el 1-9-2026)
+## LA CAMPAÑA: EL MAR 1 SON 30 ESCENARIOS (reordenados el 1-9-2026)
 
-**10 islas, 9 puertos, 5 abordajes y 1 CUEVA** (el tipo nuevo, reservado a los
-jefes). El detalle en la cabecera de `campaign_data.gd`; los ids NO se
+**12 islas, 12 puertos, 5 abordajes y 1 CUEVA** (el tipo nuevo, reservado a
+los jefes). El detalle en la cabecera de `campaign_data.gd`; los ids NO se
 renumeran (el número que ve el jugador es la posición en `PORTS`, y por eso
-`nivel_16` es el 8 y `nivel_15` el 25).
+`nivel_16` es el 11 y `nivel_15` el 30).
 
-**EL RITMO ES LECCIÓN → PRÁCTICA** (pedido por el usuario): detrás de cada
-escenario que explica algo va uno que no explica nada, para poder aplicarlo.
-No sale perfecto y no puede salir: hay **14 lecciones contra 10 prácticas**,
-así que con 10 prácticas solo caben 11 bloques y cuatro lecciones van
-forzosamente pegadas a otra. **Se eligieron las cuatro parejas, no se dejaron
-al azar**, y cada una tiene su motivo:
-- **1+2** (jornada + cajas): las dos más suaves, y el arranque necesita ritmo.
-- **4+5** (picoteo + multiplicador/tienda): el picoteo es un regalo y dos
-  frases; el que pesa es el 5.
-- **7+8** (postres + maridaje): **pedida por el usuario**. En el 7 David
-  menciona el maridaje al regalar el mochi y en el 8 se practica, con la
-  MISMA pareja que nombró (té verde → mochi).
-- **22+23** (Alice se enrola + Alice explica los bonificadores): un solo arco
-  de personaje partido en dos jornadas.
+**EL RITMO ES LECCIÓN → PRÁCTICA, Y AHORA SALE ENTERO** (pedido por el
+usuario): **cada una de las 13 lecciones tiene su propio escenario de práctica
+detrás**. Se llegó ahí añadiendo tres prácticas (`practica_5/6/7`), que es lo
+que faltaba — antes eran 14 lecciones contra 10 prácticas y cuatro parejas de
+lecciones iban pegadas por pura aritmética.
+
+**LA EXCEPCIÓN SON LOS TRES EXTRAS** (escenarios 15, 16 y 17), y es una
+excepción PEDIDA: cada uno estrena un extra —wasabi, jengibre y soja— y **cada
+uno ES su propia práctica**, porque la lección son dos frases y lo que hace
+falta es gastarlo. Por eso van los tres seguidos y sin práctica detrás. La
+consecuencia, dicha en voz alta: el 18 (Cai y la pesca) cae detrás del tercero,
+así que ahí hay una lección pegada a otra — es la ÚNICA de todo el mar.
 
 | # | Escenario | Tipo | Lección |
 |---|---|---|---|
 | 1 | Cala Tortuga | isla | paciencia, bocado, oro y papelera |
-| 2 | Playa del Coco | isla | las CAJAS (4 platos guardados) |
-| 3 | Ensenada del Mero | isla | PRÁCTICA (3★: despensa de salmón×3 y aguacate×2) |
-| 4 | Isla del Bambú | isla | el PICOTEO (edamame) |
-| 5 | Arrecife del Ron | puerto | multiplicador, hastío y paladar; abre la TIENDA |
-| 6 | Caleta del Farol | isla | PRÁCTICA |
-| 7 | Cala del Calamar | isla | POSTRES, propinas y potenciadores |
-| 8 | Ensenada del Maridaje | isla | el MARIDAJE (té verde → mochi), con ejercicio |
-| 9 | Rada del Pulpo | isla | PRÁCTICA (3★: 3 usos de cada extra) |
-| 10 | Bahía del Kraken | puerto | los EXTRAS |
-| 11 | Rada de las Tres Anclas | puerto | PRÁCTICA (el primer puerto de carta libre) |
-| 12 | Estrecho del Rayo | abordaje | primer ABORDAJE, EL pirata y su BANDERA |
-| 13 | Paso de las Barracudas | abordaje | PRÁCTICA (3★: 1 cebo) |
-| 14 | Isla de Gades | isla | CAI y la PESCA |
-| 15 | Puerto Tormenta | puerto | SIN lección: el examen antes de Pablo |
-| 16 | Flota de Pablo | abordaje | CAPITANES, corte lento y LINGOTES |
-| 17 | Paso de los Cangrejos | abordaje | PRÁCTICA |
-| 18 | Cala del Hambre | isla | bocado acelerado y el futomaki |
-| 19 | Ensenada del Naufragio | puerto | el capitán del TESORO pide una receta (sin lección) |
-| 20 | Caleta del Cartógrafo | puerto | los MAPAS DEL TESORO: un GRUMETE los trae |
-| 21 | Muelle del Farolero | puerto | PRÁCTICA |
-| 22 | Rada de los Dos Fuegos | abordaje | ALICE y el AYUDANTE |
-| 23 | Muelle de las Bandejas | puerto | ALICE y los BONIFICADORES |
-| 24 | Bruma del Estrecho | puerto | la víspera, a pulso |
-| 25 | Cueva del Kappa | cueva | el JEFE; superarlo abre el ARCADE |
+| 2 | Ensenada del Mero | isla | PRÁCTICA (3★: despensa de salmón×3 y aguacate×2) |
+| 3 | Playa del Coco | isla | las CAJAS (4 platos guardados) |
+| 4 | Playa de las Gaviotas | isla | PRÁCTICA de las cajas |
+| 5 | Isla del Bambú | isla | el PICOTEO (edamame) |
+| 6 | Caleta del Farol | isla | PRÁCTICA del picoteo |
+| 7 | Arrecife del Ron | puerto | multiplicador, hastío y paladar; abre la TIENDA |
+| 8 | Fondeadero del Tonel | puerto | PRÁCTICA con la carta y la tienda ya abiertas |
+| 9 | Cala del Calamar | isla | POSTRES, propinas y potenciadores |
+| 10 | Rada del Pulpo | isla | PRÁCTICA (3★: 3 usos de cada extra) |
+| 11 | Ensenada del Maridaje | isla | el MARIDAJE (té verde → mochi), con ejercicio |
+| 12 | Islote de la Sal | isla | PRÁCTICA de postres, propinas y parejas |
+| 13 | Estrecho del Rayo | abordaje | primer ABORDAJE, EL pirata y su BANDERA |
+| 14 | Paso de las Barracudas | abordaje | PRÁCTICA del abordaje (3★: 1 cebo) |
+| 15 | Bahía del Kraken | puerto | el **WASABI** (y con él, los extras) |
+| 16 | Rada del Paladar Limpio | puerto | el **JENGIBRE** |
+| 17 | Ensenada de la Salazón | puerto | la **SOJA** |
+| 18 | Isla de Gades | isla | CAI y la PESCA |
+| 19 | Puerto Tormenta | puerto | PRÁCTICA: el examen antes de Pablo |
+| 20 | Flota de Pablo | abordaje | CAPITANES, corte lento y LINGOTES |
+| 21 | Paso de los Cangrejos | abordaje | PRÁCTICA de los capitanes |
+| 22 | Cala del Hambre | isla | bocado acelerado y el futomaki |
+| 23 | Ensenada del Naufragio | puerto | PRÁCTICA; el capitán del TESORO pide una receta |
+| 24 | Caleta del Cartógrafo | puerto | los MAPAS DEL TESORO: un GRUMETE los trae |
+| 25 | Rada de las Tres Anclas | puerto | PRÁCTICA con un mapa armado |
+| 26 | Rada de los Dos Fuegos | abordaje | ALICE y el AYUDANTE |
+| 27 | Muelle del Farolero | puerto | PRÁCTICA del ayudante |
+| 28 | Muelle de las Bandejas | puerto | ALICE y los BONIFICADORES |
+| 29 | Bruma del Estrecho | puerto | la víspera, a pulso |
+| 30 | Cueva del Kappa | cueva | el JEFE; superarlo abre el ARCADE |
 
-**AL REORDENAR LA CAMPAÑA HAY QUE REHACER CUATRO COSAS, y ninguna avisa si se
-olvida** (las cuatro se pagaron al ampliar el mar de 20 a 25):
+**LOS EXTRAS SE PRESENTAN DE UNO EN UNO** (`GameState.unlocked_extras`, una
+LISTA, no el interruptor `extras_done` de antes): la esquina de la tabla, la
+balda de Saverio y la despensa del recetario enseñan **solo los presentados**
+(`has_extra`). Los tres guiones comparten armazón (`level_director.
+_escena_extra`) y regalan sus usos SOLO la primera vez — el escenario no queda
+narrado hasta aprobarlo, así que repetirlo vuelve a correr el guion. Un
+guardado anterior traía `extras_done` a secas: al cargar, si estaba puesto se
+rellena la lista con los tres.
+
+**AL REORDENAR LA CAMPAÑA HAY QUE REHACER CINCO COSAS, y ninguna avisa si se
+olvida** (todas se pagaron ampliando el mar: primero de 20 a 25 y luego a 30):
 1. **`MAP_POS`**: la altura es `3220 − 312·(pos−1)` y el carril sale del ciclo
    [CENTRO, IZQUIERDA, DERECHA] contado desde el 1. Metidos a ojo, el ciclo se
    desfasó del 19 en adelante y la travesía dejó de serpentear.
@@ -147,8 +159,12 @@ olvida** (las cuatro se pagaron al ampliar el mar de 20 a 25):
 4. **`chef_rec`**: se MIDE con `tools/medir_chef_rec.gd` (el nivel al que se
    llega bordando todo lo anterior, con la curva real), no se estima. La
    fórmula vieja `ceil(n × 1.09)` está muerta.
-Y después, **`tools/auditar.gd`**: ya comprueba el tipo, el carril, los guiones
-declarados sin rama y los premios repetidos.
+5. **Las texturas de número** (`tools/num_map.py`) y, si el mar crece, el TOPE
+   DE SCROLL y el TAMAÑO DEL MAR de `level_select3d` — cada escenario nuevo
+   corre hacia arriba todo lo que hay por encima de la cueva, así que el mar 2
+   se desplaza entero y su jefa se sale del alcance de la cámara.
+Y después, **`tools/auditar.gd`**: comprueba el tipo, el carril, la altura, los
+guiones declarados sin rama, los premios repetidos y las texturas de número.
 
 **LOS HÁNDICAPS SON DEL TIPO, no del escenario** (pedido por el usuario, para
 que cada tipo tenga SU dificultad como la isla tiene su carta cerrada):

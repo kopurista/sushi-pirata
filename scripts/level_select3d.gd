@@ -75,10 +75,12 @@ const FICHA_BAJADA := 40.0
 ## El tope de arriba llega hasta el jefe del MAR 2 (m2_25, y=-7286) con su
 ## margen; el de abajo se queda JUSTO bajo el escenario 1 — sin el panel de
 ## informacion de antes, bajar mas solo ensenaba un hueco de mar vacio.
-## Tope de scroll: la jefa del mar 2 menos su margen. Bajo 1.872 px al pasar
-## el mar 1 de 20 a 25 escenarios, que corrio hacia arriba todo lo que hay por
-## encima de la Cueva del Kappa.
-const SCROLL_MIN := -14984.0
+## Tope de scroll: la jefa del mar 2 (m2_25) menos su margen. Ha bajado dos
+## veces por el mismo motivo — cada escenario que se añade al mar 1 corre
+## hacia arriba TODO lo que hay por encima de la Cueva del Kappa: 1.872 px al
+## pasar de 20 a 25 escenarios y otros 1.872 al pasar de 25 a 30. Si no se
+## baja con ellos, la mitad norte del mapa queda fuera de alcance.
+const SCROLL_MIN := -16856.0
 const SCROLL_MAX := CampaignData.MAP_HEIGHT - 560.0
 
 ## EL PLANO DEL MAR TIENE QUE CUBRIR TAMBIÉN EL FONDEADERO DEL MENÚ, que está
@@ -87,10 +89,11 @@ const SCROLL_MAX := CampaignData.MAP_HEIGHT - 560.0
 ## el mapa y en la portada se veía el borde del agua abajo a la izquierda.
 ## Van en píxeles de mapa y en unidades de mundo respectivamente.
 const SEA_BOTTOM_PX := 5200.0
-## 290 u: el plano tiene que llegar del fondeadero del menu (abajo del todo)
-## hasta el jefe del mar 2 (y=-7286 px). Con 190 se acababa en -3500 y la
-## mitad norte del mar nuevo flotaba sobre el vacio.
-const SEA_SIZE := 440.0
+## El plano tiene que llegar del fondeadero del menu (abajo del todo) hasta el
+## tope de scroll, y su medida SE CALCULA: (SEA_BOTTOM_PX + 640 - SCROLL_MIN +
+## 640) / PPU_Y, con un 2% de holgura. Hoy son 23.336 px = 474 u. Quedandose
+## corto, la mitad norte del mar flota sobre el vacio (azul liso sin espuma).
+const SEA_SIZE := 484.0
 
 ## Modelo 3D de cada tipo de nodo y huella horizontal objetivo (u).
 const KIND_MODELS := {

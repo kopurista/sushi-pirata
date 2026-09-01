@@ -110,6 +110,10 @@ func _run() -> void:
 			await _nivel_16()
 		"nivel_17":
 			await _nivel_17()
+		"nivel_21":
+			await _nivel_21()
+		"nivel_22":
+			await _nivel_22()
 		_:
 			# RED DE SEGURIDAD. Un `director` declarado en CampaignData SIN su
 			# rama aquí no da ningún error: el match no casa, `_run` devuelve
@@ -772,48 +776,89 @@ func _nivel_5() -> void:
 	_play()
 
 
-# ------------------------------------------------------------------- nivel 6
-# Bahía del Kraken: LOS EXTRAS. Saverio los saca de la caja al empezar el turno
-# y a partir de aquí existen en toda la campaña.
+# ------------------------------------------------------- los tres EXTRAS
+# LOS EXTRAS YA NO LLEGAN LOS TRES DE GOLPE (pedido por el usuario): cada uno
+# tiene SU escenario —el 15 el wasabi, el 16 el jengibre y el 17 la soja—, y
+# esos tres NO llevan práctica detrás porque cada uno YA es su práctica.
+#
+# Antes era una sola jornada con Saverio soltando los tres seguidos: cuatro
+# frases con tres reglas distintas, y al salir el jugador tenía tres botones
+# nuevos sin haber usado ninguno. Ahora entra uno por jornada y hay un turno
+# entero para gastarlo.
+#
+# LA PLANTILLA ES COMÚN (`_escena_extra`) y lo único que cambia es quién habla
+# y qué se dice: los tres regalan `TUTORIAL_GIFT` usos SOLO la primera vez
+# (repetir el escenario vuelve a correr el guion, porque el puerto no queda
+# narrado hasta aprobarlo, y sin la guarda se rellenaría la despensa en cada
+# intento).
 
-func _nivel_6() -> void:
-	# Los extras aún no existen en la tabla: se encienden al regalarlos.
+## El armazón de las tres jornadas: esconde el extra, lo presenta, lo enciende,
+## lo enfoca y devuelve el turno. `intro` son las líneas de antes de sacarlo y
+## `detalle` las de después, con el botón ya en la mesa.
+func _escena_extra(id: String, intro: Array, detalle: Array, aviso: String) -> void:
 	var pb: Control = lv.prep_board
-	pb.hide_extras = true
-	pb.refresh_extra_ui()
-	await _say([
-		{ "text": "**Bahía del Kraken**: ocho bocas en dos oleadas de cuatro. Y traigo compañía.", "mood": "hablando" },
-		{ "text": "¡Cocinero! Vengo a enseñarte lo que llevo en el fondo de la caja.", "who": "saverio", "mood": "feliz" },
-		{ "text": "Mis **extras**: **jengibre**, **wasabi** y **soja**. Van sobre el plato YA TERMINADO, en la esquina de la tabla.", "who": "saverio", "mood": "explicando" },
-		{ "text": "Con cualquiera de los tres, un plato **repetido cuenta como nuevo**: no rompe la chapa, la sube.", "who": "saverio", "mood": "hablando" },
-	])
-	# A partir de aquí los extras existen en todo el juego (tabla y tienda).
-	# Los usos se regalan UNA sola vez: si el jugador no aprueba y repite, el
-	# guion vuelve a correr (el puerto no queda narrado) y sin esta guarda se
-	# rellenaría la despensa de extras en cada intento.
-	var primera := not GameState.extras_done
-	GameState.extras_done = true
+	await _say(intro)
+	var primera := GameState.unlock_extra(id)
 	if primera:
-		for ing in RecipeData.EXTRAS:
-			GameState.add_ingredient_uses(ing, GameState.TUTORIAL_GIFT)
-	GameState.save_game()
+		GameState.add_ingredient_uses(id, GameState.TUTORIAL_GIFT)
+		GameState.save_game()
+	# HAY QUE BAJAR `hide_extras` A MANO. level3d lo fijó al montar el nivel
+	# mirando `extras_unlocked()`, que en la jornada del WASABI todavía era
+	# false: sin esto, la esquina de la tabla seguiría apagada justo después
+	# de que Saverio saque el primero.
 	pb.hide_extras = false
 	pb.refresh_extra_ui()
-	# Los tres botones son hijos sueltos del panel de la mesa (no hay fila que
-	# enfocar), así que se enfoca su envolvente.
-	var botones: Array[Control] = []
-	for id in RecipeData.EXTRAS:
-		if pb.extra_buttons.has(id):
-			botones.append(pb.extra_buttons[id])
-	if not botones.is_empty():
-		await _focus_nodes(botones, 14.0)
-	await _say([
-		{ "text": "Pero cada uno se paga con lo suyo: el **jengibre** te baja un punto de chapa, el **wasabi** le quita paciencia en vez de dársela...", "who": "saverio", "mood": "explicando" },
-		{ "text": "...y la **soja** hace que mastique más deprisa, o sea que vuelve antes a la cola. Diez usos de cada, invita la casa.", "who": "saverio", "mood": "hablando" },
-		{ "text": "Son tu as en la manga cuando a un cliente ya no le quedan platos nuevos que probar. ¡A cocinar!", "mood": "riendo" },
-	])
-	_play()
+	# Los botones son hijos sueltos del panel de la mesa (no hay fila que
+	# enfocar), así que se enfoca el suyo directamente.
+	if pb.extra_buttons.has(id):
+		await _focus_node(pb.extra_buttons[id], 16.0)
+	await _say(detalle)
+	_play(aviso)
 	_vigilar_basura()
+
+
+# ------------------------------------------------------------------- nivel 6
+# Bahía del Kraken (escenario 15): EL WASABI, y con él el sistema de extras.
+
+func _nivel_6() -> void:
+	await _escena_extra("wasabi", [
+		{ "text": "**Bahía del Kraken**. Traigo compañía, %s." % GameState.player_title(), "mood": "hablando" },
+		{ "text": "¡Cocinero! Vengo a enseñarte lo que llevo en el fondo de la caja.", "who": "saverio", "mood": "feliz" },
+		{ "text": "Los **extras**. Van sobre el plato YA TERMINADO, en la esquina de la tabla, y hacen una cosa que no hace nada más:", "who": "saverio", "mood": "explicando" },
+		{ "text": "con un extra encima, un plato **repetido cuenta como nuevo**. No rompe la chapa: la sube.", "who": "saverio", "mood": "hablando" },
+		{ "text": "Hoy te dejo el primero, y de uno en uno, que si te suelto los tres no te acuerdas de ninguno.", "who": "saverio", "mood": "feliz" },
+	], [
+		{ "text": "El **wasabi**. Sube la **probabilidad** de propina, pero en vez de dar paciencia la **quita**: no se lo pongas al que va justo.", "who": "saverio", "mood": "explicando" },
+		{ "text": "Diez usos, invita la casa. Gástalos hoy, %s: para eso te los doy." % GameState.player_title(), "who": "saverio", "mood": "hablando" },
+	], "Prueba el **wasabi** en un plato que ya le hayas servido a alguien.")
+
+
+# ------------------------------------------------------------------ nivel 21
+# Rada del Paladar Limpio (escenario 16): EL JENGIBRE.
+
+func _nivel_21() -> void:
+	await _escena_extra("jengibre", [
+		{ "text": "**Rada del Paladar Limpio**. Y Saverio otra vez en el muelle, con la caja abierta.", "mood": "hablando" },
+		{ "text": "El de hoy es el más raro de los tres, así que escucha con las dos orejas.", "who": "saverio", "mood": "explicando" },
+	], [
+		{ "text": "El **jengibre** le **borra el paladar**: todo lo que ese cliente haya probado vuelve a contar como nuevo. Ese plato incluido.", "who": "saverio", "mood": "explicando" },
+		{ "text": "Se paga con **un punto de chapa**. Pierdes uno y recuperas la carta entera: cuando alguien ya lo ha probado todo, es la única salida.", "who": "saverio", "mood": "hablando" },
+		{ "text": "¡EL DE LA CHAPA! ¡ESE ES BUENO! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
+	], "Gástale el **jengibre** a alguien que ya lo haya probado todo.")
+
+
+# ------------------------------------------------------------------ nivel 22
+# Ensenada de la Salazón (escenario 17): LA SOJA, y con ella los tres.
+
+func _nivel_22() -> void:
+	await _escena_extra("soja", [
+		{ "text": "**Ensenada de la Salazón**. Última entrega, y ya tienes la caja entera.", "mood": "hablando" },
+		{ "text": "La que faltaba, cocinero. Y esta tiene truco.", "who": "saverio", "mood": "feliz" },
+	], [
+		{ "text": "La **soja** engorda la propina: cuando cae, cae más gorda. Pero el que la lleva **mastica más deprisa**...", "who": "saverio", "mood": "explicando" },
+		{ "text": "...y mientras se mastica la paciencia no baja, así que acortarle el bocado es devolverlo a la cola antes de tiempo. Tú verás.", "who": "saverio", "mood": "hablando" },
+		{ "text": "Los tres son tu as en la manga cuando a un cliente ya no le quedan platos nuevos. Y los tres se compran en mi puesto.", "who": "saverio", "mood": "feliz" },
+	], "Prueba la **soja** y fíjate en lo rápido que se lo termina.")
 
 
 # ------------------------------------------------------------------- nivel 7
