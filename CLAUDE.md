@@ -635,15 +635,21 @@ duplicado — el mapa, la cámara, los carriles y el barco son los mismos. Lo
   tiene que cubrirlo todo (el barco viaja de un mar a otro y el fondeadero del
   menú está muy por debajo del mapa).
 - **LOS CARTELES DE PASO** (`_cartel_de_paso`) son la única forma de cambiar:
-  una tabla de madera clavada en el agua, en el carril del centro, con una
-  flecha y el nombre del mar al que lleva. Uno por punta, y solo si ese mar es
-  alcanzable — hacia arriba pide tenerlo abierto (o sea, haber vencido al jefe
-  del anterior) y hacia abajo siempre, que ya se jugó.
-  · **La tabla se mide CONTRA EL NOMBRE**: "Mar de los Grumetes" son 19 letras,
-    que a cuerpo 74 y `pixel_size` 0.0042 miden ~2,95 u. Con los 2,60 del
-    primer intento el rótulo se salía por los dos lados.
-  · Lleva la MISMA madera que los carteles de escenario (`madera_cartel.webp`):
-    con color plano se leía como un botón de interfaz caído en el mar.
+  un letrero de madera clavado en el agua, en el carril del centro. Uno por
+  punta, y solo si ese mar es alcanzable — hacia arriba pide tenerlo abierto
+  (o sea, haber vencido al jefe del anterior) y hacia abajo siempre.
+  · **SON MODELOS** (`cartel_mar_arriba.glb` / `_abajo.glb`, cadena Meshy con
+    concepto de Ludo), y **LA FLECHA VA TALLADA EN LA MADERA**, en relieve, no
+    escrita (pedido por el usuario). Un "▲" en una etiqueta se leía como
+    interfaz; una flecha de madera se lee como un letrero. Por eso son DOS
+    modelos y no uno volteado: girar el de subir deja los postes arriba.
+  · **EL NOMBRE DEL MAR VA DEBAJO**, no sobre la tabla: ahí está la flecha, que
+    es lo que tiene que leerse primero.
+  · **SE VE ENTERO DESDE EL ESCENARIO DEL EXTREMO** (pedido por el usuario:
+    "sin que sobre espacio por arriba o por abajo"). `MARGEN_MAR` es **0** — la
+    cámara no pasa del primer ni del último escenario del mar— y lo que decide
+    que el cartel quepa es `PASO_CARTEL`, lo que se aparta del último nodo,
+    MEDIDO en captura contra la barra de arriba y el submenú de abajo.
 - **`_select` cambia de mar solo** si el escenario pedido es de otro. Pasa al
   cerrar la jornada del jefe, cuando `next_port_id` ya apunta al mar siguiente;
   sin eso, el mapa intentaba enfocar un nodo que no estaba montado y la cámara
@@ -651,6 +657,21 @@ duplicado — el mapa, la cámara, los carriles y el barco son los mismos. Lo
 - Los **overlays 2D** (los botones con los que se toca cada nodo) se rehacen
   con el mar, `_rehacer_overlays()`: son la mitad interactiva del mapa y tienen
   que corresponderse con lo que hay montado.
+
+**Y EL CAMBIO DE MAR ES UNA TRAVESÍA, no un corte** (pedido por el usuario).
+`cambiar_de_mar` va en tres tiempos:
+1. El barco y la cámara **navegan hasta el cartel**, que está en mar abierto.
+2. **Ahí se hace el cambiazo**: se suelta el mar viejo y se monta el nuevo. No
+   se ve porque en cuadro no hay ningún escenario — que es justamente por lo
+   que el cartel va al final de la ruta y no entre nodos. La cámara reaparece
+   en el OTRO extremo del mar nuevo, sobre el mismo agua vacía y viajando en
+   el MISMO sentido.
+3. **Se entra en el mar nuevo** hasta su primer escenario (subiendo) o el
+   último (bajando, que es de donde se venía).
+Mientras dura, `cambiando_mar` bloquea los toques en los nodos: sus tweens
+llevan la cámara y el barco, y un toque por el camino los partiría en dos. Y
+`_select` con un escenario de otro mar delega en la travesía pasándole ESE
+escenario como destino, o se aterrizaría en otro sitio.
 
 ## LOS MAPAS DEL TESORO: LAS MISIONES SECUNDARIAS (montadas el 1-9-2026)
 

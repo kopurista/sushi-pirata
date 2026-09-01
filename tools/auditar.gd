@@ -243,6 +243,14 @@ func _init() -> void:
 				% faltan_num)
 		fallos += faltan_num
 
+	# --- LOS CARTELES DE PASO tienen que tener su modelo --------------------
+	# Sin el, `_cartel_de_paso` cae a un rotulo suelto flotando sobre el agua y
+	# la unica forma de cambiar de mar deja de parecer un letrero.
+	for f: String in ["cartel_mar_arriba", "cartel_mar_abajo"]:
+		if not ResourceLoader.exists("res://assets/models/%s.glb" % f):
+			print("  ! falta el modelo del cartel de paso: %s.glb" % f)
+			fallos += 1
+
 	# --- TIPOS: que ningun escenario se quede sin el suyo declarado ---------
 	# `get_kind` cae a "isla" cuando falta, y eso no da ningun error: cambia el
 	# escenario, la musica, el handicap y hasta SI HAY RELOJ. Paso con los cinco

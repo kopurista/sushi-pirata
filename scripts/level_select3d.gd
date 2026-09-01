@@ -99,12 +99,20 @@ var scroll_max := SCROLL_SUELO
 ## de golpe y se vuelve a construir. Es lo único que hace falta para que el
 ## coste no crezca con la campaña.
 const GRUPO_MAR := "mapa_mar"
-## Respiro por encima y por debajo del mar en curso: lo justo para que quepan
-## sus dos carteles de paso sin que la camara se salga a mar abierto.
-const MARGEN_MAR := 430.0
+## SIN RESPIRO (pedido por el usuario: "sin que sobre espacio por arriba o por
+## abajo"). La camara no pasa del primer ni del ultimo escenario del mar, asi
+## que el cartel de paso tiene que verse ENTERO desde ahi — de eso se encarga
+## `PASO_CARTEL`, que es lo que se aparta del ultimo nodo, medido en captura.
+const MARGEN_MAR := 0.0
 ## A que distancia del ultimo escenario se clava el cartel que lleva al mar
 ## siguiente. Va MAS CERCA que el margen, para que se vea antes de llegar.
 const PASO_CARTEL := 330.0
+## LA TRAVESÍA ENTRE MARES, en segundos: primero hasta el cartel (agua abierta,
+## donde el cambiazo no se ve) y después hacia dentro del mar nuevo.
+const PASO_VIAJE := 0.85
+const ENTRADA_VIAJE := 1.05
+## Mientras dura, ni se toca otro nodo ni se vuelve a cambiar de mar.
+var cambiando_mar := false
 
 ## EL PLANO DEL MAR TIENE QUE CUBRIR TAMBIÉN EL FONDEADERO DEL MENÚ, que está
 ## muy por debajo del mapa (`main_menu.MENU_ANCHOR`), y el puerto de la portada,
@@ -213,6 +221,12 @@ var ship_pivot: Node3D
 var ship_blob: MeshInstance3D = null
 var ship_tween: Tween = null
 var ship_roll := 0.0
+## GRADOS QUE EL BARCO SE APARTA DE SU RUMBO DE CASA, y el ÚNICO sitio desde el
+## que se le tuerce. Esta función escribe `ship_pivot.rotation_degrees` ENTERO
+## cada fotograma, así que cualquiera que quiera girar el barco por su cuenta
+## —el timón del menú, por ejemplo— pierde: se lo pisa al fotograma siguiente.
+## Pasó de verdad, y se vivía como que el barco no se enderezaba al zarpar.
+var rumbo_extra := 0.0
 var _t := 0.0
 ## Material del mar (para pasarle la marea) y lo que flota con ella.
 var sea_mat: ShaderMaterial = null
@@ -413,67 +427,61 @@ func _carteles_de_mar() -> void:
 		_cartel_de_paso(mar_actual - 1, y_abajo + PASO_CARTEL)
 
 
+## MODELO del cartel de paso, uno por sentido. La FLECHA va tallada en la
+## madera (relieve), no escrita: es lo que se lee de un vistazo desde lejos, y
+## un carácter "▲" en una etiqueta se leía como interfaz y no como un letrero
+## clavado en el agua.
+const CARTEL_MODELOS := {
+	"arriba": "res://assets/models/cartel_mar_arriba.glb",
+	"abajo": "res://assets/models/cartel_mar_abajo.glb",
+}
+## Huella a la que se normaliza (unidades de mundo). Se midió contra el nodo
+## de escenario más pequeño: el cartel tiene que leerse sin competir con él.
+const CARTEL_FOOT := 3.1
+
+
 func _cartel_de_paso(mar: int, y_px: float) -> void:
 	var pos := _world(Vector2(CampaignData.LANE_CENTER, y_px))
 	var raiz := Node3D.new()
 	raiz.name = "PasoMar%d" % mar
 	raiz.position = pos
 	raiz.add_to_group(GRUPO_MAR)
+	raiz.add_to_group("paso_mar")
+	raiz.set_meta("mar", mar)
 	add_child(raiz)
-	# La misma boya de madera que los carteles de escenario: dos postes y una
-	# tabla. Aquí la tabla es más ancha porque lleva un nombre, no un número.
-	var madera := _mat_simple(Color(0.42, 0.28, 0.16))
-	for lado in [-1.0, 1.0]:
-		var poste := MeshInstance3D.new()
-		var cil := CylinderMesh.new()
-		cil.top_radius = 0.055
-		cil.bottom_radius = 0.070
-		cil.height = 2.70
-		poste.mesh = cil
-		poste.material_override = madera
-		poste.position = R_HAT * (lado * 1.42) + Vector3(0.0, 0.48, 0.0) - D_HAT * 0.10
-		raiz.add_child(poste)
-	var tabla := MeshInstance3D.new()
-	var quad := QuadMesh.new()
-	# LA TABLA SE MIDE CONTRA EL NOMBRE, no al revés: "Mar de los Grumetes" son
-	# 19 letras, que a cuerpo 74 y 0.0042 de escala miden ~2.95 u de ancho. Con
-	# los 2.60 del primer intento el rótulo se salía por los dos lados.
-	quad.size = Vector2(3.60, 1.36)
-	tabla.mesh = quad
-	tabla.position = Vector3(0.0, 1.42, 0.0)
-	tabla.rotation_degrees = Vector3(0.0, 45.0, 0.0)
-	var mt := StandardMaterial3D.new()
-	# LA MISMA MADERA que los carteles de escenario, no un color plano: son la
-	# misma clase de objeto —una tabla clavada en el agua— y con color liso
-	# este se leía como un botón de interfaz caído en el mar.
-	if ResourceLoader.exists(NUM_TEX_MADERA):
-		mt.albedo_texture = load(NUM_TEX_MADERA)
-		mt.uv1_scale = Vector3(2.6, 1.0, 1.0)
-	mt.albedo_color = Color(0.86, 0.74, 0.58)
-	mt.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	tabla.material_override = mt
-	raiz.add_child(tabla)
-	# EL RÓTULO va en un Label3D y no horneado: el nombre del mar es texto que
-	# puede cambiar, y son dos carteles en todo el mapa — no es geometría que
-	# haya que optimizar como los números de escenario.
+	var ruta := str(CARTEL_MODELOS["arriba" if mar > mar_actual else "abajo"])
+	var alto := 1.4
+	if ResourceLoader.exists(ruta):
+		var pivot := _spawn_model(load(ruta), pos, CARTEL_FOOT)
+		pivot.add_to_group(GRUPO_MAR)
+		# Los carteles no dan sombra, como los nodos: son geometría de adorno.
+		for m in pivot.find_children("*", "MeshInstance3D", true, false):
+			m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		alto = float(pivot.get_meta("alto", 1.4))
+		# DE CARA A LA CÁMARA (yaw 45, como el chef y su mesa en el nivel): el
+		# modelo viene mirando a su propio -Z y con la cámara isométrica salía
+		# de tres cuartos, con la flecha escorzada — que es lo único que hay
+		# que leer de un vistazo.
+		pivot.rotation_degrees.y = 45.0
+		# Medio hundido en el agua, como los carteles de escenario: un poste
+		# clavado en el mar no se apoya en él.
+		pivot.position.y = -0.16
+		raiz.set_meta("pivot", pivot)
+	# EL NOMBRE DEL MAR va DEBAJO del letrero, no encima de la tabla: ahí está
+	# la flecha tallada, que es lo que tiene que leerse primero.
 	var rot := Label3D.new()
-	rot.text = "%s
-%s" % ["▲" if mar > mar_actual else "▼",
-		CampaignData.sea_name(mar)]
-	rot.font_size = 74
-	rot.outline_size = 24
-	rot.modulate = Color(1.0, 0.94, 0.78)
+	rot.text = CampaignData.sea_name(mar)
+	rot.font_size = 66
+	rot.outline_size = 22
+	rot.modulate = Color(1.0, 0.95, 0.80)
 	rot.outline_modulate = Color(0.20, 0.12, 0.06)
 	rot.pixel_size = 0.0042
 	rot.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	rot.rotation_degrees = Vector3(0.0, 45.0, 0.0)
-	rot.position = Vector3(0.0, 1.42, 0.0) + D_HAT * -0.02
+	rot.position = Vector3(0.0, -0.62, 0.0) - D_HAT * 0.42
 	rot.no_depth_test = true
 	raiz.add_child(rot)
-	raiz.set_meta("mar", mar)
-	# Se toca como un escenario: `_unhandled_input` mira este grupo aparte.
-	raiz.add_to_group("paso_mar")
-	node_world["__mar%d" % mar] = pos
+	node_world["__mar%d" % mar] = pos + Vector3(0.0, alto * 0.55, 0.0)
 
 
 func _mat_simple(c: Color) -> StandardMaterial3D:
@@ -486,10 +494,25 @@ func _mat_simple(c: Color) -> StandardMaterial3D:
 ## CAMBIA EL MAPA AL OTRO MAR: libera todo lo del grupo y lo vuelve a montar.
 ## Es toda la división: el mapa, la cámara, los carriles y el barco no cambian
 ## — lo único que cambia es CUÁNTO se monta.
-func cambiar_de_mar(mar: int) -> void:
-	if mar == mar_actual or not _mar_alcanzable(mar):
+## `destino_id` fuerza en qué escenario se entra. Sin él manda el sentido del
+## viaje. Lo usa `_select` cuando el escenario pedido es de otro mar —al cerrar
+## la jornada del jefe, por ejemplo— para no aterrizar en otro sitio.
+func cambiar_de_mar(mar: int, destino_id := "") -> void:
+	if mar == mar_actual or not _mar_alcanzable(mar) or cambiando_mar:
 		return
 	var subiendo := mar > mar_actual
+	cambiando_mar = true
+	# --- 1) NAVEGAR HASTA EL CARTEL, que es mar abierto -------------------
+	# El barco y la cámara se van juntos hasta la altura del cartel de paso. Es
+	# la mitad visible del viaje: se ve salir del mar viejo.
+	var y_cartel: float = _borde_del_mar(subiendo)
+	await _viajar_a_altura(y_cartel, PASO_VIAJE)
+	if not is_inside_tree():
+		return
+	# --- 2) EL CAMBIAZO, con la cámara sobre agua vacía --------------------
+	# Aquí no hay ningún escenario en cuadro (por eso el cartel va al final de
+	# la ruta y no entre nodos), así que soltar un mar y montar el otro no se
+	# ve. Es lo que convierte un corte en una travesía.
 	mar_actual = mar
 	_limpiar_mar()
 	_limites_del_mar()
@@ -503,19 +526,66 @@ func cambiar_de_mar(mar: int) -> void:
 			mi.set_meta("y0", mi.position.y)
 			mi.add_to_group(GRUPO_MAR)
 			flotantes.append(mi)
-	# Al SUBIR se entra por el primer escenario del mar nuevo; al BAJAR, por el
-	# último — que es justo de donde se venía, así que el viaje se lee como dar
-	# media vuelta y no como teletransportarse al principio.
+	_rehacer_overlays()
+	# La cámara aparece en el OTRO extremo del mar nuevo, sobre el mismo agua
+	# vacía y viajando en el MISMO sentido: el jugador no ve un salto, ve que
+	# la travesía sigue.
+	var y_entrada: float = _borde_del_mar(not subiendo)
+	cam_center = y_entrada
+	ship_px = Vector2(CampaignData.LANE_CENTER, y_entrada)
+	_update_camera()
+	# --- 3) ENTRAR EN EL MAR NUEVO ----------------------------------------
+	# Al SUBIR se entra por su primer escenario; al BAJAR, por el último — que
+	# es de donde se venía, así que se lee como dar media vuelta.
 	var lista := CampaignData.ports_of_sea(mar_actual)
 	if lista.is_empty():
+		cambiando_mar = false
 		return
 	var destino := str(lista[0]["id"]) if subiendo else str(lista.back()["id"])
-	_rehacer_overlays()
+	if destino_id != "" and CampaignData.sea_of(destino_id) == mar_actual:
+		destino = destino_id
+	await _viajar_a_altura(CampaignData.map_pos(destino).y, ENTRADA_VIAJE)
+	if not is_inside_tree():
+		return
+	cambiando_mar = false
 	_select(destino, false)
-	ship_px = _ship_anchor(destino)
-	cam_center = clampf(CampaignData.map_pos(destino).y, scroll_min, scroll_max)
-	_update_camera()
-	Audio.sfx("velas")
+
+
+## El borde de mar abierto de este mar por el lado que se pide: la altura del
+## cartel de paso, o el mismo sitio aunque el cartel no exista (bajando desde
+## un mar sin salida por arriba).
+func _borde_del_mar(arriba: bool) -> float:
+	var lista := CampaignData.ports_of_sea(mar_actual)
+	if lista.is_empty():
+		return cam_center
+	var y_arriba: float = INF
+	var y_abajo: float = -INF
+	for p in lista:
+		var y: float = CampaignData.map_pos(str(p["id"])).y
+		y_arriba = minf(y_arriba, y)
+		y_abajo = maxf(y_abajo, y)
+	return (y_arriba - PASO_CARTEL) if arriba else (y_abajo + PASO_CARTEL)
+
+
+## Lleva cámara y barco a esa altura del mapa, juntos, y espera a que lleguen.
+func _viajar_a_altura(y_px: float, seg: float) -> void:
+	if scroll_tween != null:
+		scroll_tween.kill()
+	if ship_tween != null:
+		ship_tween.kill()
+	scroll_speed = 0.0
+	Audio.sfx("barco_mover")
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(self, "cam_center", y_px, seg)
+	tw.tween_property(self, "ship_px", Vector2(CampaignData.LANE_CENTER, y_px), seg)
+	# El rolido del viaje, el mismo que usa `_select` al mover el barco.
+	tw.tween_property(self, "ship_roll", 6.0 if y_px < cam_center else -6.0,
+		seg * 0.35)
+	tw.set_parallel(false)
+	tw.tween_property(self, "ship_roll", 0.0, seg * 0.4)
+	await tw.finished
 
 
 ## Suelta todo lo que pertenece al mar que se deja. Los nodos van marcados con
@@ -2363,11 +2433,16 @@ func _select(id: String, animate: bool) -> void:
 	# la jornada del jefe, cuando `next_port_id` ya apunta al mar siguiente. Sin
 	# esto, el mapa intentaba enfocar un nodo que no está montado y la cámara se
 	# iba a mar abierto.
+	# UNA TRAVESÍA ENTRE MARES EN CURSO manda: sus tweens llevan la cámara y el
+	# barco, y un toque en un nodo por el camino los partiría en dos.
+	if cambiando_mar:
+		return
 	var suyo := CampaignData.sea_of(id)
 	if suyo != mar_actual and not CampaignData.get_port(id).is_empty():
-		cambiar_de_mar(suyo)
-		if suyo != mar_actual:
-			return
+		# La travesía es asíncrona y acaba llamando aquí otra vez, ya con el
+		# mar nuevo montado y con ESTE escenario como destino.
+		cambiar_de_mar(suyo, id)
+		return
 	selected_id = id
 	# Se recuerda para cuando se vuelva de otra pantalla (ver
 	# `_puerto_de_partida`).
@@ -2788,7 +2863,7 @@ func _process(delta: float) -> void:
 			+ Vector3(0.0, -0.06 + marea()
 				+ (sin(_t * 1.4) * 0.03 if bob else 0.0), 0.0)
 		ship_pivot.rotation_degrees = Vector3(
-			sin(_t * 1.1) * 2.0 if bob else 0.0, SHIP_YAW,
+			sin(_t * 1.1) * 2.0 if bob else 0.0, SHIP_YAW + rumbo_extra,
 			(sin(_t * 1.7) * 2.5 if bob else 0.0) + ship_roll)
 		# La mancha sigue al barco pero NO cabecea con él: es una sombra en el
 		# agua, no una copia del casco.

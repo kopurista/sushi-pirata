@@ -1580,8 +1580,13 @@ func _process(delta: float) -> void:
 	# del barco — así se le ve la popa, el farol, la bandera... El giro va
 	# DESMULTIPLICADO (0.35: una vuelta de timón no es una pirueta) y siempre
 	# desde el rumbo de casa.
-	if wheel != null and ship_pivot != null and not _rumbo_a_casa:
-		ship_pivot.rotation.y = deg_to_rad(SHIP_YAW) - wheel.rotation * 0.35
+	# EL TIMÓN NO TOCA `ship_pivot`: escribe `rumbo_extra`, que es lo que el
+	# `_process` de la clase base suma al rumbo de casa. Escribiendo la
+	# rotación directamente se la pisaba `super._process`, que reescribe los
+	# tres ejes cada fotograma — y el barco no se enderezaba al zarpar por
+	# mucho tween que se le pusiera.
+	if wheel != null and not _rumbo_a_casa:
+		rumbo_extra = -rad_to_deg(wheel.rotation) * 0.35
 	# Mientras se retiran del encuadre las mueve su tween, no esta función.
 	if sky_leaving:
 		return
@@ -2847,36 +2852,34 @@ var _rumbo_a_casa := false
 ## suyo. Al terminar, los dos se clavan en su valor de casa — y ese salto NO se
 ## ve, porque cada uno acaba en un ángulo equivalente al suyo.
 func _enderezar_rumbo(seg: float) -> void:
-	var casa := deg_to_rad(SHIP_YAW)
-	if wheel == null and ship_pivot == null:
-		return
 	if seg <= 0.0:
 		_rumbo_a_casa = false
+		rumbo_extra = 0.0
 		if wheel != null:
 			wheel.rotation = 0.0
-		if ship_pivot != null:
-			ship_pivot.rotation.y = casa
 		return
 	_rumbo_a_casa = true
+	# EL CAMINO CORTO SALE DE NORMALIZAR PRIMERO. `rumbo_extra` se acumula con
+	# el timón —diez vueltas son 10·360·0.35 = 1.260 grados— y llevarlo a 0 a
+	# pelo desanda todas. Envuelto a (-180, 180] apunta al MISMO sitio y el
+	# viaje nunca pasa de media vuelta, den las vueltas que den al timón.
+	rumbo_extra = wrapf(rumbo_extra, -180.0, 180.0)
 	var tw := create_tween()
 	tw.set_parallel(true)
 	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "rumbo_extra", 0.0, seg)
 	if wheel != null:
-		# El múltiplo de vuelta entera MÁS CERCANO: el timón se endereza sin
-		# desandar las vueltas que le hayan dado.
+		# El timón se endereza al múltiplo de vuelta entera MÁS CERCANO: gira
+		# poco y acaba en un ángulo idéntico al de reposo, así que el pellizco
+		# final a 0 no se ve.
 		var w: float = wheel.rotation
 		tw.tween_property(wheel, "rotation", w - wrapf(w, -PI, PI), seg)
-	if ship_pivot != null:
-		var y: float = ship_pivot.rotation.y
-		tw.tween_property(ship_pivot, "rotation:y",
-			y + wrapf(casa - y, -PI, PI), seg)
 	tw.set_parallel(false)
 	tw.tween_callback(func() -> void:
 		_rumbo_a_casa = false
+		rumbo_extra = 0.0
 		if wheel != null:
-			wheel.rotation = 0.0
-		if ship_pivot != null:
-			ship_pivot.rotation.y = casa)
+			wheel.rotation = 0.0)
 
 
 var _timon_sonado := 0.0
