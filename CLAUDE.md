@@ -4445,7 +4445,18 @@ La GUÍA lleva su sección ("El canto de sirena").
     en la cara en sombra del cartel el número desaparecía del todo.
     · Sale de **UNA** generación de Ludo con los diez dígitos en fila: diez
       dígitos valen para cualquier cifra, y pedir una imagen por escenario
-      serían sesenta hoy y doscientas cincuenta con la campaña entera.
+      serían sesenta hoy y doscientas cincuenta con la campaña entera. La hoja
+      se guarda como `assets/map/num_pintado.origen` —extensión que Godot no
+      importa— porque `_gen/` está en el `.gitignore` y allí la herramienta
+      dejaba de poder pasarse en cuanto se limpiaba el directorio de trabajo.
+    · **CADA DÍGITO SE RECORTA A SU PROPIA TINTA, también a lo ANCHO.**
+      Cortando solo por el punto medio de los huecos, el "0" y el "9" se
+      llevaban además el margen exterior de la hoja (141 y 135 px de ancho
+      contra los ~95 de los demás), así que un número acabado en cero salía
+      con un hueco enorme antes del cero.
+    · **Y se alinean por el CENTRO, no por la base**: los redondos (0, 6, 8) se
+      pintan con un pelo de rebose por arriba y por abajo, así que apoyados en
+      la línea se quedaban bajos respecto a su vecino.
     · **HAY QUE EROSIONAR LA MÁSCARA PARA SEPARARLOS**: por muy separados que
       se pidan —se pidieron tres veces, una de ellas exigiendo un hueco tan
       ancho como un dígito— el generador los deja tocándose por el antialias, y

@@ -8,7 +8,7 @@ verdad, el numero tenia que ser lo mismo que la flecha del cartel de paso: cal
 blanca dada con brocha.
 
 De donde salen: UNA generacion de Ludo con los diez digitos en fila sobre fondo
-negro (`_gen/nums/n3.webp`). Se recortan de ahi y se componen los numeros. Diez
+negro (`assets/map/num_pintado.origen`). Se recortan de ahi y se componen los numeros. Diez
 digitos valen para cualquier cifra: pedir una imagen por escenario serian
 sesenta generaciones hoy y doscientas cincuenta cuando la campana este entera.
 
@@ -24,7 +24,10 @@ import numpy as np
 from PIL import Image, ImageFilter
 
 RAIZ = Path(__file__).resolve().parent.parent
-FUENTE = RAIZ / "_gen/nums/n2.webp"
+## LA HOJA DE DIGITOS VIVE EN EL REPOSITORIO, con una extension que Godot no
+## importa: `_gen/` esta en el .gitignore, asi que dejandola alli la herramienta
+## dejaba de poder pasarse en cuanto se limpiaba el directorio de trabajo.
+FUENTE = RAIZ / "assets/map/num_pintado.origen"
 OUT = RAIZ / "assets/map"
 
 ## Umbral de recorte contra el fondo negro y ancho de la rampa del canto.
@@ -100,9 +103,17 @@ def cortar_digitos(p: Path):
     for k in range(10):
         x0, x1 = cortes[k], cortes[k + 1]
         franja = alfa[:, x0:x1]
+        # CADA DIGITO SE RECORTA A SU PROPIA TINTA, tambien a lo ANCHO. Cortando
+        # solo por el punto medio de los huecos, el "0" y el "9" se llevaban
+        # ademas el margen exterior de la hoja (141 y 135 px de ancho contra los
+        # ~95 de los demas), asi que un numero acabado en cero salia con un
+        # hueco enorme antes del cero. Con el recorte a la tinta, la separacion
+        # la pone `HUECO` y es la misma entre cualquier par.
+        cols = np.nonzero((franja > 0.35).any(axis=0))[0]
         filas = np.nonzero((franja > 0.35).any(axis=1))[0]
+        cx0, cx1 = x0 + cols.min(), x0 + cols.max() + 1
         y0, y1 = filas.min(), filas.max() + 1
-        d = np.dstack([rgb[y0:y1, x0:x1], alfa[y0:y1, x0:x1] * 255.0])
+        d = np.dstack([rgb[y0:y1, cx0:cx1], alfa[y0:y1, cx0:cx1] * 255.0])
         digitos.append(Image.fromarray(d.astype("uint8"), "RGBA"))
     return digitos
 
@@ -126,9 +137,11 @@ def componer(digitos, n: int) -> Image.Image:
     lienzo = Image.new("RGBA", (ancho + 2 * m, alto + 2 * m), (0, 0, 0, 0))
     x = m
     for p in piezas:
-        # Por la BASE, no por el centro: los digitos vienen con distinto alto
-        # (el 0 y el 8 sobresalen) y centrados bailaban en la linea.
-        lienzo.alpha_composite(p, (x, m + alto - p.height))
+        # POR EL CENTRO, no por la base: los redondos (el 0, el 6, el 8) se
+        # pintan con un pelo de rebose por arriba Y por abajo, asi que
+        # apoyandolos en la linea se quedaban bajos respecto a su vecino — que
+        # es lo que se veia como que el cero no estaba alineado.
+        lienzo.alpha_composite(p, (x, m + (alto - p.height) // 2))
         x += p.width + hueco
     return lienzo
 

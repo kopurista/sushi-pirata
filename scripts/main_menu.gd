@@ -84,8 +84,11 @@ const MENU_SHIP_SCALE := 2.75
 ## (fuera de cuadro), dónde acaba, cuánto navega el barco y cuánto baja además
 ## la cámara al cerrar el zoom.
 const SHOP_DOCK_LEJOS := 900.0
-const SHOP_DOCK_AT := 355.0
-const SHOP_SAIL := 300.0
+## EL PUERTO SE PARA MÁS ABAJO QUE EL BARCO, y la diferencia no es de adorno:
+## con 355 y 300 quedaban a 55 px uno de otro y el barco acababa ATRAVESANDO el
+## muelle. Ahora se para bien corto y atraca a su lado.
+const SHOP_DOCK_AT := 470.0
+const SHOP_SAIL := 250.0
 ## LA CAMARA BAJA MENOS QUE EL BARCO, y esa diferencia es a proposito: en el
 ## menu la banda deja al barco arriba (`MENU_BAND_OFF`), asi que bajando lo
 ## mismo que el se quedaria igual de arriba y el zoom lo sacaria de cuadro.
@@ -1653,7 +1656,7 @@ func _process(delta: float) -> void:
 	# barco viraba hacia abajo, arrancaba y a mitad de camino VOLVÍA a su rumbo
 	# de casa mientras seguía bajando — se lo reescribía esta línea, fotograma
 	# a fotograma, con la rotación de un timón que no se había tocado.
-	if wheel != null and not _rumbo_a_casa and viento_fuerza <= 0.01:
+	if wheel != null and not _rumbo_a_casa and viento_fuerza <= 0.01 and not leaving:
 		rumbo_extra = -rad_to_deg(wheel.rotation) * 0.35
 	# Mientras se retiran del encuadre las mueve su tween, no esta función.
 	if sky_leaving:
@@ -3289,12 +3292,21 @@ func _back_to_menu() -> void:
 	# derecha. Como el fondeadero está a la MISMA LATITUD que el escenario, es
 	# un movimiento puramente lateral: no hay salto que tapar y no hace falta
 	# ni velo ni teletransporte.
+	# PRIMERO VIRA A LA IZQUIERDA Y LEVANTA EL VIENTO (pedido por el usuario):
+	# es el mismo gesto que en todos los demás viajes, y al llegar el barco
+	# recupera su rumbo de casa.
+	await virar_a(Vector2.LEFT, 1.0)
+	if not is_inside_tree():
+		return
 	ship_tween = create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	ship_tween.tween_property(self, "ship_px", _fondeadero(), dur)
 	ship_tween.parallel().tween_property(self, "cam_side", MENU_OFF_X, dur)
 	ship_tween.parallel().tween_property(self, "cam_center", _fondeadero().y, dur)
 	ship_tween.parallel().tween_property(self, "ship_roll", -6.0, dur * 0.4)
 	ship_tween.parallel().tween_property(self, "ship_roll", 0.0, dur * 0.5) 			.set_delay(dur * 0.5)
+	# Y al llegar al fondeadero, de vuelta a su rumbo de casa con el viento
+	# cayendo — igual que en cualquier otro viaje.
+	ship_tween.finished.connect(enderezar_rumbo.bind(VIRAJE), CONNECT_ONE_SHOT)
 	create_tween().set_trans(Tween.TRANS_SINE).tween_property(
 		self, "menu_blend", 1.0, dur * 0.7)
 	# La interfaz vuelve con su propio temporizador: colgarla del tween del
@@ -4334,6 +4346,9 @@ el nivel 2 de la Aventura.")
 	# El zoom cierra sobre el atraque: entre el barco y el puesto del tendero.
 	tw.chain().tween_property(cam, "size", SHOP_ZOOM_SIZE, 0.9) 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.parallel().tween_property(self, "cam_down", SHOP_ZOOM_DOWN, 0.9) 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	# Y EL VIENTO CAE AL ATRACAR: sin esto seguía soplando encima del cartel de
+	# la tienda, con el barco ya parado.
+	tw.parallel().tween_property(self, "viento_fuerza", 0.0, VIENTO_BAJA)
 	tw.chain().tween_interval(0.15)
 	tw.chain().tween_callback(func() -> void:
 		GameState.transition = "tienda"
