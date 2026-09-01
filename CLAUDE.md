@@ -4381,12 +4381,31 @@ La GUÍA lleva su sección ("El canto de sirena").
     `map_enemigo.glb` es +Z, medido: con −Z se iba al castillo de popa) y en la
     cueva se perdía contra la piedra. Un cartel al lado se lee igual de bien en
     los cuatro y además es lo que habría de verdad en una travesía.
-  · **LA CIFRA ES UNA IMAGEN HORNEADA** (`tools/num_map.py` →
-    `assets/map/num_<n>.png`): la trama de la madera recortada por la silueta y
-    con el RELIEVE ya pintado —luz por el canto de arriba y sombra por el de
-    abajo—, que es lo que la hace parecer tallada en la tabla. Va **SIN
-    SOMBREAR** (`SHADING_MODE_UNSHADED`): el relieve ya está en la imagen, y
-    dejar que el sol del mapa lo iluminara otra vez solo servía para aplastarlo.
+  · **EL CARTEL DEL ESCENARIO ES EL MISMO LETRERO DE MADERA QUE EL DE PASO**
+    (`cartel_mar.glb`, pedido por el usuario): un modelo de verdad, no las tres
+    cajas con una trama de madera que hubo antes. Se escala por el ANCHO de su
+    tablero, que es lo que tiene que seguir midiendo `CARTEL_ANCHO` para no
+    pisar al escenario, y todo lo que se le pone encima sale de su tablero
+    MEDIDO (`TABLA_ANCHO/ALTO/CY/CARA`). Bloqueado se TIÑE su material
+    (`albedo_color` multiplica la textura), no se sustituye: con un material
+    plano se perdían la veta y los clavos — y el tinte se salta en HEADLESS,
+    donde el renderer dummy escupe "Parameter material is null".
+  · **LA CIFRA ES UNA IMAGEN PINTADA A BROCHA** (`tools/num_pintado.py` →
+    `assets/map/num_<n>.png`), cal blanca como la flecha del cartel de paso.
+    Antes iba TALLADA (`tools/num_map.py`, que se queda solo para las
+    estrellas): la trama de la madera recortada por la silueta de la fuente y
+    con el relieve horneado. Va **SIN SOMBREAR** (`SHADING_MODE_UNSHADED`), o
+    en la cara en sombra del cartel el número desaparecía del todo.
+    · Sale de **UNA** generación de Ludo con los diez dígitos en fila: diez
+      dígitos valen para cualquier cifra, y pedir una imagen por escenario
+      serían sesenta hoy y doscientas cincuenta con la campaña entera.
+    · **HAY QUE EROSIONAR LA MÁSCARA PARA SEPARARLOS**: por muy separados que
+      se pidan —se pidieron tres veces, una de ellas exigiendo un hueco tan
+      ancho como un dígito— el generador los deja tocándose por el antialias, y
+      la mejor hoja daba NUEVE tramos de columna en vez de diez. Adelgazándola
+      dos píxeles el puente se rompe y salen los diez (medido: 84-46-75-77-85-
+      76-78-74-79-78, con el 46 del "1"), y luego se corta por el PUNTO MEDIO
+      de cada hueco sobre la máscara ORIGINAL, así que ninguno pierde grosor.
     · Se intentó antes con **`TextMesh`** —geometría extruida de verdad— y
       Godot NO PUEDE con esta fuente: *"Convex decomposing failed. Make sure
       the font doesn't contain self-intersecting lines"*, con la Exo 2 tanto

@@ -170,16 +170,22 @@ const CARTEL_Z := 0.34
 const CARTEL_CALADO := 0.26
 const CARTEL_ALTO := 1.66
 const CARTEL_ANCHO := 1.30
-const CARTEL_TABLA := 1.08
-const CARTEL_POSTE := 0.10
-## Grosor de la tabla; los postes van a esa distancia POR DETRAS.
-const CARTEL_FONDO := 0.09
+## EL TABLERO DEL MODELO, MEDIDO (`cartel_mar.glb`, sobre un modelo de 1,0 de
+## alto): ocupa X -0,389..0,391 e Y -0,083..0,417, y su cara está en z 0,0630.
+## De aquí sale todo lo que se coloca encima; el cartel se escala por el ANCHO,
+## que es lo que tiene que seguir midiendo `CARTEL_ANCHO`.
+const TABLA_ANCHO := 0.775
+const TABLA_ALTO := 0.500
+const TABLA_CY := 0.167
+## Un pelo por delante del PICO de la cara (0,0630): la tabla es madera
+## modelada a mano y a ras se comería el número.
+const TABLA_CARA := 0.068
 ## Reparto de la tabla: el numero arriba y las estrellas debajo, en fracciones
 ## de su alto.
-const NUM_EN_TABLA := 0.50
-const NUM_SUBE := 0.18
-const ESTRELLAS_EN_TABLA := 0.29
-const ESTRELLAS_BAJA := 0.24
+const NUM_EN_TABLA := 0.42
+const NUM_SUBE := 0.14
+const ESTRELLAS_EN_TABLA := 0.24
+const ESTRELLAS_BAJA := 0.23
 
 ## Huella de cada modelo en el mapa. La ISLA es la mas grande porque su numero
 ## va ESCRITO EN LA ARENA: a 2.6 la playa no daba para una cifra legible.
@@ -482,6 +488,10 @@ const CARTEL_YAW := 45.0
 ## cartel da media vuelta enseñando su otra cara. No es un adorno — es lo que
 ## explica por qué la flecha ahora apunta al revés.
 const CARTEL_GIRO := 0.9
+## Cuánto se aparta el barco del carril al pasar por la frontera (píxeles de
+## mapa). Por el centro le pasaba por ENCIMA al cartel; apartado se ve pasar a
+## su lado, que es lo que hace creíble el empujón.
+const CARTEL_ROCE := 95.0
 ## Huella a la que se normaliza (unidades de mundo). Se midió contra el nodo
 ## de escenario más pequeño: el cartel tiene que leerse sin competir con él.
 ## **NO ES 3,1 POR CAPRICHO: fija el ALTO en pantalla, y ese alto está
@@ -832,11 +842,17 @@ func cambiar_de_mar(mar: int, destino_id := "") -> void:
 		maxf(_extremo_del_mar(viejo, false) + MARGEN_MAR, y_frontera))
 	_rehacer_overlays([viejo, mar])
 	# --- 1) HASTA LA FRONTERA ---------------------------------------------
-	await _viajar_barco(Vector2(CampaignData.LANE_CENTER, y_frontera),
-		y_frontera, PASO_VIAJE)
+	# EL BARCO NO SE PARA EN EL CARTEL Y NO LE PASA POR EN MEDIO (pedido por el
+	# usuario): la frontera es un punto de PASO, no una parada. Va apartado
+	# `CARTEL_ROCE` a un lado —así se lee que le ha dado un empujón al pasar— y
+	# los dos tramos se encadenan con `EASE_IN` y `EASE_OUT`, o sea que el
+	# primero acelera y el segundo frena, sin el frenazo de en medio que dejaba
+	# el `EASE_IN_OUT` de serie.
+	await _viajar_barco(Vector2(CampaignData.LANE_CENTER + CARTEL_ROCE, y_frontera),
+		y_frontera, PASO_VIAJE, Tween.EASE_IN)
 	if not is_inside_tree():
 		return
-	# El barco está justo debajo del cartel: aquí es donde lo golpea.
+	# El barco está pasando justo al lado del cartel: aquí es donde lo golpea.
 	golpear_cartel(viejo)
 	# --- 2) DENTRO DEL MAR NUEVO, hasta el ANCLAJE de su escenario ---------
 	# Al SUBIR se entra por su primer escenario; al BAJAR, por el último — que
@@ -851,7 +867,7 @@ func cambiar_de_mar(mar: int, destino_id := "") -> void:
 	if destino_id != "" and CampaignData.sea_of(destino_id) == mar:
 		destino = destino_id
 	await _viajar_barco(_ship_anchor(destino),
-		CampaignData.map_pos(destino).y, ENTRADA_VIAJE)
+		CampaignData.map_pos(destino).y, ENTRADA_VIAJE, Tween.EASE_OUT)
 	if not is_inside_tree():
 		return
 	# --- 3) SOLTAR EL MAR VIEJO, que ya ha quedado atrás -------------------
@@ -905,7 +921,8 @@ func _extremo_del_mar(mar: int, arriba: bool) -> float:
 ## del mapa (no a un carril fijo): así el último tramo de una travesía entre
 ## mares termina en el ANCLAJE del escenario y no hay que colocarlo de golpe al
 ## final, que era otro de los saltos que se veían.
-func _viajar_barco(destino: Vector2, y_camara: float, seg: float) -> void:
+func _viajar_barco(destino: Vector2, y_camara: float, seg: float,
+		suavizado := Tween.EASE_IN_OUT) -> void:
 	if scroll_tween != null:
 		scroll_tween.kill()
 		scroll_tween = null
@@ -918,7 +935,7 @@ func _viajar_barco(destino: Vector2, y_camara: float, seg: float) -> void:
 	var subiendo := destino.y < ship_px.y
 	var tw := create_tween()
 	tw.set_parallel(true)
-	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.set_trans(Tween.TRANS_SINE).set_ease(suavizado)
 	tw.tween_property(self, "cam_center", y_camara, seg)
 	tw.tween_property(self, "ship_px", destino, seg)
 	tw.tween_property(self, "ship_roll", 6.0 if subiendo else -6.0, seg * 0.35)
@@ -1113,55 +1130,48 @@ func _cartel_nivel(pivot: Node3D, foot: float, n: int, estrellas: int,
 	cartel.position = R_HAT * (lado * foot * fx) \
 		- D_HAT * (foot * CARTEL_Z) + Vector3(0.0, -CARTEL_CALADO, 0.0)
 	pivot.add_child(cartel)
-	# MADERA A MEDIO CAMINO (`madera_cartel.webp`, la del muelle mezclada con su
-	# color medio): con la veta entera el cartel se leia como una mancha rayada
-	# y la cifra se perdia; con un color liso quedaba de plastico.
-	var madera := StandardMaterial3D.new()
-	madera.albedo_texture = load(NUM_TEX_MADERA)
-	madera.albedo_color = Color(0.56, 0.38, 0.20) if unlocked \
-			else Color(0.30, 0.31, 0.36)
-	madera.uv1_triplanar = true
-	madera.uv1_scale = Vector3(0.9, 0.9, 0.9)
-	madera.roughness = 1.0
-	# LOS POSTES VAN DETRAS DE LA TABLA (z negativo, que con el giro de 45 es
-	# "hacia el fondo"): delante se veian cruzando el numero, que es justo lo
-	# que un cartel de verdad no hace.
-	for dx in [-CARTEL_ANCHO * 0.40, CARTEL_ANCHO * 0.40]:
-		var poste := MeshInstance3D.new()
-		var pm := BoxMesh.new()
-		pm.size = Vector3(CARTEL_POSTE, CARTEL_ALTO, CARTEL_POSTE)
-		poste.mesh = pm
-		poste.material_override = madera
-		poste.position = Vector3(dx, CARTEL_ALTO * 0.5, -CARTEL_FONDO)
-		poste.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		cartel.add_child(poste)
-	var tabla := MeshInstance3D.new()
-	var tm := BoxMesh.new()
-	tm.size = Vector3(CARTEL_ANCHO, CARTEL_TABLA, CARTEL_FONDO * 1.6)
-	tabla.mesh = tm
-	var tinta := StandardMaterial3D.new()
-	tinta.albedo_texture = load(NUM_TEX_MADERA)
-	tinta.albedo_color = Color(0.72, 0.50, 0.26) if unlocked \
-			else Color(0.34, 0.35, 0.40)
-	tinta.uv1_triplanar = true
-	tinta.uv1_scale = Vector3(0.7, 0.7, 0.7)
-	tinta.roughness = 1.0
-	tabla.material_override = tinta
-	tabla.position = Vector3(0.0, CARTEL_ALTO - CARTEL_TABLA * 0.6, 0.0)
-	tabla.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	cartel.add_child(tabla)
-	# EL NUMERO, TALLADO EN LA TABLA, y DEBAJO LAS ESTRELLAS conseguidas. Van
-	# aqui y no flotando sobre el nodo (pedido por el usuario): con la hilera
-	# 2D encima, las estrellas de un escenario caian al lado del vecino y no
-	# habia forma de saber de quien eran.
-	var l := _num_quad(n, CARTEL_TABLA * NUM_EN_TABLA, unlocked)
-	l.position = tabla.position + Vector3(0.0, CARTEL_TABLA * NUM_SUBE,
-		CARTEL_FONDO * 0.9)
+	# ES EL MISMO LETRERO DE MADERA QUE EL CARTEL DE PASO (pedido por el
+	# usuario): un modelo de verdad en vez de las tres cajas con una trama de
+	# madera que había antes. Se escala por el ANCHO de su tablero, que es lo
+	# que tiene que seguir midiendo `CARTEL_ANCHO` para no pisar al escenario.
+	var s := CARTEL_ANCHO / TABLA_ANCHO
+	var inst: Node3D = load(CARTEL_MODELO).instantiate()
+	inst.scale = Vector3.ONE * s
+	# El modelo va centrado en su origen (Y -0,5..0,5), así que se sube media
+	# altura para que su base caiga en el pie del cartel.
+	inst.position = Vector3(0.0, 0.5 * s, 0.0)
+	cartel.add_child(inst)
+	# Bloqueado, la madera se apaga a gris azulado. Se tiñe el material del
+	# modelo (el `albedo_color` MULTIPLICA la textura), no se sustituye: con un
+	# material plano se perdían la veta y los clavos.
+	# EN HEADLESS NO SE TIÑE: el renderer dummy escupe "Parameter material is
+	# null" al sustituir el material de ciertas mallas de `.glb`, y
+	# `--headless --quit-after` es justo donde se miran los errores del
+	# proyecto ("sin salida = OK"). Ahí no se dibuja nada, así que no se pierde.
+	var dummy := DisplayServer.get_name() == "headless"
+	for m in inst.find_children("*", "MeshInstance3D", true, false):
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if unlocked or dummy:
+			continue
+		for i in m.mesh.get_surface_count():
+			var base: Material = m.mesh.surface_get_material(i)
+			var mat: StandardMaterial3D = base.duplicate() if base is StandardMaterial3D \
+					else StandardMaterial3D.new()
+			mat.albedo_color = Color(0.46, 0.50, 0.62)
+			m.set_surface_override_material(i, mat)
+	# EL NUMERO, PINTADO A BROCHA EN LA TABLA, y DEBAJO LAS ESTRELLAS. Van aquí
+	# y no flotando sobre el nodo (pedido por el usuario): con la hilera 2D
+	# encima, las estrellas de un escenario caían al lado del vecino y no había
+	# forma de saber de quién eran. Las medidas van en fracciones del tablero
+	# MEDIDO del modelo, no en las de las cajas de antes.
+	var tabla_y := (0.5 + TABLA_CY) * s
+	var tabla_h := TABLA_ALTO * s
+	var cara := TABLA_CARA * s
+	var l := _num_quad(n, tabla_h * NUM_EN_TABLA, unlocked)
+	l.position = Vector3(0.0, tabla_y + tabla_h * NUM_SUBE, cara)
 	cartel.add_child(l)
-	var e := _estrellas_quad(estrellas, CARTEL_TABLA * ESTRELLAS_EN_TABLA,
-		unlocked)
-	e.position = tabla.position + Vector3(0.0, -CARTEL_TABLA * ESTRELLAS_BAJA,
-		CARTEL_FONDO * 0.9)
+	var e := _estrellas_quad(estrellas, tabla_h * ESTRELLAS_EN_TABLA, unlocked)
+	e.position = Vector3(0.0, tabla_y - tabla_h * ESTRELLAS_BAJA, cara)
 	cartel.add_child(e)
 
 
@@ -2910,6 +2920,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	# En el menú principal (la escena hace de las dos cosas) no se recorre el
 	# mapa: arrastrando se llegaba a ver los niveles antes de tiempo.
 	if not map_visible:
+		return
+	# Y MIENTRAS SE CRUZA DE MAR TAMPOCO (pedido por el usuario): la travesía
+	# lleva la cámara y el barco con sus tweens, y un arrastre por el camino
+	# los partiría en dos — el mapa se quedaría en un sitio y el barco en otro.
+	if cambiando_mar:
+		scroll_dragging = false
+		scroll_speed = 0.0
 		return
 	if event is InputEventScreenDrag:
 		if scroll_tween != null:
