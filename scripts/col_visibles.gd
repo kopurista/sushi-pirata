@@ -446,13 +446,15 @@ static func _canon(pivot: Node3D, s: float, alto: float) -> Node3D:
 	const CANON_ALTO := 0.115     ## fraccion del alto del barco
 	var p := Node3D.new()
 	p.name = "ColCanon"
-	# SITIO ELEGIDO CON EL MEDIDOR (`tools/medir_adornos.gd`), no a ojo: ese
-	# recorre la cubierta casilla a casilla, mira con un rayo si hay tablas y
-	# a que altura, y desde la camara del juego cuanto se veria una pieza
-	# puesta ahi. Este es el mejor punto DEL COSTADO QUE MIRA A LA CAMARA: 93%
-	# visible con cubierta debajo. A media eslora la propia borda tapa dos
-	# tercios (medido: 33%).
-	p.position = Vector3(-0.240 * s, alto * 0.315, 0.070 * s)
+	# EN MITAD DE LA CUBIERTA y APOYADO EN LAS TABLAS.
+	#
+	# La altura sale de `tools/medir_adornos.gd`, y con una trampa que costo
+	# dos pasadas: puesto MUY alto, sus rayos hacia abajo dan 0.420 — pero eso
+	# es una VERGA, no el suelo. Bajandolo hasta pasar por debajo de ella, los
+	# mismos rayos dan 0.236, que es la cubierta de verdad. O sea que el
+	# medidor contesta "la primera superficie que hay debajo", no "el suelo":
+	# hay que leerlo desde una altura que ya este por debajo del aparejo.
+	p.position = Vector3(0.0, alto * 0.238, 0.090 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var m := (load("res://assets/models/canon_barco.glb") as PackedScene) 		.instantiate()

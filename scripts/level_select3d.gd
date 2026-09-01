@@ -75,7 +75,10 @@ const FICHA_BAJADA := 40.0
 ## El tope de arriba llega hasta el jefe del MAR 2 (m2_25, y=-7286) con su
 ## margen; el de abajo se queda JUSTO bajo el escenario 1 — sin el panel de
 ## informacion de antes, bajar mas solo ensenaba un hueco de mar vacio.
-const SCROLL_MIN := -13112.0
+## Tope de scroll: la jefa del mar 2 menos su margen. Bajo 1.872 px al pasar
+## el mar 1 de 20 a 25 escenarios, que corrio hacia arriba todo lo que hay por
+## encima de la Cueva del Kappa.
+const SCROLL_MIN := -14984.0
 const SCROLL_MAX := CampaignData.MAP_HEIGHT - 560.0
 
 ## EL PLANO DEL MAR TIENE QUE CUBRIR TAMBIÉN EL FONDEADERO DEL MENÚ, que está
