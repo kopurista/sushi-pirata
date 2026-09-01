@@ -31,6 +31,13 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   arregla solo, porque el `.glb` ya está importado y Godot no lo rehace: hay
   que **borrar `.godot/imported/*.glb-*.scn` y reimportar**. Pasó de verdad y
   reventaba al servir un plato a la cinta.
+- **`--headless --import` NO REHACE UNA IMPORTACIÓN CUYO ARCHIVO NO HA
+  CAMBIADO**, aunque cambien sus PARÁMETROS (`compress/mode`, `size_limit`, el
+  presupuesto del hook de decimado…): compara el archivo de ORIGEN, no el
+  `.import`. Para forzarla hay que borrar `.godot/imported/<nombre>-*` **y su
+  `.md5`** (con borrar solo el `.ctex` o el `.scn` no basta). Se perdieron
+  varias rondas midiendo el recurso VIEJO y sacando conclusiones de pruebas
+  que en realidad no habían llegado a ejecutarse.
 - **Verificación visual**: inyectar un nodo helper temporal con un script que
   fuerce estado (`lv.prep_phase = false`, `_try_spawn_client()`, `_on_dish_served()`)
   y guarde `get_viewport().get_texture().get_image().save_png("res://shot.png")`,
@@ -638,11 +645,40 @@ duplicado — el mapa, la cámara, los carriles y el barco son los mismos. Lo
   un letrero de madera clavado en el agua, en el carril del centro. Uno por
   punta, y solo si ese mar es alcanzable — hacia arriba pide tenerlo abierto
   (o sea, haber vencido al jefe del anterior) y hacia abajo siempre.
-  · **SON MODELOS** (`cartel_mar_arriba.glb` / `_abajo.glb`, cadena Meshy con
-    concepto de Ludo), y **LA FLECHA VA TALLADA EN LA MADERA**, en relieve, no
-    escrita (pedido por el usuario). Un "▲" en una etiqueta se leía como
-    interfaz; una flecha de madera se lee como un letrero. Por eso son DOS
-    modelos y no uno volteado: girar el de subir deja los postes arriba.
+  · **ES UN SOLO MODELO** (`cartel_mar.glb`, cadena Meshy con concepto de Ludo)
+    **Y LA FLECHA VA PINTADA ENCIMA** (`assets/map/flecha_mar.png`, pintada a
+    mano con brocha), sobre un quad que se gira 180° para bajar
+    (`level_select3d._pintar_flecha`). Así los dos carteles son literalmente el
+    mismo objeto y lo único que puede cambiar entre ellos es la flecha. Un "▲"
+    de etiqueta se leería como interfaz, y por eso la flecha es pintura y no
+    texto; voltear el cartel entero tampoco vale, que el poste se iría arriba.
+    · **HUBO DOS MODELOS, uno por sentido, y NO valía**: salieron de dos
+      generaciones distintas de Meshy y no eran el mismo objeto —madera de otro
+      tono (medido: 90,57,42 contra 114,70,51 de media en el atlas, 24 puntos
+      de rojo), otro reparto de tablas, otros clavos y otro poste—. Los dos se
+      ven en la misma frontera y en el mismo cruce, así que la diferencia no se
+      leía como "otro cartel" sino como que la escena hubiera cambiado de luz.
+    · **VOLTEAR LA FLECHA DENTRO DEL ATLAS NO VALE, y se intentó entero**: la
+      UV de estos modelos viene TROCEADA por triángulos —la flecha ocupa de
+      u 0,005 a 0,981 y de v 0,015 a 0,970, o sea el atlas entero—, así que hay
+      que deshacer la interpolación baricéntrica de cada texel, como
+      `face_paint.py`. Se hizo, y en el MODELO la textura salía correcta pero
+      en pantalla se veía deshilachada.
+    · **La tabla lisa la deja `tools/cartel_sin_flecha.py`**, y ahí están las
+      tres trampas que costaron la tarde: (a) hay que borrar **TODO lo claro
+      del atlas**, no solo lo que se ve — la orla de las islas de UV son 42.818
+      texeles crema que no toca ningún triángulo, y el relleno por difusión los
+      chupaba hacia dentro resucitando la flecha en fantasma (8.208 texeles);
+      (b) la flecha venía **TALLADA** (0,0045 de hondo, medido), y borrarla de
+      la textura no borra el hueco: su canto se asomaba por fuera de la flecha
+      nueva, así que se alisa subiendo 698 vértices al nivel de la tabla; y
+      (c) el original se guarda como `cartel_mar.glb.antes_de_quitar_la_flecha`
+      —una extensión que Godot no importa— para que la herramienta se pueda
+      volver a pasar.
+    · **LA CALCOMANÍA VA A z 0,0975, no a la z "media" de la cara (0,0869)**:
+      la tabla es madera modelada a mano y en esa zona llega a 0,0928, así que
+      puesta a ras la tabla se comía la flecha y solo asomaban sus bordes por
+      los huecos del grabado.
   · **EL NOMBRE DEL MAR VA DEBAJO**, no sobre la tabla: ahí está la flecha, que
     es lo que tiene que leerse primero.
   · **SE VE ENTERO DESDE EL ESCENARIO DEL EXTREMO** (pedido por el usuario:
