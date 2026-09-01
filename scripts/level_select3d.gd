@@ -476,7 +476,6 @@ func _cartel_de_paso(mar: int, y_px: float, desde := mar_actual) -> void:
 		# clavado en el mar no se apoya en él.
 		pivot.position.y = -0.16
 		raiz.set_meta("pivot", pivot)
-		curvar(pivot)
 	# EL NOMBRE DEL MAR va DEBAJO del letrero, no encima de la tabla: ahí está
 	# la flecha tallada, que es lo que tiene que leerse primero.
 	var rot := Label3D.new()
@@ -548,7 +547,6 @@ func _rehacer_ruta() -> void:
 			# FUERA DEL PRÓXIMO FUSIONADO, o el siguiente `bake` se la traga y
 			# la vuelve a fundir sobre sí misma.
 			mi.add_to_group("no_batch")
-			curvar(mi)
 			flotantes.append(mi)
 
 
@@ -580,126 +578,6 @@ func _limpiar_mar(mar: int) -> void:
 			node_world.erase(pid)
 
 
-
-
-## ------------------------------------------------- CURVATURA DEL MUNDO
-##
-## El "rolling log" de Animal Crossing: la geometría se hunde según se aleja
-## del punto que mira la cámara, así que lo lejano cae por debajo del horizonte
-## en vez de cortarse contra el borde de la pantalla.
-##
-## AQUÍ SE CURVA EL EJE DE SCROLL, no la profundidad de cámara: esta cámara es
-## ORTOGONAL y el mapa es una cinta vertical, así que lo que hay que doblar es
-## la dirección por la que se navega.
-##
-## LO QUE SE VE Y LO QUE NO: este encuadre NUNCA enseña el horizonte (mira el
-## agua desde arriba y el mar llena la pantalla), así que el efecto no da la
-## silueta curva de Animal Crossing — da que los escenarios LEJANOS se hundan
-## en vez de salirse por el canto. Que es, de hecho, lo que hace falta aquí:
-## tapa el final de lo que hay cargado.
-##
-## COSTE: NINGUNO MEDIBLE. Con 269 materiales curvados, 0,661 / 0,669 / 0,683
-## ms por fotograma a fuerza 0,016 / 0,009 / 0,004 — las tres dentro del ruido.
-## Es un `dot`, un `mul` y un `min` por vértice.
-const CURVA_SHADER := preload("res://shaders/curvatura.gdshader")
-## Cuánto se hunde lo lejano. La caída es `fuerza · distancia²` en unidades de
-## mundo, y en cuadro caben ±13 u desde el centro: a 0.016 el canto del
-## encuadre baja 2,7 u, o sea metro y medio más que el alto de una isla.
-const CURVA_FUERZA := 0.016
-## A partir de aquí ya no se hunde más: un escenario a 6.000 px de distancia
-## bajaría kilómetros y el motor tendría que seguir procesándolo igual.
-const CURVA_TOPE := 40.0
-
-
-## Cuánto baja un punto del mundo por la curvatura. Es la MISMA cuenta que hace
-## el shader, y hace falta en GDScript porque los botones 2D de los escenarios
-## se colocan proyectando su punto 3D: sin esto se quedarían flotando donde
-## estaba el nodo ANTES de curvarse.
-func curva_y(p: Vector3) -> float:
-	if CURVA_FUERZA <= 0.0:
-		return 0.0
-	var d := (p - _curva_centro).dot(D_HAT)
-	return minf(CURVA_FUERZA * d * d, CURVA_TOPE)
-
-
-## El punto del mundo que la cámara tiene enfocado: el pivote de la curva.
-var _curva_centro := Vector3.ZERO
-
-
-func _refrescar_curva() -> void:
-	_curva_centro = _world(Vector2(360.0, cam_center + BAND_CENTER_OFF))
-	RenderingServer.global_shader_parameter_set("curva_centro", _curva_centro)
-	RenderingServer.global_shader_parameter_set("curva_eje", D_HAT)
-	RenderingServer.global_shader_parameter_set("curva_fuerza", CURVA_FUERZA)
-	RenderingServer.global_shader_parameter_set("curva_tope", CURVA_TOPE)
-
-
-## Cambia los materiales de un nodo del mapa por el shader de la curvatura,
-## copiándoles el dibujo. Se hace al montar cada pieza.
-##
-## NO SE PUEDE HACER DE OTRA FORMA: `StandardMaterial3D` no deja meter código
-## de vértice, y `next_pass` es una pasada MÁS, no una modificación de la
-## primera. Así que hay que sustituir el material — por eso el shader replica
-## lo justo (textura de albedo, color y recorte de alfa), que es todo lo que
-## usan estos modelos.
-func curvar(nodo: Node) -> void:
-	if CURVA_FUERZA <= 0.0 or nodo == null:
-		return
-	# EN HEADLESS NO SE TOCA NADA. La curvatura es puramente visual y ahí no se
-	# dibuja, pero el renderer DUMMY escupe "Parameter material is null" al
-	# cambiarle el material a ciertas mallas de `.glb` — y `--headless
-	# --quit-after` es justo donde se miran los errores del proyecto ("sin
-	# salida = OK"). Ensuciar ese sitio es peor que perderse un efecto que ahí
-	# no se ve.
-	if DisplayServer.get_name() == "headless":
-		return
-	var mallas: Array = []
-	if nodo is MeshInstance3D:
-		mallas.append(nodo)
-	for m in nodo.find_children("*", "MeshInstance3D", true, false):
-		mallas.append(m)
-	for mi: MeshInstance3D in mallas:
-		if mi.mesh == null:
-			continue
-		# CON `material_override` SE SUSTITUYE EL OVERRIDE, no se pone a null y
-		# se rellenan las superficies: anularlo hace que el renderer dummy de
-		# `--headless` escupa "Parameter material is null", y ese es justo el
-		# sitio donde se miran los errores del proyecto.
-		if mi.material_override != null:
-			var nm := _mat_curva(mi.material_override)
-			if nm != null:
-				mi.material_override = nm
-			continue
-		for si in mi.mesh.get_surface_count():
-			var nm2 := _mat_curva(mi.mesh.surface_get_material(si))
-			if nm2 != null:
-				mi.set_surface_override_material(si, nm2)
-
-
-## Un material de curvatura equivalente a `orig`, o null si no hay que tocarlo.
-## Copia lo justo —textura de albedo, color y recorte de alfa—, que es todo lo
-## que usan estos modelos.
-func _mat_curva(orig: Material) -> ShaderMaterial:
-	# Sin material no hay nada que copiar, y los shaders propios (el mar, la
-	# niebla, el destello del farol) llevan su curva dentro o no la quieren.
-	if orig == null or orig is ShaderMaterial:
-		return null
-	var sm := ShaderMaterial.new()
-	sm.shader = CURVA_SHADER
-	var tex: Texture2D = null
-	var col := Color(1, 1, 1)
-	var corta := false
-	if orig is StandardMaterial3D:
-		var st: StandardMaterial3D = orig
-		tex = st.albedo_texture
-		col = st.albedo_color
-		corta = st.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED
-	sm.set_shader_parameter("usa_tex", tex != null)
-	if tex != null:
-		sm.set_shader_parameter("albedo_tex", tex)
-	sm.set_shader_parameter("albedo_col", col)
-	sm.set_shader_parameter("recorta_alpha", corta)
-	return sm
 
 
 ## CUÁNTOS ESCENARIOS SE MONTAN ALREDEDOR DEL DESTINO mientras se está en el
@@ -1046,7 +924,6 @@ func _setup_nodes(mar := mar_actual, solo: Array = []) -> void:
 		var pivot := _spawn_model(load(KIND_MODELS[kind]), pos,
 			float(KIND_FOOT.get(kind, 2.5)))
 		pivot.add_to_group(_grupo(mar_montando))
-		curvar(pivot)
 		# Los barcos se hunden un poco en el agua; las islas asientan su base.
 		pivot.position.y = -0.10 if kind != "abordaje" else -0.06
 		# Y LO QUE FLOTA, FLOTA: un barco enemigo sube y baja con la marea; una
@@ -1061,7 +938,6 @@ func _setup_nodes(mar := mar_actual, solo: Array = []) -> void:
 			base_cueva = _base_cueva(pos, float(KIND_FOOT.get(kind, 2.5)),
 				_textura_de(pivot))
 			base_cueva.add_to_group(_grupo(mar_montando))
-			curvar(base_cueva)
 			_niebla_cueva(pos, float(KIND_FOOT.get(kind, 2.5)))
 		# Los nodos NO proyectan sombra: son 9 modelos de ~40k triangulos y el
 		# pase de sombras los dibujaba otra vez enteros, para una mancha que
@@ -1073,7 +949,6 @@ func _setup_nodes(mar := mar_actual, solo: Array = []) -> void:
 		blob.position = pos + Vector3(0.15, 0.03, 0.1)
 		blob.add_to_group(_grupo(mar_montando))
 		add_child(blob)
-		curvar(blob)
 		# La mancha es una sombra EN EL AGUA: sube con ella o se hunde.
 		blob.set_meta("y0", blob.position.y)
 		flotantes.append(blob)
@@ -1549,11 +1424,6 @@ func _setup_ship() -> void:
 	ship_pivot.position.y = -0.06
 	ship_pivot.set_meta("y0", -0.06)
 	ship_pivot.rotation_degrees.y = SHIP_YAW
-	# EL BARCO DEL JUGADOR NO SE CURVA, y hay dos razones. La de diseño: es el
-	# punto de vista, y va SIEMPRE sobre el pivote de la curva, así que su
-	# caída sería cero de todas formas. Y la práctica: tocarle los materiales
-	# hace que el renderer dummy de `--headless` escupa "Parameter material is
-	# null", y ahí es donde se miran los errores del proyecto.
 	# LOS COLECCIONABLES QUE SE LUCEN: la bandera pirata en el mastil, el
 	# koinobori, el farol fantasma... (ver `ColVisibles`). Se montan aqui, al
 	# construir el barco, asi que una pieza nueva luce al volver al menu.
@@ -3213,9 +3083,6 @@ func _process(delta: float) -> void:
 	else:
 		scroll_speed = 0.0
 	_update_camera()
-	# LA CURVATURA se refresca DESPUÉS de mover la cámara y ANTES de colocar el
-	# barco y los overlays: todos cuelgan del mismo pivote.
-	_refrescar_curva()
 
 	# Balanceo del barco sobre las olas (sustituye a las velas animadas del
 	# spritesheet 2D) + el rolido extra del viaje.
@@ -3251,11 +3118,5 @@ func _process(delta: float) -> void:
 	if not map_visible:
 		return
 	for id in node_overlays:
-		var p: Vector3 = node_world[id] + Vector3(0.0, 0.55, 0.0)
-		# EL BOTÓN BAJA CON SU ESCENARIO. Se coloca proyectando el punto 3D del
-		# nodo, y el nodo lo hunde la curvatura EN EL SHADER — que GDScript no
-		# ve. Sin repetir la cuenta aquí, los botones se quedan flotando donde
-		# estaba el escenario antes de curvarse.
-		p.y -= curva_y(p)
-		var scr := cam.unproject_position(p)
+		var scr := cam.unproject_position(node_world[id] + Vector3(0.0, 0.55, 0.0))
 		node_overlays[id]["root"].position = scr

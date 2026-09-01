@@ -52,25 +52,3 @@ lights_and_shadows/directional_shadow/size.mobile=1024
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=0
 textures/default_filters/use_nearest_mipmap_filter=true
 textures/default_filters/anisotropic_filtering_level=0
-
-[shader_globals]
-
-; CURVATURA DEL MUNDO ("rolling log"): la comparten el shader del mar y el de
-; la geometria del mapa, asi que van de GLOBALES — poniendolas material a
-; material habria que escribir en 269 materiales por fotograma.
-curva_centro={
-"type": "vec3",
-"value": Vector3(0, 0, 0)
-}
-curva_eje={
-"type": "vec3",
-"value": Vector3(0.70710678, 0, 0.70710678)
-}
-curva_fuerza={
-"type": "float",
-"value": 0.0
-}
-curva_tope={
-"type": "float",
-"value": 40.0
-}
