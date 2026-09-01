@@ -31,6 +31,14 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   arregla solo, porque el `.glb` ya está importado y Godot no lo rehace: hay
   que **borrar `.godot/imported/*.glb-*.scn` y reimportar**. Pasó de verdad y
   reventaba al servir un plato a la cinta.
+- **Y AL SUSTITUIR UN `.glb`, BORRAR TAMBIÉN SU TEXTURA EXTRAÍDA.** Estos
+  modelos se importan con `gltf/embedded_image_handling=1` (extraer), y Godot
+  escribe `<modelo>_0.jpg` **solo si no existe**: con el archivo ya ahí, un
+  modelo NUEVO se queda con la textura del VIEJO. Pasó con el cartel de paso —
+  el modelo nuevo salió con el atlas del anterior mapeado sobre sus UV, y la
+  madera se veía manchada y con borrones azules sin que nada diera error. Se
+  comprueba comparando el md5 de la imagen EMBEBIDA en el `.glb` con el del
+  `.jpg` del disco.
 - **`--headless --import` NO REHACE UNA IMPORTACIÓN CUYO ARCHIVO NO HA
   CAMBIADO**, aunque cambien sus PARÁMETROS (`compress/mode`, `size_limit`, el
   presupuesto del hook de decimado…): compara el archivo de ORIGEN, no el

@@ -2,10 +2,13 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://f0de8bqepmrx"
+uid="uid://frees2a5d0j7"
 path="res://.godot/imported/cartel_mar_0.jpg-80dbba84aee220006397c9675d48d5c0.ctex"
 metadata={
 "vram_texture": false
+}
+generator_parameters={
+"md5": "d10b43c4f76f62d8a374d2aff464232b"
 }
 
 [deps]
