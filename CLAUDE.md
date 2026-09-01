@@ -4495,6 +4495,41 @@ La GUÍA lleva su sección ("El canto de sirena").
     entre sí. La CUEVA se fue con ellos —de −700 a −1664, para conservar su
     distancia de siete pasos— y con ella el tope de scroll (`SCROLL_MIN`), que
     es quien la deja alcanzable.
+- **EL BARCO VIRA, SOPLA VIENTO Y ENTONCES NAVEGA** (pedido por el usuario), y
+  al llegar vuelve a su rumbo de casa. Vale para TODOS los viajes: de escenario
+  a escenario, al cruzar de mar, al entrar en Aventura (a la derecha) y al ir a
+  la tienda (hacia abajo).
+  · **EL RUMBO SE DESPEJA, no se tantea** (`_rumbo_de`): `rumbo_extra` = 0 es
+    proa a la DERECHA del mapa —así descansa el barco— y girar Δ° sobre Y lleva
+    la proa de (1,0) a (cos Δ, −sen Δ) en coordenadas de mapa, porque `R_HAT` y
+    `D_HAT` son perpendiculares y `D_HAT` cae al sur. Para apuntar a (dx, dy):
+    **Δ = atan2(−dy, dx)**. Y se vira por el camino corto (`wrapf` a ±180).
+  · **LA FUERZA DEL VIENTO SALE DE LA DISTANCIA** (`_fuerza_de`): un salto al
+    escenario de al lado son ~312 px y una travesía entre mares pasa de 1.500.
+    Nunca es cero (`VIENTO_MIN`), o el barco navegaría sin que nada lo empuje.
+  · **EL VIENTO QUE SE VE** son rachas de cómic (`assets/map/viento.png`, una
+    generación de Ludo) tumbadas sobre el agua alrededor del barco, cada una
+    con su carril, su fase y su velocidad — en fila y a la vez se leerían como
+    una reja. **Sus vectores se despejan de `_world`**: la dirección en el
+    mundo es `R_HAT·dx + D_HAT·dy` y la perpendicular sale de girar (dx, dy)
+    90° en el mapa, o sea (−dy, dx). Puestos a ojo, con los signos cambiados,
+    las rachas salían amontonadas a un lado del barco en vez de rodearlo. Y van
+    **CON prueba de profundidad**: sin ella se dibujaban por encima del casco.
+  · **LAS VELAS SE HINCHAN DE VERDAD** (`shaders/velas_viento.gdshader`). El
+    barco es UNA malla con UN material, así que no hay un nodo "vela" que
+    inclinar: **la lona se reconoce POR COLOR muestreando el albedo en el
+    VÉRTICE** (medido sobre `map_barco_0.png`: el 21% del atlas pasa de 170 de
+    luminancia y es blanco, 217,215,214; la madera queda muy por debajo).
+    · **Y SE COMBA HACIA DONDE EMPUJA EL VIENTO, no a lo largo de su NORMAL.**
+      Lo segundo es como se comba una vela de verdad y NO VALE en una malla
+      facetada y decimada: cada cara tiene su normal, los vértices vecinos se
+      van a un lado distinto y **el barco se deshace en esquirlas** — se vio en
+      captura. `empuje` llega en coordenadas del MODELO, calculado pasando la
+      dirección del viento por la inversa de la base del barco, así que vale
+      para cualquier rumbo sin tener que averiguar cuál es la proa.
+    · Y la amplitud va CORTA (`VELA_COMBA` 0,024 sobre un modelo de 1,0 de
+      alto): más y la lona se despega de sus vergas.
+
 - **EL ORDEN DE LOS OVERLAYS DEL MAPA DECIDE QUIÉN SE LLEVA EL TOQUE**
   (`_rehacer_overlays`), y falla por partida doble si no se cuida: en una capa
   de Control el toque se lo lleva el ÚLTIMO hijo.

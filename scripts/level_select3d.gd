@@ -245,6 +245,28 @@ var ship_roll := 0.0
 ## —el timón del menú, por ejemplo— pierde: se lo pisa al fotograma siguiente.
 ## Pasó de verdad, y se vivía como que el barco no se enderezaba al zarpar.
 var rumbo_extra := 0.0
+## EL BARCO VIRA ANTES DE NAVEGAR, SOPLA VIENTO Y ENTONCES SE MUEVE (pedido por
+## el usuario), y al llegar vuelve a su rumbo de casa. `rumbo_extra` = 0 es
+## "proa a la derecha del mapa"; de ahí sale `_rumbo_de`.
+const VIRAJE := 0.42
+## El viento: cuánto tarda en levantarse y en caer, y con qué viaje llega a
+## soplar del todo. Un salto de un escenario al de al lado son ~312 px y una
+## travesía entre mares pasa de 1.500: por eso la fuerza va por DISTANCIA.
+const VIENTO_SUBE := 0.30
+const VIENTO_BAJA := 0.55
+const VIENTO_LEJOS := 1400.0
+const VIENTO_MIN := 0.28
+## Rachas del viento: cuántas, cuánto miden y cuánto se apartan del barco.
+const VIENTO_RACHAS := 7
+const VIENTO_LARGO := 3.4
+const VIENTO_ANCHO := 5.6
+const VIENTO_VEL := 9.0
+## Cuánto se hincha la vela a viento pleno (unidades del modelo del barco).
+const VELA_COMBA := 0.024
+var viento_dir := Vector2.RIGHT
+var viento_fuerza := 0.0
+var viento_root: Node3D = null
+var velas_mat: ShaderMaterial = null
 var _t := 0.0
 ## Material del mar (para pasarle la marea) y lo que flota con ella.
 var sea_mat: ShaderMaterial = null
@@ -978,6 +1000,162 @@ func _extremo_del_mar(mar: int, arriba: bool) -> float:
 ## del mapa (no a un carril fijo): así el último tramo de una travesía entre
 ## mares termina en el ANCLAJE del escenario y no hay que colocarlo de golpe al
 ## final, que era otro de los saltos que se veían.
+## EL RUMBO PARA UNA DIRECCIÓN DEL MAPA. `rumbo_extra` = 0 es proa a la derecha
+## (así descansa el barco), y girar Δ° sobre Y lleva la proa de (1,0) a
+## (cos Δ, −sen Δ) en coordenadas de mapa —el signo sale de que `R_HAT` y
+## `D_HAT` son perpendiculares y `D_HAT` cae hacia el sur—. Despejando: para
+## apuntar a (dx, dy) hace falta Δ = atan2(−dy, dx).
+## LAS VELAS SE HINCHAN DE VERDAD: se le cambia el material al barco por
+## `velas_viento.gdshader`, que reconoce la lona POR COLOR en el vértice (el
+## modelo es UNA malla con UN material, así que no hay un nodo "vela" que
+## inclinar) y la comba a lo largo de su normal.
+##
+## EN HEADLESS NO SE TOCA: el renderer dummy escupe "Parameter material is
+## null" al sustituir el material de ciertas mallas de `.glb`, y ahí es donde
+## se miran los errores del proyecto ("sin salida = OK").
+func _velas_al_viento(pivot: Node3D) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	for m: MeshInstance3D in pivot.find_children("*", "MeshInstance3D", true, false):
+		for i in m.mesh.get_surface_count():
+			var base: Material = m.mesh.surface_get_material(i)
+			if base is ShaderMaterial:
+				continue
+			var mat := ShaderMaterial.new()
+			mat.shader = load("res://shaders/velas_viento.gdshader")
+			if base is StandardMaterial3D:
+				var sm: StandardMaterial3D = base
+				mat.set_shader_parameter("albedo_tex", sm.albedo_texture)
+				mat.set_shader_parameter("albedo_col", sm.albedo_color)
+			mat.set_shader_parameter("fuerza", 0.0)
+			m.set_surface_override_material(i, mat)
+			velas_mat = mat
+
+
+## EL VIENTO QUE SE VE: unas rachas de cómic (`assets/map/viento.png`) cruzando
+## alrededor del barco en la dirección del viaje. Van SIN SOMBREAR y sin
+## profundidad, así que se leen igual sobre el mar y sobre una isla.
+func _montar_viento() -> void:
+	if viento_root != null and is_instance_valid(viento_root):
+		return
+	if not ResourceLoader.exists("res://assets/map/viento.png"):
+		return
+	viento_root = Node3D.new()
+	viento_root.name = "Viento"
+	viento_root.add_to_group("no_batch")
+	add_child(viento_root)
+	var tex: Texture2D = load("res://assets/map/viento.png")
+	var quad := QuadMesh.new()
+	quad.size = Vector2(VIENTO_LARGO, VIENTO_LARGO * tex.get_height() / float(tex.get_width()))
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = tex
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	# CON PRUEBA DE PROFUNDIDAD: sin ella las rachas se dibujaban POR ENCIMA del
+	# barco y lo tapaban. A la altura a la que van (0,9 sobre el agua) el mar no
+	# las corta, pero el casco y las velas sí, que es lo que toca.
+	mat.no_depth_test = false
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for i in VIENTO_RACHAS:
+		var mi := MeshInstance3D.new()
+		mi.mesh = quad
+		mi.material_override = mat.duplicate()
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# Cada racha lleva su carril, su fase y su velocidad: en fila y a la vez
+		# se leerían como una reja, no como viento.
+		mi.set_meta("carril", randf_range(-1.0, 1.0))
+		mi.set_meta("fase", randf())
+		mi.set_meta("vel", randf_range(0.8, 1.35))
+		mi.set_meta("alto", randf_range(-0.25, 0.55))
+		mi.visible = false
+		viento_root.add_child(mi)
+
+
+## Coloca las rachas cada fotograma: nacen por detrás del barco y cruzan hacia
+## donde sopla, apagándose en las dos puntas del recorrido.
+func _tick_viento(delta: float) -> void:
+	if viento_root == null or not is_instance_valid(viento_root):
+		return
+	if velas_mat != null:
+		velas_mat.set_shader_parameter("fuerza", viento_fuerza * VELA_COMBA)
+		# El empuje va en coordenadas del MODELO: la direccion del viento pasada
+		# por la inversa de la base del barco. Asi la lona se comba hacia donde
+		# sopla sea cual sea el rumbo, sin tener que saber cual es la proa.
+		if ship_pivot != null and is_instance_valid(ship_pivot):
+			var mundo := R_HAT * viento_dir.x + D_HAT * viento_dir.y
+			velas_mat.set_shader_parameter("empuje",
+				ship_pivot.global_transform.basis.inverse() * mundo)
+	var encendido := viento_fuerza > 0.01
+	viento_root.visible = encendido
+	if not encendido:
+		return
+	# LOS VECTORES SE DESPEJAN DE `_world`, que mapea la x del mapa a `R_HAT` y
+	# la y a `D_HAT`: la dirección del viento en el mundo es `R_HAT·dx +
+	# D_HAT·dy`, y su perpendicular sale de girar (dx, dy) 90° en el mapa, o sea
+	# (−dy, dx). Puestos a ojo —con los signos cambiados— las rachas salían
+	# todas amontonadas a un lado del barco en vez de rodearlo.
+	var d3 := R_HAT * viento_dir.x + D_HAT * viento_dir.y
+	var p3 := R_HAT * -viento_dir.y + D_HAT * viento_dir.x
+	# Y la racha se dibuja TUMBADA sobre el agua (−90° en X) y girada para que
+	# su eje largo siga a `d3`. Con el giro en X puesto, el eje largo del quad
+	# sigue siendo el +X del mundo, así que el ángulo sale de ahí.
+	var yaw := rad_to_deg(atan2(-d3.z, d3.x))
+	var centro := _world(ship_px)
+	for mi: MeshInstance3D in viento_root.get_children():
+		var f: float = fposmod(float(mi.get_meta("fase"))
+			+ _t * float(mi.get_meta("vel")) * VIENTO_VEL / VIENTO_ANCHO, 1.0)
+		var avance := (f - 0.5) * VIENTO_ANCHO
+		var lado := float(mi.get_meta("carril")) * VIENTO_ANCHO * 0.42
+		mi.position = centro + d3 * avance + p3 * lado \
+			+ Vector3(0.0, 0.9 + float(mi.get_meta("alto")), 0.0)
+		mi.rotation_degrees = Vector3(-90.0, yaw, 0.0)
+		mi.visible = true
+		# Se apaga en las dos puntas: entra, cruza y se va.
+		var a: float = sin(f * PI)
+		var m2: StandardMaterial3D = mi.material_override
+		m2.albedo_color = Color(1, 1, 1, a * a * 0.78 * viento_fuerza)
+
+
+func _rumbo_de(dir: Vector2) -> float:
+	if dir.length_squared() < 0.0001:
+		return rumbo_extra
+	return rad_to_deg(atan2(-dir.y, dir.x))
+
+
+## VIRA HACIA UNA DIRECCIÓN POR EL CAMINO CORTO y levanta el viento en ese
+## sentido. Se espera a que termine: primero se gira, y luego se navega.
+func virar_a(dir: Vector2, fuerza := 1.0, seg := VIRAJE) -> void:
+	if dir.length_squared() > 0.0001:
+		viento_dir = dir.normalized()
+	# El camino corto sale de normalizar la diferencia a ±180: sin eso, ir de
+	# 170° a −170° daba una vuelta de 340 en vez de 20.
+	var delta := wrapf(_rumbo_de(dir) - rumbo_extra, -180.0, 180.0)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(self, "rumbo_extra", rumbo_extra + delta, seg)
+	tw.tween_property(self, "viento_fuerza", clampf(fuerza, 0.0, 1.0), VIENTO_SUBE)
+	await tw.finished
+
+
+## Y AL LLEGAR VUELVE A SU RUMBO DE CASA, con el viento cayendo.
+func enderezar_rumbo(seg := VIRAJE) -> void:
+	var delta := wrapf(-rumbo_extra, -180.0, 180.0)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(self, "rumbo_extra", rumbo_extra + delta, seg)
+	tw.tween_property(self, "viento_fuerza", 0.0, VIENTO_BAJA)
+
+
+## Cuánto viento pide un viaje: mucho si es largo, poco si es de un escenario
+## al de al lado. Nunca cero, o el barco navegaría sin que nada lo empuje.
+func _fuerza_de(px: float) -> float:
+	return clampf(VIENTO_MIN + (1.0 - VIENTO_MIN) * px / VIENTO_LEJOS,
+		VIENTO_MIN, 1.0)
+
+
 func _viajar_barco(destino: Vector2, y_camara: float, seg: float,
 		suavizado := Tween.EASE_IN_OUT) -> void:
 	if scroll_tween != null:
@@ -987,6 +1165,11 @@ func _viajar_barco(destino: Vector2, y_camara: float, seg: float,
 		ship_tween.kill()
 		ship_tween = null
 	scroll_speed = 0.0
+	# PRIMERO VIRA Y LEVANTA EL VIENTO, y solo entonces navega.
+	var rumbo := destino - ship_px
+	await virar_a(rumbo, _fuerza_de(rumbo.length()))
+	if not is_inside_tree():
+		return
 	Audio.sfx_suave("barco_mover", 0.0, minf(seg * 0.3, 0.3),
 		randf_range(0.88, 1.12), seg, randf_range(0.45, 1.30))
 	var subiendo := destino.y < ship_px.y
@@ -1006,6 +1189,8 @@ func _viajar_barco(destino: Vector2, y_camara: float, seg: float,
 	balanceo.tween_property(self, "ship_roll", 6.0 if subiendo else -6.0, seg * 0.35)
 	balanceo.tween_property(self, "ship_roll", 0.0, seg * 0.4)
 	await tw.finished
+	if is_inside_tree():
+		enderezar_rumbo()
 
 
 func _setup_environment() -> void:
@@ -1626,6 +1811,8 @@ func _setup_ship() -> void:
 	# koinobori, el farol fantasma... (ver `ColVisibles`). Se montan aqui, al
 	# construir el barco, asi que una pieza nueva luce al volver al menu.
 	ColVisibles.decorar_barco(ship_pivot)
+	_velas_al_viento(ship_pivot)
+	_montar_viento()
 	# El barco lleva su mancha, que viaja con él (ver _update_ship_visual).
 	# MÁS PEQUEÑA QUE LA HUELLA DEL BARCO, a propósito. Es una sombra plana a
 	# ras de agua y, con la cámara isométrica, lo que está BAJO y CERCA queda
@@ -2920,6 +3107,12 @@ func _select(id: String, animate: bool) -> void:
 	# primeras décimas son las más flojas y en un salto corto entre dos
 	# niveles vecinos no daba tiempo a oír el crujido. El punto de
 	# entrada también se sortea, que es variedad gratis.
+	# PRIMERO VIRA Y LEVANTA EL VIENTO, y solo entonces navega (pedido por el
+	# usuario). La fuerza sale de la DISTANCIA: un salto al escenario de al lado
+	# es una brisa y una travesía larga, un vendaval.
+	await virar_a(target - ship_px, _fuerza_de(dist))
+	if not is_inside_tree():
+		return
 	Audio.sfx_suave("barco_mover", 0.0, minf(dur * 0.35, 0.35),
 		randf_range(0.86, 1.16), dur, randf_range(0.45, 1.30))
 	ship_tween = create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
@@ -2927,6 +3120,9 @@ func _select(id: String, animate: bool) -> void:
 	ship_tween.parallel().tween_property(self, "ship_roll", 5.0, dur * 0.5)
 	ship_tween.parallel().tween_property(self, "ship_roll", 0.0, dur * 0.5) \
 		.set_delay(dur * 0.5)
+	# Y al llegar vuelve a su rumbo de casa, con el viento cayendo.
+	ship_tween.finished.connect(enderezar_rumbo.bind(VIRAJE),
+		CONNECT_ONE_SHOT)
 	_scroll_to(CampaignData.map_pos(id))
 
 
@@ -3274,6 +3470,7 @@ func marea() -> float:
 
 func _process(delta: float) -> void:
 	_t += delta
+	_tick_viento(delta)
 	var m := marea()
 	if sea_mat != null:
 		sea_mat.set_shader_parameter("marea", m)

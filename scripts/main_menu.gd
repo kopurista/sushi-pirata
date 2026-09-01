@@ -1348,6 +1348,7 @@ func _enter_map(animate: bool) -> void:
 	ship_tween.parallel().tween_property(self, "ship_roll", 0.0, dur * 0.5) \
 			.set_delay(dur * 0.5)
 	ship_tween.tween_callback(func() -> void:
+		create_tween().tween_property(self, "viento_fuerza", 0.0, VIENTO_BAJA)
 		# EL RESTO DEL MAR SE MONTA AL LLEGAR: hasta aquí solo estaba la
 		# ventana de `VENTANA_MENU` escenarios alrededor del destino, que es lo
 		# que cabe en cuadro. Lo que se añade ahora queda fuera, así que no se
@@ -3243,7 +3244,11 @@ func _go_adventure() -> void:
 	# misma interpolación en los dos, la relación se cumple en cada fotograma y
 	# da igual cuál mande.
 	wheel_vel = 0.0
+	# EL BARCO VA A LA DERECHA, y su rumbo de casa YA apunta ahi: enderezarlo
+	# es, aqui, virar hacia el viaje. Lo que falta es el viento que lo empuja.
 	_enderezar_rumbo(RUMBO_VUELTA)
+	viento_dir = Vector2.RIGHT
+	create_tween().tween_property(self, "viento_fuerza", 1.0, VIENTO_SUBE)
 	_sonar_zarpe()
 	# Los contadores NO salen: se quedan y viajan a los extremos del mapa, y la
 	# BARRA DE NIVEL tampoco — se queda y se corre a la derecha con ellos.
@@ -4287,10 +4292,16 @@ func _go_shop() -> void:
 el nivel 2 de la Aventura.")
 		return
 	leaving = true
+	# PRIMERO VIRA HACIA ABAJO Y LEVANTA EL VIENTO, y solo entonces navega
+	# (pedido por el usuario): la tienda está abajo, así que todo va hacia
+	# abajo — la proa, el viento y el barco.
 	_sonar_zarpe()
 	# Los contadores NO salen: se quedan y viajan a los extremos del mapa.
 	_ui_out(false)
 	_sky_out(0.9)
+	await virar_a(Vector2.DOWN, 1.0)
+	if not is_inside_tree():
+		return
 
 	# LA TIENDA ESTÁ ABAJO, y el barco baja hasta ella (pedido por el usuario).
 	# Estuvo a la derecha, y desde que el fondeadero se mudó al costado del
