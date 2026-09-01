@@ -688,6 +688,53 @@ duplicado — el mapa, la cámara, los carriles y el barco son los mismos. Lo
       sus bordes por los huecos entre tablas. Su sitio y su tamaño salen del
       tablero MEDIDO: ocupa X -0,389..0,391 e Y -0,083..0,417, o sea centro
       (0,001, 0,167) y 0,775 × 0,500.
+  · **EL CARTEL DA LA VUELTA ENTERA (360°) AL CRUZAR Y LA FLECHA SE CAMBIA A
+    MITAD DE GIRO** (pedido por el usuario). El barco pasa por su lado y lo
+    GOLPEA (`golpear_cartel`); el cartel gira una vuelta completa y, con la
+    tabla DE CANTO —a un cuarto del giro, cuando no se lee nada—, se le cambia
+    la flecha. Acaba mirando de frente otra vez y lo que ha cambiado es lo que
+    está pintado.
+    · **HUBO UNA FLECHA POR CARA y media vuelta, y el reverso NO convencía**
+      (lo dijo el usuario): el modelo viene de imagen→3D y su trasera es una
+      tabla sin gracia, así que enseñarla era enseñar lo peor del cartel.
+    · El giro sale con `TRANS_BACK` para que se pase un poco y vuelva, como una
+      tabla que sigue oscilando tras el empujón. MEDIDO en el cruce real:
+      45° → 104,6 → 285,6 → 389,1 → 434,1 (pasado de los 405) → 405.
+    · Va **SIN `await`**: el barco sigue su camino mientras el cartel gira
+      detrás, que es lo que se lee como un golpe al pasar.
+    · **`cartel_por_girar` es lo que lo hace posible**: `_refrescar_carteles`
+      corre al PRINCIPIO de `cambiar_de_mar`, con `mar_actual` ya cambiado, así
+      que el cartel nacería ya con la flecha y el nombre nuevos. Con esa
+      bandera nace como estaba ANTES y lo cambia todo el barco al pasar.
+    · **LOS TWEENS CUELGAN DEL NODO QUE ANIMAN, no del mapa**: al terminar la
+      travesía los carteles se REHACEN, y un tween del mapa seguía vivo
+      apuntando a un nodo liberado ("Lambda capture at index 0 was freed").
+  · **Y EL NOMBRE DEL MAR SE SUMERGE Y EMERGE YA CAMBIADO** (`_cambiar_rotulo`,
+    pedido por el usuario): no cambia de golpe — se hunde en el agua mientras
+    el barco termina de pasar y sale con el nombre del mar que queda atrás. El
+    rótulo va con `no_depth_test`, así que el mar no lo tapa por sí solo: lo
+    que vende el chapuzón es que se hunda Y se apague a la vez. **Los tres
+    tiempos suman menos de lo que queda de travesía tras el golpe** (~0,85 s de
+    los 1,9): al llegar, el mapa rehace los carteles y el nuevo nace con su
+    nombre puesto, así que una animación más larga se queda a medias y no se le
+    ve emerger.
+  · **EL BARCO NO SE PARA EN EL CARTEL NI LE PASA POR EN MEDIO**: la frontera
+    es un punto de PASO. Va apartado `CARTEL_ROCE` (95 px) a un lado y los dos
+    tramos se encadenan con `EASE_IN` y `EASE_OUT`. Dos cosas hicieron falta, y
+    las dos se vieron MIDIENDO el avance por fotograma:
+    · **El balanceo del barco iba encadenado con `chain()`** a los tweens de
+      cámara y posición, así que `await tw.finished` esperaba a que el balanceo
+      volviera a cero — el barco terminaba su viaje y se quedaba QUIETO casi
+      medio segundo antes de arrancar el tramo siguiente. Suelto en su propio
+      tween, el viaje acaba cuando acaba.
+    · **Y el tiempo se reparte por DISTANCIA, no con dos constantes**: con 0,85
+      y 1,05 s fijos, el barco llegaba al cartel a 331 px por cuatro fotogramas
+      y salía a 100. No se paraba, pero el frenazo se veía igual. Repartiendo
+      el total en proporción al camino: 24-50-76-101-124-144-161-175-186-**192**
+      -177-179-128-48-0, o sea la misma velocidad a un lado y a otro.
+  · **Y MIENTRAS SE CRUZA NO SE PUEDE RECORRER EL MAPA** (pedido por el
+    usuario): la travesía lleva la cámara y el barco con sus tweens, y un
+    arrastre por el camino los partiría en dos.
   · **EL NOMBRE DEL MAR VA DEBAJO**, no sobre la tabla: ahí está la flecha, que
     es lo que tiene que leerse primero.
   · **SE VE ENTERO DESDE EL ESCENARIO DEL EXTREMO** (pedido por el usuario:
