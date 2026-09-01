@@ -4527,8 +4527,15 @@ La GUÍA lleva su sección ("El canto de sirena").
       captura. `empuje` llega en coordenadas del MODELO, calculado pasando la
       dirección del viento por la inversa de la base del barco, así que vale
       para cualquier rumbo sin tener que averiguar cuál es la proa.
-    · Y la amplitud va CORTA (`VELA_COMBA` 0,024 sobre un modelo de 1,0 de
-      alto): más y la lona se despega de sus vergas.
+    · **LA COMBA VA MUY DESIGUAL A LO ALTO DEL PAÑO, y eso es lo que se ve**:
+      con un empuje parejo la vela se limita a DESPLAZARSE —y encima se despega
+      de su verga—, mientras que moviendo mucho el centro y poco los extremos
+      la lona se CURVA, que es lo que se lee como hinchada.
+  · **Y EL TIMÓN DEL MENÚ NO PISA EL RUMBO DEL VIAJE.** Su `_process` escribe
+    `rumbo_extra` cada fotograma con la rotación de la rueda, así que yendo a
+    la tienda el barco viraba hacia abajo, arrancaba y A MITAD DE CAMINO volvía
+    a su rumbo de casa mientras seguía bajando. La guarda es `viento_fuerza`:
+    mientras sopla, el rumbo es del viaje y no del timón.
 
 - **EL ORDEN DE LOS OVERLAYS DEL MAPA DECIDE QUIÉN SE LLEVA EL TOQUE**
   (`_rehacer_overlays`), y falla por partida doble si no se cuida: en una capa

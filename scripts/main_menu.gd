@@ -1648,7 +1648,12 @@ func _process(delta: float) -> void:
 	# rotación directamente se la pisaba `super._process`, que reescribe los
 	# tres ejes cada fotograma — y el barco no se enderezaba al zarpar por
 	# mucho tween que se le pusiera.
-	if wheel != null and not _rumbo_a_casa:
+	# Y NO LO TOCA MIENTRAS DURA UN VIAJE (`viento_fuerza > 0`): el rumbo es
+	# entonces del viaje, no del timón. Sin esta guarda, yendo a la tienda el
+	# barco viraba hacia abajo, arrancaba y a mitad de camino VOLVÍA a su rumbo
+	# de casa mientras seguía bajando — se lo reescribía esta línea, fotograma
+	# a fotograma, con la rotación de un timón que no se había tocado.
+	if wheel != null and not _rumbo_a_casa and viento_fuerza <= 0.01:
 		rumbo_extra = -rad_to_deg(wheel.rotation) * 0.35
 	# Mientras se retiran del encuadre las mueve su tween, no esta función.
 	if sky_leaving:

@@ -35,8 +35,14 @@ void vertex() {
 		float lona = smoothstep(vela_min, vela_max, dot(c, vec3(0.3333)));
 		// La comba no es uniforme: ondula despacio a lo alto del paño, como una
 		// lona que respira con la racha.
-		float onda = 0.58 + 0.42 * sin(TIME * 2.0 + VERTEX.y * 2.6);
-		VERTEX += empuje * lona * fuerza * onda;
+		// LA COMBA VA MUY DESIGUAL A LO ALTO DEL PAÑO, y eso es lo que se ve:
+		// con un empuje parejo la vela se limita a DESPLAZARSE (y encima se
+		// despega de su verga), mientras que moviendo mucho el centro y poco
+		// los extremos la lona se CURVA, que es lo que se lee como hinchada.
+		float alto = clamp(VERTEX.y * 1.9, -1.0, 1.0);
+		float panza = 1.0 - alto * alto;
+		float onda = 0.75 + 0.25 * sin(TIME * 2.0 + VERTEX.y * 2.4);
+		VERTEX += empuje * lona * fuerza * panza * onda;
 	}
 }
 
@@ -44,7 +50,6 @@ void vertex() {
 void fragment() {
 	vec4 c = texture(albedo_tex, UV) * albedo_col;
 	ALBEDO = c.rgb;
-	ALPHA = c.a;
 	ROUGHNESS = 0.95;
 	SPECULAR = 0.0;
 }

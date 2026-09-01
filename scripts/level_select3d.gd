@@ -257,12 +257,12 @@ const VIENTO_BAJA := 0.55
 const VIENTO_LEJOS := 1400.0
 const VIENTO_MIN := 0.28
 ## Rachas del viento: cuántas, cuánto miden y cuánto se apartan del barco.
-const VIENTO_RACHAS := 7
+const VIENTO_RACHAS := 4
 const VIENTO_LARGO := 3.4
 const VIENTO_ANCHO := 5.6
 const VIENTO_VEL := 9.0
 ## Cuánto se hincha la vela a viento pleno (unidades del modelo del barco).
-const VELA_COMBA := 0.024
+const VELA_COMBA := 0.034
 var viento_dir := Vector2.RIGHT
 var viento_fuerza := 0.0
 var viento_root: Node3D = null
@@ -1114,7 +1114,7 @@ func _tick_viento(delta: float) -> void:
 		# Se apaga en las dos puntas: entra, cruza y se va.
 		var a: float = sin(f * PI)
 		var m2: StandardMaterial3D = mi.material_override
-		m2.albedo_color = Color(1, 1, 1, a * a * 0.78 * viento_fuerza)
+		m2.albedo_color = Color(1, 1, 1, a * a * 0.34 * viento_fuerza)
 
 
 func _rumbo_de(dir: Vector2) -> float:
