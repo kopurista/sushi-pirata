@@ -658,27 +658,28 @@ duplicado — el mapa, la cámara, los carriles y el barco son los mismos. Lo
       de rojo), otro reparto de tablas, otros clavos y otro poste—. Los dos se
       ven en la misma frontera y en el mismo cruce, así que la diferencia no se
       leía como "otro cartel" sino como que la escena hubiera cambiado de luz.
-    · **VOLTEAR LA FLECHA DENTRO DEL ATLAS NO VALE, y se intentó entero**: la
-      UV de estos modelos viene TROCEADA por triángulos —la flecha ocupa de
-      u 0,005 a 0,981 y de v 0,015 a 0,970, o sea el atlas entero—, así que hay
-      que deshacer la interpolación baricéntrica de cada texel, como
-      `face_paint.py`. Se hizo, y en el MODELO la textura salía correcta pero
-      en pantalla se veía deshilachada.
-    · **La tabla lisa la deja `tools/cartel_sin_flecha.py`**, y ahí están las
-      tres trampas que costaron la tarde: (a) hay que borrar **TODO lo claro
-      del atlas**, no solo lo que se ve — la orla de las islas de UV son 42.818
-      texeles crema que no toca ningún triángulo, y el relleno por difusión los
-      chupaba hacia dentro resucitando la flecha en fantasma (8.208 texeles);
-      (b) la flecha venía **TALLADA** (0,0045 de hondo, medido), y borrarla de
-      la textura no borra el hueco: su canto se asomaba por fuera de la flecha
-      nueva, así que se alisa subiendo 698 vértices al nivel de la tabla; y
-      (c) el original se guarda como `cartel_mar.glb.antes_de_quitar_la_flecha`
-      —una extensión que Godot no importa— para que la herramienta se pueda
-      volver a pasar.
-    · **LA CALCOMANÍA VA A z 0,0975, no a la z "media" de la cara (0,0869)**:
-      la tabla es madera modelada a mano y en esa zona llega a 0,0928, así que
-      puesta a ras la tabla se comía la flecha y solo asomaban sus bordes por
-      los huecos del grabado.
+    · **EL MODELO SE PIDIÓ A MESHY YA SIN FLECHA, y esa es la lección que hay
+      que llevarse.** El anterior la traía dentro y se intentó quitársela
+      operando el `.glb`: la flecha estaba pintada en un atlas TROCEADO por
+      triángulos —ocupa de u 0,005 a 0,981, o sea el atlas entero, así que hay
+      que deshacer la interpolación baricéntrica de cada texel como
+      `face_paint.py`—, con una ORLA de 42.818 téxeles crema fuera de la malla
+      que el relleno por difusión chupaba hacia dentro resucitándola en
+      fantasma, y encima TALLADA 0,0045 de hondo, así que el hueco sobrevivía a
+      borrar la textura. Costó una tarde. Pedirlo de nuevo son 15 créditos.
+      **Ante un asset generado al que hay que quitarle algo que trae
+      incorporado, preguntar antes si sale mejor regenerarlo.**
+    · **AL CAMBIAR DE MODELO HAY QUE REHACER `CARTEL_FOOT`**: `_spawn_model`
+      normaliza por HUELLA y lo que está calibrado es el ALTO en pantalla (el
+      cartel de subir cae entre la y 231 y la 454, justo bajo la barra). El
+      modelo nuevo tiene 0,7773 de huella contra los 0,8418 del viejo, así que
+      con el 3,1 de antes salía un 8% más alto y se metía debajo de la barra.
+    · **LA CALCOMANÍA VA POR DELANTE DEL PICO DE LA CARA** (z 0,068 cuando la
+      cara está a 0,0272 de media y llega a 0,0630): la tabla es madera
+      modelada a mano, y puesta a ras se comía la flecha dejando asomar solo
+      sus bordes por los huecos entre tablas. Su sitio y su tamaño salen del
+      tablero MEDIDO: ocupa X -0,389..0,391 e Y -0,083..0,417, o sea centro
+      (0,001, 0,167) y 0,775 × 0,500.
   · **EL NOMBRE DEL MAR VA DEBAJO**, no sobre la tabla: ahí está la flecha, que
     es lo que tiene que leerse primero.
   · **SE VE ENTERO DESDE EL ESCENARIO DEL EXTREMO** (pedido por el usuario:

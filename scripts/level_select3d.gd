@@ -454,16 +454,24 @@ func _carteles_de_mar(mar := mar_actual) -> void:
 const CARTEL_MODELO := "res://assets/models/cartel_mar.glb"
 ## La flecha, pintada a mano con brocha (`assets/map/flecha_mar.png`).
 const FLECHA_TEX := "res://assets/map/flecha_mar.png"
-## Dónde va, MEDIDO sobre el modelo original (`tools/cartel_sin_flecha.py`):
-## la flecha grabada ocupaba X -0,141..0,111 e Y -0,007..0,291. La z NO es la
-## de la cara "de media" (0,0869): la tabla es madera modelada a mano y en esa
-## zona llega a 0,0928, así que puesta a ras la tabla se comía la flecha y solo
-## asomaban sus bordes por los huecos del grabado. Va por delante del PICO.
-const FLECHA_CENTRO := Vector3(-0.0149, 0.1423, 0.0975)
-const FLECHA_ALTO := 0.298
+## Dónde va, MEDIDO sobre el modelo: el tablero ocupa Y -0,083..0,417 (alto
+## 0,500) y X -0,389..0,391 (ancho 0,775), así que su centro es (0,001, 0,167).
+## La z va por delante del PICO de la cara (0,0630), no de su media (0,0272):
+## la tabla es madera modelada a mano y a ras se comería la flecha, dejando
+## asomar solo sus bordes por los huecos entre tablas.
+const FLECHA_CENTRO := Vector3(0.001, 0.167, 0.068)
+const FLECHA_ALTO := 0.34
 ## Huella a la que se normaliza (unidades de mundo). Se midió contra el nodo
 ## de escenario más pequeño: el cartel tiene que leerse sin competir con él.
-const CARTEL_FOOT := 3.1
+## **NO ES 3,1 POR CAPRICHO: fija el ALTO en pantalla, y ese alto está
+## calibrado** — `PASO_CARTEL` y `MARGEN_MAR` se midieron para que el cartel de
+## subir quepa entero bajo la barra de arriba (cae entre la y 231 y la 454).
+## `_spawn_model` normaliza por HUELLA, así que al cambiar de modelo hay que
+## rehacer esta cifra o el cartel cambia de tamaño: el modelo nuevo tiene una
+## huella de 0,7773 contra los 0,8418 del anterior, así que con 3,1 saldría un
+## 8% más alto (3,988 contra 3,683) y se metería debajo de la barra. 2,862 es
+## lo que le devuelve el alto de antes: 1,0 × 2,862 / 0,7773 = 3,683.
+const CARTEL_FOOT := 2.862
 
 
 func _cartel_de_paso(mar: int, y_px: float, desde := mar_actual) -> void:
