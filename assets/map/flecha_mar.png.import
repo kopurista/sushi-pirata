@@ -2,27 +2,24 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bb3xyvitmvy7j"
-path="res://.godot/imported/cartel_mar_abajo_0.jpg-b8cef7d152db2295930ecd109a8f07f7.ctex"
+uid="uid://00noxor4rbnr"
+path="res://.godot/imported/flecha_mar.png-ed4dc535dbc9e0f2f03827c10a1f7c7c.ctex"
 metadata={
 "vram_texture": false
-}
-generator_parameters={
-"md5": "7272b17227b76b06ed935136c26ddd25"
 }
 
 [deps]
 
-source_file="res://assets/models/cartel_mar_abajo_0.jpg"
-dest_files=["res://.godot/imported/cartel_mar_abajo_0.jpg-b8cef7d152db2295930ecd109a8f07f7.ctex"]
+source_file="res://assets/map/flecha_mar.png"
+dest_files=["res://.godot/imported/flecha_mar.png-ed4dc535dbc9e0f2f03827c10a1f7c7c.ctex"]
 
 [params]
 
-compress/mode=4
+compress/mode=1
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
-compress/rdo_quality_loss=4.0
+compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
@@ -39,5 +36,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=256
-detect_3d/compress_to=0
+process/size_limit=0
+detect_3d/compress_to=1

@@ -434,14 +434,33 @@ func _carteles_de_mar(mar := mar_actual) -> void:
 		_cartel_de_paso(mar - 1, _frontera(mar - 1, mar), mar)
 
 
-## MODELO del cartel de paso, uno por sentido. La FLECHA va tallada en la
-## madera (relieve), no escrita: es lo que se lee de un vistazo desde lejos, y
-## un carácter "▲" en una etiqueta se leía como interfaz y no como un letrero
-## clavado en el agua.
-const CARTEL_MODELOS := {
-	"arriba": "res://assets/models/cartel_mar_arriba.glb",
-	"abajo": "res://assets/models/cartel_mar_abajo.glb",
-}
+## EL CARTEL DE PASO ES **UN SOLO MODELO** PARA LOS DOS SENTIDOS, con la flecha
+## PINTADA encima. Hubo dos modelos, uno por sentido, y no valía: salieron de
+## dos generaciones distintas de Meshy y no eran el mismo objeto —madera de
+## otro tono (medido: 90,57,42 contra 114,70,51 de media en el atlas, 24 puntos
+## de rojo), otro reparto de tablas, otros clavos y otro poste—. Los dos se ven
+## en la misma frontera y en el mismo cruce, así que la diferencia no se leía
+## como "otro cartel" sino como que la escena hubiera cambiado de luz.
+##
+## Voltear el modelo entero tampoco vale (el poste se iría arriba), y voltear
+## la flecha DENTRO de su atlas se probó y se descartó: la UV de estos modelos
+## viene TROCEADA por triángulos —la flecha ocupa de u 0,005 a 0,981 y de v
+## 0,015 a 0,970, o sea el atlas entero—, así que hay que deshacer la
+## interpolación baricéntrica de cada texel para saber a qué punto del modelo
+## corresponde. Se llegó a hacer, y en el modelo la textura salía correcta pero
+## en pantalla se veía deshilachada.
+## Con la flecha aparte, los dos carteles son literalmente el mismo objeto y lo
+## único que puede cambiar entre ellos es hacia dónde mira la flecha.
+const CARTEL_MODELO := "res://assets/models/cartel_mar.glb"
+## La flecha, pintada a mano con brocha (`assets/map/flecha_mar.png`).
+const FLECHA_TEX := "res://assets/map/flecha_mar.png"
+## Dónde va, MEDIDO sobre el modelo original (`tools/cartel_sin_flecha.py`):
+## la flecha grabada ocupaba X -0,141..0,111 e Y -0,007..0,291. La z NO es la
+## de la cara "de media" (0,0869): la tabla es madera modelada a mano y en esa
+## zona llega a 0,0928, así que puesta a ras la tabla se comía la flecha y solo
+## asomaban sus bordes por los huecos del grabado. Va por delante del PICO.
+const FLECHA_CENTRO := Vector3(-0.0149, 0.1423, 0.0975)
+const FLECHA_ALTO := 0.298
 ## Huella a la que se normaliza (unidades de mundo). Se midió contra el nodo
 ## de escenario más pequeño: el cartel tiene que leerse sin competir con él.
 const CARTEL_FOOT := 3.1
@@ -459,10 +478,11 @@ func _cartel_de_paso(mar: int, y_px: float, desde := mar_actual) -> void:
 	raiz.add_to_group("paso_mar")
 	raiz.set_meta("mar", mar)
 	add_child(raiz)
-	var ruta := str(CARTEL_MODELOS["arriba" if mar > desde else "abajo"])
+	var sube := mar > desde
 	var alto := 1.4
-	if ResourceLoader.exists(ruta):
-		var pivot := _spawn_model(load(ruta), pos, CARTEL_FOOT)
+	if ResourceLoader.exists(CARTEL_MODELO):
+		var pivot := _spawn_model(load(CARTEL_MODELO), pos, CARTEL_FOOT)
+		_pintar_flecha(pivot, sube)
 		# Los carteles no dan sombra, como los nodos: son geometría de adorno.
 		for m in pivot.find_children("*", "MeshInstance3D", true, false):
 			m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -491,6 +511,37 @@ func _cartel_de_paso(mar: int, y_px: float, desde := mar_actual) -> void:
 	rot.no_depth_test = true
 	raiz.add_child(rot)
 	node_world["__mar%d" % mar] = pos + Vector3(0.0, alto * 0.55, 0.0)
+
+
+## LA FLECHA VA PINTADA SOBRE LA TABLA, no tallada en el modelo: es lo que
+## permite que los dos carteles sean el MISMO objeto. Cuelga del modelo (no del
+## pivote), así que sus medidas son las del propio `.glb` y no hay que
+## deshacer la escala que le pone `_spawn_model`.
+func _pintar_flecha(pivot: Node3D, sube: bool) -> void:
+	if pivot.get_child_count() == 0 or not ResourceLoader.exists(FLECHA_TEX):
+		return
+	var tex: Texture2D = load(FLECHA_TEX)
+	var quad := QuadMesh.new()
+	quad.size = Vector2(FLECHA_ALTO * tex.get_width() / float(tex.get_height()), FLECHA_ALTO)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = tex
+	# Recorte por alfa y no mezcla: la pincelada tiene el canto bastante duro y
+	# así el cartel no entra en la cola de transparentes.
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	mat.alpha_scissor_threshold = 0.4
+	mat.roughness = 0.95
+	mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	var mi := MeshInstance3D.new()
+	mi.mesh = quad
+	mi.material_override = mat
+	mi.position = FLECHA_CENTRO
+	# Para bajar se gira 180° sobre su propio eje, NO se escala en Y: una escala
+	# negativa le da la vuelta al triángulo y el descarte de caras traseras se
+	# lo comería.
+	if not sube:
+		mi.rotation_degrees.z = 180.0
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	pivot.get_child(0).add_child(mi)
 
 
 func _mat_simple(c: Color) -> StandardMaterial3D:

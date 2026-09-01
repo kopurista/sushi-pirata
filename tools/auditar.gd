@@ -246,10 +246,14 @@ func _init() -> void:
 	# --- LOS CARTELES DE PASO tienen que tener su modelo --------------------
 	# Sin el, `_cartel_de_paso` cae a un rotulo suelto flotando sobre el agua y
 	# la unica forma de cambiar de mar deja de parecer un letrero.
-	for f: String in ["cartel_mar_arriba", "cartel_mar_abajo"]:
-		if not ResourceLoader.exists("res://assets/models/%s.glb" % f):
-			print("  ! falta el modelo del cartel de paso: %s.glb" % f)
-			fallos += 1
+	# Y su FLECHA va aparte, pintada encima: es lo unico que distingue el de
+	# subir del de bajar, asi que sin ella los dos carteles son iguales.
+	if not ResourceLoader.exists("res://assets/models/cartel_mar.glb"):
+		print("  ! falta el modelo del cartel de paso: cartel_mar.glb")
+		fallos += 1
+	if not ResourceLoader.exists("res://assets/map/flecha_mar.png"):
+		print("  ! falta la flecha pintada del cartel: flecha_mar.png")
+		fallos += 1
 
 	# --- TIPOS: que ningun escenario se quede sin el suyo declarado ---------
 	# `get_kind` cae a "isla" cuando falta, y eso no da ningun error: cambia el

@@ -2,19 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c0j4ixv2hy434"
-path="res://.godot/imported/cartel_mar_arriba_0.jpg-5cd6fa22aa6c472155baff1294133fa1.ctex"
+uid="uid://f0de8bqepmrx"
+path="res://.godot/imported/cartel_mar_0.jpg-80dbba84aee220006397c9675d48d5c0.ctex"
 metadata={
 "vram_texture": false
-}
-generator_parameters={
-"md5": "bc4028861ca9f47d8b34fb4031ed604b"
 }
 
 [deps]
 
-source_file="res://assets/models/cartel_mar_arriba_0.jpg"
-dest_files=["res://.godot/imported/cartel_mar_arriba_0.jpg-5cd6fa22aa6c472155baff1294133fa1.ctex"]
+source_file="res://assets/models/cartel_mar_0.jpg"
+dest_files=["res://.godot/imported/cartel_mar_0.jpg-80dbba84aee220006397c9675d48d5c0.ctex"]
 
 [params]
 

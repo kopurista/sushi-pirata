@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://bnlrjogie8dfm"
-path="res://.godot/imported/cartel_mar_abajo.glb-ab45b88ff5d6b8f63ad8285531e088ad.scn"
+uid="uid://uca53l2j17ly"
+path="res://.godot/imported/cartel_mar.glb-29385b66b093f310c4bab3877554a864.scn"
 
 [deps]
 
-source_file="res://assets/models/cartel_mar_abajo.glb"
-dest_files=["res://.godot/imported/cartel_mar_abajo.glb-ab45b88ff5d6b8f63ad8285531e088ad.scn"]
+source_file="res://assets/models/cartel_mar.glb"
+dest_files=["res://.godot/imported/cartel_mar.glb-29385b66b093f310c4bab3877554a864.scn"]
 
 [params]
 

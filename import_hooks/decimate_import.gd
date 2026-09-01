@@ -22,9 +22,8 @@ extends EditorScenePostImport
 ## Triángulos máximos por modelo (nombre de archivo sin extensión).
 const BUDGETS := {
 	# Entrado por Meshy (tools/meshy.py).
-	"cartel_mar_abajo": 3000,
 	# Entrado por Meshy (tools/meshy.py).
-	"cartel_mar_arriba": 3000,
+	"cartel_mar": 3000,
 	# Entrado por Meshy (tools/meshy.py).
 	"canon_barco": 2500,
 	# Entrado por Meshy (tools/meshy.py).
