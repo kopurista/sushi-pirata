@@ -835,6 +835,9 @@ func _ready() -> void:
 		_setup_arcade_hud()
 	else:
 		GameState.selected_perks = []
+	# MISIONES DE MAPA: casi todos sus objetivos son "en una misma jornada",
+	# asi que el progreso arranca de cero en cada partida.
+	GameState.treasure_reset()
 	_apply_perks()
 	# TUTORIAL: sin horario de llegadas ni fase de preparación — manda el guion
 	# de David (tutorial_director), que trae clientes y arranca o para el reloj.
@@ -4678,6 +4681,7 @@ func _tip_threshold(claimed: int) -> int:
 
 
 func _add_tip(amount: int) -> void:
+	GameState.treasure_bump("propina_jornada", amount)
 	# Sin bote (niveles-escuela) las propinas no existen. Los clientes ya salen
 	# con `tips_enabled` a false, así que aquí no debería llegar nada; el guard
 	# cubre las que caen por otros canales (el bono de postre).
@@ -5072,6 +5076,11 @@ func _on_player_dish_served(recipe_id: String, price_override: int = 0,
 	dishes_served += 1
 	# Logros: platos elaborados por el jugador (los del ayudante no cuentan).
 	GameState.bump_stat("dishes_made")
+	# MISIONES DE MAPA: los objetivos se cuentan con los sucesos que el juego
+	# ya emitia, no con contadores nuevos (ver `TreasureData`).
+	GameState.treasure_bump("platos_tiempo")
+	GameState.treasure_bump("racha_limpia")
+	GameState.treasure_bump("sin_repetir")
 	GameState.bump_stat("dish_%s" % recipe_id)
 	_on_dish_served(recipe_id, price_override, extras, level_override, eat_mult_override)
 
@@ -5250,8 +5259,44 @@ func _end_level() -> void:
 
 
 ## Puntuacion POR DINERO: cada umbral de "star_money" alcanzado da una estrella.
+## MISIONES DE MAPA (`TreasureData`): los objetivos que solo se saben AL
+## CERRAR —jornada sin tirar un plato, sin que nadie se vaya de vacio, o
+## haber servido la carta entera— se resuelven aqui, y de paso se cobra el
+## mapa si ha quedado cumplido.
+##
+## En el TUTORIAL no cuenta nada: es la clase de David, no una jornada (la
+## misma regla que las estadisticas y los logros).
+func _cerrar_mapa_del_tesoro() -> void:
+	if GameState.is_tutorial() or GameState.treasure_active == "":
+		return
+	if plates_wasted == 0:
+		GameState.treasure_record("sin_basura", 1)
+	if empty_leavers == 0:
+		GameState.treasure_record("sin_vacios", 1)
+	# "sirve al menos una vez CADA receta de la carta": se mira contra los
+	# platos que de verdad salieron, que es lo que cuenta `platos_receta`.
+	if not carta.is_empty():
+		var todas := true
+		for rid in carta:
+			if int(platos_receta.get(rid, 0)) <= 0:
+				todas = false
+				break
+		if todas:
+			GameState.treasure_record("variedad_carta", 1)
+	if GameState.treasure_cumplido():
+		var m := GameState.claim_treasure()
+		if not m.is_empty():
+			mapa_cumplido = m
+
+
+## El mapa del tesoro que se ha cumplido en esta jornada, si alguno: el cartel
+## de resultados lo canta.
+var mapa_cumplido: Dictionary = {}
+
+
 func _finalize_results() -> void:
 	results_shown = true
+	_cerrar_mapa_del_tesoro()
 	# Las ESTRELLAS salen del dinero base MÁS las propinas: es exactamente la
 	# cifra que se lleva el jugador de la jornada, así que el total del cartel y
 	# las estrellas cuentan la misma historia. Lo que NO cuenta aquí son las

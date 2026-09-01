@@ -1343,15 +1343,10 @@ func _on_submenu(id: String) -> void:
 			GameState.fade_to_scene("res://scenes/options_screen.tscn", 0.35, 0.45)
 
 
-## LOS MAPAS DEL TESORO son las misiones secundarias, que todavía no existen:
-## el botón está desde ya para que se sepa que van a estar, y lo dice él mismo
-## en vez de quedarse mudo (un botón que no hace nada se lee como roto).
+## LOS MAPAS DEL TESORO son las MISIONES SECUNDARIAS (`TreasureData`): se
+## abren en su propia pantalla, que es una MESA con los mapas desplegados.
 func _mapas_del_tesoro() -> void:
-	var n := GameState.treasure_maps
-	var texto := "Aquí guardarás los mapas que encuentres en tus viajes. Todavía no tienes ninguno."
-	if n > 0:
-		texto = ("Tienes %d mapa%s guardado%s. Sus islas siguen por descubrir: pronto podrás salir a buscarlas.") % [n, "" if n == 1 else "s", "" if n == 1 else "s"]
-	ui.add_child(_aviso_simple("Mapas del tesoro", texto))
+	GameState.fade_to_scene("res://scenes/treasure_screen.tscn", 0.35, 0.45)
 
 
 ## LA VENTANA DEL ESCENARIO. Lleva GRAFICO PROPIO —pergamino con marco de

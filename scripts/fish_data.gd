@@ -323,10 +323,15 @@ const FISH: Array = [
 ## (Los USOS DE INGREDIENTE se cayeron del cofre a propósito: la despensa
 ## solo sale de PESCAR el pez correspondiente.)
 const CHEST_TABLE: Array = [
-	{ "kind": "coins", "weight": 50 },
-	{ "kind": "collectible", "weight": 25 },
-	{ "kind": "triforce", "weight": 15 },
-	{ "kind": "recipe", "weight": 10 },
+	{ "kind": "coins", "weight": 42 },
+	{ "kind": "collectible", "weight": 23 },
+	# EL MAPA DEL TESORO (pedido por el usuario, 1-9-2026): la pesca es la
+	# segunda fuente de mapas, con el bonus diario. Pesa 15 sobre 100, o sea
+	# que con un 30% de cofres sale un mapa cada ~22 intentos: bastante para
+	# alimentar las misiones sin que dejen de ser un hallazgo.
+	{ "kind": "mapa", "weight": 15 },
+	{ "kind": "triforce", "weight": 12 },
+	{ "kind": "recipe", "weight": 8 },
 ]
 ## De 50 a 100 SIEMPRE: el cofre de doblones cubre al menos el intento, que
 ## abrirlo tiene que ilusionar. Es además el ÚNICO botín que se acerca a lo

@@ -761,6 +761,7 @@ func consume_extra(id: String) -> bool:
 		return false
 	ingredients[id] = get_ingredient_uses(id) - 1
 	bump_stat("extras_used")
+	treasure_bump("extras_jornada")
 	return true
 
 
@@ -2007,10 +2008,125 @@ func add_triforce_piece(n := 1) -> void:
 ## un segundo contador que hiciera exactamente lo mismo con otro nombre solo
 ## habría confundido al jugador (los guardados viejos migran su `free_casts`).
 var bait := 0
-## MAPAS DEL TESORO (las misiones secundarias). Los reparte el bonus diario
-## (días 4, 6 y 7), pero el sistema que los gasta AÚN NO EXISTE: aquí se
-## acumulan para que, el día que entre, el jugador tenga lo que ya cobró.
+## MAPAS DEL TESORO — las MISIONES SECUNDARIAS (`TreasureData`).
+##
+## `treasure_maps` son los mapas SIN ABRIR que se llevan encima: los reparten
+## el bonus diario, los cofres de la PESCA y algún cliente del tesoro. Abrir
+## uno gasta uno y descubre la siguiente misión del catálogo, que se apunta en
+## `treasure_open`.
 var treasure_maps := 0
+## Ids de los mapas ya ABIERTOS (se ven en la pantalla con su misión).
+var treasure_open: Array[String] = []
+## Ids de los mapas ya CUMPLIDOS y cobrados.
+var treasure_done: Array[String] = []
+## El mapa ARMADO ahora mismo: es el único que cuenta durante la jornada. Solo
+## uno a la vez a propósito — con todos activos, cerrar una partida cobraría
+## media docena de misiones de carambola y ninguna se sentiría ganada.
+var treasure_active := ""
+## Progreso de la jornada EN CURSO para el mapa armado. Se pone a cero al
+## empezar cada partida (`treasure_reset`), porque casi todos los objetivos
+## son "en una misma jornada".
+var treasure_progress := 0
+
+
+## ¿Cuántos mapas se han abierto ya? Es la posición del catálogo por la que va
+## el jugador: los mapas se descubren EN ORDEN, así que la dificultad sube
+## sola y no hace falta sortear nada.
+func treasure_next_index() -> int:
+	return treasure_open.size()
+
+
+## Abre un mapa sin abrir. Devuelve el mapa descubierto, o {} si no queda
+## ninguno por abrir o no se tienen mapas encima.
+func open_treasure_map() -> Dictionary:
+	if treasure_maps <= 0:
+		return {}
+	var i := treasure_next_index()
+	if i >= TreasureData.total():
+		return {}
+	var m: Dictionary = TreasureData.mapa(i)
+	treasure_maps -= 1
+	treasure_open.append(str(m["id"]))
+	save_game()
+	return m
+
+
+## Arma (o desarma, con "") el mapa que cuenta durante la jornada.
+func set_treasure_active(id: String) -> void:
+	treasure_active = id if not id in treasure_done else ""
+	treasure_progress = 0
+	save_game()
+
+
+## Al empezar una jornada. El progreso es POR JORNADA en casi todos los tipos.
+func treasure_reset() -> void:
+	treasure_progress = 0
+
+
+## Suma progreso al mapa armado si el suceso es del tipo que pide. Lo llaman
+## los sitios donde YA ocurria el suceso (level3d, client3d, prep_board), asi
+## que no hay contadores nuevos en la partida.
+func treasure_bump(tipo: String, cuanto := 1) -> void:
+	if treasure_active == "":
+		return
+	var m: Dictionary = TreasureData.por_id(treasure_active)
+	if m.is_empty() or str(m.get("tipo", "")) != tipo:
+		return
+	treasure_progress += cuanto
+
+
+## Marca el progreso a un valor ABSOLUTO (para los objetivos de "récord", como
+## el multiplicador de un cliente o los platos de uno solo, donde lo que vale
+## es el mayor alcanzado y no la suma).
+func treasure_record(tipo: String, valor: int) -> void:
+	if treasure_active == "":
+		return
+	var m: Dictionary = TreasureData.por_id(treasure_active)
+	if m.is_empty() or str(m.get("tipo", "")) != tipo:
+		return
+	treasure_progress = maxi(treasure_progress, valor)
+
+
+## ¿Está cumplido el mapa armado? Lo pregunta `level3d` al cerrar la jornada.
+func treasure_cumplido() -> bool:
+	if treasure_active == "":
+		return false
+	var m: Dictionary = TreasureData.por_id(treasure_active)
+	if m.is_empty():
+		return false
+	return treasure_progress >= TreasureData.meta(m)
+
+
+## Cobra el mapa armado y lo da por cerrado. Devuelve el mapa cobrado, o {}.
+func claim_treasure() -> Dictionary:
+	if not treasure_cumplido():
+		return {}
+	var m: Dictionary = TreasureData.por_id(treasure_active)
+	var p: Dictionary = m.get("premio", {})
+	money += int(p.get("oro", 0))
+	ingots += int(p.get("lingotes", 0))
+	bait += int(p.get("cebo", 0))
+	if int(p.get("arroz", 0)) > 0:
+		add_rice(int(p["arroz"]))
+	# Los EXTRAS son ingredientes como cualquier otro (ver `consume_extra`),
+	# asi que se reparten por la misma via que la despensa.
+	var ex := int(p.get("extras", 0))
+	if ex > 0:
+		for e in ["jengibre", "wasabi", "soja"]:
+			add_ingredient_uses(e, ex)
+	if str(p.get("ingrediente", "")) != "":
+		add_ingredient_uses(str(p["ingrediente"]),
+			int(p.get("ingrediente_n", 3)))
+	treasure_done.append(str(m["id"]))
+	treasure_active = ""
+	treasure_progress = 0
+	# El coleccionable va el ULTIMO: `unlock_collectible` saca su ventana en la
+	# capa de avisos y guarda, asi que todo lo demas tiene que estar ya puesto.
+	if str(p.get("coleccionable", "")) != "":
+		unlock_collectible(str(p["coleccionable"]))
+	else:
+		save_game()
+	return m
 
 
 func fishing_pay() -> bool:
@@ -2055,6 +2171,16 @@ func fishing_roll() -> Dictionary:
 					"coins": FishData.DUP_COINS, "tier": 0 }
 			else:
 				premio = { "kind": "collectible", "collectible": cid, "tier": 2 }
+		"mapa":
+			# Sin misiones que descubrir ya, el mapa no sirve de nada: paga
+			# doblones en su lugar (la misma salida que la receta sin recetas
+			# pendientes). Asi el cofre nunca deja al jugador con las manos
+			# vacias por tener el catalogo cerrado.
+			if treasure_next_index() + treasure_maps >= TreasureData.total():
+				premio = { "kind": "coins",
+					"coins": FishData.RECIPE_FALLBACK, "tier": 1 }
+			else:
+				premio = { "kind": "mapa", "tier": 2 }
 		"triforce":
 			if has_collectible("trifuerza"):
 				premio = { "kind": "dup_triforce",
@@ -2155,6 +2281,12 @@ func fishing_apply(roll: Dictionary) -> Dictionary:
 				out_c["coins"] = FishData.DUP_COINS
 				money += FishData.DUP_COINS
 				save_game()
+		"mapa":
+			# Un MAPA DEL TESORO sin abrir. Se abre desde la pantalla de Mapas,
+			# que es donde se ve la mision que trae dentro.
+			treasure_maps += 1
+			out_c["maps"] = treasure_maps
+			save_game()
 		"triforce":
 			# Guarda (y al octavo anuncia la trifuerza completa).
 			add_triforce_piece()
@@ -2562,6 +2694,9 @@ func save_game() -> void:
 		"inventario_intro_done": inventario_intro_done,
 		"bait": bait,
 		"treasure_maps": treasure_maps,
+		"treasure_open": treasure_open,
+		"treasure_done": treasure_done,
+		"treasure_active": treasure_active,
 		"rice_intro_done": rice_intro_done,
 		"pablo_shop_done": pablo_shop_done,
 		"menu_intro_done": menu_intro_done,
@@ -2796,6 +2931,9 @@ func load_game() -> void:
 	# mecanismo era el mismo y solo cambió de nombre al ganarse por nivel.
 	bait = int(parsed.get("bait", parsed.get("free_casts", 0)))
 	treasure_maps = int(parsed.get("treasure_maps", 0))
+	treasure_open.assign(parsed.get("treasure_open", []))
+	treasure_done.assign(parsed.get("treasure_done", []))
+	treasure_active = str(parsed.get("treasure_active", ""))
 	rice_intro_done = bool(parsed.get("rice_intro_done", false))
 	pablo_shop_done = bool(parsed.get("pablo_shop_done", false))
 	# Guardados de antes de la guía del menú: si el tutorial ya está hecho, la
@@ -2910,6 +3048,9 @@ func _new_game() -> void:
 	inventario_intro_done = false
 	bait = 0
 	treasure_maps = 0
+	treasure_open.clear()
+	treasure_done.clear()
+	treasure_active = ""
 	rice_intro_done = false
 	pablo_shop_done = false
 	menu_intro_done = false

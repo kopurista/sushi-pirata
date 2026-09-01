@@ -3768,6 +3768,7 @@ func _handle_slice(event: InputEvent, step: Dictionary) -> void:
 			return
 		slices_done += 1
 		GameState.bump_stat("slices_ok")
+		GameState.treasure_bump("corte_perfecto")
 		craft_event.emit("slice", _current_stage_id())
 		if slices_done >= int(step.get("count", 1)):
 			_advance_step()

@@ -1765,6 +1765,10 @@ func _fill_chest_loot(fila: HBoxContainer, premio: Dictionary) -> void:
 				% [CollectibleData.item_name(str(premio["collectible"])),
 					int(premio["coins"])]
 			icon_tex = CollectibleData.get_icon(str(premio["collectible"]))
+		"mapa":
+			texto = "¡Un mapa del tesoro!
+Ábrelo en Mapas para ver su misión."
+			icon_tex = CollectibleData.get_icon("mapa_tesoro")
 		"triforce":
 			texto = "Fragmento del triángulo dorado\n(%d/%d)" \
 				% [int(premio["pieces"]), CollectibleData.TRIFORCE_PIECES]

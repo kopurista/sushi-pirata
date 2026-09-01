@@ -1321,6 +1321,16 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 		level_ref.note_rush_plate(_es_nuevo(current_id, current_satiety)
 			or recipe.get("leaves_seat", false) or recipe.get("snack", false)
 			or not current_extras.is_empty())
+	# MISIONES DE MAPA: aqui pasa CADA plato terminado con su ficha, asi que
+	# es el sitio donde se distinguen postre y picoteo sin contarlos aparte.
+	if recipe.get("leaves_seat", false):
+		GameState.treasure_bump("postres")
+	if recipe.get("snack", false):
+		GameState.treasure_bump("picoteos")
+	if recipe.has("maridaje") and eaten_ids.size() >= 2:
+		var mar: Dictionary = recipe["maridaje"]
+		if str(eaten_ids[eaten_ids.size() - 2]) in (mar.get("con", []) as Array):
+			GameState.treasure_bump("maridajes")
 	if recipe.get("leaves_seat", false) or recipe.get("snack", false):
 		if recipe.get("clears_boredom", false):
 			_limpiar_paladar()
@@ -1443,6 +1453,9 @@ func _limpiar_paladar() -> void:
 func _set_variety(n: int, pop: bool) -> void:
 	var prev := variety
 	variety = mini(n, variety_cap())
+	# MISIONES DE MAPA: el objetivo "lleva a un cliente al xN" es un RECORD, no
+	# una suma — vale el mayor multiplicador que haya alcanzado cualquiera.
+	GameState.treasure_record("mult_cliente", variety)
 	# Aviso al nivel la PRIMERA vez que este cliente toca el tope base: es la
 	# condición del bonificador "Paladar de capitán".
 	if not _variety_maxed and variety >= VARIETY_MAX:
@@ -1822,6 +1835,12 @@ func _roll_plate_tip() -> int:
 		return 0
 	var rules: Dictionary = TIP_RULES.get(client_type, {})
 	var plates := eaten_ids.size()
+	# MISIONES DE MAPA: "que un cliente coma N platos" y "que un CAPITAN se
+	# vaya con N" son RECORDS del mayor comensal, no sumas de la mesa. Este es
+	# el unico sitio por el que pasa cada plato TERMINADO de cada cliente.
+	GameState.treasure_record("un_cliente", plates)
+	if client_type == "G":
+		GameState.treasure_record("cliente_lleno", plates)
 	if rules.is_empty() or plates < int(rules.start):
 		return 0
 	var ramp: int = int(rules.get("ramp", rules.start))
