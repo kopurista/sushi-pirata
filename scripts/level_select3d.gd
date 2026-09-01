@@ -80,7 +80,7 @@ const FICHA_BAJADA := 40.0
 ## hacia arriba TODO lo que hay por encima de la Cueva del Kappa: 1.872 px al
 ## pasar de 20 a 25 escenarios y otros 1.872 al pasar de 25 a 30. Si no se
 ## baja con ellos, la mitad norte del mapa queda fuera de alcance.
-const SCROLL_MIN := -16856.0
+const SCROLL_MIN := -18416.0
 const SCROLL_MAX := CampaignData.MAP_HEIGHT - 560.0
 
 ## EL PLANO DEL MAR TIENE QUE CUBRIR TAMBIÉN EL FONDEADERO DEL MENÚ, que está
@@ -93,7 +93,7 @@ const SEA_BOTTOM_PX := 5200.0
 ## tope de scroll, y su medida SE CALCULA: (SEA_BOTTOM_PX + 640 - SCROLL_MIN +
 ## 640) / PPU_Y, con un 2% de holgura. Hoy son 23.336 px = 474 u. Quedandose
 ## corto, la mitad norte del mar flota sobre el vacio (azul liso sin espuma).
-const SEA_SIZE := 484.0
+const SEA_SIZE := 516.0
 
 ## Modelo 3D de cada tipo de nodo y huella horizontal objetivo (u).
 const KIND_MODELS := {

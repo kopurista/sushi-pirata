@@ -363,9 +363,17 @@ const VOL := {
 	"soltar": 1.7, "soplete": -19.1, "submenu": -2.2,
 	"tesoro": -1.3, "timon": -0.0, 
 	"velas": 10.5, "zarpar": 5.5,
-	# El cañonazo, MEDIDO contra el objetivo de la nivelación (canon.ogg da
-	# -22,5 LKFS; el objetivo común es -21,0).
-	"canon": 1.5,
+	# EL CAÑONAZO es la toma que eligió el usuario de `soundly` (el disparo de
+	# un T-72 de cerca), no la del pack de siempre: tiene el golpe seco delante
+	# y el eco abriéndose detrás, que es lo que suena a cañón de cubierta.
+	# Viene con 10,4 s de cola y RECORTADO A 4,5 con su fundido: a partir del
+	# tercer segundo ya solo es reverberación, y en el menú no se oye por
+	# debajo de la música. Su pico original se pasaba de 1,0 (recortaba), así
+	# que el archivo va normalizado a -0,3 dBFS.
+	# El -2,2 está MEDIDO contra la toma anterior para que el cañón suene
+	# exactamente igual de fuerte que antes: la nueva da -18,8 LKFS contra los
+	# -22,5 de la vieja, y el objetivo común de la nivelación es -21,0.
+	"canon": -2.2,
 }
 
 ## AJUSTE GENERAL de los efectos, en dB. El juego entero sonaba alto: los

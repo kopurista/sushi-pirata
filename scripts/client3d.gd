@@ -399,6 +399,12 @@ var level_ref: Node = null
 ## distintos"? Es por CLIENTE y no por plato: ver `_roll_plate_tip`.
 var _contado_para_mapa := false
 
+## QUÉ EXTRAS distintos le han caído encima a este comensal. Lo pide el encargo
+## `extras_distintos` (la práctica de los tres extras): no vale con contar
+## platos con extra, hay que saber CUÁLES, o tres wasabis cumplirían un reto
+## que pide los tres.
+var extras_recibidos: Array[String] = []
+
 ## El modelo cuelga de "body": el bob del andar y el ajuste de sentado van en
 ## body.position.y, y el giro de orientacion en la raiz.
 var _body: Node3D
@@ -1331,6 +1337,12 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 		GameState.treasure_bump("postres")
 	if recipe.get("snack", false):
 		GameState.treasure_bump("picoteos")
+	# LOS EXTRAS QUE LE HAN CAIDO, para el encargo `extras_distintos`. Se
+	# apunta aqui, en el plato TERMINADO, y no al servirlo: un plato que se
+	# queda en la cinta no se lo ha comido nadie.
+	for e in current_extras:
+		if not str(e) in extras_recibidos:
+			extras_recibidos.append(str(e))
 	if recipe.has("maridaje") and eaten_ids.size() >= 2:
 		var mar: Dictionary = recipe["maridaje"]
 		if str(eaten_ids[eaten_ids.size() - 2]) in (mar.get("con", []) as Array):

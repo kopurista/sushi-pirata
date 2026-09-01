@@ -2818,6 +2818,34 @@ func _on_wheel_input(e: InputEvent) -> void:
 const TIMON_MANGOS := 8
 
 ## Radianes de timón que ya han sonado.
+## Lo que tarda el barco en enderezarse al zarpar. Va POR DEBAJO de `OUT_TIME`
+## a propósito: el casco no leva anclas hasta que la interfaz ha salido, así
+## que para entonces el rumbo ya está en su sitio y el viaje al mapa arranca
+## recto.
+const RUMBO_VUELTA := 0.45
+
+
+## Devuelve el timón (y con él el barco) a su rumbo de casa con un tween. Con
+## `seg` a 0 se pone en el acto, que es lo que hace falta al montar la escena.
+func _enderezar_rumbo(seg: float) -> void:
+	var casa := deg_to_rad(SHIP_YAW)
+	if wheel == null and ship_pivot == null:
+		return
+	if seg <= 0.0:
+		if wheel != null:
+			wheel.rotation = 0.0
+		if ship_pivot != null:
+			ship_pivot.rotation.y = casa
+		return
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	if wheel != null:
+		tw.tween_property(wheel, "rotation", 0.0, seg)
+	if ship_pivot != null:
+		tw.tween_property(ship_pivot, "rotation:y", casa, seg)
+
+
 var _timon_sonado := 0.0
 
 
@@ -3103,13 +3131,20 @@ func _go_adventure() -> void:
 	if leaving:
 		return
 	leaving = true
-	# El rumbo vuelve a casa: si el timón dejó el barco girado, zarpar de
-	# costado (o de popa) hacia el mapa se veía rarísimo.
-	if ship_pivot != null:
-		ship_pivot.rotation.y = deg_to_rad(SHIP_YAW)
+	# EL RUMBO VUELVE A CASA ENDEREZÁNDOSE, no de un fotograma al siguiente
+	# (lo pidió el usuario): con el timón girado, zarpar de costado se veía
+	# rarísimo, pero corregirlo de golpe se veía peor — el barco daba un salto
+	# justo al pulsar.
+	#
+	# SE MUEVEN LOS DOS A LA VEZ, timón y barco, y con la MISMA curva. Mientras
+	# `in_menu` siga puesto, `_process` reescribe el rumbo desde el ángulo del
+	# timón (`SHIP_YAW - wheel.rotation * 0.35`), así que tweneando solo el
+	# barco el timón se lo pisaría; y tweneando solo el timón, el barco se
+	# quedaría clavado en cuanto `in_menu` se apague a mitad de camino. Con la
+	# misma interpolación en los dos, la relación se cumple en cada fotograma y
+	# da igual cuál mande.
 	wheel_vel = 0.0
-	if wheel != null:
-		wheel.rotation = 0.0
+	_enderezar_rumbo(RUMBO_VUELTA)
 	_sonar_zarpe()
 	# Los contadores NO salen: se quedan y viajan a los extremos del mapa, y la
 	# BARRA DE NIVEL tampoco — se queda y se corre a la derecha con ellos.

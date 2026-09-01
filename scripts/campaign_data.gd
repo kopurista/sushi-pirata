@@ -208,6 +208,7 @@ const RETO_TEXTOS := {
 	# NO PIDE NADA SUYO: pide la JORNADA. Se resuelve al cerrar el turno, con
 	# las estrellas ya contadas (`level3d._check_treasure_estrellas`).
 	"estrellas": "cierra la jornada con **%d estrellas**",
+	"extras_distintos": "sírvele **%d platos**, cada uno con un **extra distinto**",
 }
 
 
@@ -228,6 +229,7 @@ const RETO_TEXTOS_YO := {
 	"hasta_el_final": "que siga aquí sentado cuando acabe el turno",
 	"mismo_caro": "sírveme **%d veces** el plato MÁS CARO de tu carta",
 	"estrellas": "cierra la jornada con **%d estrellas** y es tuyo",
+	"extras_distintos": "sírveme **%d platos**, cada uno con un **extra distinto**",
 }
 
 
@@ -513,6 +515,35 @@ const PORTS: Array = [
 		"near_seats": true,
 	},
 	{
+		"id": "practica_8",
+		"chef_rec": 4,
+		"name": "Cala del Saco Perdido",
+		"desc": "Un grumete se ha quedado en tierra con su saco de arroz. Dale de comer.",
+		"client_mix": { "E": 6 },
+		"arrival_span": 115.0,
+		"patience_mult": 1.0,
+		"arrival_scale": 0.88,
+		"goal_stars": 2,
+		"star_money": [22, 40, 62],
+		# EL CLIENTE PAGA CON ARROZ, no con pieza de vitrina: aqui todavia no se
+		# ha hablado de los coleccionables (eso llega con el pirata de la
+		# bandera, en el 14) y un cofre sin explicar no seria un premio sino un
+		# misterio. El arroz, en cambio, se entiende desde el primer turno y es
+		# lo unico que hace falta para zarpar.
+		"collectible_client": {
+			"who": "grumete", "type": "E", "arroz": 3,
+			"reto": "platos", "n": 4,
+		},
+		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "edamame"],
+		"alt_recipes": ["onigiri", "maki_pepino", "gunkan_wakame"],
+		"reward_recipes": [],
+		"reward_recipes_3": [],
+		"reward_ingredients_3": { "salmon": 4, "aguacate": 4 },
+		"no_powerups": true,
+		"no_extras": true,
+		"no_perks": true,
+	},
+	{
 		"id": "nivel_4",
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
@@ -545,7 +576,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "practica_6",
-		"chef_rec": 4,
+		"chef_rec": 5,
 		"name": "Fondeadero del Tonel",
 		"desc": "Practica con la carta que tu elijas y el puesto de Saverio recien abierto.",
 		"client_mix": { "E": 8 },
@@ -566,7 +597,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 5,
+		"chef_rec": 6,
 		"name": "Cala del Calamar",
 		"desc": "El postre es la cuenta: aprende a despedir clientes y a llenar el bote.",
 		"client_mix": { "E": 5 },
@@ -593,7 +624,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "practica_3",
-		"chef_rec": 6,
+		"chef_rec": 7,
 		"name": "Rada del Pulpo",
 		"desc": "Postres, propinas y extras: todo junto y sin ayuda.",
 		"client_mix": { "E": 9 },
@@ -645,7 +676,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "practica_7",
-		"chef_rec": 7,
+		"chef_rec": 8,
 		"name": "Islote de la Sal",
 		"desc": "Practica: postres, propinas y parejas, sin nadie explicando nada.",
 		"client_mix": { "E": 8 },
@@ -666,7 +697,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 8,
+		"chef_rec": 9,
 		"name": "Estrecho del Rayo",
 		"desc": "¡Abordaje! Reloj, clientela sin fin y los primeros piratas.",
 		# Abordaje: esta mezcla es solo la PRIMERA tanda.
@@ -712,7 +743,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "practica_4",
-		"chef_rec": 9,
+		"chef_rec": 10,
 		"name": "Paso de las Barracudas",
 		"desc": "Un abordaje corriente, sin nadie a quien impresionar.",
 		"client_mix": { "E": 5, "A": 2 },
@@ -730,8 +761,32 @@ const PORTS: Array = [
 		"reward_bait_3": 1,
 	},
 	{
-		"id": "nivel_6",
+		"id": "practica_9",
 		"chef_rec": 10,
+		"name": "Fondeadero del Tuerto",
+		"desc": "Practica con piratas. Uno de ellos lleva algo que no es oro.",
+		"client_mix": { "E": 5, "A": 3 },
+		"client_order": ["E", "A", "E", "A", "E", "A", "E", "E"],
+		"arrival_span": 110.0,
+		"patience_mult": 0.95,
+		"arrival_scale": 0.85,
+		"goal_stars": 2,
+		"star_money": [36, 64, 100],
+		# UN PIRATA Y UNA PIEZA DE VITRINA: los coleccionables ya se explicaron
+		# en el 14 (la bandera), asi que aqui la palabra ya significa algo.
+		"collectible_client": {
+			"who": "pirata", "type": "A", "item": "parche",
+			"reto": "distintos", "n": 3,
+		},
+		"reward_recipes": [],
+		"reward_recipes_3": [],
+		"reward_ingredients_3": { "atun": 4, "nori": 4 },
+		"no_extras": true,
+		"no_perks": true,
+	},
+	{
+		"id": "nivel_6",
+		"chef_rec": 11,
 		"name": "Bahía del Kraken",
 		"desc": "Saverio abre su caja: el WASABI, sobre el plato ya terminado.",
 		# --- EL PRIMERO DE LOS TRES ESCENARIOS DE EXTRAS ------------------
@@ -755,7 +810,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_21",
-		"chef_rec": 10,
+		"chef_rec": 12,
 		"name": "Rada del Paladar Limpio",
 		"desc": "El JENGIBRE: borra lo que ha probado, a cambio de un punto de chapa.",
 		"client_mix": { "E": 6, "A": 2 },
@@ -771,7 +826,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_22",
-		"chef_rec": 11,
+		"chef_rec": 12,
 		"name": "Ensenada de la Salazón",
 		"desc": "La SOJA: engorda la propina, pero el bocado se acaba antes.",
 		"client_mix": { "E": 6, "A": 3 },
@@ -786,11 +841,37 @@ const PORTS: Array = [
 		"no_perks": true,
 	},
 	{
+		"id": "practica_10",
+		"chef_rec": 13,
+		"name": "Rada del Rallador",
+		"desc": "La jornada de los tres extras juntos, y un pirata que sabe de eso.",
+		"client_mix": { "E": 5, "A": 4 },
+		"client_order": ["E", "A", "E", "A", "E", "A", "E", "A", "E"],
+		"arrival_span": 115.0,
+		"patience_mult": 0.95,
+		"arrival_scale": 0.85,
+		"goal_stars": 2,
+		"star_money": [40, 70, 110],
+		# LA PRACTICA DE LOS TRES EXTRAS JUNTOS, y por eso su encargo los pide
+		# los tres: es el unico reto del juego que obliga a usar los tres en la
+		# misma jornada, que es justo lo que las tres lecciones sueltas no
+		# ensenan. El premio es el RALLADOR DE PIEL DE TIBURON, que es
+		# literalmente con lo que se ralla el wasabi.
+		"collectible_client": {
+			"who": "pirata", "type": "A", "item": "rallador_tiburon",
+			"reto": "extras_distintos", "n": 3,
+		},
+		"reward_recipes": [],
+		"reward_recipes_3": [],
+		"reward_ingredients_3": { "wasabi": 5, "jengibre": 5, "soja": 5 },
+		"no_perks": true,
+	},
+	{
 		"id": "nivel_8",
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 12,
+		"chef_rec": 14,
 		"name": "Isla de Gades",
 		"desc": "Un pescador silencioso espera en la orilla con su caña.",
 		# CAI SE SIENTA A COMER: es el PRIMER pirata que entra (`special_client`
@@ -819,7 +900,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 12,
+		"chef_rec": 14,
 		"name": "Puerto Tormenta",
 		"desc": "Diez bocas en dos oleadas, y la mitad son piratas.",
 		"client_mix": { "E": 6, "A": 4 },
@@ -843,7 +924,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 13,
+		"chef_rec": 15,
 		"name": "Flota del capitán Pablo el Rubio",
 		"desc": "Abordaje a la flota de un viejo conocido de David.",
 		"client_mix": { "E": 2, "A": 2, "G": 1 },
@@ -872,7 +953,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_19",
-		"chef_rec": 14,
+		"chef_rec": 16,
 		"name": "Paso de los Cangrejos",
 		"desc": "Abordaje corto y apretado: entran de dos en dos y no paran.",
 		"client_mix": { "E": 4, "A": 3, "G": 2 },
@@ -887,11 +968,35 @@ const PORTS: Array = [
 		"reward_recipes_3": ["taiyaki"],
 	},
 	{
+		"id": "practica_11",
+		"chef_rec": 16,
+		"name": "Escollo del Sable",
+		"desc": "Un capitan con prisa y buen paladar. Paga bien quien come variado.",
+		"client_mix": { "E": 4, "A": 3, "G": 2 },
+		"client_order": ["E", "A", "G", "E", "A", "E", "G", "A", "E"],
+		"arrival_span": 120.0,
+		"patience_mult": 0.92,
+		"arrival_scale": 0.82,
+		"goal_stars": 2,
+		"star_money": [46, 82, 128],
+		# UN CAPITAN, que aqui ya existen (llegan con Pablo, en el 23), y un
+		# LINGOTE de propina a las tres estrellas: los lingotes tambien se
+		# explicaron alli, asi que la cifra ya significa algo.
+		"collectible_client": {
+			"who": "capitan", "type": "G", "item": "espada",
+			"reto": "distintos", "n": 4,
+		},
+		"reward_recipes": [],
+		"reward_recipes_3": [],
+		"reward_ingots_3": 1,
+		"boat": true,
+	},
+	{
 		"id": "nivel_11",
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 14,
+		"chef_rec": 17,
 		"name": "Cala del Hambre",
 		"desc": "Tres bocas, una de ellas con un hambre que no es normal.",
 		"client_mix": { "E": 1, "A": 1, "G": 1 },
@@ -917,7 +1022,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 15,
+		"chef_rec": 17,
 		"name": "Ensenada del Naufragio",
 		"desc": "Corre la voz de que alguien paga en tesoros, no en oro.",
 		"client_mix": { "E": 4, "A": 3, "G": 1 },
@@ -946,7 +1051,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_17",
-		"chef_rec": 16,
+		"chef_rec": 18,
 		"name": "Caleta del Cartografo",
 		"desc": "Un grumete trae un mapa heredado y lo cambia por una buena jornada.",
 		"client_mix": { "E": 4, "A": 3, "G": 1 },
@@ -974,7 +1079,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_18",
-		"chef_rec": 16,
+		"chef_rec": 19,
 		"name": "Rada de las Tres Anclas",
 		"desc": "Practica. Ni lecciones ni sorpresas: solo servicio.",
 		# ESCENARIO 25: practica de la leccion de los MAPAS DEL TESORO, ya con
@@ -991,11 +1096,39 @@ const PORTS: Array = [
 		"reward_recipes_3": ["nigiri_anguila"],
 	},
 	{
+		"id": "practica_12",
+		"chef_rec": 19,
+		"name": "Bajio de la Carta Marcada",
+		"desc": "Carta cerrada y un capitan que solo quiere lo mas caro de ella.",
+		"client_mix": { "E": 4, "A": 3, "G": 2 },
+		"client_order": ["E", "A", "G", "E", "A", "E", "G", "A", "E"],
+		"arrival_span": 120.0,
+		"patience_mult": 0.9,
+		"arrival_scale": 0.82,
+		"goal_stars": 2,
+		"star_money": [50, 88, 136],
+		# PAGA CON UN MAPA DEL TESORO, que se estrenaron dos escenarios antes
+		# (el 28): es el primer sitio donde se consigue un segundo mapa jugando
+		# la campana, asi que la mecanica recien aprendida tiene continuidad.
+		# Y su reto es `mismo_caro`, que con la CARTA CERRADA de una isla se
+		# lee de un vistazo: el plato mas caro esta a la vista y no cambia.
+		"collectible_client": {
+			"who": "capitan", "type": "G", "mapa": true,
+			"reto": "mismo_caro", "n": 3,
+		},
+		"fixed_recipes": ["nigiri_salmon", "nigiri_atun", "sopa_miso",
+			"salmon_tsuke_don"],
+		"reward_recipes": [],
+		"reward_recipes_3": [],
+		"reward_ingredients_3": { "salmon": 5, "atun": 5 },
+		"boat": true,
+	},
+	{
 		"id": "nivel_13",
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 17,
+		"chef_rec": 20,
 		"name": "Rada de los Dos Fuegos",
 		"desc": "Demasiadas comandas para un solo par de manos.",
 		"client_mix": { "E": 5, "A": 3, "G": 2 },
@@ -1017,7 +1150,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_20",
-		"chef_rec": 17,
+		"chef_rec": 21,
 		"name": "Muelle del Farolero",
 		"desc": "El ultimo puerto con clientela de verdad antes de la bruma.",
 		"client_mix": { "E": 5, "A": 4, "G": 2 },
@@ -1035,7 +1168,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 18,
+		"chef_rec": 21,
 		"name": "Muelle de las Bandejas",
 		"desc": "Muelle largo y clientela sin prisa: buen día para probar cosas.",
 		"client_mix": { "E": 5, "A": 4, "G": 2 },
@@ -1056,7 +1189,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "vispera_kappa",
-		"chef_rec": 19,
+		"chef_rec": 22,
 		"name": "Bruma del Estrecho",
 		"desc": "La última parada antes de la guarida. Aquí ya no se enseña nada.",
 		"client_mix": { "E": 6, "A": 4, "G": 2 },
@@ -1075,7 +1208,7 @@ const PORTS: Array = [
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
-		"chef_rec": 19,
+		"chef_rec": 22,
 		"name": "Cueva del Kappa",
 		"desc": "Algo enorme y hambriento ronda estas aguas...",
 		"client_mix": { "E": 3, "A": 2, "G": 1 },
@@ -1568,6 +1701,11 @@ const KINDS: Dictionary = {
 	"nivel_21": "puerto",
 	"nivel_22": "puerto",
 	# Las tres prácticas nuevas repiten el tipo de la lección que practican.
+	"practica_8": "isla",
+	"practica_9": "puerto",
+	"practica_10": "puerto",
+	"practica_11": "puerto",
+	"practica_12": "isla",
 	"practica_5": "isla",
 	"practica_6": "puerto",
 	"practica_7": "isla",
@@ -1651,62 +1789,67 @@ const MAP_POS: Dictionary = {
 	"practica_5": Vector2(LANE_CENTER, 2284.0),
 	"nivel_3": Vector2(LANE_LEFT, 1972.0),
 	"practica_2": Vector2(LANE_RIGHT, 1660.0),
-	"nivel_4": Vector2(LANE_CENTER, 1348.0),
-	"practica_6": Vector2(LANE_LEFT, 1036.0),
-	"nivel_5": Vector2(LANE_RIGHT, 724.0),
-	"practica_3": Vector2(LANE_CENTER, 412.0),
-	"nivel_16": Vector2(LANE_LEFT, 100.0),
-	"practica_7": Vector2(LANE_RIGHT, -212.0),
-	"nivel_7": Vector2(LANE_CENTER, -524.0),
-	"practica_4": Vector2(LANE_LEFT, -836.0),
-	"nivel_6": Vector2(LANE_RIGHT, -1148.0),
-	"nivel_21": Vector2(LANE_CENTER, -1460.0),
-	"nivel_22": Vector2(LANE_LEFT, -1772.0),
-	"nivel_8": Vector2(LANE_RIGHT, -2084.0),
-	"nivel_9": Vector2(LANE_CENTER, -2396.0),
-	"nivel_10": Vector2(LANE_LEFT, -2708.0),
-	"nivel_19": Vector2(LANE_RIGHT, -3020.0),
-	"nivel_11": Vector2(LANE_CENTER, -3332.0),
-	"nivel_12": Vector2(LANE_LEFT, -3644.0),
-	"nivel_17": Vector2(LANE_RIGHT, -3956.0),
-	"nivel_18": Vector2(LANE_CENTER, -4268.0),
-	"nivel_13": Vector2(LANE_LEFT, -4580.0),
-	"nivel_20": Vector2(LANE_RIGHT, -4892.0),
-	"nivel_14": Vector2(LANE_CENTER, -5204.0),
-	"vispera_kappa": Vector2(LANE_LEFT, -5516.0),
+	"practica_8": Vector2(LANE_CENTER, 1348.0),
+	"nivel_4": Vector2(LANE_LEFT, 1036.0),
+	"practica_6": Vector2(LANE_RIGHT, 724.0),
+	"nivel_5": Vector2(LANE_CENTER, 412.0),
+	"practica_3": Vector2(LANE_LEFT, 100.0),
+	"nivel_16": Vector2(LANE_RIGHT, -212.0),
+	"practica_7": Vector2(LANE_CENTER, -524.0),
+	"nivel_7": Vector2(LANE_LEFT, -836.0),
+	"practica_4": Vector2(LANE_RIGHT, -1148.0),
+	"practica_9": Vector2(LANE_CENTER, -1460.0),
+	"nivel_6": Vector2(LANE_LEFT, -1772.0),
+	"nivel_21": Vector2(LANE_RIGHT, -2084.0),
+	"nivel_22": Vector2(LANE_CENTER, -2396.0),
+	"practica_10": Vector2(LANE_LEFT, -2708.0),
+	"nivel_8": Vector2(LANE_RIGHT, -3020.0),
+	"nivel_9": Vector2(LANE_CENTER, -3332.0),
+	"nivel_10": Vector2(LANE_LEFT, -3644.0),
+	"nivel_19": Vector2(LANE_RIGHT, -3956.0),
+	"practica_11": Vector2(LANE_CENTER, -4268.0),
+	"nivel_11": Vector2(LANE_LEFT, -4580.0),
+	"nivel_12": Vector2(LANE_RIGHT, -4892.0),
+	"nivel_17": Vector2(LANE_CENTER, -5204.0),
+	"nivel_18": Vector2(LANE_LEFT, -5516.0),
+	"practica_12": Vector2(LANE_RIGHT, -5828.0),
+	"nivel_13": Vector2(LANE_CENTER, -6140.0),
+	"nivel_20": Vector2(LANE_LEFT, -6452.0),
+	"nivel_14": Vector2(LANE_RIGHT, -6764.0),
+	"vispera_kappa": Vector2(LANE_CENTER, -7076.0),
 	# LA CUEVA DEL KAPPA va CENTRADA y con su respiro: la guarida del jefe
 	# no comparte carril con nadie.
-	"nivel_15": Vector2(LANE_CENTER, -6670.0),
+	"nivel_15": Vector2(LANE_CENTER, -8230.0),
 	# --- MAR 2: sigue hacia el norte, con un salto de mar (1000 px) entre la
 	# cueva y su primera cala. PASO 368: cada mar gano +100 px de paso
 	# (pedido por el usuario) porque con los CARTELES puestos la travesia
 	# se veia mas apretada de lo que estaba. El jefe (m2_25) lleva su
 	# respiro extra.
-	"m2_01": Vector2(LANE_CENTER, -7670.0),
-	"m2_02": Vector2(LANE_LEFT, -8038.0),
-	"m2_03": Vector2(LANE_CENTER, -8406.0),
-	"m2_04": Vector2(LANE_RIGHT, -8774.0),
-	"m2_05": Vector2(LANE_CENTER, -9142.0),
-	"m2_06": Vector2(LANE_LEFT, -9510.0),
-	"m2_07": Vector2(LANE_CENTER, -9878.0),
-	"m2_08": Vector2(LANE_RIGHT, -10246.0),
-	"m2_09": Vector2(LANE_CENTER, -10614.0),
-	"m2_10": Vector2(LANE_LEFT, -10982.0),
-	"m2_11": Vector2(LANE_CENTER, -11350.0),
-	"m2_12": Vector2(LANE_RIGHT, -11718.0),
-	"m2_13": Vector2(LANE_CENTER, -12086.0),
-	"m2_14": Vector2(LANE_LEFT, -12454.0),
-	"m2_15": Vector2(LANE_CENTER, -12822.0),
-	"m2_16": Vector2(LANE_RIGHT, -13190.0),
-	"m2_17": Vector2(LANE_CENTER, -13558.0),
-	"m2_18": Vector2(LANE_LEFT, -13926.0),
-	"m2_19": Vector2(LANE_CENTER, -14294.0),
-	"m2_20": Vector2(LANE_RIGHT, -14662.0),
-	"m2_21": Vector2(LANE_CENTER, -15030.0),
-	"m2_22": Vector2(LANE_LEFT, -15398.0),
-	"m2_23": Vector2(LANE_CENTER, -15766.0),
-	"m2_24": Vector2(LANE_RIGHT, -16134.0),
-	"m2_25": Vector2(LANE_CENTER, -16702.0),
+	"m2_01": Vector2(LANE_CENTER, -9230.0),
+	"m2_02": Vector2(LANE_LEFT, -9598.0),
+	"m2_03": Vector2(LANE_CENTER, -9966.0),
+	"m2_04": Vector2(LANE_RIGHT, -10334.0),
+	"m2_05": Vector2(LANE_CENTER, -10702.0),
+	"m2_06": Vector2(LANE_LEFT, -11070.0),
+	"m2_07": Vector2(LANE_CENTER, -11438.0),
+	"m2_08": Vector2(LANE_RIGHT, -11806.0),
+	"m2_09": Vector2(LANE_CENTER, -12174.0),
+	"m2_10": Vector2(LANE_LEFT, -12542.0),
+	"m2_11": Vector2(LANE_CENTER, -12910.0),
+	"m2_12": Vector2(LANE_RIGHT, -13278.0),
+	"m2_13": Vector2(LANE_CENTER, -13646.0),
+	"m2_14": Vector2(LANE_LEFT, -14014.0),
+	"m2_15": Vector2(LANE_CENTER, -14382.0),
+	"m2_16": Vector2(LANE_RIGHT, -14750.0),
+	"m2_17": Vector2(LANE_CENTER, -15118.0),
+	"m2_18": Vector2(LANE_LEFT, -15486.0),
+	"m2_19": Vector2(LANE_CENTER, -15854.0),
+	"m2_20": Vector2(LANE_RIGHT, -16222.0),
+	"m2_21": Vector2(LANE_CENTER, -16590.0),
+	"m2_22": Vector2(LANE_LEFT, -16958.0),
+	"m2_23": Vector2(LANE_CENTER, -17326.0),
+	"m2_24": Vector2(LANE_RIGHT, -17694.0),
+	"m2_25": Vector2(LANE_CENTER, -18262.0),
 }
 
 

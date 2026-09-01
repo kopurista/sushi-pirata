@@ -4084,6 +4084,15 @@ func _reto_cumplido() -> bool:
 	var reto := str(cfg.get("reto", "platos"))
 	if reto in ["hasta_el_final", "estrellas"]:
 		return false
+	if reto == "extras_distintos":
+		# N platos, cada uno con un extra DISTINTO. Es el unico encargo que
+		# obliga a usar los tres en la misma jornada, y por eso es el de la
+		# practica de los extras: las tres lecciones sueltas ensenan uno cada
+		# una y ninguna obliga a tenerlos los tres en la cabeza a la vez.
+		var puestos := {}
+		for e in treasure_client.extras_recibidos:
+			puestos[str(e)] = true
+		return puestos.size() >= int(cfg.get("n", 3))
 	var n := int(cfg.get("n", cfg.get("plates", 3)))
 	var comidos: Array = treasure_client.eaten_ids
 	match reto:
@@ -4164,7 +4173,19 @@ func _entregar_tesoro() -> void:
 		GameState.save_game()
 		GameState._ensure_notices().toast_achievement(
 			load("res://assets/ui/col_mapa_tesoro.png"), Color(1, 0.9, 0.6),
-			"¡Mapa del tesoro!", "El capitán ha pagado con un mapa")
+			"¡Mapa del tesoro!", "Te han pagado con un mapa")
+		return
+	# EN SACOS DE ARROZ. Es la moneda de los escenarios TEMPRANOS: antes de que
+	# nadie haya hablado de coleccionables, un cofre no seria un premio sino un
+	# misterio, y el arroz se entiende desde el primer turno porque es lo unico
+	# sin lo que no se puede zarpar.
+	var sacos := int(collectible_client.get("arroz", 0))
+	if sacos > 0:
+		GameState.add_rice(sacos)
+		GameState.save_game()
+		GameState._ensure_notices().toast_achievement(
+			load("res://assets/ui/ic_arroz.png"), Color(1, 0.92, 0.72),
+			"¡%d sacos de arroz!" % sacos, "El grumete ha pagado en especie")
 		return
 	var pieza := str(collectible_client.get("item", ""))
 	if pieza != "":

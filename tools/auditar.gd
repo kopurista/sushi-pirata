@@ -94,8 +94,18 @@ func _init() -> void:
 			print("  ! %s: se gana (%s) y no tiene historia"
 				% [cid2, con_fuente[cid2]])
 			fallos += 1
-	print("  piezas: %d  (%d sin historia, aun sin forma de conseguirse)"
-		% [CollectibleData.ITEMS.size(), sin_desc])
+	# Las que NO se pueden conseguir se LISTAN (no es un fallo: hay mecanicas
+	# por llegar). Es la lista de la que salen los premios de los escenarios
+	# nuevos, asi que tenerla a mano evita repartir dos veces la misma pieza.
+	var huerfanas: Array[String] = []
+	for it in CollectibleData.ITEMS:
+		var cid3 := str(it.get("id", ""))
+		if not con_fuente.has(cid3):
+			huerfanas.append(cid3)
+	print("  piezas: %d  (%d sin historia; %d sin forma de conseguirse)"
+		% [CollectibleData.ITEMS.size(), sin_desc, huerfanas.size()])
+	if not huerfanas.is_empty():
+		print("  sin fuente: %s" % ", ".join(huerfanas))
 
 	print("=== MAPAS DEL TESORO ===")
 	var vistos := {}

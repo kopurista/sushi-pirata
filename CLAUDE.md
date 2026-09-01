@@ -84,58 +84,85 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
   y `easy_next` se fueron con los potenciadores manuales que los encendían, y
   con ellos `_simplify_steps` y `recycle_recipe`.)
 
-## LA CAMPAÑA: EL MAR 1 SON 30 ESCENARIOS (reordenados el 1-9-2026)
+## LA CAMPAÑA: EL MAR 1 SON 35 ESCENARIOS (reordenados el 1-9-2026)
 
-**12 islas, 12 puertos, 5 abordajes y 1 CUEVA** (el tipo nuevo, reservado a
-los jefes). El detalle en la cabecera de `campaign_data.gd`; los ids NO se
-renumeran (el número que ve el jugador es la posición en `PORTS`, y por eso
-`nivel_16` es el 11 y `nivel_15` el 30).
+**12 islas, 13 puertos, 5 abordajes y 1 CUEVA**. El detalle en la cabecera de
+`campaign_data.gd`; los ids NO se renumeran (el número que ve el jugador es la
+posición en `PORTS`, y por eso `nivel_16` es el 12 y `nivel_15` el 35).
 
-**EL RITMO ES LECCIÓN → PRÁCTICA, Y AHORA SALE ENTERO** (pedido por el
-usuario): **cada una de las 13 lecciones tiene su propio escenario de práctica
-detrás**. Se llegó ahí añadiendo tres prácticas (`practica_5/6/7`), que es lo
-que faltaba — antes eran 14 lecciones contra 10 prácticas y cuatro parejas de
-lecciones iban pegadas por pura aritmética.
+**CADA LECCIÓN TIENE SU PRÁCTICA, Y AHORA SIN NINGUNA EXCEPCIÓN.** Las 13
+lecciones llevan detrás una jornada en la que nadie explica nada, y los tres
+escenarios de EXTRAS —que son lección y práctica a la vez— llevan además una
+cuarta jornada al final para usar los tres juntos, que es lo único que las tres
+lecciones sueltas no enseñan.
 
-**LA EXCEPCIÓN SON LOS TRES EXTRAS** (escenarios 15, 16 y 17), y es una
-excepción PEDIDA: cada uno estrena un extra —wasabi, jengibre y soja— y **cada
-uno ES su propia práctica**, porque la lección son dos frases y lo que hace
-falta es gastarlo. Por eso van los tres seguidos y sin práctica detrás. La
-consecuencia, dicha en voz alta: el 18 (Cai y la pesca) cae detrás del tercero,
-así que ahí hay una lección pegada a otra — es la ÚNICA de todo el mar.
+**CINCO DE LAS PRÁCTICAS NO SON JORNADAS VACÍAS** (pedido por el usuario):
+traen un cliente con nombre que habla por sí mismo y paga con algo que no es
+oro. Y **lo que paga depende de por dónde va la campaña**, que es la regla que
+las sostiene: nadie regala un coleccionable antes de que se haya explicado qué
+es, ni un mapa del tesoro antes del 28, ni sale un capitán antes de que existan
+los capitanes.
+- **7 · Cala del Saco Perdido** — un GRUMETE paga con **3 sacos de arroz**.
+  Aquí no se ha hablado de coleccionables (eso llega en el 14, con la bandera)
+  y un cofre sin explicar no sería un premio sino un misterio; el arroz se
+  entiende desde el primer turno.
+- **16 · Fondeadero del Tuerto** — un PIRATA paga con el **parche**. Los
+  piratas existen desde el 14 y los coleccionables también.
+- **20 · Rada del Rallador** — la práctica de los TRES EXTRAS juntos. Un PIRATA
+  pide `extras_distintos`: tres platos, cada uno con un extra distinto. Es el
+  único encargo del juego que obliga a usar los tres en la misma jornada, y
+  paga con el **rallador de piel de tiburón**, que es literalmente con lo que
+  se ralla el wasabi.
+- **25 · Escollo del Sable** — un CAPITÁN paga con la **espada**, más un
+  lingote a las 3★. Los capitanes y los lingotes llegan con Pablo, en el 23.
+- **30 · Bajío de la Carta Marcada** — un CAPITÁN paga con un **MAPA DEL
+  TESORO**, dos escenarios después de que se estrenen. Su reto es `mismo_caro`
+  y el escenario lleva CARTA CERRADA a propósito: así el plato más caro está a
+  la vista y no cambia.
 
 | # | Escenario | Tipo | Lección |
 |---|---|---|---|
 | 1 | Cala Tortuga | isla | paciencia, bocado, oro y papelera |
-| 2 | Ensenada del Mero | isla | PRÁCTICA (3★: despensa de salmón×3 y aguacate×2) |
-| 3 | Playa del Coco | isla | las CAJAS (4 platos guardados) |
+| 2 | Ensenada del Mero | isla | PRÁCTICA |
+| 3 | Playa del Coco | isla | las CAJAS |
 | 4 | Playa de las Gaviotas | isla | PRÁCTICA de las cajas |
 | 5 | Isla del Bambú | isla | el PICOTEO (edamame) |
 | 6 | Caleta del Farol | isla | PRÁCTICA del picoteo |
-| 7 | Arrecife del Ron | puerto | multiplicador, hastío y paladar; abre la TIENDA |
-| 8 | Fondeadero del Tonel | puerto | PRÁCTICA con la carta y la tienda ya abiertas |
-| 9 | Cala del Calamar | isla | POSTRES, propinas y potenciadores |
-| 10 | Rada del Pulpo | isla | PRÁCTICA (3★: 3 usos de cada extra) |
-| 11 | Ensenada del Maridaje | isla | el MARIDAJE (té verde → mochi), con ejercicio |
-| 12 | Islote de la Sal | isla | PRÁCTICA de postres, propinas y parejas |
-| 13 | Estrecho del Rayo | abordaje | primer ABORDAJE, EL pirata y su BANDERA |
-| 14 | Paso de las Barracudas | abordaje | PRÁCTICA del abordaje (3★: 1 cebo) |
-| 15 | Bahía del Kraken | puerto | el **WASABI** (y con él, los extras) |
-| 16 | Rada del Paladar Limpio | puerto | el **JENGIBRE** |
-| 17 | Ensenada de la Salazón | puerto | la **SOJA** |
-| 18 | Isla de Gades | isla | CAI y la PESCA |
-| 19 | Puerto Tormenta | puerto | PRÁCTICA: el examen antes de Pablo |
-| 20 | Flota de Pablo | abordaje | CAPITANES, corte lento y LINGOTES |
-| 21 | Paso de los Cangrejos | abordaje | PRÁCTICA de los capitanes |
-| 22 | Cala del Hambre | isla | bocado acelerado y el futomaki |
-| 23 | Ensenada del Naufragio | puerto | PRÁCTICA; el capitán del TESORO pide una receta |
-| 24 | Caleta del Cartógrafo | puerto | los MAPAS DEL TESORO: un GRUMETE los trae |
-| 25 | Rada de las Tres Anclas | puerto | PRÁCTICA con un mapa armado |
-| 26 | Rada de los Dos Fuegos | abordaje | ALICE y el AYUDANTE |
-| 27 | Muelle del Farolero | puerto | PRÁCTICA del ayudante |
-| 28 | Muelle de las Bandejas | puerto | ALICE y los BONIFICADORES |
-| 29 | Bruma del Estrecho | puerto | la víspera, a pulso |
-| 30 | Cueva del Kappa | cueva | el JEFE; superarlo abre el ARCADE |
+| 7 | Cala del Saco Perdido | isla | PRÁCTICA · grumete → 3 sacos de arroz |
+| 8 | Arrecife del Ron | puerto | multiplicador, hastío y paladar; abre la TIENDA |
+| 9 | Fondeadero del Tonel | puerto | PRÁCTICA con la carta y la tienda abiertas |
+| 10 | Cala del Calamar | isla | POSTRES, propinas y potenciadores |
+| 11 | Rada del Pulpo | isla | PRÁCTICA |
+| 12 | Ensenada del Maridaje | isla | el MARIDAJE (té verde → mochi), con ejercicio |
+| 13 | Islote de la Sal | isla | PRÁCTICA de postres, propinas y parejas |
+| 14 | Estrecho del Rayo | abordaje | primer ABORDAJE, EL pirata y su BANDERA |
+| 15 | Paso de las Barracudas | abordaje | PRÁCTICA del abordaje |
+| 16 | Fondeadero del Tuerto | puerto | PRÁCTICA · pirata → el parche |
+| 17 | Bahía del Kraken | puerto | el **WASABI** (y con él, los extras) |
+| 18 | Rada del Paladar Limpio | puerto | el **JENGIBRE** |
+| 19 | Ensenada de la Salazón | puerto | la **SOJA** |
+| 20 | Rada del Rallador | puerto | PRÁCTICA de los tres extras · pirata → rallador |
+| 21 | Isla de Gades | isla | CAI y la PESCA |
+| 22 | Puerto Tormenta | puerto | PRÁCTICA: el examen antes de Pablo |
+| 23 | Flota de Pablo | abordaje | CAPITANES, corte lento y LINGOTES |
+| 24 | Paso de los Cangrejos | abordaje | PRÁCTICA de los capitanes |
+| 25 | Escollo del Sable | puerto | PRÁCTICA · capitán → la espada |
+| 26 | Cala del Hambre | isla | bocado acelerado y el futomaki |
+| 27 | Ensenada del Naufragio | puerto | PRÁCTICA; el capitán del TESORO pide una receta |
+| 28 | Caleta del Cartógrafo | puerto | los MAPAS DEL TESORO: un GRUMETE los trae |
+| 29 | Rada de las Tres Anclas | puerto | PRÁCTICA con un mapa armado |
+| 30 | Bajío de la Carta Marcada | isla | PRÁCTICA · capitán → un mapa del tesoro |
+| 31 | Rada de los Dos Fuegos | abordaje | ALICE y el AYUDANTE |
+| 32 | Muelle del Farolero | puerto | PRÁCTICA del ayudante |
+| 33 | Muelle de las Bandejas | puerto | ALICE y los BONIFICADORES |
+| 34 | Bruma del Estrecho | puerto | la víspera, a pulso |
+| 35 | Cueva del Kappa | cueva | el JEFE; superarlo abre el ARCADE |
+
+**UN CLIENTE DEL TESORO PUEDE PAGAR DE TRES MANERAS** (`collectible_client`):
+con una pieza de vitrina (`item`), con un mapa (`mapa: true`) o con **sacos de
+arroz** (`arroz: N`, que entró con el escenario 7 justamente porque allí las
+otras dos no se pueden usar todavía). Las tres salen por `level3d.
+_entregar_tesoro`.
 
 **LOS EXTRAS SE PRESENTAN DE UNO EN UNO** (`GameState.unlocked_extras`, una
 LISTA, no el interruptor `extras_done` de antes): la esquina de la tabla, la

@@ -171,6 +171,9 @@ static func _koinobori(pivot: Node3D, s: float, alto: float) -> void:
 	var quad := QuadMesh.new()
 	quad.size = Vector2(0.155 * s, 0.155 * s)
 	cara.mesh = quad
+	# EL CARTEL CUELGA HACIA LA PROA (-x), que es adonde empuja el viento que
+	# hincha las velas: el pez se ata por la boca al palo y el cuerpo se va a
+	# favor. La CABEZA queda del lado del palo y la cola en punta.
 	cara.position = Vector3(-0.095 * s, 0.0, 0.0)
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = load("res://assets/ui/col_koinobori.png")
@@ -180,6 +183,12 @@ static func _koinobori(pivot: Node3D, s: float, alto: float) -> void:
 	m.billboard_keep_scale = true
 	cara.material_override = m
 	p.add_child(cara)
+	# ...PERO EL BILLBOARD CLAVA EL DIBUJO A LA PANTALLA, no al barco: con la
+	# cabeza siempre a la izquierda, en cuanto la proa caía a la izquierda el
+	# pez volaba de morro CONTRA el viento de sus propias velas. `ColProp` lo
+	# arregla volteando la textura segun donde caiga la proa (-x en el modelo).
+	p.veleta_mat = m
+	p.veleta_dir = Vector3(-1.0, 0.0, 0.0)
 
 
 ## EL FAROL FANTASMA, encendido en proa con su luz ESPECTRAL verde — la del
