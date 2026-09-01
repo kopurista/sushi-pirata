@@ -779,6 +779,56 @@ pantalla entre **y 231 y 454**, justo por debajo de la barra de arriba (que
 llega a la 210). Eso es lo que fija `MARGEN_MAR` (200): con 0 el cartel se
 quedaba medio detrás de la barra y no había forma de llegar a verlo.
 
+## LA CURVATURA DEL MUNDO (el "rolling log", montado el 1-9-2026)
+
+`shaders/curvatura.gdshader` + la curva metida en `water_ww.gdshader`, y en
+`level_select3d`: `curvar()`, `curva_y()` y `_refrescar_curva()`. Es el efecto
+de Animal Crossing: la geometría se hunde según se aleja del punto que mira la
+cámara, así que lo lejano cae por debajo del horizonte en vez de cortarse
+contra el canto de la pantalla.
+
+- **SE CURVA EL EJE DE SCROLL, no la profundidad de cámara.** Esta cámara es
+  ORTOGONAL y el mapa es una cinta vertical: lo que hay que doblar es la
+  dirección por la que se navega (`D_HAT`), con el pivote en el punto que la
+  cámara tiene enfocado. Poniendo el pivote en la cámara —que está 30 u por
+  detrás— todo cae en el tramo empinado de la parábola y los objetos se
+  cizallan; se vio en el primer prototipo.
+- **LO QUE ESTE JUEGO PUEDE SACAR DEL EFECTO Y LO QUE NO**: aquí NUNCA se ve el
+  horizonte (la cámara mira el agua desde arriba y el mar llena la pantalla),
+  así que no da la silueta curva de Animal Crossing. Lo que da es que los
+  escenarios lejanos **se hundan** en vez de salirse por el canto — y eso sí
+  vale mucho aquí, porque tapa el final de lo que hay cargado.
+- **NO SE PUEDE HACER SIN SUSTITUIR EL MATERIAL**: `StandardMaterial3D` no deja
+  meter código de vértice y `next_pass` es una pasada MÁS, no una modificación
+  de la primera. Por eso `curvar()` cambia el material por el shader propio,
+  copiándole lo justo (textura de albedo, color y recorte de alfa), que es todo
+  lo que usan estos modelos.
+- **LOS PARÁMETROS VAN DE UNIFORMES GLOBALES** (`project.godot`,
+  `[shader_globals]`): los comparten el shader del mapa y el del mar, y el
+  centro cambia CADA FOTOGRAMA con el scroll. Por material habría que escribir
+  en 269 materiales por fotograma.
+- **Y HAY QUE REPETIR LA CUENTA EN GDSCRIPT** (`curva_y`): los botones 2D de
+  los escenarios se colocan proyectando su punto 3D, y el hundimiento ocurre en
+  el SHADER, que GDScript no ve. Sin esto los botones se quedan flotando donde
+  estaba el escenario antes de curvarse. MEDIDO: con la corrección puesta, el
+  desfase entre botón y nodo es 38 px CONSTANTES en todos — que es justo el
+  levantamiento de 0,55 u que el overlay aplica a propósito.
+- **EN HEADLESS NO SE APLICA**: el renderer dummy escupe "Parameter material is
+  null" al cambiarle el material a ciertas mallas de `.glb`, y `--headless
+  --quit-after` es justo donde se miran los errores del proyecto ("sin salida =
+  OK"). Ensuciar ese sitio es peor que perderse un efecto que ahí no se dibuja.
+- **EL BARCO DEL JUGADOR NO SE CURVA**: es el punto de vista y va siempre sobre
+  el pivote, así que su caída sería cero de todas formas.
+- **COSTE: NINGUNO MEDIBLE.** Con 269 materiales curvados, 0,661 / 0,669 /
+  0,683 ms por fotograma a fuerza 0,016 / 0,009 / 0,004 — las tres dentro del
+  ruido. Es un `dot`, un `mul` y un `min` por vértice. **NO ahorra recursos por
+  sí mismo**; lo que ahorra es indirecto: al caer el mundo antes del borde de
+  lo cargado, la ventana de escenarios montados puede encogerse sin que se vea.
+- **EL MAR SE CURVA TAMBIÉN** pero apenas se nota: su plano tiene 8 u por
+  cuadro y en cuadro caben ~26 u, así que la curva le sale en tres tramos. No
+  importa porque nunca se le ve el canto; si algún día hiciera falta, el
+  arreglo es un plano más pequeño que siga a la cámara, no más subdivisión.
+
 ## LOS MAPAS DEL TESORO: LAS MISIONES SECUNDARIAS (montadas el 1-9-2026)
 
 `scripts/treasure_data.gd` (datos, 50 mapas), `treasure_screen.gd` (la mesa) y

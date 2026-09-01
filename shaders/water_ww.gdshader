@@ -78,8 +78,21 @@ vec2 vaiven(vec2 uv, float t) {
 		cos(d1) * 0.15 + cos(d2) * 0.05);
 }
 
+// CURVATURA DEL MUNDO: la misma que `curvatura.gdshader`, para que el agua se
+// doble con lo que flota en ella. Con `curva` a 0 (el valor por defecto) esto
+// no hace nada, asi que el mar se puede seguir usando sin el efecto.
+global uniform vec3 curva_centro;
+global uniform vec3 curva_eje;
+global uniform float curva_fuerza;
+global uniform float curva_tope;
+
 void vertex() {
 	VERTEX.y += vaiven(UV * wave_size, TIME * wave_speed).y * height + marea;
+	if (curva_fuerza > 0.0) {
+		vec3 w = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+		float d = dot(w - curva_centro, curva_eje);
+		VERTEX.y -= min(curva_fuerza * d * d, curva_tope);
+	}
 }
 
 void fragment() {
