@@ -17,7 +17,7 @@ const KIND_MODELS := {
 	"puerto": "res://assets/models/map_puerto.glb",
 	"abordaje": "res://assets/models/map_enemigo.glb",
 	"cueva": "res://assets/models/map_cueva.glb",
-	"": "res://assets/models/kenney/ship_pirate_large.glb",
+	"": "res://assets/models/map_barco.glb",
 }
 
 
@@ -148,34 +148,3 @@ static func _merged_aabb(node: Node) -> AABB:
 		out = a if first else out.merge(a)
 		first = false
 	return out
-
-
-## ACABADO DE JUGUETE para las piezas del PIRATE KIT de Kenney: plastico
-## pintado con brillo suave, que es el estilo del juego desde el 1-9-2026.
-##
-## El COLOR ya viene de la paleta saturada (`tools/kenney_kit.py` la reescribe
-## sobre `colormap.png`, que es la que referencian los .glb, asi que los 72
-## modelos la cogen solos). Lo que una textura NO puede llevar es el BRILLO, y
-## eso es lo unico que hace esta funcion: bajar el `roughness`, que Kenney
-## entrega a 1.0 — mate del todo — y el estilo pide plastico.
-##
-## Se le pasa la RAIZ de un modelo ya instanciado y toca todas sus superficies.
-## Duplica el material, nunca lo edita en sitio: los 72 modelos comparten el
-## mismo recurso y editarlo daria brillo a piezas que no lo han pedido.
-const KENNEY_ROUGH := 0.46
-
-
-static func acabado_juguete(raiz: Node, rough := KENNEY_ROUGH) -> Node:
-	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
-		var malla: Mesh = (mi as MeshInstance3D).mesh
-		if malla == null:
-			continue
-		for i in malla.get_surface_count():
-			var base: Material = malla.surface_get_material(i)
-			var mat: StandardMaterial3D = base.duplicate() \
-				if base is StandardMaterial3D else StandardMaterial3D.new()
-			mat.roughness = rough
-			mat.metallic = 0.0
-			mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
-			(mi as MeshInstance3D).set_surface_override_material(i, mat)
-	return raiz

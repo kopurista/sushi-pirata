@@ -51,7 +51,7 @@ const CALAVERA_TEX := "res://assets/ui/calavera_vacio.png"
 ## (sonda de vértices): el mástil sube en x≈0.098 del centro y el AABB mide
 ## 1.00 × 0.897 × 0.376. Todo lo demás se coloca en fracciones de eso, así
 ## que vale a cualquier escala del barco.
-const MASTIL_X := 0.1099
+const MASTIL_X := 0.0986
 ## LA CUBIERTA, MEDIDA (no a ojo): las caras hacia arriba del casco caen en
 ## y de modelo -0.18, o sea la fraccion 0.298 del alto. Todo lo que se APOYE
 ## en el barco va aqui — el primer intento puso el huevo y el cañon a ojo y
@@ -59,7 +59,7 @@ const MASTIL_X := 0.1099
 const CUBIERTA := 0.298
 ## La VELA DE MESANA (la de mas a popa) es el panel de x=0.262: abarca
 ## y[0.045,0.239] y z[-0.146,0.144]. Sale de la sonda de paneles claros.
-const MESANA_X := 0.2921
+const MESANA_X := 0.262
 const MESANA_Y := 0.657     ## fraccion del alto = centro de la vela
 ## La ANDANA BAJA: la franja BAJA del costado (y de modelo -0.32). Medida
 ## contra la captura, no a ojo: a la altura de la borda el arpon se recortaba
@@ -71,12 +71,7 @@ const ANDANA := 0.208
 ## el costado llega a z 0.16 y la cubierta esta a 0.08), asi que el cañon va
 ## montado sobre la borda, con la boca asomando por fuera.
 const BORDA := 0.365
-## Las medidas de aqui van en FRACCIONES DEL ALTO del barco, no en unidades
-## del modelo: asi sobreviven a un cambio de barco. Estuvieron en unidades del
-## `map_barco.glb` viejo (que medía 0.897 de alto) y al entrar el galeon de
-## Kenney —9.96 de alto— la escala se iba por un factor de once y los adornos
-## salian por el aire.
-const ALTO_MESH := 1.0
+const ALTO_MESH := 0.897
 
 
 ## Cuelga del barco del mapa los adornos de las piezas YA conseguidas. El
@@ -115,20 +110,20 @@ static func _bandera_pirata(pivot: Node3D, s: float, alto: float) -> void:
 	# Un palmo más de palo, para que el paño no nazca del vacío.
 	var palo := MeshInstance3D.new()
 	var cil := CylinderMesh.new()
-	cil.top_radius = 0.0089 * s
-	cil.bottom_radius = 0.0111 * s
-	cil.height = 0.1338 * s
+	cil.top_radius = 0.008 * s
+	cil.bottom_radius = 0.010 * s
+	cil.height = 0.12 * s
 	palo.mesh = cil
-	palo.position = Vector3(0.0, 0.0334 * s, 0.0)
+	palo.position = Vector3(0.0, 0.03 * s, 0.0)
 	palo.material_override = _mat(Color(0.24, 0.16, 0.09))
 	p.add_child(palo)
 	var pano := MeshInstance3D.new()
 	var caja := BoxMesh.new()
 	# Mas pequena que el primer intento (0.30 x 0.17): a esa talla competia
 	# con las velas y el usuario la bajo.
-	caja.size = Vector3(0.2341 * s, 0.1338 * s, 0.0111 * s)
+	caja.size = Vector3(0.21 * s, 0.12 * s, 0.010 * s)
 	pano.mesh = caja
-	pano.position = Vector3(0.1282 * s, 0.0167 * s, 0.0)
+	pano.position = Vector3(0.115 * s, 0.015 * s, 0.0)
 	pano.material_override = _mat(Color(0.07, 0.07, 0.09))
 	p.add_child(pano)
 	# El cráneo, una calcomanía por cada cara del paño.
@@ -136,9 +131,9 @@ static func _bandera_pirata(pivot: Node3D, s: float, alto: float) -> void:
 		for lado in [1.0, -1.0]:
 			var cara := MeshInstance3D.new()
 			var quad := QuadMesh.new()
-			quad.size = Vector2(0.0870 * s, 0.0870 * s)
+			quad.size = Vector2(0.078 * s, 0.078 * s)
 			cara.mesh = quad
-			cara.position = pano.position + Vector3(0.0, 0.0, 0.0078 * s * lado)
+			cara.position = pano.position + Vector3(0.0, 0.0, 0.007 * s * lado)
 			if lado < 0.0:
 				cara.rotation_degrees.y = 180.0
 			var m := StandardMaterial3D.new()
@@ -165,9 +160,9 @@ static func _koinobori(pivot: Node3D, s: float, alto: float) -> void:
 	for lado in [1.0, -1.0]:
 		var cara := MeshInstance3D.new()
 		var quad := QuadMesh.new()
-		quad.size = Vector2(0.2118 * s, 0.2118 * s)
+		quad.size = Vector2(0.19 * s, 0.19 * s)
 		cara.mesh = quad
-		cara.position = Vector3(-0.1282 * s, 0.0, 0.0011 * s * lado)
+		cara.position = Vector3(-0.115 * s, 0.0, 0.001 * s * lado)
 		if lado < 0.0:
 			cara.rotation_degrees.y = 180.0
 		var m := StandardMaterial3D.new()
@@ -187,33 +182,33 @@ static func _farol_fantasma(pivot: Node3D, s: float, alto: float) -> void:
 	# cristal emisivo en medio — con su DESTELLO (un quad aditivo con el
 	# gradiente radial `destello_farol.png`) y una luz corta de verdad.
 	var p := Node3D.new()
-	p.position = Vector3(0.5295 * s, alto * 0.47, 0.0)
+	p.position = Vector3(0.475 * s, alto * 0.47, 0.0)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var hierro := _mat(Color(0.15, 0.14, 0.13))
 	var gancho := MeshInstance3D.new()
 	var gc := CylinderMesh.new()
-	gc.top_radius = 0.0056 * s
-	gc.bottom_radius = 0.0056 * s
-	gc.height = 0.0502 * s
+	gc.top_radius = 0.005 * s
+	gc.bottom_radius = 0.005 * s
+	gc.height = 0.045 * s
 	gancho.mesh = gc
-	gancho.position = Vector3(0.0, 0.0580 * s, 0.0)
+	gancho.position = Vector3(0.0, 0.052 * s, 0.0)
 	gancho.material_override = hierro
 	p.add_child(gancho)
 	var tapa := MeshInstance3D.new()
 	var tc := CylinderMesh.new()
-	tc.top_radius = 0.0111 * s
-	tc.bottom_radius = 0.0245 * s
-	tc.height = 0.0156 * s
+	tc.top_radius = 0.010 * s
+	tc.bottom_radius = 0.022 * s
+	tc.height = 0.014 * s
 	tapa.mesh = tc
-	tapa.position = Vector3(0.0, 0.0312 * s, 0.0)
+	tapa.position = Vector3(0.0, 0.028 * s, 0.0)
 	tapa.material_override = hierro
 	p.add_child(tapa)
 	var cristal := MeshInstance3D.new()
 	var cc := CylinderMesh.new()
-	cc.top_radius = 0.0178 * s
-	cc.bottom_radius = 0.0201 * s
-	cc.height = 0.0401 * s
+	cc.top_radius = 0.016 * s
+	cc.bottom_radius = 0.018 * s
+	cc.height = 0.036 * s
 	cristal.mesh = cc
 	var mv := _mat(Color(0.62, 0.98, 0.76))
 	mv.emission_enabled = true
@@ -223,18 +218,18 @@ static func _farol_fantasma(pivot: Node3D, s: float, alto: float) -> void:
 	p.add_child(cristal)
 	var base := MeshInstance3D.new()
 	var bc := CylinderMesh.new()
-	bc.top_radius = 0.0223 * s
-	bc.bottom_radius = 0.0156 * s
-	bc.height = 0.0111 * s
+	bc.top_radius = 0.020 * s
+	bc.bottom_radius = 0.014 * s
+	bc.height = 0.010 * s
 	base.mesh = bc
-	base.position = Vector3(0.0, -0.0256 * s, 0.0)
+	base.position = Vector3(0.0, -0.023 * s, 0.0)
 	base.material_override = hierro
 	p.add_child(base)
 	# EL DESTELLO: cartel aditivo que siempre mira a camara.
 	if ResourceLoader.exists("res://assets/ui/destello_farol.png"):
 		var glow := MeshInstance3D.new()
 		var gq := QuadMesh.new()
-		gq.size = Vector2(0.1784 * s, 0.1784 * s)
+		gq.size = Vector2(0.16 * s, 0.16 * s)
 		glow.mesh = gq
 		var mg := StandardMaterial3D.new()
 		mg.albedo_texture = load("res://assets/ui/destello_farol.png")
@@ -248,7 +243,7 @@ static func _farol_fantasma(pivot: Node3D, s: float, alto: float) -> void:
 	var luz := OmniLight3D.new()
 	luz.light_color = Color(0.45, 1.0, 0.65)
 	luz.light_energy = 1.4
-	luz.omni_range = 0.6132 * s
+	luz.omni_range = 0.55 * s
 	luz.shadow_enabled = false
 	p.add_child(luz)
 
@@ -261,7 +256,7 @@ static func _arpon(pivot: Node3D, s: float, alto: float) -> void:
 	# del casco. De pie sobre el castillo de popa —donde estuvo— no se
 	# entendia que fuera un arpon ni por que estaba ahi.
 	var p := Node3D.new()
-	p.position = Vector3(0.2007 * s, alto * ANDANA, 0.2062 * s)
+	p.position = Vector3(0.18 * s, alto * ANDANA, 0.185 * s)
 	# El cilindro nace con su eje en +Y; girando 90º en Z pasa a -X, o sea
 	# que la punta mira a PROA.
 	p.rotation_degrees.z = 90.0
@@ -269,11 +264,11 @@ static func _arpon(pivot: Node3D, s: float, alto: float) -> void:
 	pivot.add_child(p)
 	var asta := MeshInstance3D.new()
 	var cil := CylinderMesh.new()
-	cil.top_radius = 0.0111 * s
-	cil.bottom_radius = 0.0134 * s
-	cil.height = 0.3344 * s
+	cil.top_radius = 0.010 * s
+	cil.bottom_radius = 0.012 * s
+	cil.height = 0.30 * s
 	asta.mesh = cil
-	asta.position = Vector3(0.0, 0.1672 * s, 0.0)
+	asta.position = Vector3(0.0, 0.15 * s, 0.0)
 	# Madera OSCURA: sobre el costado del barco, un asta del tono de la
 	# cubierta se perdia contra ella.
 	asta.material_override = _mat(Color(0.20, 0.13, 0.07))
@@ -281,19 +276,19 @@ static func _arpon(pivot: Node3D, s: float, alto: float) -> void:
 	var punta := MeshInstance3D.new()
 	var cono := CylinderMesh.new()
 	cono.top_radius = 0.0
-	cono.bottom_radius = 0.0178 * s
-	cono.height = 0.0780 * s
+	cono.bottom_radius = 0.016 * s
+	cono.height = 0.07 * s
 	punta.mesh = cono
-	punta.position = Vector3(0.0, 0.3679 * s, 0.0)
+	punta.position = Vector3(0.0, 0.33 * s, 0.0)
 	punta.material_override = _mat(Color(0.72, 0.74, 0.78))
 	p.add_child(punta)
 	# Las dos ligaduras de cuerda que lo amarran al costado.
 	for d in [0.06, 0.26]:
 		var lazo := MeshInstance3D.new()
 		var tc := CylinderMesh.new()
-		tc.top_radius = 0.0156 * s
-		tc.bottom_radius = 0.0156 * s
-		tc.height = 0.0178 * s
+		tc.top_radius = 0.014 * s
+		tc.bottom_radius = 0.014 * s
+		tc.height = 0.016 * s
 		lazo.mesh = tc
 		lazo.position = Vector3(0.0, d * s, 0.0)
 		lazo.material_override = _mat(Color(0.62, 0.52, 0.34))
@@ -361,35 +356,35 @@ static func _ancla(pivot: Node3D, s: float, alto: float) -> void:
 	# a media eslora y se la comia el escorzo del propio casco: "el ancla
 	# desaparece a la mitad", dicho por el usuario.
 	var p := Node3D.new()
-	p.position = Vector3(-0.3122 * s, alto * 0.253, 0.1226 * s)
+	p.position = Vector3(-0.28 * s, alto * 0.253, 0.11 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var hierro := _mat(Color(0.16, 0.17, 0.20))
 	var cana := MeshInstance3D.new()
 	var cil := CylinderMesh.new()
-	cil.top_radius = 0.0123 * s
-	cil.bottom_radius = 0.0123 * s
-	cil.height = 0.1895 * s
+	cil.top_radius = 0.011 * s
+	cil.bottom_radius = 0.011 * s
+	cil.height = 0.17 * s
 	cana.mesh = cil
 	cana.material_override = hierro
 	p.add_child(cana)
 	var cepo := MeshInstance3D.new()
 	var barra := CylinderMesh.new()
-	barra.top_radius = 0.0078 * s
-	barra.bottom_radius = 0.0078 * s
-	barra.height = 0.0836 * s
+	barra.top_radius = 0.007 * s
+	barra.bottom_radius = 0.007 * s
+	barra.height = 0.075 * s
 	cepo.mesh = barra
 	# El cepo tambien en el plano del casco (tumbado en x, no saliendo en z).
 	cepo.rotation_degrees.z = 90.0
-	cepo.position = Vector3(0.0, 0.0557 * s, 0.0)
+	cepo.position = Vector3(0.0, 0.05 * s, 0.0)
 	cepo.material_override = hierro
 	p.add_child(cepo)
 	var aro := MeshInstance3D.new()
 	var toro := TorusMesh.new()
-	toro.inner_radius = 0.0089 * s
-	toro.outer_radius = 0.0178 * s
+	toro.inner_radius = 0.008 * s
+	toro.outer_radius = 0.016 * s
 	aro.mesh = toro
-	aro.position = Vector3(0.0, 0.0870 * s, 0.0)
+	aro.position = Vector3(0.0, 0.078 * s, 0.0)
 	aro.material_override = hierro
 	p.add_child(aro)
 	# PLANA CONTRA EL CASCO (pedido por el usuario): los brazos se abren en
@@ -397,21 +392,21 @@ static func _ancla(pivot: Node3D, s: float, alto: float) -> void:
 	for lado in [-1.0, 1.0]:
 		var brazo := MeshInstance3D.new()
 		var bc := CylinderMesh.new()
-		bc.top_radius = 0.0078 * s
-		bc.bottom_radius = 0.0100 * s
-		bc.height = 0.0780 * s
+		bc.top_radius = 0.007 * s
+		bc.bottom_radius = 0.009 * s
+		bc.height = 0.07 * s
 		brazo.mesh = bc
 		brazo.rotation_degrees.z = 55.0 * lado
-		brazo.position = Vector3(0.0290 * s * lado, -0.0647 * s, 0.0)
+		brazo.position = Vector3(0.026 * s * lado, -0.058 * s, 0.0)
 		brazo.material_override = hierro
 		p.add_child(brazo)
 		var una := MeshInstance3D.new()
 		var cono := CylinderMesh.new()
 		cono.top_radius = 0.0
-		cono.bottom_radius = 0.0145 * s
-		cono.height = 0.0334 * s
+		cono.bottom_radius = 0.013 * s
+		cono.height = 0.030 * s
 		una.mesh = cono
-		una.position = Vector3(0.0580 * s * lado, -0.0836 * s, 0.0)
+		una.position = Vector3(0.052 * s * lado, -0.075 * s, 0.0)
 		una.material_override = hierro
 		p.add_child(una)
 
@@ -420,42 +415,73 @@ static func _ancla(pivot: Node3D, s: float, alto: float) -> void:
 ## cámara. Se puede TOCAR en el menú: con la bala de cañón en la vitrina
 ## DISPARA (ver `main_menu._disparar_canon`), y sin ella Gigi protesta.
 static func _canon(pivot: Node3D, s: float, alto: float) -> Node3D:
-	# MODELO DE VERDAD (`canon_pirata.glb`, el primero generado con MESHY):
-	# tubo de hierro con sus aros de laton y cureña de madera con ruedas de
-	# radios. Antes se montaba con cilindros y cajas y se veia lo que era, un
-	# monton de primitivas de color plano.
-	#
-	# Va EN LA BORDA y apuntando AL MAR: apoyado en la cubierta se lo tragaba
-	# el propio costado (medido), y tumbado a lo largo del barco no apuntaba a
-	# ninguna parte. Medidas del modelo, sacadas con sonda de vertices: mide
-	# 1.899 de largo por el eje X, la boca cae en (-0.802, 0.659, 0.014) y el
-	# eje del tubo es (-0.911, 0.412, 0.017), o sea 24º de alza.
-	if not ResourceLoader.exists("res://assets/models/canon_pirata.glb"):
-		return null
-	const LARGO := 0.155         ## cuanto mide el cañon en unidades del barco
-	const CAJA_X := 1.899        ## largo del modelo por su eje X
-	const SUELO_Y := -0.657      ## su vertice mas bajo (para que apoye)
-	const BOCA := Vector3(-0.802, 0.659, 0.014)
-	const EJE := Vector3(-0.911, 0.412, 0.017)
-	var k := LARGO * s / CAJA_X
+	# EN CUBIERTA (`CUBIERTA`, medida) Y APUNTANDO AL MAR por el costado que
+	# mira a la camara, que es como se coloca un cañon de andanada. Estuvo
+	# tumbado a lo largo del barco y flotando delante del casco: ni apuntaba
+	# a ninguna parte ni se apoyaba en nada, y el humo del disparo salia por
+	# detras de la madera. Con la boca asomando por encima de la borda, el
+	# fogonazo cae en cielo abierto.
 	var p := Node3D.new()
 	p.name = "ColCanon"
-	p.position = Vector3(-0.2230 * s, alto * BORDA - SUELO_Y * k, 0.0780 * s)
+	p.position = Vector3(-0.20 * s, alto * BORDA, 0.070 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
-	var m := (load("res://assets/models/canon_pirata.glb") as PackedScene) 		.instantiate()
-	# El tubo nace apuntando a -X; girando 90º en Y la boca mira a +Z, que es
-	# el costado por el que se ve el barco (y por donde queda el mar).
-	m.rotation_degrees.y = 90.0
-	m.scale = Vector3.ONE * k
-	p.add_child(m)
-	# El mismo giro, aplicado a mano a la boca y al eje, es lo que necesita
-	# `main_menu._disparar_canon` para el fogonazo y el RETROCESO: asi mover o
-	# reorientar el cañon no descoloca el disparo.
-	var gira := func(v: Vector3) -> Vector3: return Vector3(v.z, v.y, -v.x)
-	p.set_meta("dir_boca", (gira.call(EJE) as Vector3).normalized())
-	p.set_meta("boca", (gira.call(BOCA) as Vector3) * k)
+	var hierro := _mat(Color(0.24, 0.25, 0.29))
+	var bronce := _mat(Color(0.55, 0.42, 0.20))
+	var madera := _mat(Color(0.34, 0.23, 0.12))
+	# ELEVACION: el eje del tubo es (0, sin, cos) — 8º de alza sobre el mar.
+	var alza := 8.0
+	var eje := Vector3(0.0, sin(deg_to_rad(alza)), cos(deg_to_rad(alza)))
+	var giro := 90.0 - alza
+	var centro := Vector3(0.0, 0.050 * s, 0.010 * s)
+	var tubo := MeshInstance3D.new()
+	var cil := CylinderMesh.new()
+	cil.top_radius = 0.019 * s
+	cil.bottom_radius = 0.026 * s
+	cil.height = 0.135 * s
+	tubo.mesh = cil
+	tubo.rotation_degrees.x = giro
+	tubo.position = centro
+	tubo.material_override = hierro
+	p.add_child(tubo)
+	# Anillos de refuerzo y labio de la boca, repartidos por el eje del tubo.
+	for datos in [[0.060, 0.024], [-0.008, 0.028], [-0.058, 0.030]]:
+		var anillo := MeshInstance3D.new()
+		var ac := CylinderMesh.new()
+		ac.top_radius = float(datos[1]) * s
+		ac.bottom_radius = float(datos[1]) * s
+		ac.height = 0.010 * s
+		anillo.mesh = ac
+		anillo.rotation_degrees.x = giro
+		anillo.position = centro + eje * (float(datos[0]) * s)
+		anillo.material_override = bronce
+		p.add_child(anillo)
+	# La cureña, mas larga en z que ancha en x: sigue al tubo.
+	var cure := MeshInstance3D.new()
+	var caja := BoxMesh.new()
+	caja.size = Vector3(0.070, 0.038, 0.090) * s
+	cure.mesh = caja
+	cure.position = Vector3(0.0, 0.017 * s, 0.006 * s)
+	cure.material_override = madera
+	p.add_child(cure)
+	for lado in [-1.0, 1.0]:
+		for atras in [-1.0, 1.0]:
+			var rueda := MeshInstance3D.new()
+			var rc := CylinderMesh.new()
+			rc.top_radius = 0.017 * s
+			rc.bottom_radius = 0.017 * s
+			rc.height = 0.012 * s
+			rueda.mesh = rc
+			rueda.rotation_degrees.z = 90.0
+			rueda.position = Vector3(0.040 * s * lado, 0.012 * s,
+				0.030 * s * atras)
+			rueda.material_override = madera
+			p.add_child(rueda)
+	# La direccion LOCAL de la boca y el sitio de reposo, que es lo que
+	# necesita `main_menu._disparar_canon` para el fogonazo y el RETROCESO.
+	p.set_meta("dir_boca", eje)
 	p.set_meta("reposo", p.position)
+	p.set_meta("boca", centro + eje * (0.085 * s))
 	return p
 
 
@@ -468,15 +494,15 @@ static func _huevo(pivot: Node3D, s: float, alto: float) -> void:
 	# la esfera) — las lentejas 3D del primer intento sobresalian de la
 	# cascara, y el huevo entero FLOTABA delante del casco.
 	var p := Node3D.new()
-	p.position = Vector3(-0.1895 * s, alto * CUBIERTA, -0.0557 * s)
+	p.position = Vector3(-0.17 * s, alto * CUBIERTA, -0.05 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var huevo := MeshInstance3D.new()
 	var esfera := SphereMesh.new()
-	esfera.radius = 0.0613 * s
-	esfera.height = 0.1672 * s
+	esfera.radius = 0.055 * s
+	esfera.height = 0.15 * s
 	huevo.mesh = esfera
-	huevo.position = Vector3(0.0, 0.0803 * s, 0.0)
+	huevo.position = Vector3(0.0, 0.072 * s, 0.0)
 	var m := _mat(Color(1, 1, 1))
 	if ResourceLoader.exists("res://assets/ui/huevo_moteado.png"):
 		m.albedo_texture = load("res://assets/ui/huevo_moteado.png")
@@ -501,7 +527,7 @@ static func _vela_ww(pivot: Node3D, s: float, alto: float) -> void:
 	for lado in [1.0, -1.0]:
 		var cara := MeshInstance3D.new()
 		var quad := QuadMesh.new()
-		quad.size = Vector2(0.1449 * s, 0.1449 * s)
+		quad.size = Vector2(0.13 * s, 0.13 * s)
 		cara.mesh = quad
 		cara.position = Vector3((MESANA_X + 0.008 * lado) * s,
 			alto * MESANA_Y, 0.0)

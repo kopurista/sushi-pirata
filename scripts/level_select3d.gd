@@ -160,8 +160,6 @@ const BOCA_ALTO := 0.44
 const SHIP_FOOT := 2.3
 ## Orientación base del barco (navega hacia la parte alta del mapa).
 const SHIP_YAW := 205.0
-## El barco del jugador, del Pirate Kit de Kenney.
-const KEN_BARCO := "res://assets/models/kenney/ship_pirate_large.glb"
 
 var cam: Camera3D
 var ui: CanvasLayer
@@ -903,18 +901,8 @@ func _dim_model(root: Node3D) -> void:
 
 
 func _setup_ship() -> void:
-	# EL GALEON DEL PIRATE KIT DE KENNEY (CC0), desde el 1-9-2026. Son 1.938
-	# triangulos contra los 16.410 del generado, y pesa 173 KB.
-	#
-	# OJO CON EL EJE: el barco viejo tenia la ESLORA en X y este la tiene en Z
-	# (caja 4.80 x 9.96 x 13.10). Se gira 90 grados dentro de su propio pivote
-	# para que la proa vuelva a mirar por el eje X, y asi TODA la colocacion de
-	# los coleccionables (`ColVisibles`, que habla en x de proa a popa) sigue
-	# valiendo sin reescribirla.
-	ship_pivot = _spawn_model(load(KEN_BARCO), _world(ship_px), SHIP_FOOT)
-	for hijo in ship_pivot.get_children():
-		(hijo as Node3D).rotation_degrees.y += 90.0
-	SceneBackdrop.acabado_juguete(ship_pivot)
+	ship_pivot = _spawn_model(load("res://assets/models/map_barco.glb"),
+		_world(ship_px), SHIP_FOOT)
 	ship_pivot.position.y = -0.06
 	ship_pivot.set_meta("y0", -0.06)
 	ship_pivot.rotation_degrees.y = SHIP_YAW

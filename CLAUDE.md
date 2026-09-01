@@ -5217,21 +5217,43 @@ generando **Ludo**. Todo lo que dice este archivo sobre `createImage`,
 - Límites: 20 peticiones/s y 10-30 tareas en cola según plan; al pasarse,
   HTTP 429 (`RateLimitExceeded` / `NoMoreConcurrentTasks`).
 - **MESHY DEJA LA TEXTURA EN UN ARCHIVO APARTE Y EN `.jpg`**, no embebida en
-  el `.glb` como Ludo. Eso destapó un agujero: `fix_texture_imports.py` solo
-  miraba `*.png.import`, así que la textura del primer modelo entró con
-  `compress/mode=2` (s3tc) — **una textura que en el export web móvil NO
-  CARGA**— y su `--check` decía "fuera de norma: 0". Ya mira png, jpg, jpeg y
-  webp. Al meter un formato nuevo por una vía nueva, comprobar que las
+  el `.glb` como Ludo. Eso destapó un agujero que SIGUE ARREGLADO aunque el
+  modelo que lo destapó ya no esté: `fix_texture_imports.py` solo miraba
+  `*.png.import`, así que aquella textura entró con `compress/mode=2` (s3tc)
+  —**una textura que en el export web móvil NO CARGA**— y su `--check` decía
+  "fuera de norma: 0". Hoy mira png, jpg, jpeg y webp, y además en
+  SUBCARPETAS. Al meter un formato nuevo por una vía nueva, comprobar que las
   herramientas de norma lo VEN: una que no mira no es una que aprueba.
-- **Y PESA MENOS que lo de Ludo**: el primer cañón salió en 2,95 MB con su
-  textura de 2k, contra los 6-11 MB de los `.glb` que hay en el proyecto.
-- **El primer modelo de la casa es `canon_pirata.glb`** (Text-to-3D, 6.109
-  triángulos tras decimar): tubo de hierro con aros de latón y cureña con
-  ruedas de radios. Sus medidas, sacadas con sonda de vértices, viven en
-  `ColVisibles._canon`: mide 1.899 por el eje X, la boca cae en
-  (-0.802, 0.659, 0.014) y el eje del tubo es (-0.911, 0.412, 0.017) — o sea
-  que **apunta a -X con 24º de alza**, y se gira 90º en Y para que la boca
-  mire al mar. De ahí salen los metas `boca` y `dir_boca` que usa el disparo.
+- **Image-to-3D cuesta 15 créditos y Text-to-3D 30** (medido en
+  `consumed_credits`, no en la documentación, que no publica la tabla).
+
+## EL EXPERIMENTO DE ESTILO DE SEPTIEMBRE (revertido, NO reintroducir sin
+## pedirlo)
+
+Se probó a cambiar la dirección artística a un estilo **Overcooked + diorama
+de Link's Awakening** y a sustituir el mundo por el **Pirate Kit de Kenney**
+(CC0). Se llegó a cambiar la isla y el barco, y **el usuario decidió volver
+atrás**. La vuelta fue limpia porque solo DOS commits tocaban la imagen.
+
+**Se recupera entero con la etiqueta `estilo-kenney`**, que apunta al último
+commit de aquel estado:
+
+    git checkout estilo-kenney -- assets/models/kenney scripts/col_visibles.gd
+
+Lo que se aprendió y sigue valiendo por si se retoma:
+- **El kit de Kenney son 2,9 MB los 72 modelos**, contra los 417 MB que suman
+  los generados, y su galeón son 1.938 triángulos contra los 16.410 en los que
+  se planta el barco enemigo (el simplificador tiene suelo propio). **Los 72
+  comparten UNA sola paleta** de 512×512 y 9,8 KB, así que recolorear el mundo
+  entero es editar una imagen. `tools/kenney_kit.py` (que se queda) hace la
+  copia y la saturación.
+- **A la escala del nivel el facetado NO se nota**: comprobado en captura al
+  tamaño real, lo que se lee es la silueta y el color.
+- **`ColVisibles` tenía clavada la altura del barco viejo** (0.897) para
+  calcular su escala, así que con otro barco los adornos salían por el aire.
+  Si algún día se cambia el barco, eso es lo primero que hay que tocar.
+- La mancha blanca translúcida que se ve a veces sobre el casco **no es un
+  fallo del modelo**: es una de las NUBES del menú pasando por delante.
 
 - **(HISTÓRICO, la vía de Ludo) Modelos 3D (imagen→3D)**: concepto low poly
   generado DESDE TEXTO (el
