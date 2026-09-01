@@ -4518,6 +4518,9 @@ La GUÍA lleva su sección ("El canto de sirena").
   · **LA FUERZA DEL VIENTO SALE DE LA DISTANCIA** (`_fuerza_de`): un salto al
     escenario de al lado son ~312 px y una travesía entre mares pasa de 1.500.
     Nunca es cero (`VIENTO_MIN`), o el barco navegaría sin que nada lo empuje.
+  · **LO LLEVAN LOS CINCO VIAJES**: de escenario a escenario, al cruzar de mar,
+    al entrar en Aventura (a la derecha), al ir a la tienda (abajo), al volver
+    del mapa al menú (a la izquierda) y al ZARPAR DE LA PORTADA (a la derecha).
   · **EL VIENTO QUE SE VE** son rachas de cómic (`assets/map/viento.png`, una
     generación de Ludo) tumbadas sobre el agua alrededor del barco, cada una
     con su carril, su fase y su velocidad — en fila y a la vez se leerían como
@@ -4526,6 +4529,10 @@ La GUÍA lleva su sección ("El canto de sirena").
     90° en el mapa, o sea (−dy, dx). Puestos a ojo, con los signos cambiados,
     las rachas salían amontonadas a un lado del barco en vez de rodearlo. Y van
     **CON prueba de profundidad**: sin ella se dibujaban por encima del casco.
+    · **Y CRECEN CON EL BARCO** (`esc`, de `ship_pivot.scale`): en el menú y en
+      la portada va a escala 2,3, así que unas rachas de tamaño de mapa se le
+      quedaban debajo y NO SE VEÍAN — medían un tercio de su eslora y se
+      escondían tras el casco.
   · **LAS VELAS SE HINCHAN DE VERDAD** (`shaders/velas_viento.gdshader`). El
     barco es UNA malla con UN material, así que no hay un nodo "vela" que
     inclinar: **la lona se reconoce POR COLOR muestreando el albedo en el

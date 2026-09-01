@@ -986,6 +986,12 @@ func _zarpar_de_la_portada() -> void:
 	Audio.sfx("velas")
 	GameState.booted = true
 	_stop_logo_idle()
+	# ZARPAR TAMBIÉN ES UN VIAJE: proa a la derecha y viento en ese sentido,
+	# igual que al ir a Aventura, a la tienda o de un escenario a otro. Aquí el
+	# rumbo de casa YA apunta a la derecha, así que virar no mueve nada — lo que
+	# se ve es el viento levantándose justo cuando el barco suelta amarras.
+	viento_dir = Vector2.RIGHT
+	create_tween().tween_property(self, "viento_fuerza", 1.0, VIENTO_SUBE)
 	var tw_ui := create_tween().set_parallel(true) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tw_ui.tween_property(logo_holder, "position:y", -640.0, 0.55)
@@ -1012,6 +1018,10 @@ func _zarpar_de_la_portada() -> void:
 		START_SAIL * 0.4)
 	ship_tween.parallel().tween_property(self, "ship_roll", 0.0,
 		START_SAIL * 0.5).set_delay(START_SAIL * 0.5)
+	# Al llegar al fondeadero el viento cae. Es el mismo remate que en los
+	# otros viajes: el barco entra empujado y amaina al atracar.
+	ship_tween.parallel().tween_property(self, "viento_fuerza", 0.0,
+		VIENTO_BAJA).set_delay(START_SAIL * 0.55)
 	ship_tween.tween_callback(_llegar_al_menu)
 
 

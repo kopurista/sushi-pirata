@@ -1102,14 +1102,21 @@ func _tick_viento(delta: float) -> void:
 	# sigue siendo el +X del mundo, así que el ángulo sale de ahí.
 	var yaw := rad_to_deg(atan2(-d3.z, d3.x))
 	var centro := _world(ship_px)
+	# EL VIENTO CRECE CON EL BARCO. En el menú y en la portada va a escala 2,3,
+	# así que unas rachas de tamaño de mapa se le quedaban debajo y no se veían:
+	# medían un tercio de su eslora y se escondían tras el casco.
+	var esc := 1.0
+	if ship_pivot != null and is_instance_valid(ship_pivot):
+		esc = maxf(ship_pivot.scale.x, 0.2)
 	for mi: MeshInstance3D in viento_root.get_children():
 		var f: float = fposmod(float(mi.get_meta("fase"))
 			+ _t * float(mi.get_meta("vel")) * VIENTO_VEL / VIENTO_ANCHO, 1.0)
 		var avance := (f - 0.5) * VIENTO_ANCHO
 		var lado := float(mi.get_meta("carril")) * VIENTO_ANCHO * 0.42
-		mi.position = centro + d3 * avance + p3 * lado \
-			+ Vector3(0.0, 0.9 + float(mi.get_meta("alto")), 0.0)
+		mi.position = centro + (d3 * avance + p3 * lado) * esc \
+			+ Vector3(0.0, (0.9 + float(mi.get_meta("alto"))) * esc, 0.0)
 		mi.rotation_degrees = Vector3(-90.0, yaw, 0.0)
+		mi.scale = Vector3.ONE * esc
 		mi.visible = true
 		# Se apaga en las dos puntas: entra, cruza y se va.
 		var a: float = sin(f * PI)
