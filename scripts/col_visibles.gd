@@ -17,8 +17,10 @@ extends RefCounted
 ##                        protesta. La pieza saldrá de una misión de mapa del
 ##                        tesoro (sistema pendiente).
 ##   ✔ huevo_montana    → el HUEVO del Pez del Viento, enorme, coronando popa
-##   ✔ vela             → el emblema de Wind Waker calcado en la vela del
-##                        mástil (por las dos caras: el timón gira el barco)
+##   · vela             → NO SE LUCE (retirado por el usuario el 1-9-2026):
+##                        el emblema se probo como calcomania en la vela y de
+##                        canto se leia como una pegatina flotando; en la
+##                        mesana tapaba el paño. No hay sitio que funcione.
 ##   ✔ peluche_morsa    → dormido sobre una caja en las ISLAS del nivel
 ##                        (morsa_en_isla, la llama _scenery_island)
 ##   ✔ sombrero_paja    → lo lleva CAI EN SU ARTE 2D desde que cae la pieza
@@ -57,10 +59,11 @@ const MASTIL_X := 0.0986
 ## en el barco va aqui — el primer intento puso el huevo y el cañon a ojo y
 ## salieron FLOTANDO delante del casco (dicho por el usuario).
 const CUBIERTA := 0.298
-## La VELA DE MESANA (la de mas a popa) es el panel de x=0.262: abarca
-## y[0.045,0.239] y z[-0.146,0.144]. Sale de la sonda de paneles claros.
-const MESANA_X := 0.262
-const MESANA_Y := 0.657     ## fraccion del alto = centro de la vela
+## La cubierta del CASTILLO DE POPA, mas alta que la de proa. MEDIDA con el
+## mapa de caras hacia arriba: entre x 0.45 y 0.50 sale plana a y -0.080 para
+## todas las z, que es el unico tramo de popa donde la cubierta es CONTINUA
+## (mas adelante la parten el palo y las escaleras).
+const POPA_CUBIERTA := 0.409
 ## La ANDANA BAJA: la franja BAJA del costado (y de modelo -0.32). Medida
 ## contra la captura, no a ojo: a la altura de la borda el arpon se recortaba
 ## contra el CIELO por encima del casco, que es justo lo contrario de estar
@@ -98,8 +101,6 @@ static func decorar_barco(pivot: Node3D) -> void:
 		_canon(pivot, s, alto)
 	if GameState.has_collectible("huevo_montana"):
 		_huevo(pivot, s, alto)
-	if GameState.has_collectible("vela"):
-		_vela_ww(pivot, s, alto)
 
 
 ## LA BANDERA PIRATA, en lo alto del mástil: paño negro con el cráneo por las
@@ -147,30 +148,78 @@ static func _bandera_pirata(pivot: Node3D, s: float, alto: float) -> void:
 ## EL KOINOBORI: la carpa de tela en un asta de popa, hinchada por el viento
 ## hacia atrás. La carpa es un cilindro cónico naranja con el ojo pintado.
 static func _koinobori(pivot: Node3D, s: float, alto: float) -> void:
-	# EL DIBUJO DEL PROPIO COLECCIONABLE en un quad a dos caras, meciendose
-	# bajo la bandera. El cono naranja del primer intento no tenia textura y
-	# no se distinguia que fuera un koinobori (dicho por el usuario): el
-	# dibujo trae las escamas, el ojo y hasta su asta.
-	if not ResourceLoader.exists("res://assets/ui/col_koinobori.png"):
-		return
-	# A alto*0.83: a 0.90 quedaba justo detras del paño de la bandera (que
-	# vuela a +x) y en captura solo asomaba una esquina.
-	var p := _prop(pivot,
-		Vector3(MASTIL_X * s, alto * 0.83, 0.0), 12.0, 2.4)
+	# LA CARPA, EN VOLUMEN (pedido por el usuario): un cuerpo OVALADO de
+	# verdad, no el cartel con el dibujo pegado que hubo antes — a esta camara
+	# el quad se veia de canto la mitad del tiempo y se leia como una pegatina
+	# flotando. Un koinobori es una manga de viento: boca ancha por delante,
+	# cuerpo que se afina y cola abierta.
+	# A alto*0.74 y no mas arriba: por encima de eso la carpa queda DETRAS de
+	# la barra de experiencia del menu, que es interfaz y se dibuja encima.
+	var p := _prop(pivot, Vector3(MASTIL_X * s, alto * 0.74, 0.0), 12.0, 2.4)
+	var largo := 0.20 * s
+	# Colores VIVOS y poco sensibles a la luz: vuela a la altura de las velas
+	# y con el material corriente le caia su sombra encima y se veia negro.
+	var naranja := _mat(Color(0.96, 0.45, 0.14))
+	naranja.roughness = 0.55
+	naranja.emission_enabled = true
+	naranja.emission = Color(0.55, 0.20, 0.05)
+	naranja.emission_energy_multiplier = 0.35
+	var crema := _mat(Color(0.98, 0.96, 0.90))
+	crema.roughness = 0.55
+	crema.emission_enabled = true
+	crema.emission = Color(0.45, 0.44, 0.40)
+	crema.emission_energy_multiplier = 0.30
+	# CUERPO: una esfera estirada a lo largo de -x (vuela al contrario que la
+	# bandera, que va a +x, para que cada tela quede a un lado del palo).
+	var cuerpo := MeshInstance3D.new()
+	var esfera := SphereMesh.new()
+	esfera.radius = 0.5
+	esfera.height = 1.0
+	esfera.radial_segments = 12
+	esfera.rings = 7
+	cuerpo.mesh = esfera
+	cuerpo.scale = Vector3(largo, largo * 0.46, largo * 0.46)
+	cuerpo.position = Vector3(-largo * 0.62, 0.0, 0.0)
+	cuerpo.material_override = naranja
+	p.add_child(cuerpo)
+	# BOCA: el aro por el que entra el viento, en la punta de delante.
+	var boca := MeshInstance3D.new()
+	var aro := TorusMesh.new()
+	aro.inner_radius = largo * 0.15
+	aro.outer_radius = largo * 0.22
+	aro.rings = 12
+	aro.ring_segments = 8
+	boca.mesh = aro
+	boca.rotation_degrees.z = 90.0
+	boca.position = Vector3(-largo * 0.12, 0.0, 0.0)
+	boca.material_override = crema
+	p.add_child(boca)
+	# COLA: se abre al final, como la de un pez.
+	var cola := MeshInstance3D.new()
+	var cono := CylinderMesh.new()
+	cono.top_radius = largo * 0.20
+	cono.bottom_radius = largo * 0.03
+	cono.height = largo * 0.30
+	cono.radial_segments = 10
+	cola.mesh = cono
+	cola.rotation_degrees.z = 90.0
+	cola.position = Vector3(-largo * 1.28, 0.0, 0.0)
+	cola.material_override = crema
+	p.add_child(cola)
+	# Y EL OJO, que es lo que lo hace leerse como un PEZ y no como un globo.
 	for lado in [1.0, -1.0]:
-		var cara := MeshInstance3D.new()
-		var quad := QuadMesh.new()
-		quad.size = Vector2(0.19 * s, 0.19 * s)
-		cara.mesh = quad
-		cara.position = Vector3(-0.115 * s, 0.0, 0.001 * s * lado)
-		if lado < 0.0:
-			cara.rotation_degrees.y = 180.0
-		var m := StandardMaterial3D.new()
-		m.albedo_texture = load("res://assets/ui/col_koinobori.png")
-		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		cara.material_override = m
-		p.add_child(cara)
+		var ojo := MeshInstance3D.new()
+		var e2 := SphereMesh.new()
+		e2.radius = 0.5
+		e2.height = 1.0
+		e2.radial_segments = 8
+		e2.rings = 5
+		ojo.mesh = e2
+		ojo.scale = Vector3.ONE * largo * 0.115
+		ojo.position = Vector3(-largo * 0.30, largo * 0.10,
+			largo * 0.19 * lado)
+		ojo.material_override = _mat(Color(0.10, 0.09, 0.11))
+		p.add_child(ojo)
 
 
 ## EL FAROL FANTASMA, encendido en proa con su luz ESPECTRAL verde — la del
@@ -181,8 +230,11 @@ static func _farol_fantasma(pivot: Node3D, s: float, alto: float) -> void:
 	# media altura. Ahora es un farol de verdad — tapa y base de hierro,
 	# cristal emisivo en medio — con su DESTELLO (un quad aditivo con el
 	# gradiente radial `destello_farol.png`) y una luz corta de verdad.
+	# COLGANDO POR FUERA DE LA POPA (pedido por el usuario): el farol de popa
+	# de verdad va sobre el coronamiento y asomado al agua, no metido en el
+	# castillo. +x es la popa; a 0.545 el gancho queda ya fuera del casco.
 	var p := Node3D.new()
-	p.position = Vector3(0.475 * s, alto * 0.47, 0.0)
+	p.position = Vector3(0.545 * s, alto * 0.505, -0.065 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var hierro := _mat(Color(0.15, 0.14, 0.13))
@@ -355,8 +407,12 @@ static func _ancla(pivot: Node3D, s: float, alto: float) -> void:
 	# (ahi el casco llega a z 0.07-0.10, asi que a 0.11 se ve entera). Estuvo
 	# a media eslora y se la comia el escorzo del propio casco: "el ancla
 	# desaparece a la mitad", dicho por el usuario.
+	# COLGADA DEL ESPEJO DE POPA (pedido por el usuario), por debajo del farol
+	# y corrida hacia la camara para que no se estorben. MEDIDO: el espejo
+	# llega a x 0.50 entre y -0.25 y 0.00, asi que a 0.475 el ancla quedaba
+	# METIDA EN EL CASCO y no se veia; a 0.545 cuelga por fuera.
 	var p := Node3D.new()
-	p.position = Vector3(-0.28 * s, alto * 0.253, 0.11 * s)
+	p.position = Vector3(0.545 * s, alto * 0.300, 0.070 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var hierro := _mat(Color(0.16, 0.17, 0.20))
@@ -423,7 +479,12 @@ static func _canon(pivot: Node3D, s: float, alto: float) -> Node3D:
 	# fogonazo cae en cielo abierto.
 	var p := Node3D.new()
 	p.name = "ColCanon"
-	p.position = Vector3(-0.20 * s, alto * BORDA, 0.070 * s)
+	# EN LA CUBIERTA Y PEGADO AL SUELO, por el costado que mira a la camara
+	# (pedido por el usuario). Estuvo montado ENCIMA de la borda porque en
+	# cubierta lo tapaba el propio costado; se resuelve al reves, adelantando
+	# el conjunto hasta el canto de la borda para que asome por encima de ella
+	# sin dejar de apoyar las ruedas en las tablas.
+	p.position = Vector3(-0.225 * s, alto * CUBIERTA, 0.088 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var hierro := _mat(Color(0.24, 0.25, 0.29))
@@ -493,8 +554,10 @@ static func _huevo(pivot: Node3D, s: float, alto: float) -> void:
 	# TEXTURA (`huevo_moteado.png`, pintada por PIL y envuelta por la UV de
 	# la esfera) — las lentejas 3D del primer intento sobresalian de la
 	# cascara, y el huevo entero FLOTABA delante del casco.
+	# EN LA CUBIERTA DE POPA (pedido por el usuario): +x es la popa, y ahi la
+	# cubierta del castillo esta mas alta que la de proa.
 	var p := Node3D.new()
-	p.position = Vector3(-0.17 * s, alto * CUBIERTA, -0.05 * s)
+	p.position = Vector3(0.455 * s, alto * POPA_CUBIERTA, 0.0)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var huevo := MeshInstance3D.new()
@@ -510,35 +573,6 @@ static func _huevo(pivot: Node3D, s: float, alto: float) -> void:
 		m.albedo_color = Color(0.93, 0.89, 0.78)
 	huevo.material_override = m
 	p.add_child(huevo)
-
-
-## LA VELA DE WIND WAKER: su emblema, calcado del propio coleccionable, como
-## calcomanía sobre la vela del MASTIL (por las dos caras, que el timón ya
-## deja ver el barco por detrás).
-static func _vela_ww(pivot: Node3D, s: float, alto: float) -> void:
-	if not ResourceLoader.exists("res://assets/ui/col_vela_emblema.png"):
-		return
-	# SOLO EL EMBLEMA (`col_vela_emblema.png`, el disco con la medialuna y la
-	# ola recortado del propio coleccionable), calcado en la VELA DE MESANA
-	# (la de mas a popa, `MESANA_X`, localizada con la sonda de paneles
-	# claros). El primer intento pegaba el coleccionable ENTERO —una vela con
-	# su marco rojo— y el segundo lo puso en un x donde NO HAY VELA, asi que
-	# el emblema flotaba entre dos palos. Va por las dos caras.
-	for lado in [1.0, -1.0]:
-		var cara := MeshInstance3D.new()
-		var quad := QuadMesh.new()
-		quad.size = Vector2(0.13 * s, 0.13 * s)
-		cara.mesh = quad
-		cara.position = Vector3((MESANA_X + 0.008 * lado) * s,
-			alto * MESANA_Y, 0.0)
-		cara.rotation_degrees.y = 90.0 * lado
-		var m := StandardMaterial3D.new()
-		m.albedo_texture = load("res://assets/ui/col_vela_emblema.png")
-		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		cara.material_override = m
-		cara.add_to_group("no_batch")
-		pivot.add_child(cara)
 
 
 ## EL PELUCHE DE MORSA (Link's Awakening), dormido encima de una caja en las
