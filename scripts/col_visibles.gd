@@ -64,6 +64,9 @@ const CUBIERTA := 0.298
 ## todas las z, que es el unico tramo de popa donde la cubierta es CONTINUA
 ## (mas adelante la parten el palo y las escaleras).
 const POPA_CUBIERTA := 0.409
+## La cubierta A MEDIA ESLORA, que va entre la de proa y la de popa: y de
+## modelo -0.12. Es donde se apoya el cañon.
+const MEDIA_CUBIERTA := 0.365
 ## La ANDANA BAJA: la franja BAJA del costado (y de modelo -0.32). Medida
 ## contra la captura, no a ojo: a la altura de la borda el arpon se recortaba
 ## contra el CIELO por encima del casco, que es justo lo contrario de estar
@@ -155,8 +158,11 @@ static func _koinobori(pivot: Node3D, s: float, alto: float) -> void:
 	# cuerpo que se afina y cola abierta.
 	# A alto*0.74 y no mas arriba: por encima de eso la carpa queda DETRAS de
 	# la barra de experiencia del menu, que es interfaz y se dibuja encima.
-	var p := _prop(pivot, Vector3(MASTIL_X * s, alto * 0.74, 0.0), 12.0, 2.4)
-	var largo := 0.20 * s
+	# EN LO ALTO DEL PALO DE PROA (pedido por el usuario, señalado en captura):
+	# MEDIDO, ese palo corona en y +0.354, o sea alto*0.89. Y MAS PEQUEÑA que
+	# antes: a 0.20 de largo se comia media jarcia.
+	var p := _prop(pivot, Vector3(-0.100 * s, alto * 0.855, 0.0), 12.0, 2.4)
+	var largo := 0.135 * s
 	# Colores VIVOS y poco sensibles a la luz: vuela a la altura de las velas
 	# y con el material corriente le caia su sombra encima y se veia negro.
 	var naranja := _mat(Color(0.96, 0.45, 0.14))
@@ -180,6 +186,17 @@ static func _koinobori(pivot: Node3D, s: float, alto: float) -> void:
 	cuerpo.mesh = esfera
 	cuerpo.scale = Vector3(largo, largo * 0.46, largo * 0.46)
 	cuerpo.position = Vector3(-largo * 0.62, 0.0, 0.0)
+	# LA TEXTURA DEL PROPIO COLECCIONABLE, que es la que trae las escamas y el
+	# ojo (el usuario: "ha perdido su textura, que era perfecta"). Va en
+	# TRIPLANAR: la UV de una esfera enrolla el dibujo por el ecuador y la
+	# carpa saldria retorcida; proyectada, el costado del pez cae en el
+	# costado del cuerpo, que es donde se mira.
+	if ResourceLoader.exists("res://assets/ui/col_koinobori.png"):
+		naranja.albedo_texture = load("res://assets/ui/col_koinobori.png")
+		naranja.albedo_color = Color(1, 1, 1)
+		naranja.uv1_triplanar = true
+		naranja.uv1_scale = Vector3.ONE / maxf(largo * 1.6, 0.001)
+		naranja.emission_enabled = false
 	cuerpo.material_override = naranja
 	p.add_child(cuerpo)
 	# BOCA: el aro por el que entra el viento, en la punta de delante.
@@ -230,11 +247,11 @@ static func _farol_fantasma(pivot: Node3D, s: float, alto: float) -> void:
 	# media altura. Ahora es un farol de verdad — tapa y base de hierro,
 	# cristal emisivo en medio — con su DESTELLO (un quad aditivo con el
 	# gradiente radial `destello_farol.png`) y una luz corta de verdad.
-	# COLGANDO POR FUERA DE LA POPA (pedido por el usuario): el farol de popa
-	# de verdad va sobre el coronamiento y asomado al agua, no metido en el
-	# castillo. +x es la popa; a 0.545 el gancho queda ya fuera del casco.
+	# COLGANDO POR FUERA DE LA POPA Y BAJO (pedido por el usuario: "mas abajo,
+	# justo donde esta ahora el ancla"). +x es la popa; a 0.545 el gancho queda
+	# ya fuera del casco, que llega a 0.50.
 	var p := Node3D.new()
-	p.position = Vector3(0.545 * s, alto * 0.505, -0.065 * s)
+	p.position = Vector3(0.545 * s, alto * 0.300, -0.020 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var hierro := _mat(Color(0.15, 0.14, 0.13))
@@ -403,66 +420,92 @@ static func sombrero_de_paja(skel: Skeleton3D, model_scale: float) -> void:
 ## cámara: caña vertical con su argolla, cepo cruzado y los dos brazos con
 ## sus uñas. Hierro oscuro.
 static func _ancla(pivot: Node3D, s: float, alto: float) -> void:
-	# ESTIBADA EN LA AMURA DE PROA, contra la tabla y por FUERA del casco
-	# (ahi el casco llega a z 0.07-0.10, asi que a 0.11 se ve entera). Estuvo
-	# a media eslora y se la comia el escorzo del propio casco: "el ancla
-	# desaparece a la mitad", dicho por el usuario.
-	# COLGADA DEL ESPEJO DE POPA (pedido por el usuario), por debajo del farol
-	# y corrida hacia la camara para que no se estorben. MEDIDO: el espejo
-	# llega a x 0.50 entre y -0.25 y 0.00, asi que a 0.475 el ancla quedaba
-	# METIDA EN EL CASCO y no se veia; a 0.545 cuelga por fuera.
+	# REHECHA (el usuario: "no tiene forma de ancla"). Lo que le faltaba era la
+	# silueta: la de antes eran dos cilindros rectos abiertos en V, y un ancla
+	# se reconoce por el ARCO de la cruz y por las UÑAS TRIANGULARES del final,
+	# no por los brazos. Ahora los brazos son una curva de cuatro tramos y las
+	# uñas prismas de tres lados, aplastados como palas.
+	#
+	# COLGADA DE UN COSTADO, EN LA AMURA DE PROA. Se probaron media eslora y la
+	# banda del trinquete y las dos fallan por el mismo motivo: con esta camara
+	# isometrica adelantar en z sube en pantalla igual que retroceder en x, asi
+	# que el costado central cae JUSTO DETRAS del velamen y mas a proa lo tapa
+	# el castillo, que ahi es alto. La amura es el unico tramo de costado que
+	# queda despejado, y es donde un ancla va de verdad.
 	var p := Node3D.new()
-	p.position = Vector3(0.545 * s, alto * 0.300, 0.070 * s)
+	p.name = "ColAncla"
+	p.position = Vector3(-0.280 * s, alto * 0.290, 0.120 * s)
+	# TRINCADA DE LADO, no colgando a plomo: derecha, los brazos y las uñas
+	# —que es lo que hace que se lea "ancla"— quedaban SIEMPRE por debajo de la
+	# linea del casco, tapados. Ladeada, la cruz se recorta contra el cielo. Y
+	# ademas es como va un ancla estibada de verdad.
+	p.rotation_degrees.x = -42.0
+	p.rotation_degrees.z = 14.0
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var hierro := _mat(Color(0.16, 0.17, 0.20))
-	var cana := MeshInstance3D.new()
-	var cil := CylinderMesh.new()
-	cil.top_radius = 0.011 * s
-	cil.bottom_radius = 0.011 * s
-	cil.height = 0.17 * s
-	cana.mesh = cil
-	cana.material_override = hierro
-	p.add_child(cana)
-	var cepo := MeshInstance3D.new()
-	var barra := CylinderMesh.new()
-	barra.top_radius = 0.007 * s
-	barra.bottom_radius = 0.007 * s
-	barra.height = 0.075 * s
-	cepo.mesh = barra
-	# El cepo tambien en el plano del casco (tumbado en x, no saliendo en z).
-	cepo.rotation_degrees.z = 90.0
-	cepo.position = Vector3(0.0, 0.05 * s, 0.0)
-	cepo.material_override = hierro
-	p.add_child(cepo)
+	# La ARGOLLA de arriba, por donde se amarra.
 	var aro := MeshInstance3D.new()
 	var toro := TorusMesh.new()
-	toro.inner_radius = 0.008 * s
-	toro.outer_radius = 0.016 * s
+	toro.inner_radius = 0.012 * s
+	toro.outer_radius = 0.024 * s
+	toro.rings = 10
+	toro.ring_segments = 6
 	aro.mesh = toro
-	aro.position = Vector3(0.0, 0.078 * s, 0.0)
+	aro.position = Vector3(0.0, 0.098 * s, 0.0)
 	aro.material_override = hierro
 	p.add_child(aro)
-	# PLANA CONTRA EL CASCO (pedido por el usuario): los brazos se abren en
-	# el plano X-Y, pegados a la tabla, no hacia fuera en z.
+	# LA CAÑA, de la argolla a la cruz.
+	var cana := MeshInstance3D.new()
+	var cil := CylinderMesh.new()
+	cil.top_radius = 0.010 * s
+	cil.bottom_radius = 0.013 * s
+	cil.height = 0.175 * s
+	cil.radial_segments = 8
+	cana.mesh = cil
+	cana.position = Vector3(0.0, 0.0, 0.0)
+	cana.material_override = hierro
+	p.add_child(cana)
+	# EL CEPO: la barra cruzada de arriba, PERPENDICULAR a los brazos. Es la
+	# que hace que de lejos se lea "ancla" y no "cruz".
+	var cepo := MeshInstance3D.new()
+	var barra := BoxMesh.new()
+	barra.size = Vector3(0.010, 0.010, 0.150) * s
+	cepo.mesh = barra
+	cepo.position = Vector3(0.0, 0.072 * s, 0.0)
+	cepo.material_override = hierro
+	p.add_child(cepo)
+	# LOS BRAZOS, en ARCO: cuatro tramos cortos que bajan y se abren.
 	for lado in [-1.0, 1.0]:
-		var brazo := MeshInstance3D.new()
-		var bc := CylinderMesh.new()
-		bc.top_radius = 0.007 * s
-		bc.bottom_radius = 0.009 * s
-		bc.height = 0.07 * s
-		brazo.mesh = bc
-		brazo.rotation_degrees.z = 55.0 * lado
-		brazo.position = Vector3(0.026 * s * lado, -0.058 * s, 0.0)
-		brazo.material_override = hierro
-		p.add_child(brazo)
+		var tramos := [
+			[Vector3(0.014, -0.090, 0.0), 20.0, 0.040],
+			[Vector3(0.040, -0.108, 0.0), 48.0, 0.040],
+			[Vector3(0.070, -0.115, 0.0), 74.0, 0.036],
+		]
+		for tr in tramos:
+			var seg := MeshInstance3D.new()
+			var sc := CylinderMesh.new()
+			sc.top_radius = 0.009 * s
+			sc.bottom_radius = 0.010 * s
+			sc.height = float(tr[2]) * s
+			sc.radial_segments = 6
+			seg.mesh = sc
+			var q: Vector3 = tr[0]
+			seg.position = Vector3(q.x * s * lado, q.y * s, 0.0)
+			seg.rotation_degrees.z = float(tr[1]) * -lado
+			seg.material_override = hierro
+			p.add_child(seg)
+		# LA UÑA: prisma triangular aplastado, la pala que muerde el fondo.
 		var una := MeshInstance3D.new()
-		var cono := CylinderMesh.new()
-		cono.top_radius = 0.0
-		cono.bottom_radius = 0.013 * s
-		cono.height = 0.030 * s
-		una.mesh = cono
-		una.position = Vector3(0.052 * s * lado, -0.075 * s, 0.0)
+		var pris := CylinderMesh.new()
+		pris.top_radius = 0.0
+		pris.bottom_radius = 0.034 * s
+		pris.height = 0.052 * s
+		pris.radial_segments = 3
+		una.mesh = pris
+		una.scale = Vector3(1.0, 1.0, 0.45)
+		una.position = Vector3(0.098 * s * lado, -0.100 * s, 0.0)
+		una.rotation_degrees.z = -58.0 * lado
 		una.material_override = hierro
 		p.add_child(una)
 
@@ -479,12 +522,13 @@ static func _canon(pivot: Node3D, s: float, alto: float) -> Node3D:
 	# fogonazo cae en cielo abierto.
 	var p := Node3D.new()
 	p.name = "ColCanon"
-	# EN LA CUBIERTA Y PEGADO AL SUELO, por el costado que mira a la camara
-	# (pedido por el usuario). Estuvo montado ENCIMA de la borda porque en
-	# cubierta lo tapaba el propio costado; se resuelve al reves, adelantando
-	# el conjunto hasta el canto de la borda para que asome por encima de ella
-	# sin dejar de apoyar las ruedas en las tablas.
-	p.position = Vector3(-0.225 * s, alto * CUBIERTA, 0.088 * s)
+	# A MEDIA ESLORA, EN LA CUBIERTA Y PEGADO AL SUELO, asomando al mar por el
+	# costado que mira a la camara (pedido por el usuario). MEDIDO: a media
+	# eslora la cubierta cae en y -0.12 y la borda solo sube hasta -0.03/-0.09,
+	# o sea que un cañon apoyado en las tablas asoma por encima de ella. En la
+	# proa, que es donde estuvo, la cubierta va mucho mas baja (-0.18) y el
+	# costado se lo tragaba.
+	p.position = Vector3(-0.020 * s, alto * MEDIA_CUBIERTA, 0.100 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var hierro := _mat(Color(0.24, 0.25, 0.29))
@@ -557,7 +601,10 @@ static func _huevo(pivot: Node3D, s: float, alto: float) -> void:
 	# EN LA CUBIERTA DE POPA (pedido por el usuario): +x es la popa, y ahi la
 	# cubierta del castillo esta mas alta que la de proa.
 	var p := Node3D.new()
-	p.position = Vector3(0.455 * s, alto * POPA_CUBIERTA, 0.0)
+	# Un pelo hacia dentro y CORRIDO HACIA LA CAMARA (pedido por el usuario):
+	# centrado en z chocaba con el paño de la vela de mesana, que cruza el
+	# barco de banda a banda; adelantado, pasa por delante de ella.
+	p.position = Vector3(0.440 * s, alto * POPA_CUBIERTA, -0.095 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var huevo := MeshInstance3D.new()
