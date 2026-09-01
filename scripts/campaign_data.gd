@@ -1523,7 +1523,7 @@ const MAP_POS: Dictionary = {
 	"nivel_17": Vector2(LANE_RIGHT, -2708.0),
 	"nivel_18": Vector2(LANE_CENTER, -3020.0),
 	"nivel_19": Vector2(LANE_LEFT, -3332.0),
-	"nivel_110": Vector2(LANE_RIGHT, -3644.0),
+	"nivel_20": Vector2(LANE_RIGHT, -3644.0),
 	"vispera_kappa": Vector2(LANE_CENTER, -3956.0),
 	# LA CUEVA DEL KAPPA, a dos pasos del escenario 19 (el usuario la acerco:
 	# con el mar 2 continuando por encima, el aislamiento de antes ya no tenia

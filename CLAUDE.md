@@ -6709,6 +6709,31 @@ de la carta entera, así que piden recalibrar `star_money`.
 - Llegadas: horario escalonado con jitter; primero ~5 s, nadie en los últimos
   `ARRIVAL_TAIL` (22 s); `arrival_scale` (<1) comprime el horario (nivel 2 0.65).
 
+## DOS HERRAMIENTAS QUE HAY QUE USAR (y no volver a tantear)
+
+- **`tools/auditar.gd`** — `--headless --script "res://tools/auditar.gd"`.
+  Cruza los CATÁLOGOS entre sí y canta lo que no cuadra. Es lo que el
+  compilador NO ve, porque son datos: un escenario que premia una receta
+  inexistente, un escenario sin sitio en `MAP_POS`, una receta cuyos `steps` y
+  `stages` no cuadran, un maridaje que apunta a nada, un mapa del tesoro que
+  premia una pieza que no existe, un logro con las metas desordenadas.
+  **Pasarla después de tocar cualquier catálogo.** Ya cazó de verdad un
+  escenario colado como `nivel_110` (un `%d` mal escrito) y dos ingredientes
+  —harina y masa de tempura— que ninguna tabla declaraba y salían con el id
+  crudo en la chapa de la tabla.
+- **`tools/medir_adornos.gd`** — `--path . "res://tools/medir_adornos.tscn"`.
+  Le pone colisión de malla al barco y de cada adorno dice a qué distancia
+  está de la superficie de debajo, qué fracción se ve desde la cámara del
+  juego y dónde cae en píxeles; y trae un buscador que recorre la cubierta
+  diciendo dónde hay tablas y cuánto se vería una pieza puesta ahí.
+  **Colocar adornos a ojo está prohibido** (pedido por el usuario: "deja de
+  hacer pruebas a ciegas y mídelo en condiciones todo") — cada intento cuesta
+  un render de un minuto y solo contesta "se ve / no se ve".
+  · **TRAMPA, ya pagada**: contesta "la primera superficie que hay DEBAJO", no
+    "el suelo". Leído desde muy arriba devuelve una VERGA (0.420 en vez de
+    0.236), así que hay que leerlo desde una altura que ya esté por debajo del
+    aparejo. Y restar a ojo la distancia que reporta ENTIERRA la pieza.
+
 ## Flujo de trabajo por cambio
 
 1. Editar el/los script(s) o `.tscn`.

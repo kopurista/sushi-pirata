@@ -115,6 +115,13 @@ class_name RecipeData
 ## vende ni consume usos).
 const INGREDIENTS: Dictionary = {
 	"arroz": { "name": "Arroz", "short": "Arroz", "color": Color(0.93, 0.92, 0.85), "cost": 0 },
+	# LA HARINA Y LA MASA DE TEMPURA no estaban declaradas y las usan la
+	# tempura y el takoyaki: sin ficha, su chapa en la tabla salia con el id
+	# crudo ("¡Sin harina!" en vez de "¡Sin Harina!") y sin color. Van a
+	# COSTE 0, que es como se comportaban ya: al no estar en la tabla,
+	# `ingredients_for_selection` las trataba como gratis.
+	"harina": { "name": "Harina", "short": "Harin", "color": Color(0.95, 0.92, 0.82), "cost": 0 },
+	"masa_tempura": { "name": "Masa de tempura", "short": "Masa", "color": Color(0.96, 0.90, 0.70), "cost": 0 },
 	"aguacate": { "name": "Aguacate", "short": "Aguac", "color": Color(0.45, 0.75, 0.35), "cost": 15 },
 	"salmon": { "name": "Salmón", "short": "Salm", "color": Color(1.0, 0.55, 0.45), "cost": 23 },
 	"wakame": { "name": "Wakame", "short": "Wak", "color": Color(0.2, 0.5, 0.35), "cost": 15 },
