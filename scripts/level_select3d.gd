@@ -89,7 +89,7 @@ const FICHA_BAJADA := 40.0
 ## Los dos de abajo se quedan como TOPES ABSOLUTOS: el plano del agua tiene que
 ## cubrir el mapa entero (el barco viaja de un mar a otro) y el fondeadero del
 ## menú, que está muy por debajo.
-const SCROLL_TOPE := -18416.0
+const SCROLL_TOPE := -18076.0
 const SCROLL_SUELO := CampaignData.MAP_HEIGHT - 560.0
 ## El mar que se está enseñando, y los topes que le tocan.
 var mar_actual := 1
@@ -422,9 +422,9 @@ func _carteles_de_mar() -> void:
 		y_arriba = minf(y_arriba, y)
 		y_abajo = maxf(y_abajo, y)
 	if _mar_alcanzable(mar_actual + 1):
-		_cartel_de_paso(mar_actual + 1, y_arriba - PASO_CARTEL)
+		_cartel_de_paso(mar_actual + 1, _frontera(mar_actual, mar_actual + 1))
 	if _mar_alcanzable(mar_actual - 1):
-		_cartel_de_paso(mar_actual - 1, y_abajo + PASO_CARTEL)
+		_cartel_de_paso(mar_actual - 1, _frontera(mar_actual - 1, mar_actual))
 
 
 ## MODELO del cartel de paso, uno por sentido. La FLECHA va tallada en la
@@ -502,20 +502,29 @@ func cambiar_de_mar(mar: int, destino_id := "") -> void:
 		return
 	var subiendo := mar > mar_actual
 	cambiando_mar = true
-	# --- 1) NAVEGAR HASTA EL CARTEL, que es mar abierto -------------------
-	# El barco y la cámara se van juntos hasta la altura del cartel de paso. Es
-	# la mitad visible del viaje: se ve salir del mar viejo.
-	var y_cartel: float = _borde_del_mar(subiendo)
-	await _viajar_a_altura(y_cartel, PASO_VIAJE)
+	# --- 1) NAVEGAR HASTA LA FRONTERA -------------------------------------
+	# El barco y la cámara se van juntos hasta el punto medio del hueco entre
+	# los dos mares, que es donde está el cartel. Es la mitad visible del
+	# viaje: se ve salir del mar viejo.
+	var y_frontera: float = _frontera(mar_actual, mar)
+	# El tope del scroll no puede impedir llegar: la frontera está FUERA del
+	# mar en curso a propósito.
+	scroll_min = minf(scroll_min, y_frontera)
+	scroll_max = maxf(scroll_max, y_frontera)
+	await _viajar_barco(Vector2(CampaignData.LANE_CENTER, y_frontera),
+		y_frontera, PASO_VIAJE)
 	if not is_inside_tree():
 		return
-	# --- 2) EL CAMBIAZO, con la cámara sobre agua vacía --------------------
-	# Aquí no hay ningún escenario en cuadro (por eso el cartel va al final de
-	# la ruta y no entre nodos), así que soltar un mar y montar el otro no se
-	# ve. Es lo que convierte un corte en una travesía.
+	# --- 2) EL RELEVO, SIN MOVER LA CÁMARA --------------------------------
+	# La frontera es el MISMO punto para los dos mares, así que aquí no hay
+	# nada que recolocar: se suelta uno, se monta el otro y la cámara sigue
+	# exactamente donde estaba. Lo único que cambia en cuadro es el cartel,
+	# que pasa a apuntar al mar del que se viene.
 	mar_actual = mar
 	_limpiar_mar()
 	_limites_del_mar()
+	scroll_min = minf(scroll_min, y_frontera)
+	scroll_max = maxf(scroll_max, y_frontera)
 	_setup_route()
 	_setup_nodes()
 	_carteles_de_mar()
@@ -527,16 +536,11 @@ func cambiar_de_mar(mar: int, destino_id := "") -> void:
 			mi.add_to_group(GRUPO_MAR)
 			flotantes.append(mi)
 	_rehacer_overlays()
-	# La cámara aparece en el OTRO extremo del mar nuevo, sobre el mismo agua
-	# vacía y viajando en el MISMO sentido: el jugador no ve un salto, ve que
-	# la travesía sigue.
-	var y_entrada: float = _borde_del_mar(not subiendo)
-	cam_center = y_entrada
-	ship_px = Vector2(CampaignData.LANE_CENTER, y_entrada)
-	_update_camera()
 	# --- 3) ENTRAR EN EL MAR NUEVO ----------------------------------------
 	# Al SUBIR se entra por su primer escenario; al BAJAR, por el último — que
-	# es de donde se venía, así que se lee como dar media vuelta.
+	# es de donde se venía, así que se lee como dar media vuelta. Y se viaja
+	# hasta su ANCLAJE, no hasta el carril: así el barco llega ya aparcado y no
+	# hay que colocarlo de golpe al final.
 	var lista := CampaignData.ports_of_sea(mar_actual)
 	if lista.is_empty():
 		cambiando_mar = false
@@ -544,47 +548,73 @@ func cambiar_de_mar(mar: int, destino_id := "") -> void:
 	var destino := str(lista[0]["id"]) if subiendo else str(lista.back()["id"])
 	if destino_id != "" and CampaignData.sea_of(destino_id) == mar_actual:
 		destino = destino_id
-	await _viajar_a_altura(CampaignData.map_pos(destino).y, ENTRADA_VIAJE)
+	await _viajar_barco(_ship_anchor(destino),
+		CampaignData.map_pos(destino).y, ENTRADA_VIAJE)
 	if not is_inside_tree():
 		return
+	_limites_del_mar()
 	cambiando_mar = false
 	_select(destino, false)
 
 
-## El borde de mar abierto de este mar por el lado que se pide: la altura del
-## cartel de paso, o el mismo sitio aunque el cartel no exista (bajando desde
-## un mar sin salida por arriba).
-func _borde_del_mar(arriba: bool) -> float:
-	var lista := CampaignData.ports_of_sea(mar_actual)
-	if lista.is_empty():
+## LA FRONTERA ENTRE DOS MARES ES UN SOLO PUNTO, y de ahí sale todo lo demás:
+## el sitio del cartel de paso y el sitio donde se hace el cambiazo. Es el
+## punto medio del hueco que los separa.
+##
+## POR QUÉ IMPORTA QUE SEA UNO Y NO DOS: el primer intento tenía un borde por
+## mar (cada uno a `PASO_CARTEL` de su escenario extremo) y, con el hueco de
+## 1.000 px, esos dos bordes distaban 340 — así que al cambiar de mar la cámara
+## daba un salto de 340 px. Eso era EL CORTE. Ahora el hueco entre mares vale
+## exactamente `2 × PASO_CARTEL` (`CampaignData.MAP_POS`), así que el punto
+## medio está a `PASO_CARTEL` de los dos y la cámara no se mueve ni un píxel al
+## hacer el relevo.
+func _frontera(mar_a: int, mar_b: int) -> float:
+	# LA TRAVESÍA VA DE SUR A NORTE Y EN EL MAPA MÁS `y` ES MÁS AL SUR, así que
+	# el mar de número MAYOR es el del NORTE (el 1 arranca en y=3220 y el 2
+	# acaba en y=-17922). Tenerlo del revés ponía la frontera en el punto medio
+	# de la campaña ENTERA: medido, la cámara se iba a -7.354 en vez de -8.560.
+	var norte := maxi(mar_a, mar_b)
+	var sur := mini(mar_a, mar_b)
+	# Las dos orillas que se miran: lo más al norte del mar del sur y lo más al
+	# sur del mar del norte.
+	var y_sur := _extremo_del_mar(sur, true)
+	var y_norte := _extremo_del_mar(norte, false)
+	if is_inf(y_sur) or is_inf(y_norte):
 		return cam_center
-	var y_arriba: float = INF
-	var y_abajo: float = -INF
-	for p in lista:
-		var y: float = CampaignData.map_pos(str(p["id"])).y
-		y_arriba = minf(y_arriba, y)
-		y_abajo = maxf(y_abajo, y)
-	return (y_arriba - PASO_CARTEL) if arriba else (y_abajo + PASO_CARTEL)
+	return (y_sur + y_norte) * 0.5
 
 
-## Lleva cámara y barco a esa altura del mapa, juntos, y espera a que lleguen.
-func _viajar_a_altura(y_px: float, seg: float) -> void:
+## El escenario más al norte (`arriba`) o al sur de ese mar, en píxeles de mapa.
+func _extremo_del_mar(mar: int, arriba: bool) -> float:
+	var y := INF if arriba else -INF
+	for p in CampaignData.ports_of_sea(mar):
+		var v: float = CampaignData.map_pos(str(p["id"])).y
+		y = minf(y, v) if arriba else maxf(y, v)
+	return y
+
+
+## Lleva cámara y barco a la vez y espera a que lleguen. El barco va a un PUNTO
+## del mapa (no a un carril fijo): así el último tramo de una travesía entre
+## mares termina en el ANCLAJE del escenario y no hay que colocarlo de golpe al
+## final, que era el otro salto que se veía.
+func _viajar_barco(destino: Vector2, y_camara: float, seg: float) -> void:
 	if scroll_tween != null:
 		scroll_tween.kill()
+		scroll_tween = null
 	if ship_tween != null:
 		ship_tween.kill()
+		ship_tween = null
 	scroll_speed = 0.0
-	Audio.sfx("barco_mover")
+	Audio.sfx_suave("barco_mover", 0.0, minf(seg * 0.3, 0.3),
+		randf_range(0.88, 1.12), seg, randf_range(0.45, 1.30))
+	var subiendo := destino.y < ship_px.y
 	var tw := create_tween()
 	tw.set_parallel(true)
 	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tw.tween_property(self, "cam_center", y_px, seg)
-	tw.tween_property(self, "ship_px", Vector2(CampaignData.LANE_CENTER, y_px), seg)
-	# El rolido del viaje, el mismo que usa `_select` al mover el barco.
-	tw.tween_property(self, "ship_roll", 6.0 if y_px < cam_center else -6.0,
-		seg * 0.35)
-	tw.set_parallel(false)
-	tw.tween_property(self, "ship_roll", 0.0, seg * 0.4)
+	tw.tween_property(self, "cam_center", y_camara, seg)
+	tw.tween_property(self, "ship_px", destino, seg)
+	tw.tween_property(self, "ship_roll", 6.0 if subiendo else -6.0, seg * 0.35)
+	tw.chain().tween_property(self, "ship_roll", 0.0, seg * 0.4)
 	await tw.finished
 
 

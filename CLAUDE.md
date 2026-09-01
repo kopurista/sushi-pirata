@@ -660,18 +660,49 @@ duplicado — el mapa, la cámara, los carriles y el barco son los mismos. Lo
 
 **Y EL CAMBIO DE MAR ES UNA TRAVESÍA, no un corte** (pedido por el usuario).
 `cambiar_de_mar` va en tres tiempos:
-1. El barco y la cámara **navegan hasta el cartel**, que está en mar abierto.
-2. **Ahí se hace el cambiazo**: se suelta el mar viejo y se monta el nuevo. No
-   se ve porque en cuadro no hay ningún escenario — que es justamente por lo
-   que el cartel va al final de la ruta y no entre nodos. La cámara reaparece
-   en el OTRO extremo del mar nuevo, sobre el mismo agua vacía y viajando en
-   el MISMO sentido.
-3. **Se entra en el mar nuevo** hasta su primer escenario (subiendo) o el
-   último (bajando, que es de donde se venía).
+1. El barco y la cámara **navegan hasta la FRONTERA**, que es donde está el
+   cartel.
+2. **Ahí se hace el relevo, SIN MOVER LA CÁMARA NI UN PÍXEL.**
+3. **Se entra en el mar nuevo** hasta el ANCLAJE de su primer escenario
+   (subiendo) o del último (bajando, que es de donde se venía).
+
+**LA FRONTERA ES UN SOLO PUNTO PARA LOS DOS MARES, y de ahí sale todo.** El
+primer intento tenía un borde por mar, cada uno a `PASO_CARTEL` de su escenario
+extremo; con el hueco de 1.000 px entre mares esos dos bordes distaban 340, así
+que al relevar **la cámara daba un salto de 340 px — ESO era el corte**. Ahora
+el hueco vale exactamente `2 × PASO_CARTEL` (se ajustó `MAP_POS` del mar 2), el
+punto medio queda a `PASO_CARTEL` de los dos y `_frontera()` devuelve el mismo
+número se venga del mar que se venga.
+· **OJO CON EL SENTIDO**: la travesía va de sur a norte y en el mapa **más `y`
+  es más al SUR**, así que el mar de número MAYOR es el del NORTE. Tenerlo del
+  revés ponía la frontera en el punto medio de la campaña entera (medido: la
+  cámara se iba a −7.354 en vez de −8.560).
+· El último tramo va al **ANCLAJE**, no al carril: antes terminaba en el centro
+  y `_select` colocaba el barco de golpe, que era el otro salto que se veía.
+
 Mientras dura, `cambiando_mar` bloquea los toques en los nodos: sus tweens
 llevan la cámara y el barco, y un toque por el camino los partiría en dos. Y
 `_select` con un escenario de otro mar delega en la travesía pasándole ESE
 escenario como destino, o se aterrizaría en otro sitio.
+
+**Y AL ENTRAR EN EL MAPA EL BARCO NO CRUZA LA CAMPAÑA** (`main_menu._enter_map`,
+pedido por el usuario). Tweneaba desde el fondeadero del menú (y=4424) hasta el
+escenario abierto: **14.686 px MEDIDOS**, pasando por delante de todos los
+escenarios del mar aunque no se vieran. Ahora aparece a `APROXIMACION` (760 px)
+al sur de su destino y solo navega esa entrada.
+· **EL SALTO NO SE VE porque el barco Y la cámara se corren LO MISMO.** Pero
+  eso solo vale si se recolocan EN EL MISMO FOTOGRAMA: esto corre en un
+  callback de tween, que puede caer después del `_process` del mapa, y moviendo
+  solo la cámara ese fotograma se dibujaba con la cámara nueva y el barco en el
+  sitio viejo. MEDIDO: **13.586 px de salto en pantalla, un solo fotograma** —
+  el "tirón" que se veía. Con los dos recolocados a la vez, el mayor salto por
+  fotograma baja a **3,5 px**.
+
+**LAS TRES TRAVESÍAS, MEDIDAS** (sonda por fotograma; al tocarlas, repetirla):
+
+    menu -> aventura   3,5 px de salto maximo en pantalla
+    isla -> isla       1.112 px, aterriza clavado en el anclaje teorico
+    cruzar de mar      8,7 px de salto maximo; camara continua en la frontera
 
 ## LOS MAPAS DEL TESORO: LAS MISIONES SECUNDARIAS (montadas el 1-9-2026)
 

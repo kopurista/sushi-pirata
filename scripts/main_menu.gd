@@ -1268,9 +1268,34 @@ func _enter_map(animate: bool) -> void:
 		_focus_last_port(false)
 		leaving = false
 		return
-	var target := last_open_port()
+	# EL DESTINO ES EL PUERTO DE PARTIDA, no `last_open_port` a secas: es el que
+	# decidió `mar_actual` al montar el mapa, así que con cualquier otro el
+	# barco viajaría a un escenario que ni siquiera está montado.
+	var target := _puerto_de_partida()
 	var dest := _ship_anchor(target)
-	var dur := 1.6
+	# EL BARCO NO CRUZA LA CAMPAÑA ENTERA (lo pidió el usuario). Estaba
+	# tweneando desde el fondeadero del menú (y=4424) hasta el escenario
+	# abierto, y eso son 14.686 px de mapa MEDIDOS: pasaba por delante de todos
+	# los escenarios del mar aunque no se vieran. Ahora aparece a un tiro de
+	# piedra de su destino y solo navega esa aproximación.
+	#
+	# EL SALTO NO SE VE porque el barco Y la cámara se corren LO MISMO: en
+	# pantalla el barco se queda exactamente donde estaba, y lo único que
+	# cambia es qué hay debajo — que en ese instante es el menú, sin mapa a la
+	# vista todavía.
+	var salida := dest + Vector2(0.0, APROXIMACION)
+	var dy := salida.y - ship_px.y
+	ship_px.y = salida.y
+	cam_center += dy
+	# LOS DOS SE RECOLOCAN EN EL MISMO FOTOGRAMA. Esto corre en un callback de
+	# tween, que puede caer DESPUÉS del `_process` del mapa: moviendo solo la
+	# cámara, ese fotograma se dibujaba con la cámara nueva y el barco todavía
+	# en el sitio viejo. MEDIDO: un salto de 13.586 px en pantalla, un solo
+	# fotograma — el "tirón" que se veía al entrar en el mapa.
+	if ship_pivot != null:
+		ship_pivot.position = _world(ship_px) + Vector3(0.0, -0.06 + marea(), 0.0)
+	_update_camera()
+	var dur := 1.15
 	# El barco recupera su tamaño de ficha del mapa mientras navega.
 	var scale_tw := create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE)
 	scale_tw.tween_property(ship_pivot, "scale", Vector3.ONE, dur * 0.8)
@@ -2828,6 +2853,10 @@ const TIMON_MANGOS := 8
 ## que para entonces el rumbo ya está en su sitio y el viaje al mapa arranca
 ## recto.
 const RUMBO_VUELTA := 0.45
+
+## LO QUE NAVEGA EL BARCO AL ENTRAR EN EL MAPA, en píxeles de mapa. Es una
+## APROXIMACIÓN, no una travesía: llega desde el sur a su escenario y atraca.
+const APROXIMACION := 760.0
 
 
 ## Mientras el rumbo vuelve a casa, `_process` NO acopla el barco al timón: los
