@@ -16,7 +16,31 @@ extends "res://scripts/level_select3d.gd"
 ## ningún nodo del mapa asome. Va atado a `CampaignData.MAP_POS["nivel_1"]`:
 ## al entrar el nivel 10 la ruta entera bajó un MAP_STEP (215 px) y este ancla
 ## bajó lo mismo, o el nivel 1 asomaba por arriba estando en el menú.
-const MENU_ANCHOR := Vector2(360.0, 4424.0)
+## EL FONDEADERO DEL MENÚ VA AL LADO DEL ESCENARIO AL QUE SE VA A ZARPAR, no
+## en un punto fijo al sur de todo (idea del usuario). A LA MISMA LATITUD y
+## desplazado a la IZQUIERDA lo justo para que no se vea ninguna isla: así,
+## entrar en Aventura no es un salto vertical de 14.000 px que haya que tapar
+## con nada — es el barco navegando a la DERECHA mientras las islas entran en
+## cuadro por ese lado. Y volver es lo mismo al revés, con el barco creciendo
+## según se aleja.
+##
+## El desplazamiento está MEDIDO contra el mapa: los carriles van de x=175 a
+## x=545 y un escenario mide ~300 px de ancho, así que lo dibujado llega hasta
+## x≈695. Con la cámara a −1.020 se ve de −1.380 a −660: quedan 660 px de mar
+## limpio entre el borde del cuadro y la primera isla.
+const MENU_OFF_X := -1020.0
+## Altura del fondeadero cuando todavía no hay ningún escenario que enfocar
+## (partida nueva, antes del tutorial).
+const MENU_Y_SUELTO := 4424.0
+
+
+## Dónde fondea el barco en el menú: al costado del escenario de partida.
+func _fondeadero() -> Vector2:
+	var id := _puerto_de_partida()
+	var y := MENU_Y_SUELTO
+	if id != "" and CampaignData.MAP_POS.has(id):
+		y = CampaignData.map_pos(id).y
+	return Vector2(CampaignData.LANE_CENTER + MENU_OFF_X, y)
 ## Cuánto se sube la vista respecto al barco cuando manda el menú. POSITIVO =
 ## el barco queda por ENCIMA del centro de pantalla: desde que el logotipo se
 ## quedó en la portada, el barco es quien ocupa su hueco de arriba y los
@@ -34,7 +58,9 @@ const MENU_BAND_OFF := 130.0
 const ROD_LOCAL := Vector3(0.0, -0.537, 1.744)
 
 const PORT_OFF := -1500.0
-const PORT_PX := MENU_ANCHOR + Vector2(PORT_OFF, 0.0)
+## La portada, otro tanto a la izquierda del fondeadero.
+func _port_px() -> Vector2:
+	return _fondeadero() + Vector2(PORT_OFF, 0.0)
 ## En la portada la vista se centra por ENCIMA del barco (px de mapa): arriba
 ## manda el logotipo y el barco queda en el tercio de abajo, contra el muelle.
 const START_CAM_LIFT := 380.0
@@ -193,7 +219,7 @@ func _ready() -> void:
 	# El puerto de la portada, alrededor de su ancla. Se construye SIEMPRE
 	# (también al volver de otras pantallas): queda fuera del encuadre del
 	# menú y así el estado de portada nunca depende de por dónde se entró.
-	var port := StartPort.build(self, _world(PORT_PX))
+	var port := StartPort.build(self, _world(_port_px()))
 	GeometryBatch.bake(port, "PortBatch")
 	_setup_birds()
 	_setup_clouds()
@@ -917,11 +943,11 @@ func _show_start() -> void:
 	logo_holder.position.y = home_logo_y
 	start_hint.visible = true
 	menu_blend = 1.0
-	cam_side = PORT_OFF
-	ship_px = PORT_PX
+	cam_side = MENU_OFF_X + PORT_OFF
+	ship_px = _port_px()
 	# La vista se centra por encima del barco: arriba el logotipo, abajo el
 	# barco contra su muelle.
-	cam_center = MENU_ANCHOR.y - START_CAM_LIFT
+	cam_center = _fondeadero().y - START_CAM_LIFT
 	if ship_pivot != null:
 		ship_pivot.scale = Vector3.ONE * MENU_SHIP_SCALE
 	if ship_blob != null:
@@ -955,16 +981,16 @@ func _zarpar_de_la_portada() -> void:
 		ship_tween = create_tween().set_trans(Tween.TRANS_SINE) \
 				.set_ease(Tween.EASE_IN)
 		ship_tween.tween_property(self, "ship_px",
-			PORT_PX + Vector2(700.0, 0.0), 1.2)
+			_port_px() + Vector2(700.0, 0.0), 1.2)
 		get_tree().create_timer(0.55).timeout.connect(func() -> void:
 			_ir_a_la_intro(0.55))
 		return
 	# El mismo viaje que el de Aventura: barco y cámara juntos, sin fundido.
 	ship_tween = create_tween().set_trans(Tween.TRANS_SINE) \
 			.set_ease(Tween.EASE_IN_OUT)
-	ship_tween.tween_property(self, "ship_px", MENU_ANCHOR, START_SAIL)
-	ship_tween.parallel().tween_property(self, "cam_side", 0.0, START_SAIL)
-	ship_tween.parallel().tween_property(self, "cam_center", MENU_ANCHOR.y,
+	ship_tween.tween_property(self, "ship_px", _fondeadero(), START_SAIL)
+	ship_tween.parallel().tween_property(self, "cam_side", MENU_OFF_X, START_SAIL)
+	ship_tween.parallel().tween_property(self, "cam_center", _fondeadero().y,
 		START_SAIL)
 	ship_tween.parallel().tween_property(self, "ship_roll", 6.0,
 		START_SAIL * 0.4)
@@ -1011,8 +1037,9 @@ func _show_menu(animate: bool) -> void:
 		ship_tween = null
 	if not animate:
 		menu_blend = 1.0
-		ship_px = MENU_ANCHOR
-		cam_center = MENU_ANCHOR.y
+		ship_px = _fondeadero()
+		cam_center = _fondeadero().y
+		cam_side = MENU_OFF_X
 		_update_camera()
 	if ship_pivot != null:
 		ship_pivot.scale = Vector3.ONE * MENU_SHIP_SCALE
@@ -1043,9 +1070,9 @@ func _show_ficha() -> void:
 		if caja != null:
 			caja.visible = false
 	menu_blend = 1.0
-	cam_side = 0.0
-	ship_px = MENU_ANCHOR
-	cam_center = MENU_ANCHOR.y
+	cam_side = MENU_OFF_X
+	ship_px = _fondeadero()
+	cam_center = _fondeadero().y
 	if ship_pivot != null:
 		ship_pivot.scale = Vector3.ONE * MENU_SHIP_SCALE
 	if ship_blob != null:
@@ -1265,6 +1292,8 @@ func _enter_map(animate: bool) -> void:
 		_map_ui_fade(true)
 	if not animate:
 		menu_blend = 0.0
+		cam_side = 0.0
+		completar_mar()
 		_focus_last_port(false)
 		leaving = false
 		return
@@ -1273,30 +1302,12 @@ func _enter_map(animate: bool) -> void:
 	# barco viajaría a un escenario que ni siquiera está montado.
 	var target := _puerto_de_partida()
 	var dest := _ship_anchor(target)
-	# EL BARCO NO CRUZA LA CAMPAÑA ENTERA (lo pidió el usuario). Estaba
-	# tweneando desde el fondeadero del menú (y=4424) hasta el escenario
-	# abierto, y eso son 14.686 px de mapa MEDIDOS: pasaba por delante de todos
-	# los escenarios del mar aunque no se vieran. Ahora aparece a un tiro de
-	# piedra de su destino y solo navega esa aproximación.
-	#
-	# EL SALTO NO SE VE porque el barco Y la cámara se corren LO MISMO: en
-	# pantalla el barco se queda exactamente donde estaba, y lo único que
-	# cambia es qué hay debajo — que en ese instante es el menú, sin mapa a la
-	# vista todavía.
-	var salida := dest + Vector2(0.0, APROXIMACION)
-	var dy := salida.y - ship_px.y
-	ship_px.y = salida.y
-	cam_center += dy
-	# (el velo ya está arriba: lo sube `_go_adventure` antes de llamar aquí)
-	# LOS DOS SE RECOLOCAN EN EL MISMO FOTOGRAMA. Esto corre en un callback de
-	# tween, que puede caer DESPUÉS del `_process` del mapa: moviendo solo la
-	# cámara, ese fotograma se dibujaba con la cámara nueva y el barco todavía
-	# en el sitio viejo. MEDIDO: un salto de 13.586 px en pantalla, un solo
-	# fotograma — el "tirón" que se veía al entrar en el mapa.
-	if ship_pivot != null:
-		ship_pivot.position = _world(ship_px) + Vector3(0.0, -0.06 + marea(), 0.0)
-	_update_camera()
-	var dur := 1.15
+	# LA TRAVESÍA ES LATERAL (idea del usuario). El fondeadero del menú está a
+	# la MISMA LATITUD que el escenario y solo apartado a la izquierda, así que
+	# el barco navega hacia la DERECHA y las islas entran en cuadro por ese
+	# lado, navegando. No hay salto vertical, así que no hay nada que tapar:
+	# aquí hubo un teletransporte con velo del color del mar y sobra entero.
+	var dur := 1.35
 	# El barco recupera su tamaño de ficha del mapa mientras navega.
 	var scale_tw := create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE)
 	scale_tw.tween_property(ship_pivot, "scale", Vector3.ONE, dur * 0.8)
@@ -1311,12 +1322,21 @@ func _enter_map(animate: bool) -> void:
 	# La cámara acompaña al barco durante toda la travesía.
 	ship_tween = create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	ship_tween.tween_property(self, "ship_px", dest, dur)
+	# LA CÁMARA VUELVE AL CARRIL: es este desplazamiento LATERAL el que trae el
+	# mapa a cuadro. La altura no se toca — el fondeadero está a la misma
+	# latitud que el escenario — así que no hay salto vertical que tapar.
+	ship_tween.parallel().tween_property(self, "cam_side", 0.0, dur)
 	ship_tween.parallel().tween_property(self, "cam_center",
 		clampf(CampaignData.map_pos(target).y, scroll_min, scroll_max), dur)
 	ship_tween.parallel().tween_property(self, "ship_roll", 6.0, dur * 0.4)
 	ship_tween.parallel().tween_property(self, "ship_roll", 0.0, dur * 0.5) \
 			.set_delay(dur * 0.5)
 	ship_tween.tween_callback(func() -> void:
+		# EL RESTO DEL MAR SE MONTA AL LLEGAR: hasta aquí solo estaba la
+		# ventana de `VENTANA_MENU` escenarios alrededor del destino, que es lo
+		# que cabe en cuadro. Lo que se añade ahora queda fuera, así que no se
+		# le ve aparecer.
+		completar_mar()
 		_select(target, false)
 		leaving = false)
 
@@ -2855,21 +2875,6 @@ const TIMON_MANGOS := 8
 ## recto.
 const RUMBO_VUELTA := 0.45
 
-## LO QUE NAVEGA EL BARCO AL ENTRAR EN EL MAPA, en píxeles de mapa. Es una
-## APROXIMACIÓN, no una travesía: llega desde el sur a su escenario y atraca.
-const APROXIMACION := 760.0
-## Lo que tarda el mar en aparecer (y en irse) al entrar o salir del mapa.
-## El velo del mar: lo que tarda en tapar y en despejarse. Sube deprisa (el
-## teletransporte va justo detrás) y baja despacio, con el barco ya navegando.
-const VELO_SUBE := 0.20
-const VELO_BAJA := 0.45
-## Lo que el velo se queda OPACO entre el salto y el despeje.
-const VELO_QUIETO := 0.14
-
-
-## Un `await` de usar y tirar para código que no puede ser corrutina.
-func _tras(seg: float, que: Callable) -> void:
-	get_tree().create_timer(seg).timeout.connect(que, CONNECT_ONE_SHOT)
 
 
 ## Mientras el rumbo vuelve a casa, `_process` NO acopla el barco al timón: los
@@ -3232,22 +3237,9 @@ func _go_adventure() -> void:
 	# El barco no leva anclas hasta que el logotipo y los botones han SALIDO
 	# del todo; si no, se ven irse a la vez que entra el mapa.
 	tw.tween_interval(OUT_TIME + 0.08)
-	# EL VELO DEL MAR sube justo antes del teletransporte y baja con el barco ya
-	# navegando: es lo que tapa el instante en que el paisaje cambia de golpe.
 	tw.tween_callback(func() -> void:
-		velo_mar(true, VELO_SUBE))
-	tw.tween_interval(VELO_SUBE)
-	tw.tween_callback(func() -> void:
-		# OPACO DEL TODO justo en el fotograma del teletransporte: subiendo con
-		# tween se quedaba en 0,88 y el paisaje se leía por debajo (medido en
-		# captura). El salto de 0,88 a 1 va tapado por el propio velo.
-		velo_mar(true, 0.0)
 		_set_menu_ui_visible(false)
-		_enter_map(true)
-		# UN INSTANTE OPACO ANTES DE DESPEJAR. Encadenando el fundido en el
-		# mismo fotograma, el tween ya había avanzado para cuando se dibujaba y
-		# el velo salía al 0,83: el paisaje se leía por debajo (medido).
-		_tras(VELO_QUIETO, func() -> void: velo_mar(false, VELO_BAJA)))
+		_enter_map(true))
 
 
 ## Vuelta del mapa al menú: el barco desanda el camino y todo reaparece.
@@ -3266,30 +3258,17 @@ func _back_to_menu() -> void:
 		Vector3.ONE * MENU_SHIP_SCALE, dur * 0.8).set_delay(dur * 0.2)
 	scale_tw.tween_property(ship_blob, "scale",
 		Vector3.ONE * MENU_SHIP_SCALE, dur * 0.8).set_delay(dur * 0.2)
-	# EL BARCO TAMPOCO DESANDA LA CAMPAÑA AL VOLVER (lo pidió el usuario):
-	# navega hacia el sur su `APROXIMACION` y, con el mar ya fundido, se
-	# teletransporta al fondeadero con la cámara. El salto no se ve porque los
-	# dos se corren lo mismo Y en el mismo fotograma.
-	var salida := ship_px + Vector2(0.0, APROXIMACION)
+	# LA VUELTA ES LA IDA AL REVÉS (idea del usuario): el barco navega hacia la
+	# IZQUIERDA mientras CRECE, y las islas se van quedando atrás por la
+	# derecha. Como el fondeadero está a la MISMA LATITUD que el escenario, es
+	# un movimiento puramente lateral: no hay salto que tapar y no hace falta
+	# ni velo ni teletransporte.
 	ship_tween = create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	ship_tween.tween_property(self, "ship_px", salida, dur * 0.45)
-	ship_tween.parallel().tween_property(self, "cam_center",
-		cam_center + APROXIMACION, dur * 0.45)
-	ship_tween.tween_callback(func() -> void:
-		velo_mar(true, VELO_SUBE))
-	ship_tween.tween_interval(VELO_SUBE)
-	ship_tween.tween_callback(func() -> void:
-		velo_mar(true, 0.0)
-		var dy := MENU_ANCHOR.y - ship_px.y
-		ship_px.y += dy
-		cam_center += dy
-		if ship_pivot != null:
-			ship_pivot.position = _world(ship_px) 				+ Vector3(0.0, -0.06 + marea(), 0.0)
-		_update_camera()
-		_tras(VELO_QUIETO, func() -> void: velo_mar(false, VELO_BAJA)))
-	ship_tween.tween_property(self, "ship_px", MENU_ANCHOR, dur * 0.55)
-	ship_tween.parallel().tween_property(self, "cam_center", MENU_ANCHOR.y,
-		dur * 0.55)
+	ship_tween.tween_property(self, "ship_px", _fondeadero(), dur)
+	ship_tween.parallel().tween_property(self, "cam_side", MENU_OFF_X, dur)
+	ship_tween.parallel().tween_property(self, "cam_center", _fondeadero().y, dur)
+	ship_tween.parallel().tween_property(self, "ship_roll", -6.0, dur * 0.4)
+	ship_tween.parallel().tween_property(self, "ship_roll", 0.0, dur * 0.5) 			.set_delay(dur * 0.5)
 	create_tween().set_trans(Tween.TRANS_SINE).tween_property(
 		self, "menu_blend", 1.0, dur * 0.7)
 	# La interfaz vuelve con su propio temporizador: colgarla del tween del
@@ -4424,7 +4403,7 @@ func _ui_in(con_recursos := true, con_nivel := true) -> void:
 func _play_menu_intro() -> void:
 	_set_menu_ui_visible(true)
 	_sky_in()
-	ship_px = MENU_ANCHOR - Vector2(OFFSCREEN, 0.0)
-	create_tween().tween_property(self, "ship_px", MENU_ANCHOR, 0.95) \
+	ship_px = _fondeadero() - Vector2(OFFSCREEN, 0.0)
+	create_tween().tween_property(self, "ship_px", _fondeadero(), 0.95) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	_ui_in()

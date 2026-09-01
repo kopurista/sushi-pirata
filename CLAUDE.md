@@ -738,31 +738,41 @@ el de subir del otro, superpuestos— y además caían en el grupo equivocado
 (cuando se creaban, `mar_montando` ya estaba restaurado), así que `_limpiar_mar`
 se los llevaba y al volver de cruzar no quedaba ninguno.
 
-**EL SALTO ENTRE EL MENÚ Y EL MAPA VA TAPADO CON UN VELO DEL COLOR DEL MAR**
-(`velo_mar`). Ese viaje no puede ser continuo —el fondeadero está a 14.000 px—
-así que la cámara se teletransporta; el barco no se ve saltar porque va con
-ella, pero lo que hay DEBAJO cambiaba de golpe.
-· **SE PROBÓ ANTES con `GeometryInstance3D.transparency`** —un fundido por
-  instancia que no obliga a tocar los materiales— y **NO SIRVE**: solo hace
-  efecto si el material tiene la transparencia habilitada, y estos modelos son
-  opacos. MEDIDO en captura: con la transparencia a 1, las islas seguían
-  dibujándose enteras.
-· El velo es del color del agua (19, 71, 153, medido sobre una captura) y no
-  negro: el menú y el mapa son los dos casi todo mar, así que se lee como que
-  el agua pasa por delante.
-· **Y SE QUEDA OPACO UN INSTANTE** (`VELO_QUIETO`) entre el salto y el
-  despeje: encadenando el fundido en el mismo fotograma, el tween ya había
-  avanzado al dibujarse y el velo salía al 0,83 — el paisaje se leía por
-  debajo.
+**EL FONDEADERO DEL MENÚ VA AL COSTADO DEL ESCENARIO AL QUE SE VA A ZARPAR**
+(idea del usuario), no en un punto fijo al sur de toda la campaña: a la MISMA
+LATITUD y apartado a la izquierda (`MENU_OFF_X`, −1.020) lo justo para que no
+se vea ninguna isla. Con eso, **entrar en Aventura deja de ser un salto que
+haya que tapar** — es el barco navegando a la DERECHA mientras las islas entran
+en cuadro por ese lado, y volver es lo mismo al revés con el barco creciendo
+según se aleja. La cámara NO se mueve en vertical ni un píxel (medido: 0,0).
+· El desplazamiento está MEDIDO contra el mapa: los carriles van de x=175 a
+  x=545 y un escenario mide ~300 px, así que lo dibujado llega a x≈695; con la
+  cámara a −1.020 se ve de −1.380 a −660, o sea 660 px de mar limpio.
+· `MENU_ANCHOR` pasó a ser la función `_fondeadero()`, y la portada
+  (`_port_px`) cuelga de ella con su `PORT_OFF` de siempre.
+· **DESDE EL MENÚ SOLO SE MONTA UNA VENTANA** de `VENTANA_MENU` (3) escenarios
+  arriba y abajo del destino — 7 en total, que es más de lo que cabe en cuadro.
+  El resto lo monta `completar_mar()` AL LLEGAR, ya fuera de cuadro, así que no
+  se le ve aparecer. MEDIDO: 7 montados en el menú, 25+2 al llegar.
+
+**LO QUE SE PROBÓ ANTES Y NO VALÍA, para no repetirlo:**
+· Un teletransporte de cámara con el barco compensando: el barco no saltaba,
+  pero lo que había DEBAJO cambiaba de golpe (donde había mar abierto
+  aparecían todos los escenarios).
+· `GeometryInstance3D.transparency` para fundir el paisaje: **NO HACE NADA con
+  materiales opacos**, y estos modelos lo son. Medido en captura — con la
+  transparencia a 1, las islas seguían dibujándose enteras.
+· Un velo del color del mar tapando el salto: funcionaba, pero era un fundido
+  donde ahora hay una travesía. El usuario lo retiró.
 
 **LAS CUATRO TRAVESÍAS, MEDIDAS** (sonda por fotograma; al tocarlas,
 repetirla). El detector de CORTES es el salto de la CÁMARA, no lo que se mueve
 el barco en pantalla: el barco va deprisa a propósito en mitad de un viaje.
 
-    menu -> aventura   3,5 px de salto maximo en pantalla
+    menu -> aventura   5,8 px el barco y 0,0 la CAMARA (viaje lateral puro)
     isla -> isla       1.112 px, aterriza clavado en el anclaje teorico
     cruzar de mar      16,4 px/fotograma de camara (la velocidad del tween)
-    volver al menu     20 px, y sin desandar la campana
+    volver al menu     2,3 px, lateral y sin desandar la campana
 
 **Y EL CARTEL DE SUBIR SE VE ENTERO**: desde el extremo norte del mar 1 cae en
 pantalla entre **y 231 y 454**, justo por debajo de la barra de arriba (que

@@ -320,10 +320,11 @@ func _ready() -> void:
 	# tres funciones sueltas, `mar_montando` se quedaba en su valor inicial (1)
 	# y los nodos del mar 2 acababan etiquetados como del 1 — así que al cruzar
 	# no se liberaba ninguno y el mapa se quedaba con los dos mares puestos.
-	_montar_mar(mar_actual)
-	_montar_bordes()
+	# SOLO LA VENTANA alrededor del escenario de partida: el resto lo monta
+	# `completar_mar()` al llegar al mapa. Desde el menú no se ve más que eso,
+	# y así el arranque no paga la campaña entera.
+	_montar_ventana(_puerto_de_partida(), VENTANA_MENU)
 	_rehacer_ruta()
-	_refrescar_carteles()
 	_setup_ship()
 	_setup_camera()
 	# El fusionado de la ruta y su apunte en `flotantes` los hace ya
@@ -577,46 +578,45 @@ func _limpiar_mar(mar: int) -> void:
 			node_world.erase(pid)
 
 
-## EL VELO DEL MAR: tapa el instante en que la cámara se teletransporta entre
-## el fondeadero del menú y el mapa.
-##
-## POR QUÉ HACE FALTA: ese viaje no puede ser continuo —el fondeadero está a
-## 14.000 px del sitio donde juega el jugador, y recorrerlos era pasar por
-## delante de toda la campaña, que es lo que el usuario quitó—. El barco no se
-## ve saltar porque va con la cámara, pero lo que hay DEBAJO cambia de golpe:
-## donde había mar abierto aparecen todos los escenarios.
-##
-## SE PROBÓ ANTES con `GeometryInstance3D.transparency`, que es un fundido por
-## instancia, y NO SIRVE: solo hace efecto si el material tiene la
-## transparencia habilitada, y estos modelos son opacos. Medido en captura —
-## con la transparencia puesta a 1, las islas seguían dibujándose enteras.
-##
-## Va del COLOR DEL MAR (medido sobre una captura: 19, 71, 153) y no a negro:
-## el menú y el mapa son los dos casi todo agua, así que se lee como que el mar
-## pasa por delante y no como un fundido a negro.
-const VELO_MAR := Color(0.075, 0.277, 0.599)
-var velo: ColorRect = null
 
 
-## Sube o baja el velo. Devuelve el tween para poder encadenar.
-func velo_mar(tapar: bool, seg: float) -> Tween:
-	if ui == null:
-		return null
-	if velo == null or not is_instance_valid(velo):
-		velo = ColorRect.new()
-		velo.color = Color(VELO_MAR.r, VELO_MAR.g, VELO_MAR.b, 0.0)
-		velo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		velo.set_anchors_preset(Control.PRESET_FULL_RECT)
-		velo.size = GameState.canvas_size()
-		velo.z_index = 90
-		ui.add_child(velo)
-	ui.move_child(velo, ui.get_child_count() - 1)
-	if seg <= 0.0:
-		velo.color.a = 1.0 if tapar else 0.0
-		return null
-	var tw := create_tween()
-	tw.tween_property(velo, "color:a", 1.0 if tapar else 0.0, seg)
-	return tw
+## CUÁNTOS ESCENARIOS SE MONTAN ALREDEDOR DEL DESTINO mientras se está en el
+## MENÚ (pedido por el usuario). Con tres arriba y tres abajo está cubierto lo
+## que cabe en cuadro —el encuadre da para unos cuatro escenarios—, así que al
+## llegar el mapa ya parece entero; el resto se monta entonces, ya fuera de
+## cuadro, y no se le ve aparecer.
+const VENTANA_MENU := 3
+
+
+## Monta la ventana alrededor de ese escenario y nada más. Es lo que hay puesto
+## mientras el jugador está en el menú.
+func _montar_ventana(id: String, n: int) -> void:
+	var mar := CampaignData.sea_of(id)
+	var lista := CampaignData.ports_of_sea(mar)
+	var i := -1
+	for k in lista.size():
+		if str(lista[k]["id"]) == id:
+			i = k
+			break
+	if i < 0:
+		_montar_mar(mar)
+		return
+	var ids: Array = []
+	for k in range(maxi(i - n, 0), mini(i + n + 1, lista.size())):
+		ids.append(str(lista[k]["id"]))
+	_montar_mar(mar, ids)
+
+
+## COMPLETA EL MAR EN CURSO: lo que faltaba por montar, los bordes de los
+## vecinos, la ruta y los carteles. Se llama al LLEGAR al mapa — hasta entonces
+## solo está la ventana de `_montar_ventana`, y lo que se añade aquí cae fuera
+## de cuadro, así que no se ve aparecer nada.
+func completar_mar() -> void:
+	_montar_mar(mar_actual)
+	_montar_bordes()
+	_rehacer_ruta()
+	_refrescar_carteles()
+	_rehacer_overlays()
 
 
 ## CUÁNTOS ESCENARIOS DEL MAR VECINO se dejan puestos aunque no toque
