@@ -246,12 +246,15 @@ const RETRATO_3D_QUIEN := {
 ## Hablantes con modelo PROPIO fuera de CharacterData.MODELS (el busto de
 ## David salido de Meshy a partir de su retrato de Ludo, sin rig: no gesticula).
 const RETRATO_3D_RUTA := {
-	"david": "res://assets/models/david_busto.glb",
+	"david": "res://assets/models/david_toy.glb",
 }
 ## Encuadre de BUSTO, el del cartel de recompensa: fov vertical, banda de
 ## altura del modelo que se ve y aire sobre la coronilla.
 const R3D_FOV := 34.0
 const R3D_BAND := 0.42
+## Banda por hablante: un cabezón de juguete (la cabeza es media altura) pide
+## más banda para que quepan la cabeza y el arranque de la barba.
+const R3D_BANDA_QUIEN := { "david": 0.62 }
 const R3D_AIR := 0.05
 ## El hablante mira hacia la caja: unos grados de guiñada hacia el centro.
 const R3D_YAW := 24.0
@@ -732,6 +735,15 @@ func _retrato_3d(side: String, who: String, mood: String) -> bool:
 		relleno.light_energy = 0.26
 		relleno.shadow_enabled = false
 		vp.add_child(relleno)
+		# Luz de CANTO por detrás y arriba: es lo que enciende el borde de una
+		# figurita de vinilo y la despega del fondo (estilo Link's Awakening);
+		# con solo clave y relleno el juguete salía plano.
+		var canto := DirectionalLight3D.new()
+		canto.rotation_degrees = Vector3(-40.0, 150.0 if side == "right" else -150.0, 0.0)
+		canto.light_energy = 0.55
+		canto.light_color = Color(0.85, 0.92, 1.0)
+		canto.shadow_enabled = false
+		vp.add_child(canto)
 		_r3d[side] = { "vp": vp, "cam": cam, "root": null, "anim": null,
 			"who": "", "mood": "serio" }
 	var r: Dictionary = _r3d[side]
@@ -778,7 +790,7 @@ func _encuadrar_3d(side: String) -> void:
 	var caja := _aabb_3d(r["root"])
 	if caja.size.y <= 0.0:
 		return
-	var banda: float = caja.size.y * R3D_BAND
+	var banda: float = caja.size.y * float(R3D_BANDA_QUIEN.get(r["who"], R3D_BAND))
 	var arriba: float = caja.position.y + caja.size.y
 	var centro_y: float = arriba - banda * (0.5 - R3D_AIR)
 	var d: float = banda / (2.0 * tan(deg_to_rad(R3D_FOV) * 0.5))

@@ -6164,6 +6164,82 @@ personajes en 3D. Está montado como PROTOTIPO en `DialogueBox` y ENCENDIDO
   (el primero completa el tecleo y el segundo pasa): para capturar cada línea
   va uno solo.
 
+## EL NUEVO ESTILO DE LOS PERSONAJES: FIGURITAS DE LINK'S AWAKENING (3-9-2026)
+
+**Decidido por el usuario, no re-litigar: los personajes se rehacen DESDE CERO
+en el estilo del remake de Link's Awakening (Switch, 2019)**, y el low poly
+facetado de antes se olvida. Pasó veinte capturas, la lista de modelos
+extraídos de models-resource (que se MIRAN en su visor 3D y no entran en el
+juego: son de Nintendo) y dos vídeos (walkthrough `9iTQCA7FxEQ` y cinemáticas
+`L1zl5EXFBbU`). Lo que define el estilo, medido sobre todo eso:
+- Figurita de vinilo brillante: cabeza ≈ la mitad del alto, formas hinchadas
+  sin aristas, manos de manopla, pies de bulto. Nada de contorno de tinta.
+- Cara: dos ÓVALOS NEGROS verticales sin iris ni blanco (cerrados = arcos),
+  cejas y boca como trazos finos, nariz de bola. Los animales sí llevan blanco
+  y pupila.
+- COLOR PLANO por pieza, con un degradado suave HORNEADO en la textura (más
+  oscuro hacia abajo y en los huecos; el visor sin luz lo enseña) y el brillo
+  lo pone la luz del juego. El pelo y la barba son masas macizas con una banda
+  de brillo. Los estampados son parches lisos.
+- La malla es DENSA y de cuadrados suaves (el alambre de Tarin), no low poly.
+- En el juego NO hay retratos ni primeros planos: el personaje habla en el
+  escenario con cámara cenital, cabeceando y moviendo los brazos, y la cara
+  cambia por textura (ojos cerrados, boca). El mundo es un diorama con
+  tilt-shift. Nuestros retratos 3D en la caja van un paso más allá que el
+  propio remake, y es lo que quiere el usuario.
+
+**EL PILOTO ES DAVID** ("un capitán pirata calvo y con gran barba"), y la
+cadena que salió de él vale para el resto del reparto:
+1. **Concepto en Ludo** (`createImage`, image_type `3d`, art_style
+   `Stylized 3D` o `Claymation`, `augment_prompt` false, fondo blanco,
+   A-pose con las piernas separadas): clava el estilo A LA PRIMERA describiendo
+   la figurita pieza a pieza. Lo que el usuario decidió mirando las tandas:
+   BARBA REDONDEADA (no en punta, como Tarin y Papahl), que no tape al loro,
+   orejas redondas, y **ojos = óvalos suaves ~2:1** — ni la rendija del primer
+   concepto ni el círculo de la tanda "más redondos" ("parecen un Funko Pop").
+   El retoque fino de los ojos (un 10% más cortos) se hizo con PIL sobre el
+   concepto, no con otra vuelta de Ludo que mueve el resto: borrar el blob
+   con la máscara DILATADA 4 px (sin dilatar, el antialias del negro dejaba un
+   aro claro alrededor) y redibujar la elipse supermuestreada.
+2. **Meshy image→3D** (`tools/meshy.py imagen <id> <concepto> --poly 12000`,
+   ~16k tris, 15 créditos; el usuario: "no te preocupes por los créditos, que
+   salga perfecto"). **Su rig FALLA con un cabezón** ("Pose estimation
+   failed"): el rig irá por Blender. **Y EL CONCEPTO SE MANDA SIN OJOS**
+   (`_gen/la_david/david_la7_concepto.png`): con ojos, Meshy los TALLA como
+   cuencas con reborde que cogen luz y ningún repintado las esconde —se
+   probó repintar encima, aplanar la cuenca suavizando vértices, y las dos
+   cosas dejaban "la marca de los ojos alargados" que vio el usuario—. Con la
+   cara lisa, los ojos se pintan en Blender donde estaban en el dibujo
+   (`<id>_ojos.json`: separación y ancho en fracción del ancho de la cabeza a
+   esa altura, altura y alto en fracción del alto total).
+3. **Blender, `tools/blender/david_la.py`** (`-- <crudo.glb> <id> [concepto]`),
+   con las lecciones que costaron una pasada cada una:
+   · **SOLDAR VÉRTICES** (`remove_doubles`): Meshy parte la malla en cada
+     costura del atlas (12.449 vértices para 16.313 triángulos; cerrada serían
+     ~8.200) y cada isla calculaba sus normales sola: el sombreado salía a
+     PARCHES con los bordes de las islas. Se perdieron cuatro rondas culpando
+     a la paleta y a la oclusión.
+   · Borrar las normales personalizadas que trae y suavizar.
+   · **LA PALETA SALE DEL CONCEPTO**, no de la textura de Meshy (que hornea
+     sombreado y hasta facetas): neutros por brillo en tres cubos (negro,
+     gris, blanco), saturados por CROMA con k-means++ (con semillas al azar el
+     beige del pantalón, de poca área, no salía nunca) y FUSIÓN POR TONO
+     (<15° y saturación parecida: la piel a la luz y a la sombra es una; el
+     beige y el oro comparten tono pero no saturación y se quedan aparte).
+     `SAT_MIN` 0.10 (a 0.16 la mitad del beige caía al blanco). Filtro de
+     moda 5×5 sobre las etiquetas.
+   · **OCLUSIÓN horneada con Cycles** (`bake AO`, CPU, 48 muestras) y
+     multiplicada al 55%: es el degradado de juguete. Sin AO (medido) el
+     modelo se lee plano.
+   · Rugosidad 0.32, metálico 0, export glb con la textura a 1024 en JPEG.
+   Renders Workbench de comprobación en cada pasada; `PREF`/`AO` por entorno.
+4. **Godot**: `.import` con el hook y presupuesto 20000 (no se decima),
+   `fix_texture_imports`. Al REEXPORTAR el glb hay que borrar la textura
+   extraída y `.godot/imported/<id>*`. En la caja de diálogo: `RETRATO_3D_RUTA`
+   apunta a `david_toy.glb`, banda de busto por hablante (`R3D_BANDA_QUIEN`,
+   0.62 para el cabezón) y una LUZ DE CANTO fría por detrás, que es lo que
+   enciende el borde del vinilo.
+
 ## EL EXPERIMENTO DE ESTILO DE SEPTIEMBRE (revertido, NO reintroducir sin
 ## pedirlo)
 
