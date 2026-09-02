@@ -2555,7 +2555,12 @@ La GUÍA lleva su sección ("El canto de sirena").
     propia palabra "game" del prompt) — los iconos de objeto van SIEMPRE con
     "item-icon", como los coleccionables.
   · Tocar un icono abre su POPUP (dibujo con marco de color, nombre, rangos
-    en estrellas, descripción, "Ahora/Siguiente" y el REPARTO con [−] y [+]):
+    en estrellas, descripción, "Ahora/Siguiente" y el REPARTO con [−] y [+]).
+    **EL REPARTO DEL POPUP SON LOS MISMOS PUNTITOS DE LA TARJETA** (pedido por
+    el usuario, dos veces): decía "0 / 25" —lo invertido sobre el total de la
+    habilidad—, luego "3 / 5", y ninguna era lo que el jugador acababa de ver
+    en la rejilla. `_dibujar_bolas` lee el radio de un meta (7 en la tarjeta,
+    11 en la ficha) y al máximo se queda el "MÁX." de siempre:
     **LA REASIGNACIÓN ES LIBRE Y CONTINUA, punto a punto** (decisión del
     usuario). El [+] compra en el acto (el [−] existe para arrepentirse) y el
     paso 0→1 se celebra con la ventana de "¡Habilidad aprendida!" (corona de

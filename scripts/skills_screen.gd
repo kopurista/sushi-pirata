@@ -630,8 +630,10 @@ func _dibujar_bolas(c: Control) -> void:
 	var dados: int = int(c.get_meta("dados", 0))
 	if total <= 0:
 		return
-	var r := 7.0
-	var hueco := 6.0
+	# El tamaño lo pone quien las monta: chicas en la tarjeta, grandes en la
+	# ficha (que ahí hay sitio y son la cifra que manda).
+	var r: float = float(c.get_meta("radio", 7.0))
+	var hueco: float = r * 6.0 / 7.0
 	var ancho: float = total * r * 2.0 + (total - 1) * hueco
 	var x: float = (c.size.x - ancho) * 0.5 + r
 	var y: float = c.size.y * 0.5
@@ -937,20 +939,28 @@ func _fill_popup() -> void:
 	centro.alignment = BoxContainer.ALIGNMENT_CENTER
 	centro.add_theme_constant_override("separation", -2)
 	fila.add_child(centro)
-	var pts_l := Label.new()
-	# LA MISMA CUENTA QUE LA TARJETA DE LA REJILLA (pedido por el usuario): los
-	# puntos entregados HACIA EL SIGUIENTE RANGO sobre lo que pide ese rango
-	# ("3 / 5"). Decia "0 / 25" —lo invertido sobre el total de la habilidad—
-	# y con las bolitas de la tarjeta diciendo otra cosa parecian dos cuentas
-	# distintas de lo mismo.
+	# LOS MISMOS PUNTITOS QUE LA TARJETA DE LA REJILLA (pedido por el usuario,
+	# dos veces): una fila de bolitas que se van llenando hacia el rango
+	# siguiente, aqui mas grandes. Decia "0 / 25" —lo invertido sobre el total
+	# de la habilidad— y luego "3 / 5", y ninguna de las dos era lo que el
+	# jugador acababa de ver en la tarjeta. Al maximo, "MAX." como alli.
 	var coste := SkillData.rank_cost(id)
-	var dados: int = coste if rank >= SkillData.MAX_RANK else pts % coste
-	pts_l.text = "%d / %d" % [dados, coste]
-	pts_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pts_l.add_theme_font_size_override("font_size", 36)
-	pts_l.add_theme_color_override("font_color",
-		ORO if rank >= SkillData.MAX_RANK else DARK)
-	centro.add_child(pts_l)
+	if rank >= SkillData.MAX_RANK:
+		var pts_l := Label.new()
+		pts_l.text = "MÁX."
+		pts_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		pts_l.add_theme_font_size_override("font_size", 36)
+		pts_l.add_theme_color_override("font_color", ORO)
+		centro.add_child(pts_l)
+	else:
+		var bolas := Control.new()
+		bolas.custom_minimum_size = Vector2(150.0, 44.0)
+		bolas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bolas.set_meta("total", coste)
+		bolas.set_meta("dados", pts % coste)
+		bolas.set_meta("radio", 11.0)
+		bolas.draw.connect(_dibujar_bolas.bind(bolas))
+		centro.add_child(bolas)
 	var rango_l := Label.new()
 	rango_l.text = "rango %d de %d" % [rank, SkillData.MAX_RANK]
 	rango_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
