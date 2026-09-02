@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 
 GameState="*res://scripts/game_state.gd"
 Audio="*res://scripts/audio.gd"
+GodotIQRuntime="*uid://dgn2y20r57beq"
 
 [display]
 
@@ -28,6 +29,10 @@ window/size/viewport_height=1280
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/handheld/orientation=1
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/godotiq/plugin.cfg")
 
 [gui]
 

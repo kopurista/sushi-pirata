@@ -41,3 +41,4 @@ __pycache__/
 # esta fuera del proyecto: aqui no se guarda ninguna clave en claro.
 /.env.local
 /tools/.meshy_key
+.godotiq/
