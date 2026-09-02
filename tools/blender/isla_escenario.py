@@ -1,7 +1,7 @@
 # MONTA EL ESCENARIO DE ISLA EN BLENDER Y LO EXPORTA A UN SOLO .glb
 # (piloto del 2-9-2026: Blender como taller de montaje entre Meshy y Godot).
 #
-#   "C:/Program Files/Blender Foundation/Blender 4.1/blender.exe" --background \
+#   "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background \
 #       --python tools/blender/isla_escenario.py
 #
 # Replica `level3d._scenery_island`: los dos discos de arena, las cuatro

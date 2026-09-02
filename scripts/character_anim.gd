@@ -597,6 +597,31 @@ func sit_idle(t: float) -> void:
 ## CANTO DE SIRENA (mar 2): el cliente atontado gira la cabeza hacia lo
 ## lejos y la mece despacio, como quien escucha algo que nadie mas oye. Se
 ## llama DESPUES de sit_idle y ACUMULA sobre esa pose (reset() ya paso).
+## GESTO DE DIÁLOGO según el humor de la línea (prototipo de retratos 3D):
+## va ENCIMA de `idle`, tocando solo la cabeza y algo el pecho. Un modelo no
+## tiene los doce gestos de un dibujo; tiene cinco o seis posturas.
+func gesto(mood: String, t: float) -> void:
+	match mood:
+		"hablando", "explicando", "loro":
+			_pitch("Head", 3.0 * sin(t * 7.0))
+			_yaw("Head", 2.5 * sin(t * 3.1))
+		"feliz", "riendo":
+			_pitch("Head", -6.0 + 2.0 * sin(t * 9.0))
+			_roll("Head", 6.0)
+		"sorprendido", "loro_sorpresa", "mira_loro":
+			_pitch("Head", -10.0)
+			_pitch("Spine1", -4.0)
+		"enfadado", "furioso", "colerico", "gritando", "loro_grito", "punal":
+			_pitch("Head", 9.0)
+			_pitch("Spine1", 6.0)
+		"triste", "callado", "dormido", "loro_resignado":
+			_pitch("Head", 10.0)
+			_roll("Head", 4.0)
+		"cantando":
+			_pitch("Head", -12.0)
+			_roll("Head", 5.0 * sin(t * 2.0))
+
+
 func embobado(t: float) -> void:
 	_yaw("Neck", 30.0 + sin(t * 0.8) * 8.0)
 	_yaw("Head", 14.0)

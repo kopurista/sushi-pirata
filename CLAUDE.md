@@ -6029,8 +6029,9 @@ generando **Ludo**. Todo lo que dice este archivo sobre `createImage`,
 Meshy genera y Ludo dibuja; **Blender monta, decima y remata**, y se maneja de
 dos maneras:
 - **Por MCP**, con `ahujasid/blender-mcp`: el addon (`blender_mcp`) está
-  instalado y activado en Blender 4.1 (`%APPDATA%/Blender Foundation/Blender/
-  4.1/scripts/addons/blender_mcp.py`) y el servidor dado de alta en la
+  instalado y activado en Blender 5.2 (`%APPDATA%/Blender Foundation/Blender/
+  5.2/scripts/addons/blender_mcp.py`; el usuario actualizó de la 4.1 el mismo día
+  y el script de la isla dio el mismo resultado en las dos) y el servidor dado de alta en la
   configuración LOCAL de Claude Code (`claude mcp add blender -s local --
   C:\Users\KOPURISTA\.venvs\blender-mcp\Scripts\blender-mcp.exe`). Va en un
   venv con pip a propósito: `uvx blender-mcp` se estrellaba en este equipo al
@@ -6083,6 +6084,43 @@ exportar. Lecciones que costaron una pasada cada una:
 - Con Blender delante la comprobación es la de siempre: sonda con
   `RenderingServer.get_rendering_info` + captura, la de código contra la de
   Blender. Nada de dar por bueno un montaje sin la pareja de cifras.
+
+## RETRATOS 3D EN EL DIÁLOGO: PROTOTIPO (2-9-2026, pedido por el usuario)
+
+El usuario quiere que los diálogos dejen de usar arte dibujado y enseñen a los
+personajes en 3D. Está montado como PROTOTIPO en `DialogueBox` y ENCENDIDO
+(`RETRATO_3D := true`; con `false` vuelve todo al dibujo sin tocar nada más):
+- El hablante que tiene modelo se dibuja VIVO en un `SubViewport`
+  (`own_world_3d`, fondo transparente, del tamaño del retrato) con la luz floja
+  del cartel de recompensa y encuadre de BUSTO (`R3D_BAND` 0.42 del alto desde
+  la coronilla, `R3D_FOV` 34, guiñada `R3D_YAW` 24° hacia la caja). El
+  `TextureRect` de siempre recibe `vp.get_texture()`, así que el tinte, el
+  hundido y la escala del que escucha siguen funcionando igual.
+- Quién tiene modelo: `RETRATO_3D_QUIEN` (los de `CharacterData.MODELS`: Cai,
+  Pablo, Alice, Miku, Nach, Kappa, sirena y los seis clientes) y
+  `RETRATO_3D_RUTA` (modelos propios: `david_busto.glb`). Gigi y Saverio siguen
+  en dibujo, y un hablante sin modelo cae al PNG solo.
+- Los rigueados respiran (`idle`) y GESTICULAN por humor con
+  `CharacterAnim.gesto(mood, t)` (cabeza y pecho; seis grupos de humores). El
+  RESET va cada fotograma, que `_rotate_bone` acumula. El de "gritando" sale
+  demasiado fuerte (la cabeza cae al pecho): por afinar.
+- **DAVID SALIÓ DE MESHY A PARTIR DE SU RETRATO DE LUDO** (`python tools/meshy.py
+  imagen david_busto assets/characters/david/david_serio.png --poly 6000`, 15
+  créditos, 4,5 min): cuerpo entero, 14.871 triángulos, textura 2048². Se
+  reconoce (calvo, barba gris, casaca con galón, camisa a rayas) **pero PERDIÓ
+  A GIGI**: el loro del hombro no sobrevivió al paso a 3D. Sin rig, no
+  gesticula. `tools/blender/david_busto.py` lo mide y renderiza (`inspeccion`,
+  Workbench a 512×640 desde tres ángulos) o lo decima, centra y exporta
+  (`montar`).
+- **LO QUE LIMITA LA CALIDAD ES LA TEXTURA, no la malla**: a distancia de busto
+  los atlas a 512/256 px de los modelos de juego salen borrosos (Alice, la
+  pirata). David va con `size_limit` 1024 en su `.jpg.import` y se le ven las
+  facetas del mentón. Para pasarlo a producción: texturas de cara a 1024, rig
+  para David (Meshy `--rig`) y devolverle a Gigi como pieza aparte en Blender.
+- Medidas del piloto en captura: `scratchpad/dialogo_david3d.png` y
+  `dialogo_pirata.png`. Una sonda con dos `_advance()` seguidos SALTA una línea
+  (el primero completa el tecleo y el segundo pasa): para capturar cada línea
+  va uno solo.
 
 ## EL EXPERIMENTO DE ESTILO DE SEPTIEMBRE (revertido, NO reintroducir sin
 ## pedirlo)

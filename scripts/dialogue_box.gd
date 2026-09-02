@@ -225,6 +225,39 @@ var _raise_tween: Tween = null
 ## Retratos por lado y quién ocupa cada uno ("" = vacío).
 var _portraits := {}
 var _stage := { "left": "", "right": "" }
+
+## RETRATOS EN 3D (prototipo del 2-9-2026, pedido por el usuario: "dejar de
+## utilizar arte dibujado" en los diálogos). El hablante que TIENE RIG se
+## dibuja VIVO dentro de un SubViewport del tamaño del retrato, con la misma
+## luz floja y el mismo encuadre de busto del cartel de recompensa; el
+## TextureRect de siempre recibe la textura del viewport, así que el tinte,
+## el hundido y la escala del que escucha siguen funcionando igual. Los que no
+## tienen modelo (David, Gigi, Saverio) siguen con su dibujo.
+const RETRATO_3D := true
+## Hablante → [personaje de CharacterData.MODELS, género].
+const RETRATO_3D_QUIEN := {
+	"cai": ["cai", "m"], "pablo": ["pablo", "m"], "alice": ["alice", "f"],
+	"miku": ["miku", "f"], "nach": ["nach", "m"], "kappa": ["kappa", "m"],
+	"sirena": ["sirena", "f"],
+	"grumete": ["grumete", "m"], "grumete_f": ["grumete", "f"],
+	"pirata": ["pirata", "m"], "pirata_f": ["pirata", "f"],
+	"capitan": ["capitan", "m"], "capitan_f": ["capitan", "f"],
+}
+## Hablantes con modelo PROPIO fuera de CharacterData.MODELS (el busto de
+## David salido de Meshy a partir de su retrato de Ludo, sin rig: no gesticula).
+const RETRATO_3D_RUTA := {
+	"david": "res://assets/models/david_busto.glb",
+}
+## Encuadre de BUSTO, el del cartel de recompensa: fov vertical, banda de
+## altura del modelo que se ve y aire sobre la coronilla.
+const R3D_FOV := 34.0
+const R3D_BAND := 0.42
+const R3D_AIR := 0.05
+## El hablante mira hacia la caja: unos grados de guiñada hacia el centro.
+const R3D_YAW := 24.0
+## side → { "vp", "cam", "root", "anim", "who", "mood" }
+var _r3d := {}
+var _r3d_t := 0.0
 var _portrait_home_y := 0.0
 var _panel_home_y := 0.0
 ## Velo que oscurece el fondo mientras se habla, y el tween de entrada/salida.
@@ -593,8 +626,12 @@ func _set_speaker(who: String, mood: String, lado := "") -> void:
 	if not ResourceLoader.exists(path):
 		path = "%s/%s_%s.png" % [info["dir"], info["file"], info["mood"]]
 	var p: TextureRect = _portraits[side]
-	if ResourceLoader.exists(path):
-		p.texture = load(path)
+	if RETRATO_3D and _retrato_3d(side, who, mood):
+		pass
+	else:
+		_apagar_3d(side)
+		if ResourceLoader.exists(path):
+			p.texture = load(path)
 	p.visible = true
 	_name_label.text = str(info["name"])
 	# Cada hablante tiene su lado de tablón FIJO (`plate`): David a la derecha,
@@ -654,7 +691,127 @@ func _advance() -> void:
 	advanced.emit(_index)
 
 
+## Monta (o reutiliza) el viewport 3D de ese lado con el modelo de `who` y le
+## pone la pose del `mood`. Devuelve false si el hablante no tiene modelo.
+func _retrato_3d(side: String, who: String, mood: String) -> bool:
+	var ruta := ""
+	if RETRATO_3D_RUTA.has(who):
+		ruta = str(RETRATO_3D_RUTA[who])
+	elif RETRATO_3D_QUIEN.has(who):
+		var par: Array = RETRATO_3D_QUIEN[who]
+		ruta = CharacterData.model(str(par[0]), str(par[1]))
+	else:
+		return false
+	if ruta == "" or not ResourceLoader.exists(ruta):
+		return false
+	var p: TextureRect = _portraits[side]
+	if not _r3d.has(side):
+		var vp := SubViewport.new()
+		vp.own_world_3d = true
+		vp.transparent_bg = true
+		vp.size = Vector2i(int(p.offset_right - p.offset_left) if side == "left"
+			else int(p.offset_right - p.offset_left), int(PORTRAIT_BOTTOM - PORTRAIT_TOP))
+		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		add_child(vp)
+		var cam := Camera3D.new()
+		cam.fov = R3D_FOV
+		vp.add_child(cam)
+		# Luz FLOJA, la lección del cartel de recompensa: con la del nivel las
+		# caras claras se queman y el personaje sale sin rasgos.
+		var sun := DirectionalLight3D.new()
+		sun.rotation_degrees = Vector3(-32.0, 38.0 if side == "right" else -38.0, 0.0)
+		sun.light_energy = 0.62
+		sun.shadow_enabled = false
+		vp.add_child(sun)
+		var relleno := DirectionalLight3D.new()
+		relleno.rotation_degrees = Vector3(-12.0, -128.0 if side == "right" else 128.0, 0.0)
+		relleno.light_energy = 0.26
+		relleno.shadow_enabled = false
+		vp.add_child(relleno)
+		_r3d[side] = { "vp": vp, "cam": cam, "root": null, "anim": null,
+			"who": "", "mood": "serio" }
+	var r: Dictionary = _r3d[side]
+	var vp: SubViewport = r["vp"]
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	if r["who"] != who:
+		if r["root"] != null and is_instance_valid(r["root"]):
+			r["root"].queue_free()
+		var root := Node3D.new()
+		vp.add_child(root)
+		var m: Node3D = (load(ruta) as PackedScene).instantiate()
+		# Hacia la caja: el de la izquierda gira a la derecha y al revés.
+		m.rotation_degrees = Vector3(0.0, -R3D_YAW if side == "left" else R3D_YAW, 0.0)
+		root.add_child(m)
+		r["root"] = root
+		r["anim"] = null
+		var skels := m.find_children("*", "Skeleton3D", true, false)
+		if not skels.is_empty():
+			var a := CharacterAnim.new(skels[0])
+			if a.has_humanoid_bones():
+				r["anim"] = a
+				a.reset()
+				a.idle(0.0)
+		r["who"] = who
+		_encuadrar_3d(side)
+	r["mood"] = mood
+	p.texture = vp.get_texture()
+	return true
+
+
+## El retrato de ese lado vuelve al dibujo: el viewport se para (no se libera,
+## que el mismo hablante suele volver dos líneas después).
+func _apagar_3d(side: String) -> void:
+	if _r3d.has(side):
+		var r: Dictionary = _r3d[side]
+		(r["vp"] as SubViewport).render_target_update_mode = SubViewport.UPDATE_DISABLED
+		r["who"] = ""
+
+
+## Encuadre de busto: la banda pegada a la coronilla, como el cartel de
+## recompensa (el AABB de un rig es el del BIND, por eso el aire es generoso).
+func _encuadrar_3d(side: String) -> void:
+	var r: Dictionary = _r3d[side]
+	var caja := _aabb_3d(r["root"])
+	if caja.size.y <= 0.0:
+		return
+	var banda: float = caja.size.y * R3D_BAND
+	var arriba: float = caja.position.y + caja.size.y
+	var centro_y: float = arriba - banda * (0.5 - R3D_AIR)
+	var d: float = banda / (2.0 * tan(deg_to_rad(R3D_FOV) * 0.5))
+	var c := caja.get_center()
+	var cam: Camera3D = r["cam"]
+	cam.position = Vector3(c.x, centro_y, caja.position.z + caja.size.z + d)
+	cam.rotation_degrees = Vector3.ZERO
+
+
+func _aabb_3d(n: Node, acc := AABB()) -> AABB:
+	if n is MeshInstance3D:
+		var mi := n as MeshInstance3D
+		var suya: AABB = mi.global_transform * mi.get_aabb()
+		acc = suya if acc.size == Vector3.ZERO else acc.merge(suya)
+	for c in n.get_children():
+		acc = _aabb_3d(c, acc)
+	return acc
+
+
+## Los retratos 3D respiran y gesticulan según el mood de su línea. RESET
+## obligatorio cada fotograma: `CharacterAnim._rotate_bone` acumula.
+func _tick_3d(delta: float) -> void:
+	if _r3d.is_empty():
+		return
+	_r3d_t += delta
+	for side in _r3d:
+		var r: Dictionary = _r3d[side]
+		if r["who"] == "" or r["anim"] == null:
+			continue
+		var a: CharacterAnim = r["anim"]
+		a.reset()
+		a.idle(_r3d_t)
+		a.gesto(str(r["mood"]), _r3d_t)
+
+
 func _process(delta: float) -> void:
+	_tick_3d(delta)
 	if not visible or not _typing:
 		return
 	var antes := int(_visible_chars)
