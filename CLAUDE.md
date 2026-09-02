@@ -6024,6 +6024,66 @@ generando **Ludo**. Todo lo que dice este archivo sobre `createImage`,
 - **Image-to-3D cuesta 15 créditos y Text-to-3D 30** (medido en
   `consumed_credits`, no en la documentación, que no publica la tabla).
 
+## BLENDER ES EL TALLER DE MONTAJE (piloto del 2-9-2026, pedido por el usuario)
+
+Meshy genera y Ludo dibuja; **Blender monta, decima y remata**, y se maneja de
+dos maneras:
+- **Por MCP**, con `ahujasid/blender-mcp`: el addon (`blender_mcp`) está
+  instalado y activado en Blender 4.1 (`%APPDATA%/Blender Foundation/Blender/
+  4.1/scripts/addons/blender_mcp.py`) y el servidor dado de alta en la
+  configuración LOCAL de Claude Code (`claude mcp add blender -s local --
+  C:\Users\KOPURISTA\.venvs\blender-mcp\Scripts\blender-mcp.exe`). Va en un
+  venv con pip a propósito: `uvx blender-mcp` se estrellaba en este equipo al
+  instalar `pywin32` (un `.tmp` dentro de `scripts/` que uv da por inválido).
+  Para usarlo hay que abrir Blender, pulsar N → pestaña "MCP for Blender" →
+  "Start MCP Server" (puerto 9876); las herramientas `mcp__blender__*` solo
+  aparecen en una sesión nueva de Claude Code.
+- **Por línea de comandos**, que es como se hizo el piloto y como conviene
+  dejar TODO lo reproducible: `"C:/Program Files/Blender Foundation/Blender
+  4.1/blender.exe" --background --python tools/blender/<script>.py`. No
+  depende del MCP ni de que Blender esté abierto.
+
+**EL PILOTO: LA ISLA ENTERA EN UN `.glb`** (`tools/blender/isla_escenario.py`
+→ `assets/models/isla_escenario.glb`, `level3d.ISLA_DESDE_GLB`). El script
+replica `_scenery_island` pieza a pieza (mismas posiciones, tallas y giros;
+las palmeras con porte fijo) y exporta arena, palmeras, cabaña, rocas y
+barriles en un solo archivo. MEDIDO con sonda sobre el escenario 1 (30
+fotogramas, vsync fuera), con la misma captura clavada:
+
+    isla por código   96 draw calls   86.319 primitivas   86.419 tris   351 nodos
+    isla de Blender   96 draw calls   61.796 primitivas   61.896 tris   322 nodos
+
+Los draw calls no cambian (el fusionado de `GeometryBatch` ya juntaba las
+cajas y cada modelo era una llamada); lo que baja un 28 % son los triángulos,
+porque **palmera, rocas, cabaña y barril NO tenían presupuesto en el hook de
+decimado** y en el juego iban a la densidad de Ludo (6.173 / 3.939 / 6.114 /
+1.753). Blender los decima a su tope (3.000 / 2.500 / 3.000 / 1.200) ANTES de
+exportar. Lecciones que costaron una pasada cada una:
+- **EJES**: Godot es Y arriba y Blender Z arriba. El exportador glTF pasa
+  (x, y, z) de Blender a (x, z, −y): una posición de Godot (x, y, z) se
+  escribe en Blender como (x, −z, y), y un giro sobre la Y de Godot es un giro
+  sobre la Z de Blender con el mismo signo. `_spawn_model` se replica con la
+  caja del modelo: escala por ALTO, centro en X/Z y base a 0.
+- **LOS COLORES PLANOS VAN EN LINEAL**: un `albedo_color` de Godot es sRGB y
+  el Base Color de Blender (y el `baseColorFactor` del glTF) es lineal. Pasado
+  tal cual, la arena salió casi blanca en la captura; `lineal()` del script
+  hace la conversión.
+- **El `.import` del `.glb` hay que escribirlo** (copiando el de otro modelo,
+  sin `uid`/`path`) ANTES de importar, o llega con LODs, malla de sombra y sin
+  el hook; y pasar `fix_texture_imports.py` a las texturas extraídas. El
+  presupuesto del hook (`isla_escenario` 26000) es la suma, para que no vuelva
+  a recortar.
+- **Las texturas extraídas se DUPLICAN**: `isla_escenario_Image_0..3.png`
+  son byte a byte `palmera_0`, `rocas_0`, `cabana_0` y `barril_0` (~4 MB de
+  repetición en el repositorio, y el `.glb` las lleva embebidas: 4,5 MB). Para
+  el mar entero habrá que exportar con texturas EXTERNAS apuntando a las que ya
+  existen, o meter cada escenario con una sola paleta.
+- Las manchas de sombra, el mar y la caja de la morsa se quedan en Godot
+  (`_scenery_island_glb`): son del juego, no del decorado.
+- Con Blender delante la comprobación es la de siempre: sonda con
+  `RenderingServer.get_rendering_info` + captura, la de código contra la de
+  Blender. Nada de dar por bueno un montaje sin la pareja de cifras.
+
 ## EL EXPERIMENTO DE ESTILO DE SEPTIEMBRE (revertido, NO reintroducir sin
 ## pedirlo)
 

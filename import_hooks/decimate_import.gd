@@ -30,6 +30,10 @@ const BUDGETS := {
 	"ancla_pirata": 2500,
 	# Atrezzo estático, se ve a pocos píxeles desde la cámara isométrica.
 	"caja": 800,
+	# ESCENARIO ENTERO montado en Blender (tools/blender/isla_escenario.py):
+	# llega ya decimado pieza a pieza; el tope es la suma, para que el hook no
+	# vuelva a recortarlo.
+	"isla_escenario": 26000,
 	"farola": 900,
 	"cofre": 900,
 	# Platos: los otros diez rondan 2.400, estos venían a 29.500.

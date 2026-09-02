@@ -93,6 +93,14 @@ const SPAWN_PROGRESS := BELT_SIDE * 2.0
 # --- Actores ---
 ## Huella (ancho) de la palmera del escenario de isla.
 const PALM_FOOT := 3.4
+## LA ISLA MONTADA EN BLENDER (piloto del 2-9-2026, `tools/blender/
+## isla_escenario.py`): un solo .glb con la arena, las cuatro palmeras, la
+## cabaña, las tres rocas y los dos barriles, cada pieza YA DECIMADA a su tope
+## (en el juego iban a la densidad de Ludo: no tenían presupuesto en el hook).
+## Con `false` se vuelve a la isla construida por código (`_scenery_island`),
+## que se conserva como referencia y como respaldo si falta el archivo.
+const ISLA_DESDE_GLB := true
+const ISLA_GLB := "res://assets/models/isla_escenario.glb"
 
 const CHEF_H := 1.75
 const STOOL_H := 0.47
@@ -1205,7 +1213,10 @@ func _setup_scenery() -> void:
 		"cueva":
 			_scenery_cueva()
 		"isla":
-			_scenery_island()
+			if ISLA_DESDE_GLB and ResourceLoader.exists(ISLA_GLB):
+				_scenery_island_glb()
+			else:
+				_scenery_island()
 		"puerto":
 			_scenery_port()
 		_:
@@ -1605,6 +1616,31 @@ func _scenery_island() -> void:
 	# EL PELUCHE DE MORSA (coleccionable), dormido sobre una caja del arenal:
 	# la caja se pone aqui SOLO si el peluche es tuyo — una caja vacia porque
 	# si ya se quito una vez de esta escena (chocaba con una palmera).
+	if GameState.has_collectible("peluche_morsa") \
+			and ResourceLoader.exists("res://assets/models/caja.glb"):
+		var caja_morsa := _spawn_model(load("res://assets/models/caja.glb"),
+			Vector3(4.9, 0.0, 1.6), 0.66, self)
+		_tint_model(caja_morsa, CRATE_TINT)
+		ColVisibles.morsa_en_isla(self, Vector3(4.9, 0.0, 1.6))
+
+
+## LA ISLA DE BLENDER: el modelo entero a escala de mundo (el script la monta
+## en las mismas coordenadas que `_scenery_island`), y encima lo que es del
+## JUEGO y no del decorado: las manchas de sombra (en las mismas posiciones y
+## tallas, con el porte fijo de cada palmera) y la caja de la morsa.
+func _scenery_island_glb() -> void:
+	var inst: Node3D = load(ISLA_GLB).instantiate()
+	inst.name = "IslaBlender"
+	add_child(inst)
+	for p in [[Vector3(-5.2, 0.0, -2.4), 1.0], [Vector3(1.2, 0.0, -5.2), 0.94],
+			[Vector3(5.2, 0.0, -2.0), 1.08], [Vector3(-1.4, 0.0, 5.1), 0.9]]:
+		var s: float = p[1]
+		_add_blob_shadow(p[0] + Vector3(0.4 * s, 0.02, 0.25 * s), 2.6 * s, 1.7 * s)
+	_add_blob_shadow(Vector3(-5.2, 0.0, -5.2) + Vector3(0.35, 0.02, 0.25), 4.0, 2.6)
+	for r in [[Vector3(-5.4, 0.0, 0.4), 1.0], [Vector3(0.8, 0.0, -5.6), 1.35],
+			[Vector3(4.6, 0.0, -0.6), 1.0]]:
+		_add_blob_shadow(r[0] + Vector3(0.2, 0.02, 0.12),
+			float(r[1]) * 1.15, float(r[1]) * 0.75)
 	if GameState.has_collectible("peluche_morsa") \
 			and ResourceLoader.exists("res://assets/models/caja.glb"):
 		var caja_morsa := _spawn_model(load("res://assets/models/caja.glb"),
