@@ -65,6 +65,26 @@ if modo == "inspeccion":
         sc.render.filepath = OUT + "david_busto_%s.png" % nombre
         bpy.ops.render.render(write_still=True)
         print("[david] render", sc.render.filepath)
+elif modo == "cara":
+    # primer plano de la cabeza, de frente y a tres cuartos
+    sc = bpy.context.scene
+    sc.render.engine = "BLENDER_WORKBENCH"
+    sc.display.shading.light = "STUDIO"
+    sc.display.shading.color_type = "TEXTURE"
+    sc.render.resolution_x = 640; sc.render.resolution_y = 640
+    sc.world = bpy.data.worlds.new("W"); sc.world.color = (0.16, 0.36, 0.52)
+    cam = bpy.data.objects.new("Cam", bpy.data.cameras.new("Cam"))
+    sc.collection.objects.link(cam); sc.camera = cam
+    cam.data.lens = 85
+    dist = alto * 0.75
+    zc = hi[2] - alto * 0.11
+    for nombre, ang in (("cara_frente", 0.0), ("cara_3-4", 35.0)):
+        a = math.radians(ang)
+        cam.location = (cx + dist * math.sin(a), cy - dist * math.cos(a), zc)
+        cam.rotation_euler = (math.radians(90.0), 0.0, a)
+        sc.render.filepath = OUT + "david_%s.png" % nombre
+        bpy.ops.render.render(write_still=True)
+        print("[david] render", sc.render.filepath)
 else:
     for o in mallas:
         if tris(o) > PRESUPUESTO * 1.05:

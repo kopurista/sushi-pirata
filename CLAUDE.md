@@ -6132,6 +6132,33 @@ personajes en 3D. Está montado como PROTOTIPO en `DialogueBox` y ENCENDIDO
   `rdo_quality_loss` 1 solo sube el peso (699 → 836 KB). Y **2048 tampoco**:
   la comparativa 1024/2048 en la caja de diálogo no se distinguía, por 2,4 MB
   contra 0,7.
+- **LA CARA SE RETOCA EN BLENDER DESDE LA GEOMETRÍA** (`tools/blender/
+  david_cara.py`, pedido por el usuario: "quítale las manchas, mejora los
+  ojos"). El atlas de Meshy está TROCEADO como el de Ludo, así que no hay
+  "rectángulo de la cara": el script rasteriza cada triángulo en UV y deshace
+  la interpolación baricéntrica por téxel (la técnica de `face_paint.py`, ahora
+  con numpy dentro de Blender), y con la POSICIÓN y la NORMAL 3D de cada téxel
+  decide. Tres cosas medidas:
+  · **La piel de la cabeza se repinta con un sombreado de cartoon calculado
+    por su normal** (base/sombra × n·L): las manchas eran brillos y costuras
+    HORNEADOS por Meshy, y dos téxeles vecinos en la cara reciben el mismo
+    color aunque vivan en islas distintas del atlas. **Y la máscara se DILATA
+    3 téxeles** sobre lo que no sea gris (cejas, barba) ni oscuro, rellenando
+    el relleno del atlas con la media de la piel vecina: sin eso, los cantos
+    de las islas quedaban como RAYAS claras en la frente y la mejilla.
+  · **Los ojos van POR CONSTRUCCIÓN, no por detección**: a ±0.024 del eje y
+    a `zmax − 0.095·alto`, con la profundidad sacada de la propia superficie,
+    pintados por distancia en el plano de la cara (esclerótica, iris a dos
+    tonos, pupila, párpado y brillo). Detectarlos por color falló DOS veces:
+    los de Meshy eran dos motas y pesaban más las puntas del bigote (a ±0.09)
+    y las sombras. Y la altura se MIDIÓ pintándolos a 0.355, viendo que caían
+    en el bigote y despejando los 0.052 de diferencia con la escala del render
+    (2.228 px/u).
+  · Los renders de comprobación salen del PROPIO script (Workbench, con la
+    imagen ya retocada en memoria); la textura retocada a 2048 queda en
+    `_gen/david_busto_0.retocada.png` y de ahí sale el `.jpg` afinado a 1024.
+    El `.glb` sigue llevando la textura ORIGINAL embebida: si se borra el
+    `.jpg`, Godot la vuelve a extraer y se pierde el retoque.
 - Medidas del piloto en captura: `scratchpad/dialogo_david3d.png` y
   `dialogo_pirata.png`. Una sonda con dos `_advance()` seguidos SALTA una línea
   (el primero completa el tecleo y el segundo pasa): para capturar cada línea
