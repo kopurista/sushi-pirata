@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/fish_fugu.png-55fe1d6ef8b1899d22e30299c08dc45
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.9
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/ic_perks.png-0cb3f1b77673f620f1d61a61434d0243
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.9
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
