@@ -109,6 +109,21 @@ const MARGEN_MAR := 200.0
 ## A que distancia del ultimo escenario se clava el cartel que lleva al mar
 ## siguiente. Va MAS CERCA que el margen, para que se vea antes de llegar.
 const PASO_CARTEL := 330.0
+## UN EXTREMO SIN CARTEL DE PASO SE PARA ANTES DEL ULTIMO ESCENARIO, no
+## despues: alli no hay nada mas que ensenar, asi que el respiro de siempre
+## dejaba una pantalla de agua vacia. Le paso al usuario en el escenario 1 —
+## con el margen puesto la isla se quedaba en la y 300 y por debajo no habia
+## absolutamente nada.
+##
+## MEDIDO en captura (el centro de la pantalla cae en `cam_center + 140`, asi
+## que un nodo a la altura de la camara se dibuja en la y 500):
+##   ABAJO  la camara se para 300 px ANTES -> el escenario en la y 800. Queda
+##          mas alto que su gemelo de arriba porque ahi esta el BARCO, fondeado
+##          72 px por debajo del nodo y bastante mas grande que el.
+##   ARRIBA se para 120 px PASADO -> el escenario en la y 380, con su copa
+##          justo por debajo de la barra de nivel. Con 220 se le metia detras.
+const FIN_ABAJO := 300.0
+const FIN_ARRIBA := 120.0
 ## LA TRAVESÍA ENTRE MARES, en segundos: primero hasta el cartel (agua abierta,
 ## donde el cambiazo no se ve) y después hacia dentro del mar nuevo.
 const PASO_VIAJE := 0.85
@@ -429,12 +444,15 @@ func _limites_del_mar() -> void:
 		var y: float = CampaignData.map_pos(str(p["id"])).y
 		arriba = minf(arriba, y)
 		abajo = maxf(abajo, y)
-	scroll_min = arriba - MARGEN_MAR
-	scroll_max = abajo + MARGEN_MAR
-	# El mar 1 llega hasta el fondeadero del menú, que está muy por debajo de
-	# su primer escenario: sin esto, "Atrás" no podría bajar hasta el barco.
-	if mar_actual == 1:
-		scroll_max = maxf(scroll_max, SCROLL_SUELO)
+	# EL RESPIRO SOLO LO PIDE EL LADO QUE TIENE CARTEL DE PASO, que es lo que
+	# hay que dejar ver. El lado sin cartel se para ANTES del último escenario
+	# (ver `FIN_ABAJO` / `FIN_ARRIBA`): allí no hay nada más que enseñar.
+	#
+	# Y el mar 1 ya no tiene que llegar hasta el fondeadero del menú: desde que
+	# éste va AL COSTADO del escenario al que se zarpa, está a su misma latitud
+	# y no hay nada que alcanzar por debajo.
+	scroll_min = (arriba - MARGEN_MAR) if _mar_alcanzable(mar_actual + 1) 			else arriba + FIN_ARRIBA
+	scroll_max = (abajo + MARGEN_MAR) if _mar_alcanzable(mar_actual - 1) 			else abajo - FIN_ABAJO
 
 
 ## ¿Se puede pasar a ese mar? El SIGUIENTE pide tenerlo abierto (o sea, haber
@@ -901,13 +919,17 @@ func cambiar_de_mar(mar: int, destino_id := "") -> void:
 	_refrescar_carteles()
 	cartel_por_girar = 0
 	_limites_del_mar()
+	# Los topes del mar NUEVO, apuntados antes de ensancharlos: son los que
+	# acotan dónde termina la cámara al final de la travesía.
+	var cam_tope_min := scroll_min
+	var cam_tope_max := scroll_max
 	# El scroll tiene que abarcar los DOS mares mientras dura la travesía, o
 	# sus topes cortarían el viaje por la mitad.
 	scroll_min = minf(scroll_min,
 		minf(_extremo_del_mar(viejo, true) - MARGEN_MAR, y_frontera))
 	scroll_max = maxf(scroll_max,
 		maxf(_extremo_del_mar(viejo, false) + MARGEN_MAR, y_frontera))
-	_rehacer_overlays([viejo, mar])
+	_rehacer_overlays()
 	# --- 1) HASTA LA FRONTERA ---------------------------------------------
 	# EL BARCO NO SE PARA EN EL CARTEL Y NO LE PASA POR EN MEDIO (pedido por el
 	# usuario): la frontera es un punto de PASO, no una parada. Va apartado
@@ -931,6 +953,12 @@ func cambiar_de_mar(mar: int, destino_id := "") -> void:
 		destino = destino_id
 	var paso := Vector2(CampaignData.LANE_CENTER + CARTEL_ROCE, y_frontera)
 	var meta := _ship_anchor(destino)
+	# LA CÁMARA ATERRIZA DENTRO DEL TOPE DEL MAR NUEVO, no en el escenario a
+	# pelo: el extremo sin cartel se para ANTES de su último escenario (ver
+	# `FIN_ABAJO`), así que bajando al mar 1 la travesía dejaba la cámara 300 px
+	# más al sur de donde el mapa permite llegar arrastrando.
+	var cam_fin: float = clampf(CampaignData.map_pos(destino).y,
+			cam_tope_min, cam_tope_max)
 	var d1 := ship_px.distance_to(paso)
 	var d2 := paso.distance_to(meta)
 	var total := PASO_VIAJE + ENTRADA_VIAJE
@@ -945,8 +973,7 @@ func cambiar_de_mar(mar: int, destino_id := "") -> void:
 	# es de donde se venía, así que se lee como dar media vuelta. Y se viaja
 	# hasta su ANCLAJE, no hasta el carril: así el barco llega ya aparcado y no
 	# hay que colocarlo de golpe al final.
-	await _viajar_barco(meta, CampaignData.map_pos(destino).y,
-		total * (1.0 - frac), Tween.EASE_OUT)
+	await _viajar_barco(meta, cam_fin, total * (1.0 - frac), Tween.EASE_OUT)
 	if not is_inside_tree():
 		return
 	# --- 3) SOLTAR EL MAR VIEJO, que ya ha quedado atrás -------------------
@@ -958,7 +985,7 @@ func cambiar_de_mar(mar: int, destino_id := "") -> void:
 	_rehacer_ruta()
 	_refrescar_carteles()
 	_limites_del_mar()
-	_rehacer_overlays([mar, viejo])
+	_rehacer_overlays()
 	cambiando_mar = false
 	_select(destino, false)
 
@@ -1207,6 +1234,7 @@ func _setup_environment() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.75, 0.80, 0.92)
 	env.ambient_light_energy = 0.9
+	SceneBackdrop.apply_look(env)
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -1218,6 +1246,7 @@ func _setup_environment() -> void:
 	# fija (SceneBackdrop.blob_shadow).
 	sun.shadow_enabled = false
 	add_child(sun)
+	add_child(SceneBackdrop.fill_light())
 
 
 ## Mar: plano enorme con el shader de agua (deriva + senos cruzados), tileado
@@ -2045,11 +2074,15 @@ func _orientar_boton_barco(arriba: bool) -> float:
 ## Los overlays 2D de los nodos DEL MAR EN CURSO, mas el de cada cartel de
 ## paso. Se rehacen enteros al cambiar de mar: son los botones con los que se
 ## toca el mapa, así que tienen que corresponderse con lo que hay montado.
-func _rehacer_overlays(mares: Array = []) -> void:
+##
+## SOLO LOS DEL MAR EN CURSO, aunque haya más montados. El BORDE del mar vecino
+## (`_montar_bordes`) está ahí de decorado —"que parezca que siempre estuvieron
+## ahí"— y no se toca: dándole botón, pulsar la última isla del mar de al lado
+## CAMBIABA DE MAR, con lo que el cartel de paso dejaba de ser la única forma
+## de cruzar (le pasó al usuario asomándose al sur del mar 2).
+func _rehacer_overlays() -> void:
 	if ui == null:
 		return
-	if mares.is_empty():
-		mares = [mar_actual]
 	for id in node_overlays:
 		var r: Node = node_overlays[id]["root"]
 		if is_instance_valid(r):
@@ -2077,13 +2110,11 @@ func _rehacer_overlays(mares: Array = []) -> void:
 		var ov2 := _build_paso_overlay(mar_c)
 		node_overlays[clave] = ov2
 		creados.append(ov2["root"])
-	for mar: int in mares:
-		for p in CampaignData.ports_of_sea(mar):
-			# SOLO LOS QUE ESTÁN MONTADOS. `_process` coloca cada overlay con
-			# `node_world[id]`, y el borde de un mar vecino deja ahí unos ids
-			# puestos y otros no: pidiendo uno que no está, revienta.
-			if not montados.has(str(p.id)):
-				continue
+	for p in CampaignData.ports_of_sea(mar_actual):
+		# SOLO LOS QUE ESTÁN MONTADOS. `_process` coloca cada overlay con
+		# `node_world[id]`, y una travesía a medias deja ahí unos ids puestos y
+		# otros no: pidiendo uno que no está, revienta.
+		if montados.has(str(p.id)):
 			var ov := _build_node_overlay(p)
 			node_overlays[p.id] = ov
 			creados.append(ov["root"])

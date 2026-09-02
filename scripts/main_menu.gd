@@ -35,11 +35,17 @@ const MENU_Y_SUELTO := 4424.0
 
 
 ## Dónde fondea el barco en el menú: al costado del escenario de partida.
+##
+## A LA LATITUD A LA QUE LA CÁMARA DEL MAPA PUEDE LLEGAR, no a la del escenario
+## a pelo. Es lo que mantiene la entrada al mapa en un desplazamiento LATERAL
+## PURO (medido: 0,0 px de cámara en vertical): `_enter_map` acota su destino a
+## los topes del mar, y en el escenario 1 el tope se queda 300 px por encima
+## (ver `FIN_ABAJO`), así que sin acotar aquí el barco zarparía en diagonal.
 func _fondeadero() -> Vector2:
 	var id := _puerto_de_partida()
 	var y := MENU_Y_SUELTO
 	if id != "" and CampaignData.MAP_POS.has(id):
-		y = CampaignData.map_pos(id).y
+		y = clampf(CampaignData.map_pos(id).y, scroll_min, scroll_max)
 	return Vector2(CampaignData.LANE_CENTER + MENU_OFF_X, y)
 ## Cuánto se sube la vista respecto al barco cuando manda el menú. POSITIVO =
 ## el barco queda por ENCIMA del centro de pantalla: desde que el logotipo se

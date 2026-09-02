@@ -649,6 +649,22 @@ duplicado — el mapa, la cámara, los carriles y el barco son los mismos. Lo
   `SCROLL_SUELO` se quedan como topes ABSOLUTOS, porque el plano del agua sí
   tiene que cubrirlo todo (el barco viaja de un mar a otro y el fondeadero del
   menú está muy por debajo del mapa).
+  · **Y EL RESPIRO DEL EXTREMO SOLO LO PIDE EL LADO QUE TIENE CARTEL DE PASO**
+    (`MARGEN_MAR`): es el cartel lo que hay que dejar ver. El lado que no lleva
+    ninguno se para **ANTES** del último escenario (`FIN_ABAJO` 300 px,
+    `FIN_ARRIBA` 120), porque ahí ya no hay nada más que enseñar. Con el margen
+    puesto, el escenario 1 se quedaba en la **y 300** y por debajo había una
+    pantalla entera de agua vacía (le pasó al usuario). MEDIDO en captura —el
+    centro de pantalla cae en `cam_center + 140`, así que un nodo a la altura
+    de la cámara se dibuja en la y 500—: hoy el 1 cae en la **y 800** (más alto
+    que su gemelo del norte porque ahí está el BARCO, fondeado 72 px por debajo
+    del nodo) y el último del mar 2 en la **380**, justo bajo la barra de
+    nivel.
+  · **EL FONDEADERO DEL MENÚ SE ACOTA A ESE MISMO TOPE** (`_fondeadero`), o
+    entrar en Aventura dejaría de ser un viaje lateral puro: `_enter_map` acota
+    su destino al mar, así que en el escenario 1 el barco zarpaba en diagonal
+    (300 px). Y por lo mismo, la travesía entre mares aterriza en `cam_fin`,
+    que es el escenario de destino YA acotado.
 - **LOS CARTELES DE PASO** (`_cartel_de_paso`) son la única forma de cambiar:
   un letrero de madera clavado en el agua, en el carril del centro. Uno por
   punta, y solo si ese mar es alcanzable — hacia arriba pide tenerlo abierto
@@ -749,6 +765,14 @@ duplicado — el mapa, la cámara, los carriles y el barco son los mismos. Lo
 - Los **overlays 2D** (los botones con los que se toca cada nodo) se rehacen
   con el mar, `_rehacer_overlays()`: son la mitad interactiva del mapa y tienen
   que corresponderse con lo que hay montado.
+  · **PERO SOLO LOS DEL MAR EN CURSO, aunque haya más montados.** El BORDE del
+    mar vecino es DECORADO ("que parezca que siempre estuvieron ahí") y no se
+    toca: con botón, pulsar la última isla del mar de al lado **cambiaba de
+    mar**, y el cartel de paso dejaba de ser la única forma de cruzar (le pasó
+    al usuario asomándose al sur del mar 2). `_rehacer_overlays` ya no recibe
+    lista de mares — la recibía y las dos llamadas de `cambiar_de_mar` le
+    pasaban los dos, así que al terminar la travesía los del mar viejo se
+    quedaban puestos.
 
 **Y EL CAMBIO DE MAR ES UNA TRAVESÍA, no un corte** (pedido por el usuario).
 `cambiar_de_mar` va en tres tiempos:
