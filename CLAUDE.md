@@ -649,8 +649,19 @@ duplicado — el mapa, la cámara, los carriles y el barco son los mismos. Lo
   `SCROLL_SUELO` se quedan como topes ABSOLUTOS, porque el plano del agua sí
   tiene que cubrirlo todo (el barco viaja de un mar a otro y el fondeadero del
   menú está muy por debajo del mapa).
-  · **Y EL RESPIRO DEL EXTREMO SOLO LO PIDE EL LADO QUE TIENE CARTEL DE PASO**
-    (`MARGEN_MAR`): es el cartel lo que hay que dejar ver. El lado que no lleva
+  · **EL RESPIRO DEL EXTREMO NO ES EL MISMO HACIA ARRIBA QUE HACIA ABAJO**, y
+    la cuenta sale del encuadre: el centro de la pantalla cae en `cam_center +
+    BAND_CENTER_OFF`, o sea que la vista va corrida hacia el sur. Con el margen
+    del norte, mirando al mar ANTERIOR el cartel se quedaba en mitad de la
+    pantalla y la última isla del mar de al lado se veía ENTERA (dicho por el
+    usuario: abajo tiene que verse igual que arriba, el cartel y un pellizco de
+    la isla siguiente). El espejo exacto pide pagar DOS VECES el desfase de
+    banda: `MARGEN_MAR_SUR = MARGEN_MAR − 2·BAND_CENTER_OFF` = −80. MEDIDO, y
+    sale simétrico clavado: al NORTE el último escenario del mar cae en la
+    y 700, su cartel en la 370 y la isla del mar vecino asoma por la 40; al
+    SUR, 580 / 910 / 1240.
+  · **Y EL RESPIRO SOLO LO PIDE EL LADO QUE TIENE CARTEL DE PASO**: es el
+    cartel lo que hay que dejar ver. El lado que no lleva
     ninguno se para **ANTES** del último escenario (`FIN_ABAJO` 300 px,
     `FIN_ARRIBA` 120), porque ahí ya no hay nada más que enseñar. Con el margen
     puesto, el escenario 1 se quedaba en la **y 300** y por debajo había una

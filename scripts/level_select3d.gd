@@ -106,6 +106,18 @@ func _grupo(mar: int) -> String:
 ## por arriba o por abajo"). Estuvo a 0 y el cartel de SUBIR se quedaba pegado
 ## a la barra de arriba, sin poder llegar a verlo (dicho por el usuario).
 const MARGEN_MAR := 200.0
+## HACIA ABAJO EL RESPIRO ES OTRO, y la cuenta sale del encuadre: el centro de
+## la pantalla cae en `cam_center + BAND_CENTER_OFF`, o sea que la vista va
+## corrida hacia el sur. Con el margen de arriba, el cartel de paso se quedaba
+## en mitad de la pantalla y la ultima isla del mar anterior se veia ENTERA
+## (dicho por el usuario: abajo tiene que verse igual que arriba, el cartel y
+## un pellizco de la isla siguiente). El espejo exacto pide pagar DOS VECES el
+## desfase de banda.
+##
+## MEDIDO con esta cuenta, y sale simetrico clavado: mirando al norte el ultimo
+## escenario del mar cae en la y 700, su cartel en la 370 y la isla del mar
+## vecino asoma por la 40; mirando al sur, 580 / 910 / 1240.
+const MARGEN_MAR_SUR := MARGEN_MAR - 2.0 * BAND_CENTER_OFF
 ## A que distancia del ultimo escenario se clava el cartel que lleva al mar
 ## siguiente. Va MAS CERCA que el margen, para que se vea antes de llegar.
 const PASO_CARTEL := 330.0
@@ -452,7 +464,7 @@ func _limites_del_mar() -> void:
 	# éste va AL COSTADO del escenario al que se zarpa, está a su misma latitud
 	# y no hay nada que alcanzar por debajo.
 	scroll_min = (arriba - MARGEN_MAR) if _mar_alcanzable(mar_actual + 1) 			else arriba + FIN_ARRIBA
-	scroll_max = (abajo + MARGEN_MAR) if _mar_alcanzable(mar_actual - 1) 			else abajo - FIN_ABAJO
+	scroll_max = (abajo + MARGEN_MAR_SUR) if _mar_alcanzable(mar_actual - 1) 			else abajo - FIN_ABAJO
 
 
 ## ¿Se puede pasar a ese mar? El SIGUIENTE pide tenerlo abierto (o sea, haber
