@@ -527,7 +527,7 @@ func _build_pantry_book() -> Control:
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 
 	var hint := Label.new()
-	hint.text = "Cada uso permite llevar ese ingrediente a un nivel"
+	hint.text = "Cada uso permite llevar ese ingrediente a una jornada"
 	hint.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	hint.offset_bottom = 44.0
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

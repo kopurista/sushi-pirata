@@ -265,6 +265,8 @@ const TIME_BONUS := 3
 const TIME_BONUS_BLOCK := 10.0
 var powerups_claimed := 0
 var pending_powerups := 0
+## Clientes que ha metido de regalo "Más clientela" (ver `_leftover_clients`).
+var extras_potenciador := 0
 ## Respiro ANTES de abrir el cartel de potenciador. Se pone al ganar uno y
 ## corre en `_process`: sin él, `_add_tip` abría el cartel EN LA MISMA llamada
 ## en que sumaba la propina, el cartel pausaba el árbol y `_update_hud` nunca
@@ -272,6 +274,11 @@ var pending_powerups := 0
 ## medio llenar. Con el respiro, primero se VE la barra llegar y luego sale.
 var powerup_delay := 0.0
 var aroma_active := false
+## Lo que le queda al "Aroma confuso" (ver `_apply_powerup`).
+var aroma_timer := 0.0
+const AROMA_SEG := 40.0
+## "Cinta rápida" lleva una vuelta de regalo puesta (se retira al expirar).
+var _cinta_vuelta_extra := false
 var tip_chance_bonus := 0.0
 var tip_amount_mult := 1.0
 var belt_mult := 1.0
@@ -940,8 +947,11 @@ func _apply_perks() -> void:
 	if not GameState.is_tutorial():
 		plate_laps = maxi(int(GameState.skill_value("segunda_vuelta")), 1)
 		# EN EL MAR 1 EL PLATO AGUANTA DOS VUELTAS (pedido por el usuario): la
-		# escuela perdona, y del mar 2 en adelante cae en la primera. La
-		# maestría "Segunda vuelta" sigue sumando por encima de eso.
+		# escuela perdona, y del mar 2 en adelante cae en la primera pasada
+		# por la papelera (`plate3d` trata `max_laps` como VUELTAS que
+		# aguanta; estuvo perdonando una de más). La maestría "Segunda vuelta"
+		# sigue sumando por encima de eso. El ARCADE arranca sin puerto, o sea
+		# como mar 1 (dos vueltas), y el estorbo "vuelta_unica" se la quita.
 		if CampaignData.sea_of(GameState.current_port) < 2:
 			plate_laps += 1
 		plate_forget_lap = GameState.skill_rank("segunda_vuelta") >= 4
@@ -971,7 +981,7 @@ func _setup_helper() -> void:
 
 ## Combos de la partida que desbloquean potenciadores permanentes. Devuelve
 ## los ids recién conseguidos, para anunciarlos en los resultados.
-func _check_perk_unlocks() -> Array:
+func _check_perk_unlocks(total_jornada: int = -1) -> Array:
 	# Los puertos-escuela que aún no han presentado los BONIFICADORES no los
 	# reparten: ganar uno sin saber qué es ni de dónde ha salido solo genera
 	# preguntas (`no_perks` del puerto; hoy lo lleva el nivel 1).
@@ -1019,12 +1029,17 @@ func _check_perk_unlocks() -> Array:
 	if boxes_stacked and GameState.perk_gate_open("barco") \
 			and GameState.unlock_perk("barco"):
 		newly.append("barco")
-		# BORDAR EL ESCENARIO: cerrar con un 30% MAS de lo que piden las 3
-	# estrellas. Es la unica condicion que no mira COMO has cocinado sino
-	# CUANTO, asi que es la que premia exprimir un escenario ya aprendido.
+	# BORDAR EL ESCENARIO: cerrar con un 20% MAS de lo que piden las 3
+	# estrellas, contando el TOTAL de la jornada — platos, propinas Y las
+	# primas por tiempo y por clientes que no llegaron (el turno cierra al
+	# tocar el oro base, así que sin las primas solo las propinas podían
+	# pasar del listón; repaso del 2-9-2026). Es la unica condicion que no
+	# mira COMO has cocinado sino CUANTO.
 	if not star_money.is_empty():
 		var tope: float = float(star_money.back()) * PerkData.UNLOCK_XP_FRAC
-		if float(_star_money()) >= tope \
+		var conseguido: float = float(total_jornada) if total_jornada >= 0 \
+				else float(_star_money())
+		if conseguido >= tope \
 				and GameState.perk_gate_open("experiencia") \
 				and GameState.unlock_perk("experiencia"):
 			newly.append("experiencia")
@@ -3257,6 +3272,14 @@ func _process(delta: float) -> void:
 		belt_timer -= delta
 		if belt_timer <= 0.0:
 			belt_mult = belt_base
+			if _cinta_vuelta_extra:
+				_cinta_vuelta_extra = false
+				plate_laps = maxi(plate_laps - 1, 1)
+	if aroma_timer > 0.0:
+		aroma_timer -= delta
+		if aroma_timer <= 0.0:
+			aroma_timer = 0.0
+			aroma_active = false
 	if tip_chance_timer > 0.0:
 		tip_chance_timer -= delta
 		if tip_chance_timer <= 0.0:
@@ -3304,6 +3327,12 @@ const RUSH_CHAIN := 10
 const RUSH_COOLDOWN := 0.45
 
 var rush_chain := 0
+## CADENAS DE LAS MISIONES DE MAPA "racha_limpia" (platos sin cubo, corte
+## fallado ni repetido) y "sin_repetir" (platos sin repetirle a nadie): eran
+## sumas puras que nunca se reiniciaban y las misiones eran más fáciles de lo
+## que decían (repaso del 2-9-2026). Van por `treasure_record`, el mayor.
+var racha_limpia_cadena := 0
+var sin_repetir_cadena := 0
 var rush_active := false
 var _rush_sign: Control = null
 var _rush_lines: ColorRect = null
@@ -3314,6 +3343,10 @@ var _rush_shake := 0.0
 ## cliente lo había probado ya). Los picoteos y postres cuentan como el resto:
 ## la cadena es de platos ENTREGADOS, no de principales.
 func note_rush_plate(nuevo: bool) -> void:
+	# Las cadenas de los mapas se rompen con el repetido, tenga o no rush.
+	if not nuevo:
+		sin_repetir_cadena = 0
+		racha_limpia_cadena = 0
 	if not GameState.sushi_rush_unlocked or arcade:
 		return
 	if not nuevo:
@@ -3328,6 +3361,7 @@ func note_rush_plate(nuevo: bool) -> void:
 
 ## Un plato al cubo (o un corte fallado) rompe la cadena — y apaga el rush.
 func note_rush_fail() -> void:
+	racha_limpia_cadena = 0
 	if not GameState.sushi_rush_unlocked:
 		return
 	_rush_break()
@@ -3352,6 +3386,11 @@ func _rush_off() -> void:
 	rush_active = false
 	if prep_board != null:
 		prep_board.rush = false
+	# La cámara vuelve a su sitio también cuando el rush muere EN partida (solo
+	# la devolvía `_end_level`).
+	if cam != null:
+		cam.h_offset = 0.0
+		cam.v_offset = 0.0
 	if _rush_sign != null and is_instance_valid(_rush_sign):
 		var s := _rush_sign
 		_rush_sign = null
@@ -3542,7 +3581,6 @@ var canto_espera := 0.0
 var canto_gap := Vector2(46.0, 70.0)
 var canto_dur := Vector2(6.0, 9.0)
 ## Cuántos cantos han sonado ya (lo sondean las lecciones del director).
-var canto_total := 0
 ## Cuántos atontados ha despertado el jugador (ídem).
 var despertados := 0
 
@@ -3581,7 +3619,6 @@ func _empezar_canto(dur := -1.0) -> void:
 	# tambien los cantos que fuerza un guion.
 	if GameState.has_collectible("tapones_cera"):
 		canto_t *= CollectibleData.TAPONES_CANTO
-	canto_total += 1
 	Audio.loop_on("sirena_canto", -4.0)
 
 
@@ -4052,6 +4089,7 @@ func _on_client_finished(report: Dictionary, seat_idx: int) -> void:
 	if arcade:
 		_update_arcade_hud()
 		if empty_leavers >= VACIOS_MAX and not ended:
+			lost_by_leavers = true
 			_end_level()
 			return
 	# En las islas y los puertos el turno lo acota la CLIENTELA: cuando se va el
@@ -4115,7 +4153,12 @@ func _reto_cumplido() -> bool:
 			puestos[str(e)] = true
 		return puestos.size() >= int(cfg.get("n", 3))
 	var n := int(cfg.get("n", cfg.get("plates", 3)))
-	var comidos: Array = treasure_client.eaten_ids
+	# POR RECETA BASE: el aburi elegido con atún sale como `aburi_atun` y una
+	# tempura poco hecha como `tempura_cruda`; comparados a pelo, servir justo
+	# lo pedido no contaba (repaso del 2-9-2026).
+	var comidos: Array = []
+	for id in treasure_client.eaten_ids:
+		comidos.append(RecipeData.base_id(str(id)))
 	match reto:
 		"distintos":
 			var vistos := {}
@@ -4213,7 +4256,7 @@ func _entregar_tesoro() -> void:
 	if receta != "":
 		var nombre := str(RecipeData.RECIPES.get(receta, {}).get("name", receta))
 		if GameState.unlock_recipe(receta):
-			GameState.gift_ingredients_for([receta], GameState.PORT_GIFT)
+			GameState.gift_ingredients_for([receta], GameState.port_gift())
 			GameState.pending_reveal.append(receta)
 		GameState.save_game()
 		prep_board.add_recipe(receta)
@@ -4300,6 +4343,11 @@ func _aplicar_mods_del_mapa() -> void:
 	patience_mult /= maxf(float(d.get("paciencia", 1.0)), 0.01)
 	bite_speed_mult *= float(d.get("bocado", 1.0))
 	mapa_reloj = float(d.get("tiempo", 0))
+	# "platos_tiempo" trae su propio reloj en `t` ("N platos en menos de t
+	# segundos"): nadie lo leía y la ficha mentía (repaso del 2-9-2026).
+	var mapa: Dictionary = GameState.treasure_map()
+	if str(mapa.get("tipo", "")) == "platos_tiempo" and int(mapa.get("t", 0)) > 0:
+		mapa_reloj = float(mapa.get("t", 0))
 	mapa_vidas = int(d.get("vidas", 0))
 	mapa_falla = str(d.get("falla", ""))
 
@@ -4324,6 +4372,11 @@ func mapa_tropiezo(clase: String) -> void:
 ## lo único que hace al agotarse es dejar de contar.
 func _tick_mapa(delta: float) -> void:
 	if mapa_reloj <= 0.0 or GameState.treasure_bloqueado:
+		return
+	# NI EN "¿COMENZAMOS?" NI EN LOS 10 s DE PREPARACIÓN: corría desde el
+	# primer fotograma y un mapa de 60 s podía morir antes del primer cliente
+	# (repaso del 2-9-2026).
+	if prep_phase or awaiting_start:
 		return
 	mapa_reloj -= delta
 	if mapa_reloj <= 0.0:
@@ -4385,10 +4438,16 @@ func _leftover_clients() -> Dictionary:
 	var out := { "E": 0, "A": 0, "G": 0 }
 	for t in type_queue:
 		out[t] = int(out.get(t, 0)) + 1
-	for t in forced_types:
+	# LOS CLIENTES DE REGALO DE "MÁS CLIENTELA" NO COBRAN PRIMA si el turno se
+	# cierra antes de que entren: son los ÚLTIMOS de `forced_types` (se añaden
+	# al final), así que se descuentan por la cola. Cobrarlos era hasta +45
+	# doblones por un potenciador que no había llegado a hacer nada.
+	var forzados: Array = forced_types.duplicate()
+	for i in mini(extras_potenciador, forzados.size()):
+		forzados.pop_back()
+	for t in forzados:
 		out[t] = int(out.get(t, 0)) + 1
 	return out
-	_update_hud()
 
 
 # --------------------------------------------------------- ARCADE SIN FIN
@@ -4478,6 +4537,7 @@ const ESTORBOS: Dictionary = {
 	"cajas_menos": "¡Las cajas encogen!",
 	"impacientes": "¡La clientela llega quemada!",
 	"mas_drenaje": "¡La paciencia vuela!",
+	"vuelta_unica": "¡La cinta ya no perdona!",
 }
 ## Clientes que llegan con la paciencia ya empezada (estorbo "impacientes").
 var estorbo_impacientes := false
@@ -4515,6 +4575,10 @@ func _aplicar_estorbo(id: String) -> void:
 			estorbo_impacientes = true
 		"mas_drenaje":
 			patience_mult *= 0.9
+		"vuelta_unica":
+			# El arcade empieza con dos vueltas (como el mar 1) y en algún
+			# momento se queda con una (decidido por el usuario).
+			plate_laps = maxi(plate_laps - 1, 1)
 
 
 ## El fogón apagado: una receta DISPONIBLE entra en enfriamiento forzoso.
@@ -4738,8 +4802,10 @@ func _apply_upgrade(uid: String) -> void:
 		"postre_doble":
 			dessert_boost_perm = true
 		"ayudante":
+			# Sin el bonificador, el descanso BASE (60 s): daba 30, o sea el
+			# nivel 5, y el que no lo había ganado jugaba mejor que el que sí.
 			prep_board.helper_rest = GameState.perk_value("ayudante") \
-					if GameState.is_perk_unlocked("ayudante") else 30.0
+					if GameState.is_perk_unlocked("ayudante") else PrepBoard.HELPER_COOLDOWN
 			prep_board._build_helper_button()
 			_setup_helper()
 		"ayudante_veloz":
@@ -4916,7 +4982,10 @@ func postpone_powerup_choice() -> void:
 	if powerup_panel == null or not powerup_panel.visible:
 		return
 	powerup_panel.visible = false
-	pending_powerups += 1
+	# SIN `pending_powerups += 1`: el pendiente que abrió este cartel no se ha
+	# consumido todavía (solo baja al ELEGIR), así que sumarle otro regalaba
+	# un segundo potenciador por cada diálogo que aplazara el cartel (repaso
+	# del 2-9-2026).
 	powerup_delay = 0.8
 	get_tree().paused = false
 
@@ -4943,7 +5012,12 @@ const POT_CARTA := Vector2(200.0, 290.0)
 func _open_powerup_choice() -> void:
 	for child in powerup_options.get_children():
 		child.queue_free()
-	var ids: Array = PowerupData.POWERUPS.keys()
+	var ids: Array = []
+	for id in PowerupData.POWERUPS:
+		# NI LOS QUE YA ESTÁN EN MARCHA: el sorteo ofrecía "Cinta rápida" con
+		# la cinta ya volando, y elegirlo era tirar el potenciador.
+		if not _potenciador_vivo(str(id)):
+			ids.append(str(id))
 	# "Horas extra" alarga el reloj: en un nivel sin reloj no significaría nada.
 	if not timed:
 		ids.erase("horas_extra")
@@ -4956,6 +5030,34 @@ func _open_powerup_choice() -> void:
 	get_tree().paused = true
 	_animate_powerup_panel()
 	_armar_powerups()
+
+
+## ¿Sigue en marcha este potenciador? Los de efecto inmediato nunca lo están.
+func _potenciador_vivo(id: String) -> bool:
+	match id:
+		"cinta_rapida":
+			return belt_timer > 0.0
+		"aroma":
+			return aroma_timer > 0.0
+		"menos_cooldown":
+			return prep_board.cooldown_mult_timer > 0.0
+		"mas_propinas":
+			return tip_chance_timer > 0.0
+		"todo_picoteo":
+			return snack_all_timer > 0.0
+		"sin_basura":
+			return no_waste_timer > 0.0
+		"doble_variedad":
+			return variety_x2_timer > 0.0
+		"receta_instantanea":
+			return prep_board.instant_recipes > 0
+		"doble_plato":
+			return prep_board.double_next
+		"sobremesa":
+			return dessert_boost or dessert_boost_perm
+		"tiempo_extra_prep":
+			return frozen
+	return false
 
 
 ## LAS TARJETAS SE ARMAN CON RETARDO (pedido por el usuario): el cartel sale
@@ -5141,8 +5243,19 @@ func _apply_powerup(id: String) -> void:
 		"cinta_rapida":
 			belt_mult = 3.0
 			belt_timer = 20.0
+			# A ×3 un plato pasa por cada boca un tercio del tiempo, así que
+			# se le da una vuelta MÁS mientras dura (repaso del 2-9-2026: sin
+			# ella la vida del plato caía por debajo del bocado más corto y el
+			# potenciador tiraba más platos de los que colocaba).
+			if not _cinta_vuelta_extra:
+				_cinta_vuelta_extra = true
+				plate_laps += 1
 		"aroma":
+			# "AROMA CONFUSO" (decidido por el usuario): 40 s con los dados
+			# espejados entre 1★ y 3★ (ver client3d._scan_belt). Duraba todo
+			# el turno y subía un dado que ya estaba al 95%: placebo.
 			aroma_active = true
+			aroma_timer = AROMA_SEG
 		"receta_instantanea":
 			prep_board.instant_recipes += 3
 		"clientes_pacientes":
@@ -5165,7 +5278,17 @@ func _apply_powerup(id: String) -> void:
 		"clientes_extra":
 			_add_extra_clients()
 		"horas_extra":
+			# Y SE ALARGA LA COLA DE LLEGADAS: la cola se construye al montar
+			# el nivel hasta `time_limit − ARRIVAL_TAIL`, así que el minuto
+			# extra quedaba vacío de clientela (repaso del 2-9-2026).
+			var antes := time_limit
 			time_limit += 60.0
+			if unlimited:
+				var t := maxf(antes - ARRIVAL_TAIL, elapsed) + arrival_step
+				while t <= time_limit - ARRIVAL_TAIL:
+					arrival_queue.append(t)
+					t += arrival_step
+				arrival_queue.sort()
 		"doble_plato":
 			prep_board.double_next = true
 		# +1 de variedad a todos los que están en el barco (también a los que
@@ -5200,6 +5323,7 @@ func _apply_powerup(id: String) -> void:
 ## catálogo para el mismo efecto): se sortea con los pesos del puerto, así que
 ## la clientela extra sabe al nivel en el que aparece.
 func _add_extra_clients() -> void:
+	extras_potenciador += 3
 	for i in 3:
 		forced_types.append(_weighted_client_type())
 		arrival_queue.append(elapsed + 1.0 + i * 6.0)
@@ -5260,8 +5384,10 @@ func _on_player_dish_served(recipe_id: String, price_override: int = 0,
 	# MISIONES DE MAPA: los objetivos se cuentan con los sucesos que el juego
 	# ya emitia, no con contadores nuevos (ver `TreasureData`).
 	GameState.treasure_bump("platos_tiempo")
-	GameState.treasure_bump("racha_limpia")
-	GameState.treasure_bump("sin_repetir")
+	racha_limpia_cadena += 1
+	sin_repetir_cadena += 1
+	GameState.treasure_record("racha_limpia", racha_limpia_cadena)
+	GameState.treasure_record("sin_repetir", sin_repetir_cadena)
 	GameState.bump_stat("dish_%s" % recipe_id)
 	_on_dish_served(recipe_id, price_override, extras, level_override, eat_mult_override)
 
@@ -5440,7 +5566,10 @@ func _end_level() -> void:
 			# quedaban sentados NO se cobran: el trabajo ya estaba hecho y
 			# cobrarlos podía dejar el marcador por debajo del objetivo otra
 			# vez. Si se acaba el tiempo, el castigo sí cuenta.
-			c.force_leave(not goal_reached)
+			# Y tampoco al perder por VACÍOS: con el contador ya en tres, el
+			# castigo escalado de cada sentado sin comer era un segundo
+			# castigo encima de la derrota.
+			c.force_leave(not goal_reached and not lost_by_leavers)
 	for p in get_tree().get_nodes_in_group("plates"):
 		p.set_process(false)
 	prep_board.process_mode = Node.PROCESS_MODE_DISABLED
@@ -5567,7 +5696,7 @@ func _finalize_results() -> void:
 		# fotograma cobraba los combos hechos DENTRO del 17, así que el jugador
 		# llegaba al 18 con "Cocina veloz" ya puesta sin haberla ganado con el
 		# sistema abierto. Se gana A PARTIR del escenario que lo presenta.
-		var perks_nuevos := _check_perk_unlocks()
+		var perks_nuevos := _check_perk_unlocks(total_money)
 		new_recipes = GameState.complete_port(GameState.current_port, stars)
 		for p in perks_nuevos:
 			new_recipes.append({ "perk": p })
@@ -5754,6 +5883,11 @@ func _cerrar_cajas_de_guion() -> void:
 func _show_results(stars: int, total_money: int, new_recipes: Array) -> void:
 	_cerrar_cajas_de_guion()
 	Audio.sfx("recurso")
+	# SIN ARROZ NO SE REPITE (decidido por el usuario): el botón se apaga y se
+	# ve apagado, en vez de recargar una jornada que rebotaría al selector.
+	if retry_button != null and not GameState.can_play():
+		retry_button.disabled = true
+		PrepBoard.set_dimmed(retry_button, true)
 	# LA JORNADA TIENE SU PROPIO TEMA. Se pide aquí y no al montar una
 	# pantalla porque el cartel de resultados no es una pantalla: sale
 	# encima del nivel, que sigue montado debajo.
@@ -5901,11 +6035,11 @@ func _paint_xp_bar() -> void:
 	if nivel >= SkillData.MAX_LEVEL:
 		xp_bar.max_value = 1
 		xp_bar.value = 1
-		xp_bar_label.text = "Cocinero %d · MÁXIMO" % nivel
+		xp_bar_label.text = "%s %d · MÁXIMO" % [GameState.cocinero(true), nivel]
 		return
 	xp_bar.max_value = SkillData.xp_for_next(nivel)
 	xp_bar.value = xp - SkillData.xp_at_level(nivel)
-	xp_bar_label.text = "Cocinero %d" % nivel
+	xp_bar_label.text = "%s %d" % [GameState.cocinero(true), nivel]
 
 
 func _set_xp_shown(v: float) -> void:
@@ -6229,7 +6363,7 @@ func _show_next_recipe(overlay: ColorRect, queue: Array) -> void:
 Los bonificadores se eligen "
 			+ "ANTES de zarpar, junto a la carta, y cada jornada gasta un uso. "
 			+ "Repite su hazaña para ganar más, o cómpralos con lingotes en "
-			+ "**Bonificadores**, en el mapa.")
+			+ "Bonificadores, en el mapa.")
 		gift.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		gift.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		gift.add_theme_font_size_override("font_size", 18)
@@ -6747,12 +6881,18 @@ func _confirm_exit() -> void:
 	# El arcade también devuelve lo suyo si se abandona EN PREPARACIÓN: paga
 	# arroz y despensa como cualquier jornada, así que el arrepentimiento vale
 	# lo mismo.
+	# Y SE DEVUELVE LO QUE SE COBRÓ, no la lista de la carta: en un puerto con
+	# `free_ingredients` (el 1) no se cobra despensa, y devolverla igual
+	# regalaba usos con cada entrada y salida (repaso del 2-9-2026).
 	if prep_phase and (GameState.is_adventure() or GameState.is_arcade()):
-		for ing in GameState.ingredients_for_selection(GameState.selected_recipes):
+		for ing in GameState.ultimo_cobro:
 			GameState.add_ingredient_uses(ing, 1)
 		for perk in GameState.selected_perks:
 			GameState.add_perk_uses(perk, 1)
-		GameState.add_rice(1)
+		if GameState.ultimo_cobro_arroz:
+			GameState.add_rice(1)
+		GameState.ultimo_cobro = []
+		GameState.ultimo_cobro_arroz = false
 	# Se guarda aunque se abandone: el rato jugado hasta aquí cuenta igual.
 	GameState.save_game()
 	get_tree().paused = false
@@ -6761,9 +6901,30 @@ func _confirm_exit() -> void:
 	GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45)
 
 
+## "REPETIR" EMPIEZA DESDE EL SELECTOR de recetas y bonificadores (decidido
+## por el usuario, 2-9-2026), no recargando el nivel a pelo — la carta y los
+## bonificadores se vuelven a elegir, y una isla sin bonificador que elegir va
+## directa, como al "Viajar" del mapa. Y SIN ARROZ NO SE REPITE: el botón se
+## apaga en el cartel de resultados (ver `_show_results`).
 func _on_retry_pressed() -> void:
 	get_tree().paused = false
-	get_tree().reload_current_scene()
+	if not GameState.can_play():
+		Audio.sfx("recurso_off")
+		return
+	if GameState.is_adventure():
+		var fijas := CampaignData.fixed_recipes_for(GameState.current_port,
+			GameState.port_beaten(GameState.current_port))
+		GameState.selected_recipes = fijas
+		GameState.selected_perks = []
+		if fijas.is_empty() or GameState.hay_bonificadores_disponibles():
+			GameState.fade_to_scene("res://scenes/prep_screen.tscn", 0.35, 0.45)
+		else:
+			GameState.fade_to_scene("res://scenes/level3d.tscn", 0.35, 0.45)
+		return
+	# Arcade: su selector es la misma pantalla.
+	GameState.selected_recipes = []
+	GameState.selected_perks = []
+	GameState.fade_to_scene("res://scenes/prep_screen.tscn", 0.35, 0.45)
 
 
 ## "Siguiente" devuelve al MAPA de la campaña (no al menú principal), que es
@@ -7257,8 +7418,7 @@ func _pot_restante(id: String) -> String:
 		"sobremesa":
 			return "x1" if dessert_boost else ""
 		"aroma":
-			# El aroma dura todo el turno: se queda puesto y sin cifra.
-			return "•" if aroma_active else ""
+			return "%ds" % ceili(aroma_timer) if aroma_timer > 0.0 else ""
 	# Los de efecto inmediato (clientes de más, horas extra, variedad para
 	# todos, tiempo muerto) no tienen nada que contar: su chapa aparece un
 	# momento y se va sola.

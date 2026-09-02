@@ -20,10 +20,11 @@ const UNLOCKS_ENABLED := true
 ##     bonificador, y cada uno tiene su unidad (segundos de descanso del
 ##     ayudante, tope del multiplicador...).
 ##
-## LA PANTALLA DE BONIFICADORES NO VENDE USOS: los usos se ganan jugando. Lo que
-## se compra ahí son NIVELES. Vendía usos hasta el rediseño del 16-8-2026, y
-## eso convertía el sistema en "paga y llévate otro turno con ventaja" en vez de
-## "juega bien y ganarás la ventaja".
+## LA PANTALLA DE BONIFICADORES VENDE NIVELES CON DOBLONES, y usos sueltos con
+## LINGOTES (`GameState.PERK_USO_LINGOTES`): los usos se GANAN jugando y el
+## lingote es el atajo de pago. Los precios de nivel son altos a propósito
+## (decidido por el usuario, 2-9-2026): no hacen falta para avanzar y son el
+## sumidero que empuja a comprar doblones con lingotes.
 
 ## Lo que cuesta subir a cada nivel (el índice 0 es el salto del 1 al 2).
 const UPGRADE_COSTS: Array = [500, 2000, 5000, 10000]
@@ -62,7 +63,7 @@ const PERKS: Dictionary = {
 		"name": "Cuaderno de bitácora",
 		"desc": "Todo lo que aprendes en una jornada cunde más: la experiencia que deja cada escenario sube.",
 		"icon": "res://assets/ui/perk_experiencia.png",
-		"unlock": "Cierra un escenario con un 30% más de oro del que piden sus 3 estrellas.",
+		"unlock": "Cierra un escenario con un 20% más de oro del que piden sus 3 estrellas, propinas y primas incluidas.",
 		# Porcentaje EXTRA de experiencia.
 		"levels": [25, 32, 40, 50, 65],
 		"level_text": "Ganas un %d%% más de experiencia.",
@@ -113,8 +114,10 @@ const UNLOCK_HELPER_CLIENTS := 4
 const UNLOCK_HELPER_PLATES := 4
 ## Clientes que deben llegar al multiplicador tope para desbloquear "paladar".
 ## Cuánto hay que pasarse del objetivo de 3 estrellas para llevarse el
-## bonificador de experiencia (1.3 = un 30% más).
-const UNLOCK_XP_FRAC := 1.3
+## bonificador de experiencia (1.2 = un 20% más, contando el TOTAL de la
+## jornada con primas; bajado del 30 el 2-9-2026 porque el turno cierra al
+## tocar el oro base y solo las propinas podían pasar del listón).
+const UNLOCK_XP_FRAC := 1.2
 const UNLOCK_VARIETY_CLIENTS := 1
 ## Cajas con al menos UNLOCK_BOAT_STACK platos para desbloquear "barco".
 const UNLOCK_BOAT_BOXES := 2

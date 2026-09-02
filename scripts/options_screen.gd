@@ -514,8 +514,8 @@ func _build_progress(box: VBoxContainer) -> void:
 	t.add_theme_color_override("font_color", DARK)
 	time_row.add_child(t)
 	box.add_child(time_row)
-	_note(box, "Solo cuenta el tiempo dentro de una partida (aventura y "
-		+ "arcade); los menús no suman.")
+	_note(box, "Cuenta todo el rato que el juego está abierto: menús, mapa, "
+		+ "tienda, pesca y jornadas.")
 
 	var pad := Control.new()
 	pad.custom_minimum_size = Vector2(0, 20)

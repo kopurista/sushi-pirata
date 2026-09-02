@@ -57,8 +57,6 @@ var variety_bonus := false
 ## Raciones que le quedan al plato ("servings" de la receta, el takoyaki):
 ## cada cliente que lo coge come UNA, y solo la última se lo lleva de la cinta.
 var servings: int = 1
-## Vueltas ya completadas (para saber cuándo toca el olvido o el cubo).
-var _laps_done := 0
 ## Pasadas por el punto de la papelera (el plato nace ahí; nacer no cuenta).
 var _pases := 0
 ## Progreso del punto de la papelera sobre el camino (donde nació el plato).
@@ -162,7 +160,12 @@ func _process(delta: float) -> void:
 	# plato puede ir y volver sin completar ninguna.
 	if belt_length > 0.0 and absf(step) > 0.0 and _cruza_papelera(antes, progress):
 		_pases += 1
-		if _pases <= max_laps:
+		# `max_laps` es el número de VUELTAS que aguanta el plato: con 1 cae
+		# al cubo en la primera pasada por la papelera (o sea, al cerrar su
+		# vuelta), con 2 se le perdona una. Estuvo en `<=` y perdonaba una de
+		# más — dos vueltas donde la guía decía una, y tres en el mar 1
+		# (repaso del 2-9-2026). Mar 1: 2 vueltas; del mar 2 en adelante, 1.
+		if _pases < max_laps:
 			# Pasada perdonada. "Segunda vuelta" (rango IV): borra los rechazos
 			# al pasar, o el plato seguiría dando pasadas sin que nadie pudiera
 			# cogerlo (el dado se tira UNA vez por cliente y plato).

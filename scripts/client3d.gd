@@ -97,28 +97,40 @@ const PATIENCE_FOOD: Dictionary = { 1: 0.09, 2: 0.22, 3: 0.32 }
 # cuando ya lo ha probado todo, o se le despide con un postre (que cobra el
 # multiplicador) o repite y se desangra. La rotación sale sola del sistema.
 #
-## Recarga de un plato REPETIDO según la repetición que hace (1ª, 2ª, 3ª...):
-## primero recarga poco, luego nada. El jengibre esquiva esta escalera.
-const REPEAT_RECHARGE := [0.2, 0.1, 0.0]
-## De la 4ª repetición en adelante el plato DRENA paciencia: fracción de la
-## BARRA ENTERA por escalón (4ª −5%, 5ª −10%, 6ª −15%...), con tope. Es
-## fracción de la barra y no del plato a propósito: multiplicar la recarga de
-## un L1 (9%) por un factor negativo daba drenajes del 1%, imperceptibles.
+## Recarga de un plato REPETIDO según la repetición que hace: la PRIMERA
+## recarga poco y de la SEGUNDA en adelante el plato DRENA paciencia (decidido
+## por el usuario, 2-9-2026: con la escalera vieja —0,2 / 0,1 / 0 y drenaje
+## solo desde la 4ª— repetir costaba unos 5 s netos, porque el bocado congela
+## la barra más de lo que la recarga suma, y el hastío solo se notaba en el
+## oro). El jengibre esquiva esta escalera.
+const REPEAT_RECHARGE := [0.2]
+## Drenaje del repetido: fracción de la BARRA ENTERA por escalón (2ª −5%, 3ª
+## −10%, 4ª −15%...), con tope. Es fracción de la barra y no del plato a
+## propósito: multiplicar la recarga de un L1 (9%) por un factor negativo daba
+## drenajes del 1%, imperceptibles.
 const REPEAT_DRAIN_STEP := 0.05
 const REPEAT_DRAIN_MAX := 0.20
+## Y EL REPETIDO SE MASTICA MÁS DEPRISA: cada repetición acelera el bocado un
+## escalón (la 1ª ×1,25, la 2ª ×1,5...), con tope. Como la paciencia no baja
+## mientras se come, acortar el bocado es quitarle al repetido su único
+## consuelo: el rato de barra congelada.
+const REPEAT_BITE_STEP := 0.25
+const REPEAT_BITE_MAX := 2.0
 ## Bono de recarga por racha de variedad: el plato x2 recarga ×1.2, el x3
-## ×1.3... (el primero recarga normal). No lleva tope numérico porque el tope
-## es ESTRUCTURAL: la racha muere cuando se acaban los platos distintos de la
-## carta (4 huecos), y el té verde REINICIA el arco en vez de continuarlo —
-## si lo continuara, la recarga crecería sin freno y volvería el capitán
-## inmortal que ya obligó a bajar PATIENCE_FOOD de 0.38 a 0.32.
+## ×1.3... (el primero recarga normal). LA RECARGA SE ACOTA A VARIETY_MAX (x5,
+## o sea ×1,5) AUNQUE LA CHAPA SIGA SUBIENDO: el té verde NO reinicia el
+## multiplicador (decidido por el usuario, 2-9-2026) y con "Paladar de
+## capitán" la chapa llega a x10 — sin el tope, un 3★ recargaba el 64% de la
+## barra y volvía el capitán inmortal que ya obligó a bajar PATIENCE_FOOD de
+## 0.38 a 0.32. El ORO sí cobra la chapa entera; lo que se acota es la
+## paciencia.
 const VARIETY_RECHARGE_STEP := 0.1
 ## Propina que cobra el POSTRE por cada punto de multiplicador al despedir al
 ## cliente (x3 = 9 doblones al bote). Es un aliciente, no un premio decisivo.
 const VARIETY_TIP_PER_STEP := 3
 
 # --- EXTRAS: los TRES cuentan como plato NUEVO, y los tres tienen contra ---
-# Un extra (10 doblones el uso) hace que ese plato cuente como nunca probado,
+# Un extra (6 doblones el uso) hace que ese plato cuente como nunca probado,
 # aunque el cliente ya lo haya comido: alarga la racha y cobra el bono de oro.
 # Eso es MUY poderoso —rompe el techo de la carta— así que cada uno se paga
 # con un defecto que va justo contra lo que el sistema premia:
@@ -140,6 +152,10 @@ const REPEAT_DECAY := 0.4
 ## La cuenta la lleva level3d.empty_leavers.
 const EMPTY_LEAVE_STEP := 0.5
 const EMPTY_LEAVE_CAP := 3.0
+## Tope ABSOLUTO del castigo de un vacío: con el doble de las islas del mar 2
+## y la escalera al ×3, un capitán llegaba a costar 72 doblones, más que el
+## 3★ de varias islas. Ningún vacío pasa de esto.
+const LEAVE_PENALTY_TOPE := 40
 
 ## El bocadillo de CÓMIC del cliente: SIEMPRE presente desde su primer plato,
 ## HORIZONTAL y colgando POR DEBAJO de la cabeza, con la COLA ARRIBA
@@ -360,6 +376,9 @@ var canto_despierto := false
 var canto_inmune := false
 ## Las notas "~" flotando sobre la cabeza del atontado (viven en world_ui).
 var _notas: Label = null
+## Picoteos cogidos a media comida, a la espera de apuntarse en `eaten_ids`
+## cuando termine el plato en curso (ver `_eat_snack`).
+var _picoteos_pendientes: Array[String] = []
 var tips_earned: int = 0
 var current_price: int = 0
 var current_satiety: int = 0
@@ -379,6 +398,21 @@ var declined: Array[int] = []
 var skill_recharge := 1.0
 ## "Buen precio": factor del precio de cada plato.
 var skill_price := 1.0
+## EL RESTO DEL "BUEN PRECIO": la maestría suma un porcentaje a cada plato, y
+## con precios de 2 a 8 el +5% o el +10% se perdía entero en el redondeo (cero
+## doblones en todo el mar 1). Ahora la fracción que no llega a un doblón se
+## GUARDA y se cobra en cuanto suma uno: el porcentaje se paga de verdad, un
+## doblón cada tantos platos.
+var _precio_resto := 0.0
+
+
+## Precio de un plato con "Buen precio" aplicado por acumulador (ver arriba).
+func _precio_con_maestria(base: float) -> int:
+	var bruto := base * pay_mult
+	_precio_resto += bruto * (skill_price - 1.0)
+	var plus := int(floor(_precio_resto))
+	_precio_resto -= plus
+	return int(round(bruto)) + plus
 ## "Mano suelta" y "Buena cara": cuantía y puntos de probabilidad de propina.
 var skill_tip_amount := 1.0
 var skill_tip_chance := 0.0
@@ -1052,7 +1086,15 @@ func _scan_belt(snack_only: bool = false) -> void:
 		# "take_chances": matriz PROPIA de la receta (el barco combinado). Se
 		# indexa igual, por tipo y nivel, solo que con otros números.
 		var table: Dictionary = data.get("take_chances", TAKE_CHANCES)
-		var chance: float = table.get(client_type, {}).get(plate_satiety, 0.0)
+		# "AROMA CONFUSO" (potenciador, decidido por el usuario 2-9-2026):
+		# mientras dura, el dado se tira con el nivel ESPEJADO — un plato de
+		# 1★ se juzga como de 3★ y al revés (el 2★ queda igual). El grumete
+		# coge lo caro y el capitán lo barato. Solo cambia el dado: la recarga
+		# y el bocado siguen siendo los del plato real.
+		var tier_dado := plate_satiety
+		if _aroma_active():
+			tier_dado = 4 - plate_satiety
+		var chance: float = table.get(client_type, {}).get(tier_dado, 0.0)
 		var forced: Variant = data.get("take_chance", null)
 		if forced is Dictionary:
 			chance = float(forced.get(client_type, chance))
@@ -1068,8 +1110,6 @@ func _scan_belt(snack_only: bool = false) -> void:
 			var servidos: int = int(level_ref.platos_receta.get(plate.recipe_id, 0))
 			chance += minf(fama * servidos, float(data.get("fama_max", 0.10)))
 		chance = minf(chance, 1.0)
-		if _aroma_active() and plate_satiety == FAVORITE_TIER.get(client_type, 0):
-			chance = maxf(chance, 0.95)
 		# "Fama del cocinero": SUELO de probabilidad, no un 100% — el capitán
 		# sigue prefiriendo lo suyo y los tipos siguen significando algo. Los
 		# postres de otro tipo ya se descartaron antes del dado, así que el
@@ -1116,7 +1156,7 @@ func _scan_belt(snack_only: bool = false) -> void:
 			var base_price: int = plate.price_override if plate.price_override > 0 \
 				else int(data.get("price", 0))
 			# "Buen precio": cada plato paga un poco más de lo que dice su ficha.
-			current_price = int(round(base_price * pay_mult * skill_price))
+			current_price = _precio_con_maestria(float(base_price))
 			# FRESCURA / MARINADO: el precio viaja con la cinta. Recien servido
 			# la frescura paga x1,3 y cae a x0,7 al final de la vuelta; el
 			# marinado hace el camino contrario (reposar le sienta bien).
@@ -1169,6 +1209,9 @@ func _eat_snack(recipe_id: String, data: Dictionary) -> void:
 	for id in eaten_ids:
 		if id == recipe_id:
 			reps += 1
+	for id in _picoteos_pendientes:
+		if id == recipe_id:
+			reps += 1
 	var sat: int = data.get("satiety", 1)
 	# "snack_refill": cuanto alarga el bocado (el gari casi nada, porque lo suyo
 	# es la propina). Por defecto SNACK_EAT_REFILL.
@@ -1178,33 +1221,46 @@ func _eat_snack(recipe_id: String, data: Dictionary) -> void:
 	# La barra tiene que poder mostrar el tiempo extra: se ensancha el maximo.
 	_eat_bar.max_value = maxf(_eat_bar.max_value, eat_timer)
 	_eat_bar.value = eat_timer
+	# EL PICOTEO QUE SÍ SUMA VARIEDAD ("variety_snack": el sunomono y el
+	# tsukemono) se decide ANTES de limpiar el paladar: el tsukemono es
+	# limpiapaladar Y suma variedad, y mirándolo después de limpiar contaba
+	# como nuevo CADA vez — un picoteo de 2 doblones que pintaba la chapa a
+	# x5 (repaso del 2-9-2026). Sube un punto la primera vez que ese cliente
+	# lo prueba, igual que un plato normal.
+	var suma_variedad: bool = data.get("variety_snack", false) \
+			and not tried.has(recipe_id)
 	# "clears_boredom": el té verde limpia el PALADAR y nada más — todos los
 	# platos vuelven a contar como nuevos y la racha SIGUE donde estaba, así
-	# que se puede continuar combinando. Es su papel frente al jengibre: el
-	# jengibre limpia el paladar pero cuesta un punto de multiplicador; el té
-	# no cuesta ninguno, pero ocupa un hueco de la carta y, como todos los
-	# picoteos, tampoco SUMA.
+	# que se puede continuar combinando (decidido por el usuario). Es su papel
+	# frente al jengibre: el jengibre limpia el paladar plato a plato y sin
+	# enfriamiento; el té ocupa un hueco de la carta, cuesta 8 la hoja y, como
+	# todos los picoteos, tampoco SUMA.
 	if data.get("clears_boredom", false):
 		_limpiar_paladar()
 	# "snack_price": el picoteo puede pagar OTRO precio comido como picoteo
 	# (el edamame: 1 suelto, 3 acompañando). Sin él, price + SNACK_BONUS.
 	var price: int
 	if data.has("snack_price"):
-		price = int(round(float(data["snack_price"]) * pay_mult * skill_price))
+		price = _precio_con_maestria(float(data["snack_price"]))
 	else:
-		price = int(round(data.get("price", 0) * pay_mult * skill_price)) \
-			+ SNACK_BONUS
-	# EL PICOTEO QUE SÍ SUMA VARIEDAD ("variety_snack", hoy solo el sunomono):
-	# cobra el bono de oro del multiplicador VIGENTE y sube un punto la primera
-	# vez que se prueba, igual que un plato normal. Los demás picoteos ni suman
-	# ni rompen la racha.
-	if data.get("variety_snack", false) and not tried.has(recipe_id):
+		price = _precio_con_maestria(float(data.get("price", 0))) + SNACK_BONUS
+	if suma_variedad:
 		price += variety
-		tried[recipe_id] = int(tried.get(recipe_id, 0)) + 1
+		tried[recipe_id] = 1
 		_set_variety(variety + 1, true)
 	satiety_eaten += sat
 	money_earned += price
-	eaten_ids.append(recipe_id)
+	# EL PICOTEO SE APUNTA AL TERMINAR EL BOCADO, no al picarlo: se está
+	# comiendo DURANTE el plato en curso, y apuntado antes se colaba delante
+	# de él en `eaten_ids` — el té de la lección del maridaje quedaba tapado
+	# por el plato que ya se masticaba y el mochi no lo veía (repaso del
+	# 2-9-2026). Ver `_finish_plate`.
+	_picoteos_pendientes.append(recipe_id)
+	# MISIONES DE MAPA y SUSHI RUSH: este picoteo también cuenta (antes solo
+	# contaba el comido esperando, que es el uso raro).
+	GameState.treasure_bump("picoteos")
+	if level_ref != null and level_ref.has_method("note_rush_plate"):
+		level_ref.note_rush_plate(true)
 	plate_served.emit(price, 0)
 	_push_bubble_icon(recipe_id, [])
 	_float_text("+$%d" % price, Color(1.0, 0.86, 0.2))
@@ -1346,9 +1402,14 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 	for e in current_extras:
 		if not str(e) in extras_recibidos:
 			extras_recibidos.append(str(e))
-	if recipe.has("maridaje") and eaten_ids.size() >= 2:
+	# EL MARIDAJE SE MIRA CONTRA LO ÚLTIMO COMIDO, que aquí (esto corre al
+	# EMPEZAR el plato, antes de que `_finish_plate` lo apunte) es
+	# `eaten_ids.back()` — el mismo plato que mira `_scan_belt` para pagar el
+	# bono. Miraba `[size − 2]`, o sea el de hace DOS, y el contador de la
+	# lección y del mapa no casaba con el "¡Maridaje!" (repaso del 2-9-2026).
+	if recipe.has("maridaje") and not eaten_ids.is_empty():
 		var mar: Dictionary = recipe["maridaje"]
-		if str(eaten_ids[eaten_ids.size() - 2]) in (mar.get("con", []) as Array):
+		if str(eaten_ids.back()) in (mar.get("con", []) as Array):
 			GameState.treasure_bump("maridajes")
 			if level_ref != null and "maridajes_hechos" in level_ref:
 				level_ref.maridajes_hechos += 1
@@ -1358,13 +1419,16 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 			# `"falla": "maridaje"`; para los demás no pasa nada.
 			level_ref.mapa_tropiezo("maridaje")
 	if recipe.get("leaves_seat", false) or recipe.get("snack", false):
+		# El sunomono y el tsukemono ("variety_snack") SUMAN racha la primera
+		# vez; se decide ANTES de limpiar el paladar (ver `_eat_snack`, la
+		# otra puerta por la que entra un picoteo).
+		var suma_variedad: bool = recipe.get("variety_snack", false) \
+				and not tried.has(current_id)
 		if recipe.get("clears_boredom", false):
 			_limpiar_paladar()
-		# El sunomono ("variety_snack") es el único picoteo que SUMA racha; ver
-		# `_eat_snack`, que es la otra puerta por la que entra un picoteo.
-		if recipe.get("variety_snack", false) and not tried.has(current_id):
+		if suma_variedad:
 			current_price += variety
-			tried[current_id] = int(tried.get(current_id, 0)) + 1
+			tried[current_id] = 1
 			_set_variety(variety + 1, true)
 		patience = minf(patience + base * skill_recharge * patience_max,
 			patience_max)
@@ -1415,8 +1479,10 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 			# El barco combinado vale DOBLE ("variety_worth"): es la bandeja
 			# de la variedad, sumarlo como un plato más le quitaba la gracia.
 			_set_variety(variety + int(recipe.get("variety_worth", 1)), true)
+		# La recarga se acota a VARIETY_MAX aunque la chapa pase de x5 (ver el
+		# comentario de VARIETY_RECHARGE_STEP).
 		var combo := 1.0 if variety <= 1 \
-			else 1.0 + VARIETY_RECHARGE_STEP * variety
+			else 1.0 + VARIETY_RECHARGE_STEP * mini(variety, VARIETY_MAX)
 		var delta := base * combo * patience_max
 		if "wasabi" in current_extras:
 			# El wasabi pica: en vez de recargar, quita lo que habría recargado
@@ -1434,6 +1500,11 @@ func _apply_meal_patience(recipe: Dictionary) -> void:
 			var drain := minf(REPEAT_DRAIN_STEP * (repeat_count - REPEAT_RECHARGE.size()),
 				REPEAT_DRAIN_MAX)
 			patience = maxf(patience - drain * patience_max, 0.0)
+		# Y el repetido se despacha más deprisa (REPEAT_BITE_STEP): esto corre
+		# desde `_start_eating`, con `bite_speed` recién puesto, así que vale
+		# para ESTE bocado.
+		bite_speed = maxf(bite_speed,
+			minf(1.0 + REPEAT_BITE_STEP * repeat_count, REPEAT_BITE_MAX))
 	# "Golpe de suerte": el plato venía marcado y sube un punto extra al que lo
 	# coge (en un postre no: el cliente se va y no queda racha que subir).
 	if current_lucky and not recipe.get("leaves_seat", false):
@@ -1678,6 +1749,11 @@ func _finish_plate() -> void:
 	satiety_eaten += current_satiety
 	money_earned += current_price
 	eaten_ids.append(current_id)
+	# Y detrás, los picoteos que se comió mientras lo masticaba: el último de
+	# ellos es lo último que ha probado (té → mochi casa así).
+	for s in _picoteos_pendientes:
+		eaten_ids.append(s)
+	_picoteos_pendientes.clear()
 	# COLECCIONABLE "sombrero de paja": los platos que come el grumete del
 	# sombrero se cuentan de por vida; a 20, GameState suelta el coleccionable.
 	if who_override == "grumete_sombrero":
@@ -1799,6 +1875,12 @@ func _leave() -> void:
 	if state == State.DONE or state == State.LEAVING:
 		return
 	_stop_eating_anim()
+	# Las notas "~ ~" del canto se quedaban flotando sobre la silla vacía.
+	set_atontado(false)
+	# Un picoteo a medio bocado cuenta como comido: al informe, no al limbo.
+	for s in _picoteos_pendientes:
+		eaten_ids.append(s)
+	_picoteos_pendientes.clear()
 	# Irse sin haber probado NADA cuesta dinero, tanto si se le agoto la
 	# paciencia como si le pillo el final del nivel. Y ESCALA: cada cliente que
 	# ya se fue de vacío en esta partida encarece al siguiente (ver
@@ -1814,8 +1896,8 @@ func _leave() -> void:
 		if level_ref != null and "empty_leavers" in level_ref:
 			esc = minf(1.0 + EMPTY_LEAVE_STEP * float(level_ref.empty_leavers),
 				EMPTY_LEAVE_CAP)
-		penalty = int(round(int(LEAVE_PENALTY.get(client_type, 0)) * esc
-			* leave_penalty_mult))
+		penalty = mini(int(round(int(LEAVE_PENALTY.get(client_type, 0)) * esc
+			* leave_penalty_mult)), LEAVE_PENALTY_TOPE)
 		if penalty > 0:
 			_float_text("-%d" % penalty, Color(1.0, 0.34, 0.28), 0.0, true)
 	finished.emit({
@@ -1856,14 +1938,12 @@ func _walk_out() -> void:
 ## comidos), cuantia = % del dinero ACUMULADO del cliente. Debe llamarse
 ## DESPUES de sumar current_price a money_earned y del append a eaten_ids.
 func _roll_plate_tip() -> int:
-	# Niveles-escuela: sin bote de propinas no hay propina que tirar.
-	if not tips_enabled:
-		return 0
-	var rules: Dictionary = TIP_RULES.get(client_type, {})
 	var plates := eaten_ids.size()
 	# MISIONES DE MAPA: "que un cliente coma N platos" y "que un CAPITAN se
 	# vaya con N" son RECORDS del mayor comensal, no sumas de la mesa. Este es
-	# el unico sitio por el que pasa cada plato TERMINADO de cada cliente.
+	# el unico sitio por el que pasa cada plato TERMINADO de cada cliente. VAN
+	# ANTES DE LA GUARDA DEL BOTE: estaban detrás y en los escenarios sin
+	# propinas (1-9) ninguna de estas misiones avanzaba (repaso del 2-9-2026).
 	GameState.treasure_record("un_cliente", plates)
 	if client_type == "G":
 		GameState.treasure_record("cliente_lleno", plates)
@@ -1877,6 +1957,10 @@ func _roll_plate_tip() -> int:
 				and plates >= int(mapa.get("p", 3)):
 			_contado_para_mapa = true
 			GameState.treasure_bump("clientes_platos")
+	# Niveles-escuela: sin bote de propinas no hay propina que tirar.
+	if not tips_enabled:
+		return 0
+	var rules: Dictionary = TIP_RULES.get(client_type, {})
 	if rules.is_empty() or plates < int(rules.start):
 		return 0
 	var ramp: int = int(rules.get("ramp", rules.start))

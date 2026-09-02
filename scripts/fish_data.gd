@@ -50,7 +50,10 @@ const DUP_COINS := 80
 ## Probabilidad de que el intento saque COFRE en vez de pez.
 const CHEST_CHANCE := 0.30
 ## Las monedas de rareza se pagan desde esta captura de la especie (inclusive).
-const REPEAT_COINS_FROM := 2
+## La captura paga desde la PRIMERA (era desde la segunda), y la primera de
+## cada especie paga DOBLE: el descubrimiento vale (decidido por el usuario).
+const REPEAT_COINS_FROM := 1
+const FIRST_CATCH_MULT := 2.0
 ## Probabilidad de que el pez pescado traiga un PEZ LAPA pegado.
 const LAPA_CHANCE := 0.07
 ## Lo que paga la BASURA (`junk`), pésquese las veces que se pesque.
@@ -69,9 +72,11 @@ const RARITIES: Dictionary = {
 	"epico": { "name": "Épico", "weight": 4,
 		"color": Color(0.62, 0.35, 0.80), "tier": 2,
 		"coins": Vector2i(85, 120), "len": Vector2i(60, 150) },
+	# 250-400 (eran 130-190; decidido por el usuario, 2-9-2026): sin logro
+	# propio, el legendario paga en oro, también repetido.
 	"legendario": { "name": "Legendario", "weight": 1,
 		"color": Color(0.95, 0.72, 0.20), "tier": 3,
-		"coins": Vector2i(130, 190), "len": Vector2i(100, 300) },
+		"coins": Vector2i(250, 400), "len": Vector2i(100, 300) },
 }
 
 ## Los 100 peces del álbum, ORDENADOS COMO LA VITRINA: por rareza ascendente
@@ -336,10 +341,14 @@ const CHEST_TABLE: Array = [
 ## De 50 a 100 SIEMPRE: el cofre de doblones cubre al menos el intento, que
 ## abrirlo tiene que ilusionar. Es además el ÚNICO botín que se acerca a lo
 ## que paga un pez épico, así que el cofre sigue siendo un buen premio.
-const CHEST_COINS_LOW := Vector2i(100, 125)
-const CHEST_COINS_HIGH := Vector2i(126, 150)
+## 150-250 (eran 100-150; decidido por el usuario): un cofre de oro tiene que
+## cubrir la tirada de sobra.
+const CHEST_COINS_LOW := Vector2i(150, 200)
+const CHEST_COINS_HIGH := Vector2i(201, 250)
 const CHEST_COINS_HIGH_CHANCE := 0.3
-const RECIPE_FALLBACK := 230
+## La MISMA cifra que el día 7 del diario sin receta pendiente: estaban en 230
+## y 200 cada una por su lado.
+const RECIPE_FALLBACK := DailyData.RECIPE_FALLBACK
 
 ## Coleccionables que se pueden PESCAR. Son DOS familias (ver la regla de
 ## diseño en la cabecera de `collectible_data.gd`):
@@ -382,8 +391,10 @@ const FISHING_COLLECTIBLES: Array = [
 	# Mitologia griega, Capitan Harlock, el peine de las sirenas y la caja de
 	# Urashima Taro.
 	"obolo_caronte", "calavera_alada", "peine_nacar", "tamatebako",
-	# La Odisea, Robinson Crusoe, Tiburon y Sea of Thieves.
-	"tapones_cera", "huella_arena", "bidon_amarillo", "banana",
+	# Robinson Crusoe, Tiburon y Sea of Thieves. (Los TAPONES DE CERA de La
+	# Odisea salieron del sorteo: se ganan en un mapa del tesoro del mar 2,
+	# antes de la Sirena — decidido por el usuario, 2-9-2026.)
+	"huella_arena", "bidon_amarillo", "banana",
 	# Tintin, Los Goonies y La Sirenita.
 	"maqueta_unicornio", "ojo_cobre", "tenedor",
 	# El Planeta del Tesoro y Studio Ghibli (Laputa y Ponyo).

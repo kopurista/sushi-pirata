@@ -56,7 +56,7 @@ const SPEAKERS := {
 		"dir": "res://assets/characters/saverio", "file": "saverio",
 		"name": "Saverio", "side": "right", "plate": "left", "mood": "serio",
 	},
-	# Capitán del nivel 5. Sale a la DERECHA porque comparte pantalla con David,
+	# Capitán del escenario 23. Sale a la DERECHA porque comparte pantalla con David,
 	# que ocupa siempre la izquierda.
 	"pablo": {
 		"dir": "res://assets/characters/pablo", "file": "pablo",
@@ -82,7 +82,7 @@ const SPEAKERS := {
 		"name": "Alice", "side": "right", "plate": "left", "mood": "serio",
 	},
 	# LOS CLIENTES DE SIEMPRE, sin nombre propio: cuando a un guion le hace
-	# falta que hable el que está sentado en la barra (el pirata del nivel 7 y
+	# falta que hable el que está sentado en la barra (el pirata del 15 y
 	# su bandera). Como Saverio, Pablo y Cai salen a la DERECHA: la izquierda es
 	# siempre de David.
 	#

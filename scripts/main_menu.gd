@@ -376,7 +376,7 @@ func _menu_popups() -> void:
 	if GameState.tutorial_done and GameState.daily_available():
 		await get_tree().create_timer(0.9).timeout
 		# La PRIMERA vez, David explica antes de qué va el mapa del tesoro.
-		if not GameState.daily_intro_done and GameState.level1_outro_done:
+		if not GameState.daily_intro_done:
 			await _explicar_bonus_diario()
 		# El premio NO se cobra aquí: lo cobra el jugador tocando el cofre.
 		_show_daily()
@@ -405,7 +405,7 @@ func _felicitar_nivel_1() -> void:
 		# llegaba antes de que la barra se hubiera movido nunca.)
 	]
 	lineas.append({ "text": "¡AL SIGUIENTE PUERTO! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" })
-	lineas.append({ "text": "Ya lo has oído. Te espero en **Playa del Coco**: allí te enseño el truco que separa a un cocinero de un friegaplatos.", "mood": "hablando" })
+	lineas.append({ "text": "Ya lo has oído. Te espero en **Ensenada del Mero**, una jornada para soltar la mano. Y en **Playa del Coco** te enseño el truco que separa a un cocinero de un friegaplatos.", "mood": "hablando" })
 	caja.say(lineas)
 	await caja.finished
 	await caja.close_and_free()
@@ -506,7 +506,7 @@ func _presentar_alice() -> void:
 		{ "text": "Y esto, %s, te cambia la cocina: desde hoy tienes **bonificadores**." % GameState.player_title(), "mood": "hablando" },
 		{ "text": "No son los potenciadores del bote: esos duran un turno y salen solos. Los **bonificadores** se eligen ANTES de zarpar y valen para toda la jornada.", "mood": "serio" },
 		{ "text": "El primero es ella. Con el **ayudante de cocina** puesto, empiezas una receta, le pasas la tabla y la termina Alice mientras tú haces otra.", "mood": "feliz" },
-		{ "text": "Cada uno se gana haciendo algo concreto en partida, y cada vez que lo repitas te llevas otro uso. Y se **mejoran con doblones** desde el menú, en **Bonificadores**.", "mood": "hablando" },
+		{ "text": "Cada uno se gana haciendo algo concreto en partida, y cada vez que lo repitas te llevas otro uso. Y se **mejoran con doblones** desde el mapa, en **Bonificadores**.", "mood": "hablando" },
 		{ "text": "No le romperé nada. Casi seguro.", "who": "alice", "mood": "feliz" },
 	])
 	await caja.finished
@@ -569,7 +569,7 @@ func _presentar_kappa() -> void:
 	ui_layer.add_child(caja)
 	caja.say([
 		{ "text": "¡RAAAK! ¡NOS SIGUE! ¡EL BICHO NOS SIGUE!", "who": "gigi", "mood": "loro_grito" },
-		{ "text": "Mmm... cocinero...", "who": "kappa", "mood": "dormido" },
+		{ "text": "Mmm... %s..." % GameState.cocinero(), "who": "kappa", "mood": "dormido" },
 		{ "text": "Tranquilo, loro. Un Kappa con la barriga llena no persigue a nadie: apenas se aguanta despierto.", "mood": "hablando" },
 		{ "text": "Comida... buena. Kappa... paga.", "who": "kappa", "mood": "hablando" },
 		{ "text": "Toma. Dos lingotes... y esto. Se me cayó... masticando.", "who": "kappa", "mood": "feliz" },
@@ -661,7 +661,7 @@ func _presentar_saverio() -> void:
 	ui_layer.add_child(caja)
 	caja.say([
 		{ "text": "¡Buen turno, %s! Y mira quién estaba descargando en el muelle mientras cocinabas..." % GameState.player_title(), "mood": "feliz" },
-		{ "text": "**Saverio**, el mejor tendero de estos mares. Encantado, cocinero.", "who": "saverio", "mood": "explicando" },
+		{ "text": "**Saverio**, el mejor tendero de estos mares. Encantado, %s." % GameState.cocinero(), "who": "saverio", "mood": "explicando" },
 		{ "text": "Yo vendo **usos** de ingredientes, y tengo **de todo** siempre a la vista. A partir de hoy mi puesto es tuyo.", "who": "saverio", "mood": "hablando" },
 		{ "text": "¡NEGOCIOS! ¡RAAAK!", "who": "gigi", "mood": "loro" },
 		{ "text": "Anda, pásate por el puesto y échale un ojo. Lo tienes siempre en el **menú**, botón **Tienda**.", "mood": "hablando" },
@@ -691,7 +691,7 @@ func _pagar_pablo() -> void:
 	# que el capitán cumple su palabra. Ahora se acerca él, suelta los lingotes
 	# y David solo explica para qué sirven, que es lo suyo.
 	caja.say([
-		{ "text": "¡Eh, cocinero! No te escapes, que Pablo el Rubio paga lo que come.", "who": "pablo", "mood": "guason" },
+		{ "text": "¡Eh, %s! No te escapes, que Pablo el Rubio paga lo que come." % GameState.cocinero(), "who": "pablo", "mood": "guason" },
 		{ "text": "**%d lingotes de oro**. Del bueno, no de ese que se dobla con los dientes." % lingotes, "who": "pablo", "mood": "riendo" },
 		{ "text": "¡LINGOTES! ¡RAAAK! ¡BRILLAN MÁS QUE LAS MONEDAS!", "who": "gigi", "mood": "loro_sorpresa" },
 		{ "text": "Y valen más, plumas. Los **lingotes** son la moneda de verdad: con ellos se compran **sacos de arroz** y bolsas de doblones cuando andas justo.", "mood": "hablando" },
@@ -859,7 +859,7 @@ func _disparar_canon(canon: Node3D) -> void:
 		ui_layer.add_child(caja)
 		caja.say([
 			{ "text": "¡RAAAK! ¿¡CON QUÉ!? ¡NO HAY BALAS! ¡PESCA UNA BALA DE "
-				+ "CAÑÓN, COCINERO DE AGUA DULCE!", "who": "gigi",
+				+ "CAÑÓN, %s DE AGUA DULCE!" % GameState.cocinero(true).to_upper(), "who": "gigi",
 				"mood": "loro_grito" },
 		])
 		await caja.finished
@@ -2501,15 +2501,19 @@ const PACKS_LINGOTES := [
 	{ "n": 10, "icon": "pack_lingote_10", "precio": "8,00 €" },
 ]
 ## Monedas de oro a cambio de LINGOTES.
+## Subidos el 2-9-2026 (pedido por el usuario: "que cada cosa cueste más
+## lingotes"). El pack MEDIANO de arroz es el más barato por saco a propósito:
+## que nadie compre un saco suelto. El pack enseña TACHADO lo que costarían
+## sus sacos de uno en uno (`_pack_card`).
 const PACKS_MONEDAS := [
 	{ "n": 100, "icon": "pack_moneda_100", "coste": 1 },
-	{ "n": 500, "icon": "pack_moneda_500", "coste": 4 },
-	{ "n": 1000, "icon": "pack_moneda_1000", "coste": 8 },
+	{ "n": 500, "icon": "pack_moneda_500", "coste": 5 },
+	{ "n": 1000, "icon": "pack_moneda_1000", "coste": 9 },
 ]
 const PACKS_ARROZ := [
-	{ "n": 1, "icon": "ic_arroz", "coste": 1 },
-	{ "n": 5, "icon": "pack_arroz_5", "coste": 3 },
-	{ "n": 10, "icon": "pack_arroz_10", "coste": 7 },
+	{ "n": 1, "icon": "ic_arroz", "coste": 2 },
+	{ "n": 5, "icon": "pack_arroz_5", "coste": 5 },
+	{ "n": 10, "icon": "pack_arroz_10", "coste": 12 },
 ]
 
 
@@ -2557,10 +2561,10 @@ func _explicar_arroz() -> DialogueBox:
 	# señala es el HUECO — la lección se ve, no se promete.
 	caja.say([
 		{ "text": "Antes de nada, %s: mira ese saco de ahí arriba." % GameState.player_title(), "mood": "hablando" },
-		{ "text": "¿Lo ves? Ya no marca veinte. Es **arroz**, y cada jornada que sales a cocinar se lleva **un saco**.", "mood": "serio" },
+		{ "text": "¿Ves el saco de ahí arriba? Es **arroz**, y cada jornada que sales a cocinar se lleva **un saco**.", "mood": "serio" },
 		{ "text": "Sin arroz no hay sushi, y sin sushi no hay oro. Ese contador es lo que te dice cuántas jornadas te quedan.", "mood": "hablando" },
 		{ "text": "¡SIN ARROZ NO SE NAVEGA! ¡RAAAK!", "who": "gigi", "mood": "loro" },
-		{ "text": "Tranquilo, que se repone solo con el tiempo. Y por el camino conseguirás más de los que gastas.", "mood": "feliz" },
+		{ "text": "%s, que se repone solo con el tiempo. Y por el camino conseguirás más de los que gastas." % GameState.gen("Tranquilo", "Tranquila"), "mood": "feliz" },
 	])
 	await caja.finished
 	rice_box.z_index = z_antes
@@ -2740,6 +2744,27 @@ func _pack_card(pack: Dictionary, real: bool, overlay: Control,
 	precio.add_theme_font_size_override("font_size", 30)
 	precio.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(precio)
+	# LO QUE COSTARÍA DE UNO EN UNO, TACHADO (pedido por el usuario): el
+	# ahorro del pack se lee sin hacer cuentas.
+	if not real and int(pack["n"]) > 1:
+		var lista: Array = PACKS_MONEDAS if monedas else PACKS_ARROZ
+		var unidad := int(lista[0]["coste"]) / float(int(lista[0]["n"]))
+		var suelto := int(round(unidad * int(pack["n"])))
+		if suelto > int(pack["coste"]):
+			var antes := RichTextLabel.new()
+			antes.bbcode_enabled = true
+			antes.fit_content = true
+			antes.scroll_active = false
+			antes.text = "[right][s]%d[/s][/right]" % suelto
+			antes.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+			antes.offset_left = 12.0
+			antes.offset_right = -22.0
+			antes.offset_top = -96.0
+			antes.offset_bottom = -60.0
+			antes.add_theme_font_size_override("normal_font_size", 22)
+			antes.add_theme_color_override("default_color", Color(0.45, 0.32, 0.2, 0.85))
+			antes.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			b.add_child(antes)
 	# En el arroz, el precio va en LINGOTES: se enseña la moneda al lado.
 	if not real:
 		var mon := TextureRect.new()
@@ -3999,20 +4024,25 @@ func _daily_coin_burst(caja: Control) -> void:
 ## parte: sale de `DailyData`, que es determinista, así que basta con volver a
 ## preguntárselo por el número de día.
 func _ver_premio_dia(n: int, padre: Control) -> void:
-	var dado := DailyData.day(n).duplicate(true)
-	if dado.has("money"):
-		dado["money"] = DailyData.money_for(int(dado["money"]),
-			GameState.chef_level)
+	# Lo que dio DE VERDAD ese cofre (`GameState.daily_history`, con los
+	# sorteos resueltos); sin apunte (guardados viejos), la tabla.
+	var dado: Dictionary = GameState.daily_history.get(str(n), {}).duplicate(true)
+	if dado.is_empty():
+		dado = DailyData.day(n).duplicate(true)
+		if dado.has("money"):
+			dado["money"] = DailyData.money_for(int(dado["money"]),
+				GameState.chef_level)
 	var fichas: Array[Control] = []
 	for clave in ["money", "rice", "ingots", "bait", "maps"]:
 		if dado.has(clave):
 			fichas.append(_daily_chip(load(DAILY_ICONS[clave]),
 				"x%d" % int(dado[clave])))
 	# LOS EXTRAS, UNO POR UNO: el premio son N usos de CADA extra, y con un
-	# solo icono —el jengibre— parecía que solo caía ese.
+	# solo icono —el jengibre— parecía que solo caía ese. Solo los que
+	# cayeron (`extras_ids`): los sin presentar no se entregan.
 	if dado.has("extras"):
-		for e in RecipeData.EXTRAS:
-			fichas.append(_daily_chip(RecipeData.get_ingredient_texture(e),
+		for e in dado.get("extras_ids", RecipeData.EXTRAS):
+			fichas.append(_daily_chip(RecipeData.get_ingredient_texture(str(e)),
 				"x%d" % int(dado["extras"])))
 	for k in dado.get("ingredients", {}):
 		fichas.append(_daily_chip(RecipeData.get_ingredient_texture(str(k)),
@@ -4083,10 +4113,10 @@ func _show_daily_reward(dado: Dictionary, velo: Control, panel: Control,
 			continue
 		fichas.append(_daily_chip(load(DAILY_ICONS[clave]),
 			"x%d" % int(dado[clave])))
-	# Ídem: una ficha por extra, que el premio es de los TRES.
+	# Ídem: una ficha por extra que haya caído (solo los ya presentados).
 	if dado.has("extras"):
-		for e in RecipeData.EXTRAS:
-			fichas.append(_daily_chip(RecipeData.get_ingredient_texture(e),
+		for e in dado.get("extras_ids", RecipeData.EXTRAS):
+			fichas.append(_daily_chip(RecipeData.get_ingredient_texture(str(e)),
 				"x%d" % int(dado["extras"])))
 	for k in dado.get("ingredients", {}):
 		fichas.append(_daily_chip(RecipeData.get_ingredient_texture(str(k)),

@@ -90,7 +90,7 @@ func _explicar_arbol() -> void:
 		{ "text": "Y el del **chef** toca los platos: más vueltas en la cinta, cajas más altas, platos que salen gratis o dobles.", "mood": "hablando" },
 		{ "text": "Cinco habilidades por árbol. Los puntos se meten **de uno en uno** con el **[+]** de cada tarjeta: al quinto se aprende, y cada cinco más sube de rango.", "mood": "serio" },
 		{ "text": "¡GÁSTALOS YA! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
-		{ "text": "Y tranquilo: **se pueden recolocar** cuando quieras con el **[−]**, así que no hay decisión que te ate. Empieza por lo que más te duela hoy.", "mood": "feliz" },
+		{ "text": "Y %s: **se pueden recolocar** cuando quieras con el **[−]**, así que no hay decisión que te ate. Empieza por lo que más te duela hoy." % GameState.gen("tranquilo", "tranquila"), "mood": "feliz" },
 	])
 	await caja.finished
 	await caja.close_and_free()
@@ -975,7 +975,9 @@ func _fill_popup() -> void:
 	fila.add_child(mas)
 
 	var libres := Label.new()
-	libres.text = "Te quedan %d puntos de maestría" % GameState.chef_points_free()
+	var pf := GameState.chef_points_free()
+	libres.text = "Te queda 1 punto de maestría" if pf == 1 \
+		else "Te quedan %d puntos de maestría" % pf
 	libres.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	libres.offset_top = 506.0
 	libres.offset_bottom = 536.0

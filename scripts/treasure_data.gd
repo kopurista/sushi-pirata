@@ -131,7 +131,11 @@ static func texto_mods(m: Dictionary) -> String:
 		trozos.append("tienes **%d segundos**" % int(d["tiempo"]))
 	if int(d.get("vidas", 0)) > 0:
 		var n := int(d["vidas"])
-		trozos.append("solo **%d fallo%s**" % [n, "" if n == 1 else "s"])
+		# CON QUÉ se gasta cada vida, que "solo 3 fallos" no decía de qué.
+		var de := "al cubo" if str(d.get("falla", "")) == "cubo" \
+			else ("de vacío" if str(d.get("falla", "")) == "vacio" else "")
+		trozos.append("solo **%d fallo%s%s**" % [n, "" if n == 1 else "s",
+			("" if de == "" else " " + de)])
 	if trozos.is_empty():
 		return ""
 	return "Con este mapa armado: " + ", ".join(trozos) + "."
@@ -150,7 +154,7 @@ static func texto_objetivo(m: Dictionary) -> String:
 		"sin_basura":
 			return "Cierra una jornada **sin tirar ni un plato** al cubo."
 		"sin_vacios":
-			return "Cierra una jornada **sin que nadie se vaya de vacio**."
+			return "Cierra una jornada **sin que nadie se vaya de vacío**."
 		"maridajes":
 			return "Encadena **%d maridajes** en una misma jornada." % n
 		"propina_jornada":
@@ -172,7 +176,7 @@ static func texto_objetivo(m: Dictionary) -> String:
 		"punto_perfecto":
 			return "Clava el punto de **%d frituras**." % n
 		"cliente_lleno":
-			return "Que un **capitan** se vaya habiendo comido **%d platos**." % n
+			return "Que un **capitán** se vaya habiendo comido **%d platos**." % n
 		"racha_limpia":
 			return "**%d platos** servidos sin un solo fallo." % n
 		"clientes_platos":
@@ -225,10 +229,10 @@ const MAPAS := [
 	{ "id": "t01", "nombre": "Cala de las Cuatro Bocas", "dificultad": "facil",
 		"tipo": "clientes_platos", "n": 4, "p": 3,
 		"premio": {} },
-	{ "id": "t02", "nombre": "Bajio del Cocinero Manco", "dificultad": "facil",
+	{ "id": "t02", "nombre": "Bajío del Cocinero Manco", "dificultad": "facil",
 		"tipo": "picoteos", "n": 8,
 		"premio": { "cebo": 3 } },
-	{ "id": "t03", "nombre": "Islote del Cubo Vacio", "dificultad": "facil",
+	{ "id": "t03", "nombre": "Islote del Cubo Vacío", "dificultad": "facil",
 		"tipo": "sin_basura", "n": 1,
 		"premio": { "arroz": 1 } },
 	{ "id": "t04", "nombre": "Punta del Postre", "dificultad": "facil",
@@ -240,13 +244,13 @@ const MAPAS := [
 	{ "id": "t06", "nombre": "Cala del Pulso Firme", "dificultad": "facil",
 		"tipo": "corte_perfecto", "n": 6,
 		"premio": { "ingrediente": "atun_rojo", "ingrediente_n": 3 } },
-	{ "id": "t07", "nombre": "Arrecife del Comilon", "dificultad": "facil",
+	{ "id": "t07", "nombre": "Arrecife del Comilón", "dificultad": "facil",
 		"tipo": "un_cliente", "n": 5,
 		"premio": { "arroz": 1 } },
 	{ "id": "t08", "nombre": "Ensenada de la Propina", "dificultad": "facil",
 		"tipo": "propina_jornada", "n": 30,
 		"premio": { "lingotes": 1 } },
-	{ "id": "t09", "nombre": "Farallon del Sazon", "dificultad": "facil",
+	{ "id": "t09", "nombre": "Farallón del Sazón", "dificultad": "facil",
 		"tipo": "extras_jornada", "n": 6,
 		"premio": { "extras": 5 } },
 	{ "id": "t10", "nombre": "Playa de las Cinco Bocas", "dificultad": "facil",
@@ -264,7 +268,7 @@ const MAPAS := [
 	{ "id": "t14", "nombre": "Caleta del Punto Justo", "dificultad": "facil",
 		"tipo": "punto_perfecto", "n": 3,
 		"premio": { "extras": 5 } },
-	{ "id": "t15", "nombre": "Isla del Capitan Harto", "dificultad": "facil",
+	{ "id": "t15", "nombre": "Isla del Capitán Harto", "dificultad": "facil",
 		"tipo": "cliente_lleno", "n": 6,
 		"premio": { "coleccionable": "panuelo" } },
 	{ "id": "t16", "nombre": "Escollo del x4", "dificultad": "facil",
@@ -299,7 +303,8 @@ const MAPAS := [
 		"premio": { "cebo": 8 } },
 	{ "id": "t24", "nombre": "Placer del Servicio Limpio", "dificultad": "medio",
 		"tipo": "sin_basura", "n": 1,
-		"mods": { "paciencia": 1.2, "vidas": 3, "falla": "cubo" },
+		# Sin vidas de cubo: el primer cubo ya rompe "sin tirar ni un plato".
+		"mods": { "paciencia": 1.25 },
 		"premio": { "arroz": 3 } },
 	{ "id": "t25", "nombre": "Seno del Comensal Eterno", "dificultad": "medio",
 		"tipo": "un_cliente", "n": 8,
@@ -313,7 +318,7 @@ const MAPAS := [
 		"tipo": "platos_tiempo", "n": 30, "t": 150,
 		"mods": { "paciencia": 1.2, "vidas": 3, "falla": "cubo" },
 		"premio": { "coleccionable": "marca_negra" } },
-	{ "id": "t28", "nombre": "Golfo del Sazon Largo", "dificultad": "medio",
+	{ "id": "t28", "nombre": "Golfo del Sazón Largo", "dificultad": "medio",
 		"tipo": "extras_jornada", "n": 14,
 		"mods": { "paciencia": 1.25 },
 		"premio": { "extras": 10 } },
@@ -323,7 +328,8 @@ const MAPAS := [
 		"premio": { "lingotes": 1 } },
 	{ "id": "t30", "nombre": "Bocana del Sin Fallo", "dificultad": "medio",
 		"tipo": "racha_limpia", "n": 20,
-		"mods": { "paciencia": 1.2, "vidas": 3, "falla": "cubo" },
+		# Sin vidas: la racha ya se rompe con cada cubo o corte fallado.
+		"mods": { "paciencia": 1.25 },
 		"premio": { "coleccionable": "tapones_cera" } },
 	{ "id": "t31", "nombre": "Arrecife de la Fritura", "dificultad": "medio",
 		"tipo": "punto_perfecto", "n": 8,
@@ -337,7 +343,7 @@ const MAPAS := [
 		"tipo": "sin_repetir", "n": 15,
 		"mods": { "paciencia": 1.2, "vidas": 3, "falla": "cubo" },
 		"premio": { "cebo": 10 } },
-	{ "id": "t34", "nombre": "Rompiente del Capitan", "dificultad": "medio",
+	{ "id": "t34", "nombre": "Rompiente del Capitán", "dificultad": "medio",
 		"tipo": "cliente_lleno", "n": 9,
 		"mods": { "paciencia": 1.25 },
 		"premio": { "lingotes": 2 } },
@@ -373,11 +379,11 @@ const MAPAS := [
 		"tipo": "racha_limpia", "n": 30,
 		"mods": { "paciencia": 1.35, "vidas": 1, "falla": "vacio" },
 		"premio": { "arroz": 5 } },
-	{ "id": "t43", "nombre": "Fosa del Comilon", "dificultad": "dificil",
+	{ "id": "t43", "nombre": "Fosa del Comilón", "dificultad": "dificil",
 		"tipo": "un_cliente", "n": 12,
 		"mods": { "paciencia": 1.4, "tiempo": 90 },
 		"premio": { "lingotes": 3 } },
-	{ "id": "t44", "nombre": "Veta del Sazon Total", "dificultad": "dificil",
+	{ "id": "t44", "nombre": "Veta del Sazón Total", "dificultad": "dificil",
 		"tipo": "extras_jornada", "n": 25,
 		"mods": { "paciencia": 1.3, "bocado": 1.35, "vidas": 2, "falla": "cubo" },
 		"premio": { "extras": 20 } },
@@ -385,7 +391,7 @@ const MAPAS := [
 		"tipo": "propina_jornada", "n": 160,
 		"mods": { "paciencia": 1.45, "bocado": 1.25 },
 		"premio": { "lingotes": 4 } },
-	{ "id": "t46", "nombre": "Cañon del Punto Clavado", "dificultad": "dificil",
+	{ "id": "t46", "nombre": "Cañón del Punto Clavado", "dificultad": "dificil",
 		"tipo": "punto_perfecto", "n": 15,
 		"mods": { "paciencia": 1.35, "vidas": 1, "falla": "vacio" },
 		"premio": { "arroz": 5 } },
@@ -397,11 +403,11 @@ const MAPAS := [
 		"tipo": "maridajes", "n": 18,
 		"mods": { "paciencia": 1.3, "bocado": 1.35, "vidas": 2, "falla": "cubo" },
 		"premio": { "lingotes": 4 } },
-	{ "id": "t49", "nombre": "Sondaleza del Capitan Lleno", "dificultad": "dificil",
+	{ "id": "t49", "nombre": "Sondaleza del Capitán Lleno", "dificultad": "dificil",
 		"tipo": "cliente_lleno", "n": 12,
 		"mods": { "paciencia": 1.45, "bocado": 1.25 },
 		"premio": { "lingotes": 5 } },
-	{ "id": "t50", "nombre": "Ultimo Fondeadero", "dificultad": "dificil",
+	{ "id": "t50", "nombre": "Último Fondeadero", "dificultad": "dificil",
 		"tipo": "platos_tiempo", "n": 50, "t": 150,
 		"mods": { "paciencia": 1.35, "vidas": 1, "falla": "vacio" },
 		"premio": { "lingotes": 6, "arroz": 5 } },

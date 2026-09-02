@@ -16,7 +16,8 @@ class_name PowerupData
 ## definir el potenciador él solo, sin la descripción), "desc" es la línea de
 ## apoyo, e "icon" el dibujo que lo resume.
 ##
-## EL CATÁLOGO ES CORTO A PROPÓSITO (13 entradas, y una solo sale con reloj).
+## EL CATÁLOGO ES CORTO A PROPÓSITO (15 entradas, y una solo sale con reloj;
+## el sorteo deja fuera los que ya están en marcha).
 ## Llegó a tener 20 y estaba lleno de parejas que hacían lo mismo: dos de
 ## enfriamiento, dos de propinas, dos de almacén y TRES de "vienen clientes de
 ## más", uno por tipo. Con tres opciones sorteadas de veinte, lo normal era que
@@ -41,9 +42,13 @@ const POWERUPS: Dictionary = {
 		"desc": "La cinta vuela 20 s",
 		"icon": "res://assets/ui/pot_cinta.png",
 	},
+	# "AROMA CONFUSO" (decidido por el usuario, 2-9-2026): 40 s con los dados
+	# ESPEJADOS entre 1★ y 3★ — el grumete quiere lo caro y el capitán lo
+	# barato (ver client3d._scan_belt). Era "Aroma irresistible", que subía al
+	# 95% un dado que ya estaba al 95%: un placebo.
 	"aroma": {
-		"name": "Aroma irresistible",
-		"desc": "Casi nadie deja pasar su favorito",
+		"name": "Aroma confuso",
+		"desc": "40 s: grumetes a lo caro, capitanes a lo barato",
 		"icon": "res://assets/ui/pot_aroma.png",
 	},
 	"receta_instantanea": {
@@ -58,7 +63,7 @@ const POWERUPS: Dictionary = {
 	},
 	"menos_cooldown": {
 		"name": "Cocina sin esperas",
-		"desc": "Sin enfriamientos 25 s",
+		"desc": "Enfriamientos al 40% durante 25 s",
 		"icon": "res://assets/ui/pot_sin_esperas.png",
 	},
 	"mas_propinas": {

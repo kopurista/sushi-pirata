@@ -14,7 +14,7 @@ const CLIENT3D := preload("res://scripts/client3d.gd")
 ## género) sobre el mismo mar (`main_menu._show_ficha`). La ENSEÑANZA de verdad va integrada en los niveles 1-10
 ## (level_director.gd): este guion solo vende el problema.
 ##
-## Arriba a la derecha hay un botón "Saltar tutorial" que corta el teatro y
+## Arriba a la izquierda hay un botón "Saltar tutorial" que corta el teatro y
 ## va directo a la ficha. El tutorial se marca hecho igual (complete_tutorial
 ## corre al cerrar la ficha, ya en el menú).
 

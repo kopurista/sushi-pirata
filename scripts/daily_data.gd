@@ -23,13 +23,15 @@ class_name DailyData
 ##  · `money`        doblones BASE del día; el de verdad sale de `money_for`,
 ##                   que lo escala con el NIVEL del cocinero.
 ##  · `rice`         sacos de arroz.
-##  · `ingots`       lingotes.
+##  · `ingots`       lingotes; SOLO con los lingotes ya presentados (Pablo).
 ##  · `bait`         cebos; SOLO se entregan con la pesca abierta (sin ella se
 ##                   saltan sin más: no se guardan para luego).
-##  · `maps`         mapas del tesoro (las misiones secundarias). Su sistema
-##                   aún no existe: se ACUMULAN en `GameState.treasure_maps`
-##                   para que nadie pierda lo cobrado cuando entre.
-##  · `extras`       usos de CADA extra (jengibre, wasabi y soja).
+##  · `maps`         mapas del tesoro (las misiones secundarias). SOLO se
+##                   entregan con los mapas ya presentados (escenario 28);
+##                   antes se saltan, como el cebo.
+##  · `extras`       usos de CADA extra YA PRESENTADO (jengibre, wasabi y
+##                   soja llegan de uno en uno, y un extra sin presentar no
+##                   cae).
 ##  · `extra_random` usos de UN extra sorteado al abrir el cofre.
 ##  · `ingredient_random` usos de UN ingrediente normal sorteado al abrir, de
 ##                   entre los de las recetas que el jugador ya sabe (el
@@ -48,7 +50,9 @@ const DAYS: Array = [
 
 ## Doblones que sustituyen a la receta del día 7 cuando ya se tiene, o sea en
 ## todos los ciclos menos el primero. Van ADEMÁS del resto del premio del día 7
-## y escalan con el nivel igual que el oro base.
+## y NO escalan con el nivel (escalados, el día 7 del segundo ciclo pagaba más
+## que cualquier 3★ del mar 1). Es la MISMA cifra que paga el cofre de la pesca
+## sin recetas pendientes (`FishData.RECIPE_FALLBACK` la lee de aquí).
 const RECIPE_FALLBACK := 200
 
 ## EL ORO ESCALA CON EL NIVEL DEL COCINERO (pedido por el usuario: "que la

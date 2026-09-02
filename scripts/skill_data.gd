@@ -156,7 +156,7 @@ const SKILLS: Dictionary = {
 		"tree": "cuchillo", "row": 3, "name": "Corte de maestro",
 		"desc": "El corte lento admite más velocidad antes de darse por fallado.",
 		"values": [10, 20, 30, 40, 50],
-		"text": "El corte lento admite un %v%% más de velocidad.",
+		"text": "El corte lento vale con un %v%% menos de tiempo.",
 		# Rango III: el castigo del corte rápido se parte por la mitad.
 		# Rango V: el primer fallo de cada jornada sale gratis.
 		"half_penalty_rank": 3,
@@ -166,7 +166,14 @@ const SKILLS: Dictionary = {
 		"tree": "cuchillo", "row": 4, "name": "Manos ligeras",
 		"desc": "Los deslizamientos piden menos recorrido y remover, menos vuelta.",
 		"values": [10, 20, 30, 40, 40],
-		"text": "Deslizar pide un %v%% menos de recorrido.",
+		# El rango V no acorta más (40 = 40): dice lo que hace de verdad.
+		"texts": [
+			"Deslizar pide un 10% menos de recorrido.",
+			"Deslizar pide un 20% menos de recorrido.",
+			"Deslizar pide un 30% menos de recorrido.",
+			"Deslizar pide un 40% menos de recorrido.",
+			"Un 40% menos, y los pasos de 3 golpes pasan a 2.",
+		],
 		# El rango V no acorta más: convierte los pasos de 3 golpes en pasos
 		# de 2. Nunca baja de 2, o deja de haber minijuego.
 		"tap_discount_rank": 5,
@@ -175,7 +182,9 @@ const SKILLS: Dictionary = {
 		"tree": "cuchillo", "row": 5, "name": "Golpe de vista",
 		"desc": "Cada tantos platos, el siguiente sale hecho sin un solo gesto. Contador a la vista, no dado.",
 		"values": [10, 8, 6, 4, 3],
-		"text": "Uno de cada %v platos sale hecho solo.",
+		# "Cada N a mano, el siguiente gratis": el contador se arma a N y el
+		# gratis es el N+1, así que "uno de cada N" no era verdad.
+		"text": "Cada %v platos a mano, el siguiente sale hecho solo.",
 	},
 	# ------------------------------------------------- árbol 2: el cliente
 	"buen_anfitrion": {
@@ -187,7 +196,10 @@ const SKILLS: Dictionary = {
 	"buen_precio": {
 		"tree": "cliente", "row": 2, "name": "Buen precio",
 		"desc": "Cada plato paga más de lo que dice su ficha.",
-		"values": [3, 6, 9, 12, 15],
+		# 5/10/15/20/25 (eran 3..15): con precios de 2 a 8 los dos primeros
+		# rangos se perdían enteros en el redondeo. client3d los cobra con un
+		# ACUMULADOR de céntimos, así que el porcentaje se paga de verdad.
+		"values": [5, 10, 15, 20, 25],
 		"text": "Los platos pagan un %v%% más.",
 	},
 	"mano_suelta": {
@@ -213,7 +225,7 @@ const SKILLS: Dictionary = {
 		"tree": "chef", "row": 1, "name": "Cocina abundante",
 		"desc": "Cada tantos platos, de una elaboración salen dos.",
 		"values": [10, 8, 7, 6, 4],
-		"text": "Uno de cada %v platos sale doble.",
+		"text": "Cada %v platos, el siguiente sale doble.",
 	},
 	"buena_mano": {
 		"tree": "chef", "row": 2, "name": "Buena mano",
@@ -225,7 +237,15 @@ const SKILLS: Dictionary = {
 		"tree": "chef", "row": 3, "name": "Segunda vuelta",
 		"desc": "Tus platos aguantan más vueltas en la cinta antes de caer al cubo, y tirarlos cuesta menos.",
 		"values": [2, 2, 3, 3, 3],
-		"text": "Los platos aguantan %v vueltas.",
+		# Un texto por rango: con la plantilla, el II y el IV decían lo mismo
+		# que el I y el III aunque cambien el cubo y el olvido.
+		"texts": [
+			"Los platos aguantan 2 vueltas.",
+			"2 vueltas, y el cubo cobra el 15%.",
+			"3 vueltas, y el cubo cobra el 15%.",
+			"3 vueltas, y cada vuelta borra los rechazos.",
+			"3 vueltas, rechazos borrados y el cubo cobra el 5%.",
+		],
 		# Castigo del cubo por rango (en % del precio; sin rango es el 20).
 		"waste": [20, 15, 15, 15, 5],
 		# Desde este rango, cada vuelta nueva borra los RECHAZOS del plato:
@@ -236,7 +256,7 @@ const SKILLS: Dictionary = {
 		"tree": "chef", "row": 4, "name": "Golpe de suerte",
 		"desc": "Cada tantos platos, el siguiente sube un punto extra de multiplicador al cliente que lo coja.",
 		"values": [10, 8, 7, 6, 5],
-		"text": "Uno de cada %v platos sube un punto extra.",
+		"text": "Cada %v platos, el siguiente sube un punto extra.",
 	},
 	"paladar_generoso": {
 		"tree": "chef", "row": 5, "name": "Paladar generoso",

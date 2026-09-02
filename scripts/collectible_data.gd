@@ -145,7 +145,7 @@ const ITEMS: Array = [
 	{ "id": "ancla", "name": "Ancla",
 		"desc": "Salió de un cofre pescado en alta mar." },
 	{ "id": "pistola", "name": "Pistola pirata", "desc": "" },
-	{ "id": "espada", "name": "Espada pirata", "desc": "" },
+	{ "id": "espada", "name": "Espada pirata", "desc": "La pagó un capitán en el Escollo del Sable, a cambio de cuatro platos distintos. Dijo que era un trato justo y que ya no la necesitaba." },
 	{ "id": "brujula", "name": "Brújula",
 		"desc": "Salió de un cofre pescado en alta mar." },
 	{
@@ -203,7 +203,7 @@ const ITEMS: Array = [
 		"desc": "Tiene los dos ojos pintados: alguien cumplió su deseo." },
 	{ "id": "botella_sake", "name": "Botella de sake", "desc": "" },
 	{ "id": "escama_sirena", "name": "Escama de sirena", "desc": "" },
-	{ "id": "rallador_tiburon", "name": "Rallador de piel de tiburon",
+	{ "id": "rallador_tiburon", "name": "Rallador de piel de tiburón",
 		"desc": "" },
 	{ "id": "sandalias_geta", "name": "Sandalias geta sucias", "desc": "" },
 	{ "id": "koinobori", "name": "Koinobori", "desc": "" },

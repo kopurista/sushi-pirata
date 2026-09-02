@@ -44,11 +44,14 @@ const RECIPE_TIERS := [25, 100, 500]
 ## es el bicho, menos ejemplares se piden: un común pica cada dos por tres y un
 ## legendario es la captura de una tarde entera. Los pesos del sorteo son
 ## 24/10/4/1 por rareza, así que la escala de metas va más o menos al revés.
+## Los LEGENDARIOS no tienen logro propio (decidido por el usuario, 2-9-2026:
+## un legendario concreto cae una vez de cada ~1.800 tiradas, su oro eran
+## ~14.000 tiradas). A cambio pagan más, también repetidos (FishData).
+## Los épicos bajaron a 1/2/4 (uno concreto cae 1 de cada ~310).
 const FISH_TIERS := {
 	"comun": [10, 30, 80],
 	"raro": [5, 15, 40],
-	"epico": [3, 8, 20],
-	"legendario": [1, 3, 8],
+	"epico": [1, 2, 4],
 }
 
 ## ICONO PROPIO DE CADA LOGRO. Los de receta usan el sprite de su plato y los de
@@ -155,7 +158,7 @@ const ACHIEVEMENTS: Array = [
 		"stat": "slices_ok", "tiers": [50, 300, 1500],
 	},
 	{
-		"id": "tempura_perfecta", "group": "cocina", "name": "Tres segundos clavados",
+		"id": "tempura_perfecta", "group": "cocina", "name": "Dos segundos clavados",
 		"desc": "Borda %d tempuras en el punto exacto.",
 		"stat": "fry_perfect", "tiers": [5, 25, 100],
 	},
@@ -165,7 +168,7 @@ const ACHIEVEMENTS: Array = [
 		"stat": "dish_moriawase", "tiers": [10, 50, 250],
 	},
 	{
-		"id": "combos", "group": "cocina", "name": "Maridajes",
+		"id": "combos", "group": "cocina", "name": "Combinaciones",
 		"desc": "Sirve %d platos combinados.",
 		"stat": "dish_udon_tempura", "tiers": [10, 50, 200],
 	},
@@ -177,13 +180,14 @@ const ACHIEVEMENTS: Array = [
 	{
 		"id": "sin_desperdicio", "group": "cocina", "name": "Aquí no se tira nada",
 		"desc": "Termina %d partidas sin que se desperdicie ni un plato.",
+		"desc_1": "Termina 1 partida sin que se desperdicie ni un plato.",
 		"stat": "clean_runs", "tiers": [1, 10, 50],
 	},
 
 	# --- Fortuna -------------------------------------------------------------
 	{
 		"id": "dinero_nivel", "group": "travesia", "name": "Caja del día",
-		"desc": "Gana %d doblones en un nivel de la campaña.",
+		"desc": "Gana %d doblones en un escenario de la campaña.",
 		"stat": "best_money_level", "tiers": [60, 100, 150],
 	},
 	{
@@ -203,7 +207,7 @@ const ACHIEVEMENTS: Array = [
 	},
 	{
 		"id": "maestrias", "group": "travesia", "name": "Manos que aprenden",
-		"desc": "Ten %d maestrías aprendidas a la vez.",
+		"desc": "Ten %d habilidades aprendidas a la vez.",
 		"stat": "skills_owned", "tiers": [3, 9, 15],
 	},
 	# --- BONIFICADORES: conseguirlos y mejorarlos. Las estadísticas las suben
@@ -211,11 +215,13 @@ const ACHIEVEMENTS: Array = [
 	{
 		"id": "bonificadores", "group": "travesia", "name": "Tripulación de lujo",
 		"desc": "Consigue %d bonificadores permanentes.",
-		"stat": "perks_unlocked", "tiers": [1, 2, 4],
+		"desc_1": "Consigue 1 bonificador permanente.",
+		"stat": "perks_unlocked", "tiers": [1, 3, 5],
 	},
 	{
 		"id": "mejoras", "group": "travesia", "name": "Siempre a más",
 		"desc": "Mejora un bonificador %d veces.",
+		"desc_1": "Mejora un bonificador 1 vez.",
 		"stat": "perk_upgrades", "tiers": [1, 5, 12],
 	},
 	{
@@ -243,17 +249,19 @@ const ACHIEVEMENTS: Array = [
 	{
 		"id": "estrellas", "group": "travesia", "name": "Cielo estrellado",
 		"desc": "Reúne %d estrellas en la campaña.",
-		"stat": "derived:estrellas", "tiers": [9, 18, 27],
+		"stat": "derived:estrellas", "tiers": [30, 90, 180],
 	},
 	{
 		"id": "niveles", "group": "travesia", "name": "Rumbo fijo",
-		"desc": "Supera %d puertos de la campaña.",
-		"stat": "derived:niveles", "tiers": [3, 6, 9],
+		"desc": "Supera %d escenarios de la campaña.",
+		"stat": "derived:niveles", "tiers": [10, 25, 60],
 	},
 	{
-		"id": "recetario_completo", "group": "travesia", "name": "Recetario completo",
+		# "Recetario en marcha", no "completo": el completo es el COLECCIONABLE
+		# de aprenderlas todas. Cuenta solo recetas visibles.
+		"id": "recetario_completo", "group": "travesia", "name": "Recetario en marcha",
 		"desc": "Aprende %d recetas.",
-		"stat": "derived:recetas", "tiers": [4, 8, 12],
+		"stat": "derived:recetas", "tiers": [10, 25, 45],
 	},
 	{
 		"id": "partidas", "group": "travesia", "name": "Lobo de mar",
@@ -292,7 +300,8 @@ const ACHIEVEMENTS: Array = [
 	{
 		"id": "pesca_legendarios", "group": "pesca", "name": "Leyendas de las profundidades",
 		"desc": "Pesca %d ejemplares legendarios.",
-		"stat": "fish_legendary", "tiers": [1, 5, 20],
+		"desc_1": "Pesca 1 ejemplar legendario.",
+		"stat": "fish_legendary", "tiers": [1, 3, 8],
 	},
 	{
 		"id": "pesca_cofres", "group": "pesca", "name": "Rastreador de cofres",
@@ -302,6 +311,7 @@ const ACHIEVEMENTS: Array = [
 	{
 		"id": "pesca_lapa", "group": "pesca", "name": "Dos por el precio de uno",
 		"desc": "Pesca %d peces con un pez lapa pegado.",
+		"desc_1": "Pesca 1 pez con un pez lapa pegado.",
 		"stat": "fish_lapa", "tiers": [1, 10, 40],
 	},
 	{
@@ -351,12 +361,16 @@ static func all() -> Array:
 	for f in FishData.FISH:
 		if f.get("junk", false):
 			continue
+		# Sin logro por pez legendario (ver FISH_TIERS).
+		if str(f.get("rarity", "comun")) == "legendario":
+			continue
 		var fid := str(f["id"])
 		_all.append({
 			"id": "pez_%s" % fid,
 			"group": "pesca",
 			"name": str(f.get("name", fid)),
 			"desc": "Pesca %d ejemplares.",
+			"desc_1": "Pesca 1 ejemplar.",
 			"stat": "derived:fish:%s" % fid,
 			"tiers": FISH_TIERS.get(str(f.get("rarity", "comun")),
 				FISH_TIERS["comun"]),
@@ -413,5 +427,9 @@ static func next_target(a: Dictionary, value: int) -> int:
 
 
 ## Texto del logro con la cantidad de la meta en curso metida en su hueco.
+## Con la meta en 1 y un `desc_1`, el singular ("Termina 1 partidas" no).
 static func describe(a: Dictionary, value: int) -> String:
-	return str(a["desc"]) % next_target(a, value)
+	var meta := next_target(a, value)
+	if meta == 1 and a.has("desc_1"):
+		return str(a["desc_1"])
+	return str(a["desc"]) % meta

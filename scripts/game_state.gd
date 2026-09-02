@@ -72,8 +72,6 @@ var player_gender: String = CharacterData.MALE
 var booted := false
 ## Título del cartel de recompensa (el renglón bajo el nombre) y los que se han
 ## desbloqueado. Ver `title_data.gd`: de salida solo está el de la mano.
-var player_title_id: String = TitleData.MANO
-var unlocked_titles: Array[String] = [TitleData.MANO]
 ## Nombre del jugador (de esa misma pestaña).
 var player_name: String = ""
 ## Mano dominante ("L"/"R"). Con la IZQUIERDA la mesa queda como siempre
@@ -245,6 +243,9 @@ var narrated_ports: Array = []
 ## agota antes de que abra la tienda, David repone (`gift_missing_ingredients`).
 const TUTORIAL_GIFT := 3
 const PORT_GIFT := 3
+## Y CON LA TIENDA ABIERTA, DOS (decidido por el usuario, 2-9-2026: la
+## despensa se regalaba tanto que la tienda apenas valía). Ver `port_gift`.
+const PORT_GIFT_TIENDA := 2
 const GIFT_KNOWN := 1
 ## Y si aun así se queda a CERO de algo antes de que abra la tienda, David
 ## aparece y le regala esta cantidad (ver `gift_missing_ingredients`).
@@ -280,6 +281,8 @@ var shop_day: String = ""
 ## BONUS DIARIO (ver DailyData): día de la racha que toca cobrar (1..7) y fecha
 ## del último cobro. Con `daily_day` a 0 no se ha cobrado ninguno todavía.
 var daily_day: int = 0
+## Lo que dio cada cofre del ciclo en curso: "n" → el `dado` de `claim_daily`.
+var daily_history: Dictionary = {}
 var daily_last: String = ""
 ## COLECCIONABLES conseguidos (ids de CollectibleData) y fragmentos sueltos del
 ## triángulo dorado (a CollectibleData.TRIFORCE_PIECES se juntan en uno).
@@ -603,6 +606,12 @@ func add_ingredient_uses(id: String, amount: int) -> void:
 ## tiene). De los que YA TIENE cae solo `GIFT_KNOWN`: la receta nueva es la
 ## novedad, y rellenar la despensa entera cada vez que David regalaba un plato
 ## convertía la despensa en infinita.
+## Usos de estreno que regala una receta nueva HOY: 3 mientras no hay dónde
+## comprar, 2 en cuanto abre el puesto de Saverio.
+func port_gift() -> int:
+	return PORT_GIFT_TIENDA if shop_unlocked() else PORT_GIFT
+
+
 func gift_ingredients_for(recipe_ids: Array, uses: int) -> void:
 	for rid in recipe_ids:
 		for ing in RecipeData.get_ingredients(rid):
@@ -763,6 +772,10 @@ func consume_ingredients_for_level(recipe_ids: Array) -> bool:
 			return false
 	for ing in needed:
 		ingredients[ing] = get_ingredient_uses(ing) - 1
+	# Se apunta LO COBRADO, que es lo que devuelve "Salir" en preparación
+	# (devolvía la carta entera, y en el puerto gratuito regalaba usos).
+	ultimo_cobro = needed.duplicate()
+	ultimo_cobro_arroz = rice > 0
 	# UN SACO POR JORNADA. Aquí es donde el arroz se gasta de verdad; sin esto
 	# el contador de los 90 min no bajaría nunca del tope y no se vería.
 	if rice > 0:
@@ -771,6 +784,12 @@ func consume_ingredients_for_level(recipe_ids: Array) -> bool:
 			rice_next_ts = int(Time.get_unix_time_from_system()) + RICE_PERIOD
 	save_game()
 	return true
+
+
+## Lo que cobró la última jornada al zarpar (ver `consume_ingredients_for_level`
+## y `level3d._confirm_exit`). De sesión: no se guarda.
+var ultimo_cobro: Array[String] = []
+var ultimo_cobro_arroz := false
 
 
 ## ARCADE SIN FIN: cada oleada nueva cuesta 1 uso de cada ingrediente DISTINTO
@@ -838,10 +857,15 @@ func _today() -> String:
 
 ## --- Bonus diario ----------------------------------------------------------
 
-## Ayer, en el mismo formato que `_today`.
+## Ayer, en el mismo formato que `_today`. EN HORA LOCAL, como `_today`: salía
+## de `get_date_dict_from_unix_time`, que es UTC, así que en España cobrar
+## entre las 00:00 y las 02:00 devolvía como "ayer" el día D−2 y la racha
+## volvía a 1 (repaso del 2-9-2026). Se pasa la fecha local a unix y vuelta
+## con las DOS funciones que tratan el dict como UTC, que así se anulan.
 func _yesterday() -> String:
-	var t := Time.get_unix_time_from_system() - 86400
-	var d := Time.get_date_dict_from_unix_time(int(t))
+	var hoy := Time.get_datetime_dict_from_system()
+	var t := Time.get_unix_time_from_datetime_dict(hoy) - 86400
+	var d := Time.get_datetime_dict_from_unix_time(int(t))
 	return "%04d-%02d-%02d" % [d.year, d.month, d.day]
 
 
@@ -896,16 +920,23 @@ func claim_daily() -> Dictionary:
 		# doblones en su lugar para que la última casilla no salga vacía.
 		if unlock_recipe(str(premio["recipe"])):
 			dado["recipe"] = str(premio["recipe"])
-			gift_ingredients_for([str(premio["recipe"])], PORT_GIFT)
+			gift_ingredients_for([str(premio["recipe"])], port_gift())
 		else:
-			oro += DailyData.money_for(DailyData.RECIPE_FALLBACK, chef_level)
+			# FIJO, sin escalar con el nivel: escalado, el día 7 del segundo
+			# ciclo pagaba 750 a nivel 16, más que cualquier 3★ del mar 1.
+			oro += DailyData.RECIPE_FALLBACK
 	if oro > 0:
 		money += oro
 		dado["money"] = oro
 	if premio.has("rice"):
 		add_rice(int(premio["rice"]))
 		dado["rice"] = int(premio["rice"])
-	if premio.has("ingots"):
+	# LOS LINGOTES, LOS MAPAS Y LOS EXTRAS LLEVAN LA MISMA COMPUERTA QUE LOS
+	# PREMIOS DE NIVEL (`reward_gates`): caían antes de que Pablo explicara el
+	# lingote, antes de la lección de los mapas del 28 y con extras que Saverio
+	# aún no había presentado. Lo que no se conoce no cae ni se guarda: la
+	# racha es una cadencia, no una deuda.
+	if premio.has("ingots") and ingots_intro_done:
 		ingots += int(premio["ingots"])
 		dado["ingots"] = int(premio["ingots"])
 	# Los cebos solo con la PESCA abierta: antes de Cai no hay dónde usarlos, y
@@ -913,20 +944,21 @@ func claim_daily() -> Dictionary:
 	if premio.has("bait") and fishing_unlocked():
 		bait += int(premio["bait"])
 		dado["bait"] = int(premio["bait"])
-	if premio.has("maps"):
+	if premio.has("maps") and mapas_unlocked():
 		treasure_maps += int(premio["maps"])
 		dado["maps"] = int(premio["maps"])
-	if premio.has("extras"):
-		for e in RecipeData.EXTRAS:
+	if premio.has("extras") and not unlocked_extras.is_empty():
+		for e in unlocked_extras:
 			add_ingredient_uses(e, int(premio["extras"]))
 		dado["extras"] = int(premio["extras"])
+		dado["extras_ids"] = unlocked_extras.duplicate()
 	var ings: Dictionary = {}
 	for k in premio.get("ingredients", {}):
 		ings[str(k)] = int(premio["ingredients"][k])
 	# Sorteos de la apertura: UN extra al azar y UN ingrediente normal al azar
 	# de entre los que el jugador ya usa.
-	if premio.has("extra_random"):
-		var e: String = RecipeData.EXTRAS.pick_random()
+	if premio.has("extra_random") and not unlocked_extras.is_empty():
+		var e: String = unlocked_extras.pick_random()
 		ings[e] = int(ings.get(e, 0)) + int(premio["extra_random"])
 	if premio.has("ingredient_random"):
 		var ing := _random_known_ingredient()
@@ -936,6 +968,10 @@ func claim_daily() -> Dictionary:
 		for k in ings:
 			add_ingredient_uses(str(k), int(ings[k]))
 		dado["ingredients"] = ings
+	# LO QUE DIO CADA COFRE SE APUNTA: la consulta de un cofre ya cobrado
+	# volvía a preguntar a DailyData y enseñaba los sorteos sin resolver, el
+	# cebo aunque no se entregara y la receta aunque se pagara el fallback.
+	daily_history[str(n)] = dado.duplicate(true)
 	save_game()
 	# COLECCIONABLE "mapa del tesoro": completar los 7 días de la racha.
 	if n >= DailyData.day_count():
@@ -1073,6 +1109,25 @@ func reroll_shop() -> bool:
 ## El plato MÁS CARO de la carta elegida hoy (ni postres ni picoteos): el
 ## antojo de la fase 3 del Kappa y el encargo del capitán del mapa (m2_05).
 ## Vive aquí para que el guion y el resolvedor del reto no puedan divergir.
+## ¿Hay algún bonificador ganado y con usos? Lo miran el "Viajar" del mapa y
+## el "Repetir" del cartel de resultados: una isla con bonificador que elegir
+## pasa por el selector aunque su carta esté cerrada.
+func hay_bonificadores_disponibles() -> bool:
+	for id in PerkData.ids():
+		if is_perk_unlocked(id) and get_perk_uses(id) > 0:
+			return true
+	return false
+
+
+## Escenario que ENSEÑA los mapas del tesoro (el grumete del 28). Hasta haberlo
+## jugado no hay mapas: ni el botón del submenú ni el bonus diario los dan.
+const MAPAS_PORT := "nivel_17"
+
+func mapas_unlocked() -> bool:
+	return level_stars.has(MAPAS_PORT) or not treasure_open.is_empty() \
+		or treasure_maps > 0
+
+
 func plato_mas_caro_de_la_carta() -> String:
 	var mejor := ""
 	var precio := -1
@@ -1093,9 +1148,10 @@ func plato_mas_caro_de_la_carta() -> String:
 ## ¿Tiene el jugador ALGÚN bonificador? Lo mira el submenú del mapa: su
 ## acceso no sale hasta que hay algo que ver dentro.
 ## UN USO MÁS DE UN BONIFICADOR, pagado con LINGOTES (pedido por el usuario:
-## 1 lingote por uso). Los usos se ganan jugando —repitiendo la hazaña del
-## bonificador—, y esto es el atajo de pago para cuando corre prisa.
-const PERK_USO_LINGOTES := 1
+## subido a 2 el 2-9-2026, "que cada cosa cueste más lingotes"). Los usos se
+## ganan jugando —repitiendo la hazaña del bonificador—, y esto es el atajo de
+## pago para cuando corre prisa.
+const PERK_USO_LINGOTES := 2
 
 
 ## `n` usos DE UNA VEZ: el cartel de compra lleva su "+" para pedir varios, y
@@ -1568,11 +1624,15 @@ func scenario_extra_xp(port_id: String, pago: int, oro: int) -> int:
 	return int(round(minf(extra, float(pago) * SkillData.XP_EXTRA_CAP)))
 
 
-## Experiencia de una partida de ARCADE: 15 × oleada por cada oleada superada.
+## Experiencia de una partida de ARCADE: ARCADE_WAVE_XP × oleada por cada
+## oleada superada, y a partir de ARCADE_XP_TOPE cada oleada paga como esa:
+## cuadrática sin tope, a partir de la 25 el arcade dominaba a la campaña.
+const ARCADE_XP_TOPE := 20
+
 func arcade_xp(waves_done: int) -> int:
 	var total := 0
 	for w in range(1, maxi(waves_done, 0) + 1):
-		total += SkillData.ARCADE_WAVE_XP * w
+		total += SkillData.ARCADE_WAVE_XP * mini(w, ARCADE_XP_TOPE)
 	return total
 
 
@@ -1685,7 +1745,7 @@ func complete_port(port_id: String, stars: int) -> Array:
 				unlock_recipe(str(mejora.get("id", "")))
 				# Y despensa de estreno de sus dos ingredientes.
 				for ing in mejora.get("ingredients", []):
-					ingredients[ing] = get_ingredient_uses(ing) + PORT_GIFT
+					ingredients[ing] = get_ingredient_uses(ing) + port_gift()
 			pending_mejoras.append(mejora_base)
 		var lingotes := int(port.get("reward_ingots_3", 0))
 		if lingotes > 0:
@@ -1704,7 +1764,7 @@ func complete_port(port_id: String, stars: int) -> Array:
 			bait += cebos
 	if not newly.is_empty():
 		# Toda receta nueva llega con despensa para estrenarla.
-		gift_ingredients_for(newly, PORT_GIFT)
+		gift_ingredients_for(newly, port_gift())
 		# NO se pone `pending_reveal`: el cartel de fin de nivel ya las anuncia
 		# (`level3d._reveal_recipes`), y volver a enseñarlas al llegar al mapa
 		# era repetir lo mismo dos veces seguidas. `pending_reveal` se queda solo
@@ -1897,7 +1957,13 @@ func achievement_value(a: Dictionary) -> int:
 					done += 1
 			return done
 		"derived:recetas":
-			return unlocked_recipes.size()
+			# Solo las VISIBLES: las ocultas (variantes, coronas, barco) no se
+			# aprenden y el logro las contaba.
+			var n := 0
+			for rid in unlocked_recipes:
+				if not bool(RecipeData.RECIPES.get(rid, {}).get("hidden", false)):
+					n += 1
+			return n
 		"derived:coleccion":
 			return collectibles.size()
 		"derived:pesca_album":
@@ -2044,6 +2110,11 @@ func _col_procedencia(id: String) -> String:
 			CampaignData.sea_of(port_id)]
 	if id in FishData.FISHING_COLLECTIBLES or id == "trifuerza":
 		return "Pescando, en un cofre del fondo"
+	# Las piezas que entrega un MAPA DEL TESORO (los tapones de cera, el
+	# cañón, el pañuelo...): la ficha decía "En …" y nada.
+	for m in TreasureData.MAPAS:
+		if str(m.get("premio", {}).get("coleccionable", "")) == id:
+			return "Mapa del tesoro: %s" % str(m.get("nombre", ""))
 	return ""
 
 
@@ -2332,13 +2403,15 @@ func fishing_apply(roll: Dictionary) -> Dictionary:
 			add_ingredient_uses(ing, FishData.uses_of(fid))
 			out["ingredient"] = ing
 			out["uses"] = FishData.uses_of(fid)
-		# ...y TODOS pagan las monedas de su rareza POR TAMAÑO desde la 2ª
-		# captura de la especie (la 1ª de un pez sin ingrediente es solo el
-		# álbum).
-		if veces >= FishData.REPEAT_COINS_FROM:
-			var coins := FishData.coins_for(fid, size)
-			money += coins
-			out["coins"] = coins
+		# ...y TODOS pagan las monedas de su rareza POR TAMAÑO, desde la
+		# PRIMERA captura, y la primera de cada especie paga DOBLE (decidido
+		# por el usuario, 2-9-2026: a 100 la tirada, pescar por oro perdía
+		# siempre; la primera pagaba solo el álbum).
+		var coins := FishData.coins_for(fid, size)
+		if veces == 1:
+			coins = int(round(coins * FishData.FIRST_CATCH_MULT))
+		money += coins
+		out["coins"] = coins
 		# El PEZ LAPA pegado: entra al álbum con su tamaño y SU valor se
 		# cobra SIEMPRE (es el extra que regala la captura).
 		if roll.has("lapa_size"):
@@ -2382,8 +2455,8 @@ func fishing_apply(roll: Dictionary) -> Dictionary:
 			out_c["pieces"] = triforce_pieces
 		"recipe":
 			unlock_recipe(str(premio["recipe"]))
-			# El mismo regalo de estreno que una receta de nivel (PORT_GIFT).
-			gift_ingredients_for([str(premio["recipe"])], PORT_GIFT)
+			# El mismo regalo de estreno que una receta de nivel (port_gift).
+			gift_ingredients_for([str(premio["recipe"])], port_gift())
 			save_game()
 	return out_c
 
@@ -2638,11 +2711,6 @@ func current_preset() -> String:
 	return "custom"
 
 
-## El renglón del cartel de recompensa: "el zurdo", "la diestra"...
-func player_subtitle() -> String:
-	return TitleData.text(player_title_id, player_gender, player_hand)
-
-
 ## LA RECOMPENSA del cartel: todo el oro que ha ganado el jugador en toda su
 ## vida, en aventura Y en arcade (los logros son del jugador, no de la campaña,
 ## y esto igual). Se suma en `level3d._finalize_results`, con la jornada
@@ -2653,6 +2721,19 @@ func player_subtitle() -> String:
 ## pero un jugador con treinta horas encima merece algo mejor que un cartel a 0.
 func bounty() -> int:
 	return int(stats.get("money_total", 0))
+
+
+## "cocinero" / "cocinera" según el género elegido (con `mayus`, en mayúscula
+## inicial). Los diálogos lo llevaban escrito a mano en masculino unas veinte
+## veces (repaso del 2-9-2026).
+func cocinero(mayus := false) -> String:
+	var t := str(CharacterData.GENDER_TITLES.get(player_gender, "Cocinero"))
+	return t if mayus else t.to_lower()
+
+
+## Elige la forma masculina o femenina de una palabra según el jugador.
+func gen(masc: String, fem: String) -> String:
+	return fem if player_gender == CharacterData.FEMALE else masc
 
 
 ## Nombre con el que el juego se dirige al jugador.
@@ -2744,6 +2825,7 @@ func save_game() -> void:
 		"shop_day": shop_day,
 		"daily_day": daily_day,
 		"daily_last": daily_last,
+		"daily_history": daily_history,
 		"chef_xp": chef_xp,
 		"chef_level": chef_level,
 		"xp_seeded": xp_seeded,
@@ -2763,8 +2845,6 @@ func save_game() -> void:
 		"player_gender": player_gender,
 		"player_hand": player_hand,
 		"player_name": player_name,
-		"player_title": player_title_id,
-		"unlocked_titles": unlocked_titles,
 		"tutorial_done": tutorial_done,
 		"shop_intro_done": shop_intro_done,
 		"extras_done": extras_done,
@@ -2874,6 +2954,7 @@ func load_game() -> void:
 	shop_stock = _to_string_array(parsed.get("shop_stock", []))
 	shop_day = str(parsed.get("shop_day", ""))
 	daily_day = int(parsed.get("daily_day", 0))
+	daily_history = parsed.get("daily_history", {}) if parsed.get("daily_history") is Dictionary else {}
 	daily_last = str(parsed.get("daily_last", ""))
 	player_gender = str(parsed.get("player_gender", CharacterData.MALE))
 	# El género NEUTRO se retiró con el cartel de recompensa: quien lo tuviera
@@ -2882,13 +2963,6 @@ func load_game() -> void:
 		player_gender = CharacterData.MALE
 	player_name = str(parsed.get("player_name", ""))
 	player_hand = str(parsed.get("player_hand", "L"))
-	player_title_id = str(parsed.get("player_title", TitleData.MANO))
-	if not TitleData.exists(player_title_id):
-		player_title_id = TitleData.MANO
-	unlocked_titles = _to_string_array(parsed.get("unlocked_titles",
-		[TitleData.MANO]))
-	if unlocked_titles.is_empty():
-		unlocked_titles = [TitleData.MANO]
 	# Las estadísticas viajan como números sueltos; "last_day" es texto.
 	stats = {}
 	var stat_dict: Dictionary = parsed.get("stats", {})
@@ -3083,15 +3157,11 @@ func reset_progress() -> void:
 	var keep_name := player_name
 	var keep_gender := player_gender
 	var keep_hand := player_hand
-	var keep_title := player_title_id
-	var keep_titles := unlocked_titles.duplicate()
 	_new_game()
 	settings = keep
 	player_name = keep_name
 	player_gender = keep_gender
 	player_hand = keep_hand
-	player_title_id = keep_title
-	unlocked_titles = keep_titles
 	save_game()
 
 
@@ -3107,8 +3177,6 @@ func _new_game() -> void:
 	# DIESTRA por defecto: es la mano dominante de la mayoria, y en la ficha
 	# de tripulacion sale ya marcada para que no haya que elegir nada.
 	player_hand = "R"
-	player_title_id = TitleData.MANO
-	unlocked_titles = [TitleData.MANO]
 	# Un pequeño botín de bienvenida para las primeras compras en la tienda.
 	money = 50
 	rice = RICE_START

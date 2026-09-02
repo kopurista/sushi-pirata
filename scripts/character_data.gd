@@ -49,18 +49,18 @@ const MODELS := {
 		FEMALE: "res://assets/models/vip_fem_rig.glb",
 	},
 	# Cliente ESPECIAL de un solo puerto: Pablo el Rubio, el capitán de la flota
-	# del nivel 5. Come como un capitán, pero con su propio modelo (y su navaja
+	# del escenario 23. Come como un capitán, pero con su propio modelo (y su navaja
 	# en lugar de mano derecha). No tiene variante femenina: es un personaje
 	# concreto, no un tipo de cliente.
 	"pablo": {
 		MALE: "res://assets/models/pablo_rig.glb",
 	},
-	# El JEFE del nivel 10: el Kappa. Come como un capitán (a su manera: ver
+	# El JEFE del escenario 35: el Kappa. Come como un capitán (a su manera: ver
 	# client3d.make_boss) y, como Pablo, es un personaje concreto sin variantes.
 	"kappa": {
 		MALE: "res://assets/models/kappa_rig.glb",
 	},
-	# CAI, el pescador de la Isla de Gades. En el nivel 8 no se queda mirando
+	# CAI, el pescador de la Isla de Gades. En el escenario 21 no se queda mirando
 	# desde la orilla: se sienta en la barra y hay que darle de comer, así que
 	# necesita su propio modelo. Come como un PIRATA (2 estrellas), que es lo
 	# que le pega a un pescador; el tipo lo pone el puerto, no este modelo.

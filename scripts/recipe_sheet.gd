@@ -83,7 +83,7 @@ static func abrir(host: Node, id: String) -> void:
 
 	if not known:
 		var locked := Label.new()
-		locked.text = "Aún no la conoces. Supera niveles de la campaña para aprenderla."
+		locked.text = "Aún no la conoces. Se gana más adelante en la travesía."
 		locked.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		locked.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		locked.add_theme_font_size_override("font_size", 20)
@@ -145,7 +145,7 @@ static func _bloque_datos(data: Dictionary) -> Control:
 	grid.add_theme_constant_override("v_separation", 2)
 	var rows := [
 		["Precio", "%d doblones" % int(data.get("price", 0))],
-		["Espera", "%.1f s de cooldown" % (float(data.get("cooldown", 0.0))
+		["Espera", "%.1f s de enfriamiento" % (float(data.get("cooldown", 0.0))
 			* RecipeData.RITMO_COOLDOWN)],
 	]
 	# "USOS EXTRA", no "maestria" (pedido por el usuario), y en singular

@@ -25,7 +25,7 @@ const COLS := 4
 ## línea; el sorteo no repite la última dicha (`_last_line`), que con diez
 ## frases salía dos veces seguidas más de lo que parece razonable.
 const SALUDOS := [
-	{ "text": "¡Bienvenido, %s! Echa un vistazo a lo que traigo hoy.", "mood": "feliz" },
+	{ "text": "¡Hola, %s! Echa un vistazo a lo que traigo hoy.", "mood": "feliz" },
 	{ "text": "¡Al loro! Hola, %s, ¿qué te trae hoy por aquí?", "mood": "hablando" },
 	{ "text": "¡%s! Justo estaba colocando el género fresco. Llegas de perlas.", "mood": "feliz" },
 	{ "text": "Vaya, vaya... si es %s. ¿Vienes a gastar o solo a mirar?", "mood": "riendo" },
@@ -177,11 +177,11 @@ func _pablo_y_saverio() -> void:
 	caja.say([
 		{ "text": "¡Saveriooo! Cuánto tiempo sin dejarme robar nada.", "who": "pablo", "mood": "riendo", "side": "left" },
 		{ "text": "Pablo. Como te acerques a mis barriles te clavo el remo.", "who": "saverio", "mood": "serio" },
-		{ "text": "Tranquilo, hoy vengo de cliente. Este de aquí me abordó la flota entera y me dejó la tripulación llena hasta las cejas.", "who": "pablo", "mood": "guason", "side": "left" },
-		{ "text": "¿Este? ¿El de David? Vaya, vaya... entonces sí que sabe cocinar.", "who": "saverio", "mood": "feliz" },
-		{ "text": "Sabe. Y por eso vengo a avisarte: si le vendes barato, me lo llevo yo de cocinero.", "who": "pablo", "mood": "punal", "side": "left" },
+		{ "text": "Tranquilo, hoy vengo de cliente. %s de aquí me abordó la flota entera y me dejó la tripulación llena hasta las cejas." % GameState.gen("Este", "Esta"), "who": "pablo", "mood": "guason", "side": "left" },
+		{ "text": "%s Vaya, vaya... entonces sí que sabe cocinar." % GameState.gen("¿Este? ¿El de David?", "¿Esta? ¿La de David?"), "who": "saverio", "mood": "feliz" },
+		{ "text": "Sabe. Y por eso vengo a avisarte: si le vendes barato, me %s llevo yo de %s." % [GameState.gen("lo", "la"), GameState.cocinero()], "who": "pablo", "mood": "punal", "side": "left" },
 		{ "text": "Ni lo sueñes. Anda, toma tu té y déjame trabajar.", "who": "saverio", "mood": "riendo" },
-		{ "text": "Vendré a verte, cocinero. Y no traeré el puñal... casi seguro.", "who": "pablo", "mood": "riendo", "side": "left" },
+		{ "text": "Vendré a verte, %s. Y no traeré el puñal... casi seguro." % GameState.cocinero(), "who": "pablo", "mood": "riendo", "side": "left" },
 	])
 	await caja.finished
 	caja.queue_free()

@@ -2297,7 +2297,7 @@ const SUBMENU_TINTE := Color(1.22, 0.94, 0.66)
 ## hasta tener el primero — un botón a una pantalla vacía no explica nada.
 const SUBMENU_BOTONES := [
 	["tesoro", "res://assets/ui/ic_mapa_tesoro.png", "Mapas"],
-	["perks", "res://assets/ui/ic_perks.png", "Bonific."],
+	["perks", "res://assets/ui/ic_perks.png", "Bonos"],
 	["tienda", "res://assets/ui/ic_tienda.png", "Tienda"],
 	["opciones", "res://assets/ui/ic_opciones.png", "Opciones"],
 ]
@@ -2389,6 +2389,13 @@ func _boton_submenu(id: String, icono: String, rotulo: String) -> Button:
 func _on_submenu(id: String) -> void:
 	match id:
 		"tesoro":
+			# CERRADOS HASTA SU LECCIÓN (el grumete del 28): sin la compuerta
+			# se abría el primer mapa en el escenario 4, antes de que nadie
+			# explicara qué es (repaso del 2-9-2026).
+			if not GameState.mapas_unlocked():
+				ui.add_child(_aviso_simple("Mapas del tesoro",
+					"Todavía no tienes ninguno. Los mapas del tesoro llegan más adelante en la travesía, y **David** te explicará qué se hace con ellos."))
+				return
 			_mapas_del_tesoro()
 		"perks":
 			GameState.perks_from = "mapa"
@@ -2927,7 +2934,7 @@ func _update_info(id: String) -> void:
 	# Solo el NOMBRE del puerto, estilizado: el "Nivel N" no aportaba nada que
 	# no dijera ya el cartel del propio nodo en el mapa.
 	info_title.text = str(port.get("name", id))
-	info_fase.text = "Fase %d" % (idx + 1)
+	info_fase.text = "Escenario %d" % (idx + 1)
 	info_kind.text = CampaignData.kind_name(id)
 	# NIVEL DE COCINERO RECOMENDADO (`chef_rec` del puerto): es lo que permite
 	# distinguir "voy corto de nivel" de "lo estoy jugando mal". SIN el
@@ -2939,7 +2946,7 @@ func _update_info(id: String) -> void:
 	# La frase descriptiva sobra: la ficha ya lo cuenta todo con sus iconos.
 	# Solo queda el aviso de nivel bloqueado.
 	info_desc.text = "" if unlocked \
-		else "Bloqueado: supera el nivel anterior para navegar hasta aquí."
+		else "Bloqueado: supera el escenario anterior para navegar hasta aquí."
 	info_desc.visible = not unlocked
 
 	for c in info_stars_box.get_children():
@@ -3030,7 +3037,10 @@ func _texto_cierre(id: String) -> String:
 			return "Clientela sin fin contra el reloj. Cada cliente que se marcha sin probar bocado te quita 15 s." \
 				if castigos else "Clientela sin fin contra el reloj."
 		"cueva":
-			return "La guarida del jefe: clientela sin fin hasta que él aparece. Ahí manda su paciencia, no el reloj."
+			# La Fosa de la Sirena es de ELLA.
+			var ella := str(CampaignData.get_port(id).get("boss", "")) == "sirena"
+			return "La guarida %s: clientela sin fin hasta que %s aparece. Ahí manda su paciencia, no el reloj." \
+				% ["de la jefa" if ella else "del jefe", "ella" if ella else "él"]
 	return "Clientela sin fin." if sin_fin else ""
 
 
@@ -3305,7 +3315,7 @@ func _guiar_primer_nivel(caja: DialogueBox = null) -> void:
 		# golpe, antes de haber jugado ni una, es una lección que no se puede
 		# aplicar a nada.
 		{ "text": "Las **islas** son tranquilas: poca clientela y con la carta que yo te ponga. Perfectas para aprender el oficio.", "mood": "hablando" },
-		{ "text": "Hay otras clases de parada, y ya las verás cuando toque. Dale a **¡Zarpar!** cuando quieras.", "mood": "feliz" },
+		{ "text": "Hay otras clases de parada, y ya las verás cuando toque. Dale a **Viajar** cuando quieras.", "mood": "feliz" },
 	])
 	await caja.finished
 	await caja.close_and_free()
@@ -3445,6 +3455,12 @@ func _on_sail_pressed() -> void:
 	if fijas.is_empty():
 		GameState.fade_to_scene("res://scenes/prep_screen.tscn", 0.35, 0.45)
 		return
+	# UNA RECETA DE LA ISLA QUE AÚN NO SE TIENE (decidido por el usuario): se
+	# avisa una vez por visita y se juega igual, con una receta menos.
+	var sin_receta := CampaignData.fixed_recipes_faltan(selected_id)
+	if not sin_receta.is_empty() and not _receta_avisada.has(selected_id):
+		_receta_avisada[selected_id] = true
+		await _avisar_receta_faltante(sin_receta)
 	var faltan := GameState.missing_ingredients(fijas)
 	if faltan.is_empty():
 		_zarpar_con(fijas)
@@ -3460,6 +3476,31 @@ func _on_sail_pressed() -> void:
 	_avisar_falta_genero(fijas, faltan)
 
 
+## Islas ya avisadas de su receta pendiente en esta sesión.
+var _receta_avisada: Dictionary = {}
+
+
+## Gigi canta las recetas de la carta de la isla que el jugador todavía no ha
+## ganado: se juega igual, con menos recetas (y con ellas se puede volver).
+func _avisar_receta_faltante(ids: Array[String]) -> void:
+	var nombres: Array[String] = []
+	for id in ids:
+		nombres.append("**%s**" % str(RecipeData.get_recipe(id).get("name", id)).to_lower())
+	var caja := DialogueBox.new()
+	caja.z_index = 200
+	ui.add_child(caja)
+	caja.say([
+		{ "text": "¡RAAAK! ¡Aquí se cocina %s y todavía no %s!"
+			% [_lista(nombres), "la tienes" if ids.size() == 1 else "las tienes"],
+			"who": "gigi", "mood": "loro_grito" },
+		{ "text": "Se puede jugar igual, con %s menos en la carta. Y cuando %s, vuelve: la isla te esperará con la carta completa."
+			% ["una receta" if ids.size() == 1 else "esas recetas",
+				"la ganes" if ids.size() == 1 else "las ganes"], "mood": "hablando" },
+	])
+	await caja.finished
+	await caja.close_and_free()
+
+
 ## David rellena la despensa cuando el jugador se queda a cero ANTES de que
 ## abra la tienda. No es un premio: es la red de seguridad de la escuela.
 func _david_regala_genero(faltan: Array) -> void:
@@ -3469,8 +3510,8 @@ func _david_regala_genero(faltan: Array) -> void:
 	caja.say([
 		{ "text": "¡RAAAK! ¡DESPENSA VACÍA! ¡Que no queda %s!"
 			% _lista(_nombres_ingredientes(faltan)), "who": "gigi", "mood": "loro_grito" },
-		{ "text": "Tranquilo, para eso está el capitán. Toma **%d usos** de cada cosa que te falte, de mi **reserva particular**."
-			% GameState.RESCUE_GIFT, "mood": "feliz" },
+		{ "text": "%s, para eso está el capitán. Toma **%d usos** de cada cosa que te falte, de mi **reserva particular**."
+			% [GameState.gen("Tranquilo", "Tranquila"), GameState.RESCUE_GIFT], "mood": "feliz" },
 	])
 	await caja.finished
 	await caja.close_and_free()

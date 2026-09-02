@@ -1557,6 +1557,7 @@ func _start_prep(id: String) -> void:
 		_flash_message("¡Esa acabas de hacerla!", Color(1.0, 0.55, 0.3))
 		Audio.sfx("recurso_off")
 		return
+	ultima_receta_previa = ultima_receta
 	ultima_receta = id
 	# Restos de la elaboración anterior que no deben contaminar esta.
 	fry_dish = ""
@@ -1618,6 +1619,9 @@ func _cancel_prep() -> void:
 	# Cancelar el montaje del barco DEVUELVE los platos a sus cajas.
 	if current_recipe == BOAT_RECIPE:
 		_return_boat_parts()
+	# Cancelada, la receta no cuenta como "la última hecha" (hándicap del
+	# puerto del mar 3): vuelve la anterior.
+	ultima_receta = ultima_receta_previa
 	state = State.IDLE
 	current_recipe = ""
 	steps = []
@@ -1646,6 +1650,11 @@ const BOAT_DISHES := ["maki_aguacate", "nigiri_salmon", "gunkan_wakame",
 const BOAT_MIN := 4
 const BOAT_MAX := 12
 const BOAT_VARIETY_BONUS := { 2: 10, 3: 24, 4: 52, 5: 88, 6: 132 }
+## Y una prima por cada plato que pase de los cuatro mínimos: fuera del
+## arcade solo hay DOS cajas (dos clases), así que sin esto la prima real era
+## +10 y las filas de 3 a 6 clases no se alcanzaban nunca (repaso del
+## 2-9-2026).
+const BOAT_PLATE_BONUS := 2
 const BOAT_RECIPE := "moriawase"
 ## Un barco por minuto: es la jugada gorda de la partida, no algo continuo.
 const BOAT_COOLDOWN := 60.0
@@ -1702,6 +1711,12 @@ var belt_full := false
 var sin_repetir := false
 ## La última receta elaborada, para el hándicap de arriba ("" = ninguna).
 var ultima_receta := ""
+## La de ANTES de empezar la actual: cancelar la elaboración la devuelve, o
+## cancelar una receta la dejaba vetada por `sin_repetir` sin haberla hecho.
+var ultima_receta_previa := ""
+## Cortes lentos bordados SEGUIDOS (misión de mapa "corte_perfecto": era una
+## suma que no se reiniciaba al fallar).
+var corte_cadena := 0
 signal serve_blocked
 ## Mientras un guion ESTÁ ENSEÑANDO un gesto, equivocarse no cuesta dinero (el
 ## corte del salmón que explica David en el nivel 5). El aviso y el destello
@@ -1713,7 +1728,8 @@ var allowed_recipes: Array = []
 
 ## AYUDANTE (potenciador permanente): botón con su cara que termina de golpe la
 ## receta recién empezada. Solo existe si el jugador lo lleva a la partida; se
-## enciende en el PRIMER paso de una elaboración y luego enfría medio minuto.
+## enciende en el PRIMER paso de una elaboración y luego descansa un minuto
+## (el nivel 1 del bonificador; a nivel 5, medio).
 ## Descanso del ayudante entre plato y plato. Es el valor del NIVEL 1 del
 ## bonificador; `level3d._apply_perks` sobreescribe `helper_rest` con el que
 ## toque segun las mejoras compradas (ver PerkData).
@@ -1805,19 +1821,22 @@ func _boat_price(picked: Array) -> int:
 	var prima := float(BOAT_VARIETY_BONUS.get(kinds.size(), 0))
 	if GameState.has_perk("barco"):
 		prima *= 1.0 + GameState.perk_value("barco") / 100.0
-	return total + int(round(prima))
+	return total + int(round(prima)) \
+		+ BOAT_PLATE_BONUS * maxi(picked.size() - BOAT_MIN, 0)
 
 
 ## Nivel (estrellas) del barco: la MEDIA de los niveles de sus platos,
-## redondeada hacia abajo. Así un barco de 1★+3★ sale de 2★ (lo cata todo el
-## mundo) y uno de puros 3★ sigue siendo cosa de capitanes.
+## REDONDEADA (hacia abajo, un barco de doce platos con mayoría de 2★ y 3★
+## salía de 1★ y pagaba 186 en un plato de grumete). Así un barco de 1★+3★
+## sale de 2★ (lo cata todo el mundo) y uno de puros 3★ sigue siendo cosa
+## de capitanes.
 func _boat_level(picked: Array) -> int:
 	if picked.is_empty():
 		return 1
 	var total := 0
 	for id in picked:
 		total += int(RecipeData.get_recipe(id).get("level", 1))
-	return clampi(int(floor(float(total) / picked.size())), 1, 3)
+	return clampi(int(round(float(total) / picked.size())), 1, 3)
 
 
 ## Pulsar el icono: saca los platos de las cajas a la tabla y empieza el
@@ -1927,6 +1946,7 @@ func _return_boat_parts() -> void:
 				# Vuelven SIN extras: la marca se quedó por el camino al
 				# cogerlos para el barco (nunca llegó a gastar despensa).
 				stacks[slot].units.append([])
+				stacks[slot].datos.append({})
 				_refresh_stack_extras(slot)
 			else:
 				_create_stack(slot, id)
@@ -3309,11 +3329,20 @@ func _store_dish(d: Control, panel_index: int) -> void:
 		stacks[panel_index].count += 1
 		stacks[panel_index].count_label.text = "x%d" % stacks[panel_index].count
 		stacks[panel_index].units.append(unit)
+		stacks[panel_index].datos.append(_dato_del_plato())
 		_refresh_stack_extras(panel_index)
 	else:
-		_create_stack(panel_index, ready_recipe, unit)
+		_create_stack(panel_index, ready_recipe, unit, _dato_del_plato())
 	_emit_storage()
 	_after_dish_consumed()
+
+
+## LO QUE UN PLATO GUARDADO SE LLEVA A LA CAJA además de sus extras: su precio
+## propio (la tempura clavada a 20, el wagyu a 30, el barco calculado), su
+## nivel y su bocado. Se guardaba solo el id y salían a precio de ficha
+## (repaso del 2-9-2026). Va en `datos`, en paralelo con `units`.
+func _dato_del_plato() -> Dictionary:
+	return { "price": ready_price, "level": ready_level, "eat": ready_eat_mult }
 
 
 ## Vuelca el estado de las cajas para quien lo quiera reflejar fuera.
@@ -3328,7 +3357,8 @@ func _emit_storage() -> void:
 	_update_combo_button()
 
 
-func _create_stack(panel_index: int, recipe_id: String, extras: Array = []) -> void:
+func _create_stack(panel_index: int, recipe_id: String, extras: Array = [],
+		dato: Dictionary = {}) -> void:
 	var p: Control = storage_panels[panel_index]
 	var node := Control.new()
 	node.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -3368,7 +3398,7 @@ func _create_stack(panel_index: int, recipe_id: String, extras: Array = []) -> v
 	# "units": los extras de CADA plato de la pila, en orden de guardado (el
 	# último es el de arriba, el próximo en salir). Va en paralelo con "count".
 	stacks[panel_index] = { "id": recipe_id, "count": 1, "node": node,
-		"count_label": cl, "units": [extras], "extras_box": ex }
+		"count_label": cl, "units": [extras], "datos": [dato], "extras_box": ex }
 	_refresh_stack_extras(panel_index)
 
 
@@ -3440,7 +3470,10 @@ func _continue_stack_drag(event: InputEvent) -> void:
 			for e in unit:
 				if GameState.consume_extra(e):
 					extras.append(e)
-			dish_served.emit(stacks[i].id, 0, extras, 0, 0.0)
+			# Con SU precio, nivel y bocado (ver `_dato_del_plato`).
+			dish_served.emit(stacks[i].id, int(_dato_sacado.get("price", 0)),
+				extras, int(_dato_sacado.get("level", 0)),
+				float(_dato_sacado.get("eat", 0.0)))
 			stacks[i].count -= 1
 			if stacks[i].count <= 0:
 				stacks[i].node.queue_free()
@@ -3459,12 +3492,21 @@ func _continue_stack_drag(event: InputEvent) -> void:
 
 ## Saca los extras del plato de ARRIBA de una pila (el próximo en salir).
 func _pop_stack_unit(i: int) -> Array:
+	_dato_sacado = {}
 	if not stacks.has(i):
 		return []
+	var datos: Array = stacks[i].get("datos", [])
+	if not datos.is_empty():
+		_dato_sacado = datos.pop_back()
 	var units: Array = stacks[i].get("units", [])
 	if units.is_empty():
 		return []
 	return units.pop_back()
+
+
+## Los datos (precio, nivel, bocado) del ÚLTIMO plato sacado de una caja con
+## `_pop_stack_unit`: lo leen el servicio desde la caja y la restauración.
+var _dato_sacado: Dictionary = {}
 
 
 ## Un TOQUE en una caja con la tabla libre devuelve el plato de arriba a la
@@ -3487,9 +3529,10 @@ func _restore_from_stack(i: int) -> void:
 	state = State.READY
 	ready_recipe = id
 	ready_base = ""
-	ready_price = 0
-	ready_level = 0
-	ready_eat_mult = 0.0
+	# Vuelve con lo que se guardó: su precio de fritura, su nivel, su bocado.
+	ready_price = int(_dato_sacado.get("price", 0))
+	ready_level = int(_dato_sacado.get("level", 0))
+	ready_eat_mult = float(_dato_sacado.get("eat", 0.0))
 	ready_from_storage = true
 	extras_chosen.clear()
 	for e in unit:
@@ -3774,11 +3817,14 @@ func _handle_slice(event: InputEvent, step: Dictionary) -> void:
 				_flash_message("¡Más lento!")
 			_slice_fail_feedback()
 			slice_failed.emit()
+			# Un corte fallado rompe la racha de "corte_perfecto" del mapa.
+			corte_cadena = 0
 			_update_tap_bar()
 			return
 		slices_done += 1
 		GameState.bump_stat("slices_ok")
-		GameState.treasure_bump("corte_perfecto")
+		corte_cadena += 1
+		GameState.treasure_record("corte_perfecto", corte_cadena)
 		craft_event.emit("slice", _current_stage_id())
 		if slices_done >= int(step.get("count", 1)):
 			_advance_step()

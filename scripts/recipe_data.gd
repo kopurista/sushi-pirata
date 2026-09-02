@@ -125,29 +125,36 @@ const INGREDIENTS: Dictionary = {
 	"aguacate": { "name": "Aguacate", "short": "Aguac", "color": Color(0.45, 0.75, 0.35), "cost": 15 },
 	"salmon": { "name": "Salmón", "short": "Salm", "color": Color(1.0, 0.55, 0.45), "cost": 23 },
 	"wakame": { "name": "Wakame", "short": "Wak", "color": Color(0.2, 0.5, 0.35), "cost": 15 },
-	"atun": { "name": "Atún", "short": "Atún", "color": Color(0.85, 0.3, 0.35), "cost": 23 },
+	"atun": { "name": "Atún", "short": "Atún", "color": Color(0.85, 0.3, 0.35), "cost": 30 },
 	"agua": { "name": "Agua", "short": "Agua", "color": Color(0.45, 0.65, 1.0), "cost": 3 },
 	"miso": { "name": "Pasta miso", "short": "Miso", "color": Color(0.65, 0.5, 0.3), "cost": 8 },
 	"tofu": { "name": "Tofu", "short": "Tofu", "color": Color(0.97, 0.94, 0.86), "cost": 15 },
-	"huevo": { "name": "Huevo", "short": "Huevo", "color": Color(0.9, 0.78, 0.55), "cost": 3 },
+	"huevo": { "name": "Huevo", "short": "Huevo", "color": Color(0.9, 0.78, 0.55), "cost": 4 },
 	"gamba": { "name": "Gamba", "short": "Gamba", "color": Color(1.0, 0.6, 0.45), "cost": 8 },
-	"tofu_frito": { "name": "Tofu frito", "short": "Inari", "color": Color(0.85, 0.65, 0.35), "cost": 5 },
-	"atun_rojo": { "name": "Atún rojo", "short": "AtRojo", "color": Color(0.55, 0.12, 0.18), "cost": 30 },
+	"tofu_frito": { "name": "Tofu frito", "short": "Inari", "color": Color(0.85, 0.65, 0.35), "cost": 6 },
+	"atun_rojo": { "name": "Atún rojo", "short": "AtRojo", "color": Color(0.55, 0.12, 0.18), "cost": 39 },
 	"nori": { "name": "Alga nori", "short": "Nori", "color": Color(0.12, 0.22, 0.14), "cost": 8 },
 	"pepino": { "name": "Pepino", "short": "Pepino", "color": Color(0.35, 0.62, 0.28), "cost": 8 },
-	"huevas": { "name": "Huevas de salmón", "short": "Huevas", "color": Color(0.95, 0.45, 0.12), "cost": 23 },
+	"huevas": { "name": "Huevas de salmón", "short": "Huevas", "color": Color(0.95, 0.45, 0.12), "cost": 30 },
 	"edamame": { "name": "Edamame", "short": "Edam", "color": Color(0.48, 0.75, 0.25), "cost": 5 },
-	"fideos": { "name": "Fideos udon", "short": "Fideos", "color": Color(0.94, 0.92, 0.84), "cost": 8 },
+	"fideos": { "name": "Fideos udon", "short": "Fideos", "color": Color(0.94, 0.92, 0.84), "cost": 10 },
 	# --- EXTRAS: no son platos, se añaden ENCIMA de un plato ya emplatado y
 	# gastan una unidad POR PLATO (no por partida como el resto). Ver EXTRAS.
 	"jengibre": { "name": "Jengibre", "short": "Jengib", "color": Color(0.95, 0.72, 0.72),
-		"cost": 10, "extra": true },
+		"cost": 6, "extra": true },
 	"wasabi": { "name": "Wasabi", "short": "Wasabi", "color": Color(0.55, 0.8, 0.3),
-		"cost": 10, "extra": true },
+		"cost": 6, "extra": true },
 	"soja": { "name": "Salsa de soja", "short": "Soja", "color": Color(0.3, 0.18, 0.1),
-		"cost": 10, "extra": true },
-	"te": { "name": "Hojas de té", "short": "Té", "color": Color(0.42, 0.68, 0.3), "cost": 3 },
-	"fugu": { "name": "Pez globo", "short": "Fugu", "color": Color(0.85, 0.85, 0.88), "cost": 45 },
+		"cost": 6, "extra": true },
+	# EL TÉ VALE 8 (decidido por el usuario, 2-9-2026): el té verde NO reinicia
+	# el multiplicador y por un doblón limpiaba el paladar mejor que el
+	# jengibre. Se encarece su hoja y su enfriamiento sube a 6 s.
+	"te": { "name": "Hojas de té", "short": "Té", "color": Color(0.42, 0.68, 0.3), "cost": 8 },
+	# EL GARI es el jengibre encurtido del tsukemono: gemelo BARATO del extra
+	# (que vale 6 y limpia paladares a mano). Un picoteo de 2 doblones no puede
+	# cobrar por jornada un uso del extra: la misma regla (b) de las coronas.
+	"gari": { "name": "Jengibre encurtido", "short": "Gari", "color": Color(0.96, 0.8, 0.78), "cost": 2 },
+	"fugu": { "name": "Pez globo", "short": "Fugu", "color": Color(0.85, 0.85, 0.88), "cost": 58 },
 	# "stock_id": gasta usos de OTRO ingrediente. El atún cocido sale de la
 	# misma lata que el crudo, así que en la despensa no ocupa una línea aparte.
 	"atun_cocido": { "name": "Atún cocido", "short": "AtCoc", "color": Color(0.78, 0.6, 0.42),
@@ -156,40 +163,46 @@ const INGREDIENTS: Dictionary = {
 	"masa_mochi": { "name": "Masa de mochi", "short": "Masa", "color": Color(0.95, 0.94, 0.90),
 		"cost": 8 },
 	"judias_rojas": { "name": "Judías rojas", "short": "Judías", "color": Color(0.45, 0.12, 0.16),
-		"cost": 8 },
+		"cost": 10 },
 	"bollo_dorayaki": { "name": "Bollo de dorayaki", "short": "Bollo",
-		"color": Color(0.83, 0.60, 0.30), "cost": 12 },
+		"color": Color(0.83, 0.60, 0.30), "cost": 16 },
 	"masa_taiyaki": { "name": "Masa de taiyaki", "short": "MasaT",
-		"color": Color(0.95, 0.88, 0.62), "cost": 8 },
+		"color": Color(0.95, 0.88, 0.62), "cost": 10 },
 	"chocolate": { "name": "Chocolate", "short": "Choco", "color": Color(0.28, 0.16, 0.10),
-		"cost": 15 },
+		"cost": 20 },
 	"unagi": { "name": "Anguila", "short": "Unagi", "color": Color(0.45, 0.24, 0.12),
-		"cost": 26 },
+		"cost": 34 },
 	"salsa_unagi": { "name": "Salsa tare", "short": "Tare", "color": Color(0.22, 0.12, 0.06),
-		"cost": 2 },
+		"cost": 3 },
 	"matcha": { "name": "Té matcha", "short": "Matcha", "color": Color(0.42, 0.68, 0.28),
 		"cost": 10 },
 	"katsuobushi": { "name": "Bonito seco", "short": "Bonito", "color": Color(0.80, 0.55, 0.42),
 		"cost": 3 },
 	"kanikama": { "name": "Palitos de cangrejo", "short": "Kanik", "color": Color(0.95, 0.52, 0.38),
-		"cost": 10 },
-	"pulpo": { "name": "Pulpo", "short": "Pulpo", "color": Color(0.68, 0.30, 0.38), "cost": 20 },
-	"wagyu": { "name": "Wagyu", "short": "Wagyu", "color": Color(0.72, 0.22, 0.24), "cost": 38 },
+		"cost": 13 },
+	"pulpo": { "name": "Pulpo", "short": "Pulpo", "color": Color(0.68, 0.30, 0.38), "cost": 26 },
+	"wagyu": { "name": "Wagyu", "short": "Wagyu", "color": Color(0.72, 0.22, 0.24), "cost": 49 },
 	# --- Pescado y género de la tanda del MAR 2 ---
-	"caballa": { "name": "Caballa", "short": "Cabal", "color": Color(0.55, 0.62, 0.72), "cost": 12 },
-	"besugo": { "name": "Besugo", "short": "Besu", "color": Color(0.88, 0.55, 0.50), "cost": 15 },
-	"pargo": { "name": "Pargo", "short": "Pargo", "color": Color(0.85, 0.35, 0.30), "cost": 25 },
-	"jurel": { "name": "Jurel", "short": "Jurel", "color": Color(0.60, 0.68, 0.60), "cost": 10 },
-	"barbo": { "name": "Barbo", "short": "Barbo", "color": Color(0.62, 0.45, 0.30), "cost": 14 },
+	"caballa": { "name": "Caballa", "short": "Cabal", "color": Color(0.55, 0.62, 0.72), "cost": 16 },
+	"besugo": { "name": "Besugo", "short": "Besu", "color": Color(0.88, 0.55, 0.50), "cost": 20 },
+	"pargo": { "name": "Pargo", "short": "Pargo", "color": Color(0.85, 0.35, 0.30), "cost": 32 },
+	"jurel": { "name": "Jurel", "short": "Jurel", "color": Color(0.60, 0.68, 0.60), "cost": 13 },
+	"barbo": { "name": "Barbo", "short": "Barbo", "color": Color(0.62, 0.45, 0.30), "cost": 18 },
 	"shiitake": { "name": "Seta shiitake", "short": "Shiit", "color": Color(0.55, 0.40, 0.28), "cost": 8 },
-	"masa_gyoza": { "name": "Masa de gyoza", "short": "MasaG", "color": Color(0.93, 0.90, 0.82), "cost": 6 },
-	"carne_picada": { "name": "Carne picada", "short": "Carne", "color": Color(0.72, 0.38, 0.35), "cost": 12 },
+	"masa_gyoza": { "name": "Masa de gyoza", "short": "MasaG", "color": Color(0.93, 0.90, 0.82), "cost": 8 },
+	"carne_picada": { "name": "Carne picada", "short": "Carne", "color": Color(0.72, 0.38, 0.35), "cost": 16 },
 	# La ventresca sale de la misma lata que el atun (stock_id, como el cocido).
 	"toro": { "name": "Toro de aleta amarilla", "short": "Toro", "color": Color(0.95, 0.62, 0.55),
-		"cost": 23, "stock_id": "atun" },
+		"cost": 30, "stock_id": "atun" },
 	# Gratis como el arroz (cost 0): no se compra ni gasta usos.
-	"sesamo": { "name": "Sésamo", "short": "Sésamo", "color": Color(0.92, 0.88, 0.78), "cost": 0 },
-	"sal": { "name": "Sal", "short": "Sal", "color": Color(0.96, 0.96, 0.94), "cost": 0 },
+	# SAL Y SÉSAMO SE COBRAN DESDE EL PRINCIPIO (decidido por el usuario,
+	# 2-9-2026): a coste 0 no se vendían ni se reponían, y tres coronas
+	# (maki de pepino al sésamo, fugu del valiente, tempura dorada) se quedaban
+	# sin género para siempre tras los usos de estreno. Ahora entran en la
+	# tienda, se regalan al aprender la receta y se gastan por jornada como el
+	# resto (el California por el sésamo, el tsukemono por la sal).
+	"sesamo": { "name": "Sésamo", "short": "Sésamo", "color": Color(0.92, 0.88, 0.78), "cost": 2 },
+	"sal": { "name": "Sal", "short": "Sal", "color": Color(0.96, 0.96, 0.94), "cost": 2 },
 	# --- Ingredientes de MEJORA (ver UPGRADES): solo coronan platos hechos ---
 	# CUESTAN 3 (o menos), y no es un capricho: la coronacion gasta 1 uso POR
 	# PLATO, no por jornada como el resto de la despensa, asi que un
@@ -219,7 +232,7 @@ const COMBOS: Dictionary = {
 
 ## EXTRAS que el jugador puede añadir a CUALQUIER plato justo antes de
 ## mandarlo a la cinta. No dan dinero: cambian cómo reacciona el cliente.
-## Se gastan por PLATO servido, no por partida, y cuestan 10 doblones el uso.
+## Se gastan por PLATO servido, no por partida, y cuestan 6 doblones el uso.
 const EXTRAS := ["jengibre", "wasabi", "soja"]
 
 ## MEJORAS DE RECETA (mar 2): una receta TERMINADA sobre la tabla puede
@@ -296,6 +309,35 @@ const UPGRADES := {
 ## desbloqueo lo pone GameState.upgrade_unlocked, no estos datos).
 static func upgrade_of(recipe_id: String) -> Dictionary:
 	return UPGRADES.get(recipe_id, {})
+
+
+## LA RECETA BASE DE UNA VARIANTE, para cuando hay que comparar "¿es el mismo
+## plato?": el aburi elegido con atún sale como `aburi_atun`, una tempura
+## poco hecha como `tempura_cruda`, el besugo con su punto como una variante
+## de propina y una corona con su id propio. El Kappa en su fase 3, el
+## `mismo_caro` del capitán del mapa y el `receta_n` del grumete comparaban
+## ids a pelo y cantaban fallo por servir JUSTO lo pedido (repaso del
+## 2-9-2026). Devuelve el mismo id si no es variante de nada.
+static var _bases: Dictionary = {}
+
+static func base_id(recipe_id: String) -> String:
+	if _bases.is_empty():
+		for rid in RECIPES:
+			var r: Dictionary = RECIPES[rid]
+			for step in r.get("steps", []):
+				var res: Dictionary = step.get("result_by", {})
+				for k in res:
+					if str(res[k]) != "":
+						_bases[str(res[k])] = str(rid)
+				if str(step.get("type", "")) == "fry_board":
+					var ventanas: Array = step.get("windows", FRY_WINDOWS)
+					for w in ventanas:
+						var dish := str(w.get("dish", ""))
+						if dish != "" and dish != str(rid):
+							_bases[dish] = str(rid)
+		for base in UPGRADES:
+			_bases[str(UPGRADES[base].get("id", ""))] = str(base)
+	return str(_bases.get(recipe_id, recipe_id))
 ## LOS TRES hacen que el plato cuente como NUEVO aunque el cliente ya lo haya
 ## probado (alarga la racha de variedad y cobra el bono de oro), y LOS TRES
 ## traen una contrapartida que va justo contra lo que el sistema premia. Se
@@ -343,6 +385,10 @@ const FRY_BEST_PRICE := 20
 ## Franjas del SOPLETE del nigiri de wagyu. Mismo trato: nunca se pierde el
 ## plato, solo cambia lo que paga. Clavarlo en 2.00 s dobla el precio bueno.
 const WAGYU_WINDOWS := [
+	# Soltar el soplete en el acto pagaba 12: ahora, como en la tempura, un
+	# instante no es una fritura y el plato se pierde.
+	{ "to": 0.50, "price": 0, "dish": "nigiri_wagyu", "label": "¡Crudo!",
+		"color": Color(0.85, 0.45, 0.35) },
 	{ "to": 1.50, "price": 12, "dish": "nigiri_wagyu", "label": "Poco hecho",
 		"color": Color(1.0, 0.72, 0.30) },
 	{ "to": 1.99, "price": 16, "dish": "nigiri_wagyu", "label": "¡Buen punto!",
@@ -393,6 +439,15 @@ const BESUGO_WINDOWS := [
 ## recalibrarlos: el número de platos por turno apenas se mueve.
 ## Sus hermanas viven en client3d (RITMO_PACIENCIA y RITMO_BOCADO), que son
 ## las que de verdad quitan la prisa.
+## LA DESPENSA DE 2★ Y 3★ VA UN 30% MÁS CARA (decidido por el usuario, 2-9-2026:
+## "aumentar el precio de los ingredientes... para dar más valor a la tienda").
+## Se aplicó por script sobre los ingredientes cuya receta MÁS BARATA es de 2★
+## o más; los de 1★, los extras, el té, el gari, la sal, el sésamo y los de
+## coronación se quedaron como estaban.
+## DOS RECETAS VAN FUERA DE LA ESCALA A PROPÓSITO (repaso del 2-9-2026): la
+## sopa de miso (L1 a 5,5 s: es el limpiapaladar que se cobra como plato, y a
+## 3 s se serviría cada vuelta) y el fugu (L3 a 9,0 s: su corte con castigo
+## no puede encadenarse). La ensalada de wakame a 9,0 ya estaba documentada.
 const RITMO_COOLDOWN := 1.4
 
 
@@ -826,6 +881,9 @@ const RECIPES: Dictionary = {
 		"satiety": 3,
 		"cooldown": 7.0,
 		"price": 13,
+		# Su PAPEL: un cono se come recién hecho o el alga se ablanda. Era la
+		# única receta de la carta sin mecánica (repaso del 2-9-2026).
+		"frescura": true,
 		"steps": [
 			{ "type": "tap_ingredient", "ingredient": "nori" },
 			{ "type": "tap_ingredient", "ingredient": "arroz" },
@@ -908,7 +966,7 @@ const RECIPES: Dictionary = {
 	# lo que la distingue, y se cayeron el wakame y el pepino del cuenco.
 	"salmon_tsuke_don": {
 		"label": "Tsuke",
-		"name": "Salmón Tsuke Don",
+		"name": "Salmón tsuke don",
 		"level": 3,
 		"satiety": 3,
 		"cooldown": 7.5,
@@ -955,7 +1013,9 @@ const RECIPES: Dictionary = {
 		"name": "Té verde",
 		"level": 1,
 		"satiety": 1,
-		"cooldown": 2.0,
+		# 6 s y no 2 (decidido por el usuario): limpia el paladar SIN tocar el
+		# multiplicador, y a 2 s se encadenaba con cada plato.
+		"cooldown": 6.0,
 		"price": 1,
 		"snack": true,
 		"take_chance": 0.9,
@@ -1261,7 +1321,10 @@ const RECIPES: Dictionary = {
 		"name": "Tsukemono",
 		"level": 1,
 		"satiety": 1,
-		"cooldown": 4.0,
+		# 9 s (decidido por el usuario): sube un punto de multiplicador la
+		# PRIMERA vez que lo prueba cada cliente (client3d mira `tried` antes
+		# de limpiar el paladar) y a 4 s se servía uno detrás de otro.
+		"cooldown": 9.0,
 		"price": 2,
 		"snack": true,
 		"take_chance": 0.9,
@@ -1272,7 +1335,7 @@ const RECIPES: Dictionary = {
 		"clears_boredom": true,
 		"variety_snack": true,
 		"steps": [
-			{ "type": "drag_ingredient", "ingredient": "jengibre", "prop": "cuenco_vacio" },
+			{ "type": "drag_ingredient", "ingredient": "gari", "prop": "cuenco_vacio" },
 			{ "type": "tap_ingredient", "ingredient": "sal" },
 			# Espolvorear la sal: varios toques sobre el cuenco.
 			{ "type": "tap_board", "count": 3 },
@@ -1559,7 +1622,6 @@ const RECIPES: Dictionary = {
 		# MARIDAJE: servido justo despues de un caldo, paga 5 doblones extra.
 		"maridaje": { "con": ["caldo_dashi", "dashi_ahumado", "sopa_miso"], "bono": 5 },
 		# Y el bol de arroz abre cualquier sashimi: es su papel de aperitivo.
-		"variety_worth": 1,
 		"steps": [
 			{ "type": "tap_ingredient", "ingredient": "atun_rojo" },
 			# Sellado por fuera con el soplete (crudo por dentro)...
@@ -1827,7 +1889,8 @@ static func summary(id: String) -> String:
 		f.append("**Maridaje**: servido justo después de %s paga **+%d doblones**."
 			% [" o ".join(mar_nombres), int(mar_d.get("bono", 0))])
 	if r.has("talla"):
-		f.append("El precio crece con tu **récord de pesca** de esa especie (hasta un 50% más).")
+		# Hasta el DOBLE: client3d.TALLA_MAX es 1.0 (los atunes son épicos).
+		f.append("El precio crece con tu **récord de pesca** de esa especie (hasta el doble).")
 	if bool(r.get("riesgo", false)):
 		f.append("**Plato de valientes**: quien lo deja pasar pierde paciencia; quien lo coge la rellena ENTERA.")
 	var fama := float(r.get("fama", 0.0))
@@ -1886,16 +1949,28 @@ static func summary(id: String) -> String:
 	for step in r.get("steps", []):
 		match str(step.get("type", "")):
 			"slice_board":
-				if int(step.get("fail_penalty", 0)) > 0:
-					f.append("**Corte lento**, y correr cuesta **%d doblones** por fallo."
-						% int(step.get("fail_penalty", 0)))
+				# El gesto cambia con la receta: barrido lateral, corte de
+				# arriba abajo (el dorayaki) o pincelada (la anguila). El texto
+				# tiene que describir EL SUYO, no el del atún.
+				var como := "de lado a lado"
+				if str(step.get("direction", "")) == "v":
+					como = "de arriba abajo"
+				elif str(step.get("direction", "")) == "alt":
+					como = "ida y vuelta"
+				if bool(step.get("brush", false)):
+					f.append("Lleva **pincelada lenta**: unta %s y sin correr." % como)
+				elif int(step.get("fail_penalty", 0)) > 0:
+					f.append("**Corte lento** %s, y correr cuesta **%d doblones** por fallo."
+						% [como, int(step.get("fail_penalty", 0))])
 				else:
-					f.append("Lleva **corte lento**: de lado a lado y sin correr.")
+					f.append("Lleva **corte lento**: %s y sin correr." % como)
 			"fry_board":
 				if bool(step.get("punto_propina", false)):
 					f.append("**Punto de flambeado**: cuanto más cerca del punto justo, más probable la propina.")
 				else:
-					f.append("**Punto de fritura**: clavarlo paga el triple que pasarse.")
+					# Tempura 20 contra 7 y wagyu 30 contra 12: más del doble,
+					# no "el triple".
+					f.append("**Punto de fritura**: clavarlo paga más del doble que pasarse.")
 			"drag_choice":
 				f.append("Se **elige el pescado** al prepararlo, y el plato cambia con él.")
 

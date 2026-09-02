@@ -129,7 +129,7 @@ class_name CampaignData
 ##  - arrival_scale: comprime el horario de llegadas (<1 = vienen más rápido).
 ##  - goal_stars: estrellas mínimas para superar el nivel y avanzar.
 ##  - star_money: [dinero para 1★, 2★, 3★] — SOLO precio de platos (sin propinas),
-##    calibrado al techo de producción de cada nivel. Los 20 de hoy están
+##    calibrado al techo de producción de cada nivel. Los del mar 1 están
 ##    hechos para cocinero de nivel 1; los de los mares siguientes se escalan
 ##    contra un techo de MAESTRÍAS de ×2,0, no de ×2,45 (ver la cabecera de
 ##    `skill_data.gd`): con 250 escenarios el jugador real acaba sobre los 300
@@ -149,7 +149,9 @@ class_name CampaignData
 ##       tocar precios, se reescalan por el cambio de precio medio, NO de $/s —
 ##       con el $/s salían cifras imposibles (el antiguo nivel 2 pedía 127
 ##       doblones con un techo real de ~75).
-##    En los dos casos 1★/2★ quedan al ~35% y al ~62% del 3★. Y en este
+##    En los dos casos 1★/2★ quedan al ~35% y al 70% del 3★ (el 2★ subió del
+##    62 al 70 el 2-9-2026, decidido por el usuario: aprobando justo, en el
+##    tramo 8-20 la despensa se comía la jornada entera). Y en este
 ##    primer mar-escuela las cifras van BAJAS a propósito (el usuario lo pidió
 ##    así): aquí se aprende; la exigencia llega con la campaña larga.
 ##  - fixed_recipes: carta CERRADA (las islas). El jugador no elige: se juega
@@ -166,16 +168,24 @@ class_name CampaignData
 ##  - free_ingredients: este puerto NO gasta usos de despensa (solo el nivel 1,
 ##    que es la jornada de práctica; el ARROZ sí se gasta desde el primer día).
 ##  - no_powerups: sin bote de propinas ni potenciadores de partida (el HUD
-##    esconde el bote y las propinas no se acumulan). Escenarios 1-6: el bote
-##    se estrena en el 7, con los postres.
-##  - no_perks: este puerto no reparte BONIFICADORES permanentes aunque se
-##    cumpla su combo. Escenarios 1-11: se estrenan en el 12.
+##    esconde el bote y las propinas no se acumulan). Escenarios 1-9: el bote
+##    se estrena en el 10, con los postres.
+##  - no_extras: sin extras en la tabla. Escenarios 1-16: el wasabi llega en
+##    el 17. Y no_perks: este puerto no reparte BONIFICADORES permanentes
+##    aunque se cumpla su combo. Escenarios 1-30: se estrenan en el 31, con
+##    Alice. Las dos van puestas A MANO en cada escenario (la compuerta global
+##    las tapa en el estreno, pero al REPETIR una práctica ya con los extras
+##    presentados, sin la suya salían).
 ##  - near_seats: la clientela ocupa las sillas por orden de CINTA en vez de al
 ##    azar (la escuela: con cuatro clientes sueltos, uno sentado justo detrás
 ##    del punto de salida se comería una vuelta entera de espera).
-##  - arrival_batch: cuántos clientes entran DE GOLPE en cada llegada (el 4 va
+##  - arrival_batch: cuántos clientes entran DE GOLPE en cada llegada (el 8 va
 ##    de dos en dos y el 6 en dos tandas de cuatro).
-##  - no_storage: sin cajas de guardado (solo el escenario 1: se enseñan en el 2).
+##  - no_storage: sin cajas de guardado (escenarios 1-2: se enseñan en el 3).
+##  - RECETAS SIN ESCENARIO QUE LAS DÉ (hana maki, nigiri de wagyu, takoyaki):
+##    por diseño. La carta se reparte entre SIETE mares y más de 200
+##    escenarios, así que hoy quedan recetas sin fuente a la espera de su mar
+##    (decidido por el usuario, 2-9-2026). Lo mismo con los coleccionables.
 ##  - boss: id del JEFE del nivel ("kappa"). El guion lo trae cuando la primera
 ##    tanda ha comido y el nivel no se supera sin cumplir su condición (ver
 ##    level3d._finalize_results).
@@ -276,7 +286,8 @@ static func reto_texto(cfg: Dictionary, yo := false) -> String:
 		if plantilla.contains("%d"):
 			# "3 gunkan de wakame": la receta va en minúscula detrás del número.
 			return plantilla % [n, nombre.to_lower()]
-		return plantilla % nombre
+		# "sírveme un sashimi de atún rojo": en minúscula también sin número.
+		return plantilla % nombre.to_lower()
 	if plantilla.contains("%d"):
 		return plantilla % n
 	return plantilla
@@ -307,7 +318,11 @@ static func pago_texto(cfg: Dictionary) -> String:
 		for ing in usos:
 			var nom := str(RecipeData.INGREDIENTS.get(ing, {}).get("name", ing))
 			partes.append("%d de %s" % [int(usos[ing]), nom.to_lower()])
-		return "**%s**" % " y ".join(partes)
+		# "4 de wasabi, 4 de jengibre y 4 de soja": comas y un solo "y".
+		if partes.size() <= 1:
+			return "**%s**" % "".join(partes)
+		return "**%s y %s**" % [", ".join(partes.slice(0, partes.size() - 1)),
+			partes[partes.size() - 1]]
 	var pieza := str(cfg.get("item", ""))
 	if pieza != "":
 		return "**%s**" % str(CollectibleData.get_item(pieza).get("name", pieza))
@@ -334,8 +349,13 @@ static func tesoro_de(port_id: String) -> Dictionary:
 		if str(cli.get("receta_premio", "")) != "":
 			return { "kind": "receta", "id": str(cli["receta_premio"]), "n": 1 }
 		if not (cli.get("ingredientes", {}) as Dictionary).is_empty():
-			var primero := str((cli["ingredientes"] as Dictionary).keys()[0])
-			return { "kind": "ingredientes", "id": primero, "n": 0 }
+			# El primero con SU cantidad (la ficha lo dibuja) y la lista entera
+			# en `todos`: devolvía el primero a secas con n 0, y la ficha del
+			# 20 enseñaba un wasabi sin cifra cuando la paga es 4+4+4.
+			var usos: Dictionary = cli["ingredientes"]
+			var primero := str(usos.keys()[0])
+			return { "kind": "ingredientes", "id": primero,
+				"n": int(usos[primero]), "todos": usos }
 		if str(cli.get("item", "")) != "":
 			return { "kind": "item", "id": str(cli["item"]), "n": 1 }
 	var aqui := str(p.get("collectible_here", {}).get("item", ""))
@@ -512,7 +532,7 @@ const PORTS: Array = [
 		"arrival_scale": 1.0,
 		"goal_stars": 2,
 		# Umbrales del usuario: 10 · 25 · 40 doblones.
-		"star_money": [10, 25, 40],
+		"star_money": [10, 28, 40],
 		"reward_recipes": [],
 		"reward_recipes_3": ["gunkan_wakame"],
 		# UNA JORNADA CORRIENTE: el nigiri de salmón está en la carta DESDE EL
@@ -557,16 +577,17 @@ const PORTS: Array = [
 		"patience_mult": 1.05,
 		"arrival_scale": 0.9,
 		"goal_stars": 2,
-		"star_money": [18, 32, 52],
+		"star_money": [18, 36, 52],
 		"reward_recipes": [],
 		"reward_recipes_3": [],
 		# SIN SACO DE ARROZ: los premios de escenario son RECETAS (regla del
 		# usuario). Este daba uno y desentonaba con el resto del mar.
-		"reward_ingredients_3": { "salmon": 3, "aguacate": 2 },
-		# Carta cerrada con lo aprendido en el 1 y el 2. El maki de pepino entra
-		# si se ganaron las 3 estrellas del 2; si no, el gunkan.
+		"reward_ingredients_3": { "salmon": 2, "aguacate": 2 },
+		# Carta cerrada con lo aprendido en el 1 y el 2. Por `alt_recipes` entra
+		# el gunkan de wakame (3★ del 1) si se tiene, y al repetir con el maki
+		# de pepino (3★ del 3) ya ganado, este. Ordenada por lo alcanzable.
 		"fixed_recipes": ["maki_aguacate", "nigiri_salmon"],
-		"alt_recipes": ["maki_pepino", "gunkan_wakame"],
+		"alt_recipes": ["gunkan_wakame", "maki_pepino"],
 		"no_powerups": true,
 		# SIN CAJAS: se explican en el 3 (le paso al usuario: aparecian aqui
 		# sin que nadie hubiera dicho para que sirven).
@@ -589,7 +610,7 @@ const PORTS: Array = [
 		"patience_mult": 1.1,
 		"arrival_scale": 0.9,
 		"goal_stars": 2,
-		"star_money": [15, 26, 42],
+		"star_money": [15, 29, 42],
 		"reward_recipes": [],
 		"reward_recipes_3": ["maki_pepino"],
 		# El primero entra solo; el guion trae a los otros TRES DE GOLPE cuando
@@ -619,10 +640,10 @@ const PORTS: Array = [
 		"patience_mult": 1.02,
 		"arrival_scale": 0.9,
 		"goal_stars": 2,
-		"star_money": [19, 34, 55],
+		"star_money": [19, 38, 55],
 		"reward_recipes": [],
 		"reward_recipes_3": [],
-		"reward_ingredients_3": { "pepino": 3 },
+		"reward_ingredients_3": { "pepino": 2 },
 		"fixed_recipes": ["maki_aguacate", "nigiri_salmon"],
 		"alt_recipes": ["maki_pepino", "gunkan_wakame"],
 		"no_powerups": true,
@@ -643,7 +664,7 @@ const PORTS: Array = [
 		"patience_mult": 1.05,
 		"arrival_scale": 0.85,
 		"goal_stars": 2,
-		"star_money": [18, 32, 52],
+		"star_money": [18, 36, 52],
 		"reward_recipes": [],
 		"reward_recipes_3": ["caldo_dashi"],
 		# TRES recetas de carta: la cuarta la trae David al empezar (el edamame,
@@ -663,23 +684,23 @@ const PORTS: Array = [
 		"id": "practica_2",
 		"chef_rec": 5,
 		"name": "Caleta del Farol",
-		"desc": "Una cala tranquila para asentar lo aprendido.",
+		"desc": "Ocho grumetes de dos en dos: la primera barra que se llena de verdad.",
 		"client_mix": { "E": 8 },
 		"arrival_span": 130.0,
 		"patience_mult": 1.0,
 		"arrival_scale": 0.85,
 		"goal_stars": 2,
-		"star_money": [31, 55, 88],
+		"star_money": [31, 62, 88],
 		"reward_recipes": [],
 		"reward_recipes_3": [],
 		# Premio de 3 estrellas: DESPENSA para la pareja de la carta (decidido
 		# por el usuario). Van por `reward_ingredients_3`, el campo generico de
 		# usos de ingrediente.
-		"reward_ingredients_3": { "aguacate": 3, "pepino": 2 },
+		"reward_ingredients_3": { "aguacate": 2, "pepino": 2 },
 		# Isla: carta CERRADA con lo aprendido hasta aqui. El hueco variable lo
 		# ocupa lo mejor que el jugador se haya ganado.
 		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "edamame"],
-		"alt_recipes": ["onigiri", "maki_pepino", "gunkan_wakame"],
+		"alt_recipes": ["maki_pepino", "gunkan_wakame", "onigiri"],
 		"arrival_batch": 2,
 		"near_seats": true,
 		# TODO LO QUE AUN NO SE HA EXPLICADO, APAGADO: el bote y los potenciadores
@@ -701,7 +722,7 @@ const PORTS: Array = [
 		"patience_mult": 1.0,
 		"arrival_scale": 0.88,
 		"goal_stars": 2,
-		"star_money": [25, 43, 70],
+		"star_money": [25, 49, 70],
 		# EL CLIENTE PAGA CON ARROZ, no con pieza de vitrina: aqui todavia no se
 		# ha hablado de los coleccionables (eso llega con el pirata de la
 		# bandera, en el 15) y un cofre sin explicar no seria un premio sino un
@@ -745,7 +766,7 @@ const PORTS: Array = [
 		# plato, que es la lección del nivel.
 		"arrival_batch": 2,
 		"goal_stars": 2,
-		"star_money": [27, 48, 78],
+		"star_money": [27, 55, 78],
 		"reward_recipes": [],
 		"reward_recipes_3": ["onigiri"],
 		# Primer PUERTO: carta libre, pero solo TRES huecos.
@@ -764,19 +785,19 @@ const PORTS: Array = [
 		"id": "practica_6",
 		"chef_rec": 7,
 		"name": "Fondeadero del Tonel",
-		"desc": "Practica con la carta que tu elijas y el puesto de Saverio recien abierto.",
+		"desc": "Práctica con la carta que tú elijas y el puesto de Saverio recién abierto.",
 		"client_mix": { "E": 8 },
 		"arrival_span": 115.0,
 		"patience_mult": 0.98,
 		"arrival_scale": 0.85,
 		"goal_stars": 2,
-		"star_money": [32, 57, 92],
+		"star_money": [32, 64, 92],
 		"reward_recipes": [],
 		"reward_recipes_3": [],
 		# TE y BONITO SECO (pedido por el usuario): el atun que daba antes no
 		# tenia receta todavia (el nigiri de atun llega en el 14). El te es el
 		# del te verde recien regalado y el bonito el del caldo dashi del 5.
-		"reward_ingredients_3": { "te": 3, "katsuobushi": 3 },
+		"reward_ingredients_3": { "te": 2, "katsuobushi": 2 },
 		"no_powerups": true,
 		"no_extras": true,
 		"no_perks": true,
@@ -794,7 +815,7 @@ const PORTS: Array = [
 		"patience_mult": 1.0,
 		"arrival_scale": 0.85,
 		"goal_stars": 2,
-		"star_money": [21, 37, 60],
+		"star_money": [21, 42, 60],
 		"reward_recipes": [],
 		"reward_recipes_3": ["sunomono"],
 		# Isla: carta cerrada con lo aprendido. El mochi lo regala David dentro.
@@ -813,6 +834,8 @@ const PORTS: Array = [
 	},
 	{
 		"id": "practica_3",
+		"no_perks": true,
+		"no_extras": true,
 		"chef_rec": 8,
 		"name": "Rada del Pulpo",
 		"desc": "Postres y propinas: todo junto y sin ayuda.",
@@ -821,24 +844,26 @@ const PORTS: Array = [
 		"patience_mult": 0.98,
 		"arrival_scale": 0.85,
 		"goal_stars": 2,
-		"star_money": [38, 67, 108],
+		"star_money": [38, 76, 108],
 		"reward_recipes": [],
 		"reward_recipes_3": [],
 		# Premio de 3 estrellas: la despensa del MOCHI, que es lo que acaba de
 		# regalar David. Daba tres usos de cada EXTRA y los extras no se
 		# presentan hasta el 17 (le paso al usuario).
-		"reward_ingredients_3": { "matcha": 3, "masa_mochi": 3 },
+		"reward_ingredients_3": { "matcha": 2, "masa_mochi": 2 },
 		# Isla: carta CERRADA con el postre de los grumetes dentro, que es lo
 		# que esta practica pone a prueba.
 		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "mochi"],
-		"alt_recipes": ["sopa_miso", "caldo_dashi", "onigiri", "gunkan_wakame"],
+		"alt_recipes": ["caldo_dashi", "onigiri", "gunkan_wakame", "sopa_miso"],
 		"arrival_batch": 2,
 	},
 	{
 		"id": "nivel_16",
+		"no_perks": true,
+		"no_extras": true,
 		"chef_rec": 8,
 		"name": "Ensenada del Maridaje",
-		"desc": "Dos platos que se buscan: el dulce sabe mejor detras del te.",
+		"desc": "Dos platos que se buscan: el dulce sabe mejor detrás del té.",
 		# ESCENARIO 8, JUSTO DETRAS DEL DE LOS POSTRES (pedido por el usuario):
 		# alli David menciona el maridaje de pasada al regalar el mochi, y aqui
 		# se practica. Por eso es de GRUMETES a secas: en la escuela los piratas
@@ -848,7 +873,7 @@ const PORTS: Array = [
 		"patience_mult": 1.0,
 		"arrival_scale": 0.85,
 		"goal_stars": 2,
-		"star_money": [25, 43, 70],
+		"star_money": [25, 49, 70],
 		# LA LECCION: el MARIDAJE. Un plato paga un bono si el ANTERIOR que se
 		# comio ese mismo cliente esta en su lista.
 		# LA PAREJA ES TE VERDE -> MOCHI, y no la sopa de miso: los dos son
@@ -867,22 +892,23 @@ const PORTS: Array = [
 		"id": "practica_7",
 		"chef_rec": 9,
 		"name": "Islote de la Sal",
-		"desc": "Practica: postres, propinas y parejas, sin nadie explicando nada.",
+		"desc": "Práctica: postres, propinas y parejas, sin nadie explicando nada.",
 		"client_mix": { "E": 8 },
 		"arrival_span": 115.0,
 		"patience_mult": 0.95,
 		"arrival_scale": 0.85,
 		"goal_stars": 2,
-		"star_money": [34, 61, 98],
+		"star_money": [34, 69, 98],
 		"reward_recipes": [],
 		"reward_recipes_3": [],
-		"reward_ingredients_3": { "gamba": 3, "aguacate": 3 },
+		"reward_ingredients_3": { "gamba": 2, "aguacate": 2 },
 		"fixed_recipes": ["nigiri_salmon", "maki_aguacate", "te_verde", "mochi"],
 		"no_extras": true,
 		"no_perks": true,
 	},
 	{
 		"id": "nivel_7",
+		"no_extras": true,
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
@@ -905,7 +931,7 @@ const PORTS: Array = [
 		"patience_mult": 0.9,
 		"arrival_scale": 0.8,
 		"goal_stars": 2,
-		"star_money": [32, 57, 92],
+		"star_money": [32, 64, 92],
 		# El 4º hueco de la carta lo ocupa el REGALO de David (nigiri de atún),
 		# que llega con el pirata: por eso solo se pueden elegir tres.
 		"recipe_slots": 3,
@@ -925,6 +951,8 @@ const PORTS: Array = [
 	},
 	{
 		"id": "practica_4",
+		"no_perks": true,
+		"no_extras": true,
 		"chef_rec": 10,
 		"name": "Paso de las Barracudas",
 		"desc": "Un abordaje corriente... y un pirata que paga con su bandera.",
@@ -949,38 +977,38 @@ const PORTS: Array = [
 		"patience_mult": 0.92,
 		"arrival_scale": 0.78,
 		"goal_stars": 2,
-		"star_money": [42, 74, 120],
+		"star_money": [42, 84, 120],
 		"reward_recipes": [],
 		"reward_recipes_3": [],
 		# Premio de 3 estrellas: la despensa del nigiri de atún recién regalado
 		# (y el nori del maki de atún, premio del 14). Daba un CEBO y la pesca
 		# no abre hasta el 21 (le pasó al usuario).
-		"reward_ingredients_3": { "atun": 3, "nori": 3 },
+		"reward_ingredients_3": { "atun": 2, "nori": 2 },
 	},
 	{
 		"id": "practica_9",
 		"chef_rec": 11,
 		"name": "Fondeadero del Tuerto",
-		"desc": "Practica con piratas. Uno de ellos paga con un cofre.",
+		"desc": "Práctica con piratas. Uno de ellos paga con un cofre.",
 		"client_mix": { "E": 5, "A": 3 },
 		"client_order": ["E", "A", "E", "A", "E", "A", "E", "E"],
 		"arrival_span": 110.0,
 		"patience_mult": 0.95,
 		"arrival_scale": 0.85,
 		"goal_stars": 2,
-		"star_money": [39, 68, 110],
+		"star_money": [39, 77, 110],
 		# UN PIRATA QUE PAGA CON UN COFRE DE DOBLONES. Pagaba con el PARCHE y
 		# se cambio (pedido por el usuario: el primer mar iba demasiado cargado
 		# de desbloqueables; un cliente con encargo puede pagar en oro, en
 		# despensa o con una receta). El parche se queda sin fuente, para
 		# otro mar.
 		"collectible_client": {
-			"who": "pirata", "type": "A", "oro": 150,
+			"who": "pirata", "type": "A", "oro": 90,
 			"reto": "distintos", "n": 3,
 		},
 		"reward_recipes": [],
 		"reward_recipes_3": [],
-		"reward_ingredients_3": { "salmon": 3, "atun": 3 },
+		"reward_ingredients_3": { "salmon": 2, "atun": 2 },
 		"no_extras": true,
 		"no_perks": true,
 	},
@@ -1002,7 +1030,7 @@ const PORTS: Array = [
 		# Dos tandas de cuatro: la barra se llena de golpe dos veces.
 		"arrival_batch": 4,
 		"goal_stars": 2,
-		"star_money": [34, 60, 96],
+		"star_money": [34, 67, 96],
 		"reward_recipes": [],
 		"reward_recipes_3": ["sopa_miso"],
 		"director": "nivel_6",
@@ -1018,7 +1046,7 @@ const PORTS: Array = [
 		"patience_mult": 0.95,
 		"arrival_scale": 0.8,
 		"goal_stars": 2,
-		"star_money": [36, 63, 102],
+		"star_money": [36, 71, 102],
 		"reward_recipes": [],
 		"reward_recipes_3": ["nigiri_inari"],
 		"director": "nivel_21",
@@ -1034,7 +1062,7 @@ const PORTS: Array = [
 		"patience_mult": 0.95,
 		"arrival_scale": 0.8,
 		"goal_stars": 2,
-		"star_money": [39, 68, 110],
+		"star_money": [39, 77, 110],
 		"reward_recipes": [],
 		"reward_recipes_3": ["sashimi_tamago"],
 		"director": "nivel_22",
@@ -1051,7 +1079,7 @@ const PORTS: Array = [
 		"patience_mult": 0.95,
 		"arrival_scale": 0.85,
 		"goal_stars": 2,
-		"star_money": [44, 78, 126],
+		"star_money": [44, 88, 126],
 		# LA PRACTICA DE LOS TRES EXTRAS JUNTOS, y por eso su encargo los pide
 		# los tres: es el unico reto del juego que obliga a usar los tres en la
 		# misma jornada, que es justo lo que las tres lecciones sueltas no
@@ -1067,7 +1095,7 @@ const PORTS: Array = [
 		"reward_recipes": [],
 		"reward_recipes_3": [],
 		# La despensa de las tres recetas de los extras (miso, inari, tamago).
-		"reward_ingredients_3": { "miso": 3, "tofu_frito": 3, "huevo": 3 },
+		"reward_ingredients_3": { "miso": 2, "tofu_frito": 2, "huevo": 2 },
 		"no_perks": true,
 	},
 	{
@@ -1087,7 +1115,7 @@ const PORTS: Array = [
 		"patience_mult": 0.95,
 		"arrival_scale": 0.85,
 		"goal_stars": 2,
-		"star_money": [27, 47, 76],
+		"star_money": [27, 53, 76],
 		# Isla: carta cerrada con lo aprendido hasta aquí.
 		"fixed_recipes": ["maki_aguacate", "nigiri_salmon", "nigiri_atun",
 			"te_verde"],
@@ -1101,12 +1129,13 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_9",
+		"no_perks": true,
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
 		"chef_rec": 15,
 		"name": "Puerto Tormenta",
-		"desc": "Diez bocas en dos oleadas, y la mitad son piratas.",
+		"desc": "Diez bocas en dos oleadas, cuatro de ellas piratas.",
 		"client_mix": { "E": 6, "A": 4 },
 		# DOS TANDAS DE CINCO, cada una de tres grumetes y dos piratas: el orden
 		# es explícito porque con la baraja no había forma de garantizarlo.
@@ -1116,7 +1145,7 @@ const PORTS: Array = [
 		"patience_mult": 0.9,
 		"arrival_scale": 0.8,
 		"goal_stars": 2,
-		"star_money": [44, 78, 126],
+		"star_money": [44, 88, 126],
 		# EL NIVEL DE LOS BONIFICADORES: David los explica antes de empezar y
 		# regala el del PALADAR, que es el único que se puede ganar todavía.
 		"director": "nivel_9",
@@ -1125,6 +1154,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_10",
+		"no_perks": true,
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
@@ -1136,7 +1166,7 @@ const PORTS: Array = [
 		"patience_mult": 0.9,
 		"arrival_scale": 0.7,
 		"goal_stars": 2,
-		"star_money": [39, 68, 110],
+		"star_money": [39, 77, 110],
 		# Carta LIBRE, pero solo tres huecos: el cuarto lo ocupa el tsuke don
 		# que regala David cuando Pablo se sienta.
 		"recipe_slots": 3,
@@ -1157,6 +1187,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_19",
+		"no_perks": true,
 		"chef_rec": 16,
 		"name": "Paso de los Cangrejos",
 		"desc": "Abordaje corto y apretado: entran de dos en dos y no paran.",
@@ -1165,7 +1196,7 @@ const PORTS: Array = [
 		"patience_mult": 0.9,
 		"arrival_scale": 0.75,
 		"goal_stars": 2,
-		"star_money": [53, 94, 152],
+		"star_money": [53, 106, 152],
 		"arrival_batch": 2,
 		"boat": true,
 		"reward_recipes": [],
@@ -1173,16 +1204,17 @@ const PORTS: Array = [
 	},
 	{
 		"id": "practica_11",
+		"no_perks": true,
 		"chef_rec": 17,
 		"name": "Escollo del Sable",
-		"desc": "Un capitan con prisa y buen paladar. Paga bien quien come variado.",
+		"desc": "Un capitán con prisa y buen paladar. Paga bien quien come variado.",
 		"client_mix": { "E": 4, "A": 3, "G": 2 },
 		"client_order": ["E", "A", "G", "E", "A", "E", "G", "A", "E"],
 		"arrival_span": 120.0,
 		"patience_mult": 0.92,
 		"arrival_scale": 0.82,
 		"goal_stars": 2,
-		"star_money": [53, 93, 150],
+		"star_money": [53, 105, 150],
 		# UN CAPITAN, que aqui ya existen (llegan con Pablo, en el 23), y un
 		# LINGOTE de propina a las tres estrellas: los lingotes tambien se
 		# explicaron alli, asi que la cifra ya significa algo.
@@ -1197,19 +1229,20 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_11",
+		"no_perks": true,
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
 		"chef_rec": 17,
 		"name": "Cala del Hambre",
-		"desc": "Tres bocas, una de ellas con un hambre que no es normal.",
+		"desc": "Tres bocas con un hambre que no es normal: aquí todo el mundo mastica deprisa.",
 		"client_mix": { "E": 1, "A": 1, "G": 1 },
 		"client_order": ["E", "A", "G"],
 		"arrival_span": 80.0,
 		"patience_mult": 1.0,
 		"arrival_scale": 0.9,
 		"goal_stars": 2,
-		"star_money": [25, 45, 72],
+		"star_money": [25, 50, 72],
 		# LA BARRA DE BOCADO CORRE: aquí mastican mucho más rápido de lo normal,
 		# así que el hueco entre plato y plato se encoge y hay que cocinar
 		# DEPRISA. Es la premisa de la lección (el futomaki).
@@ -1223,6 +1256,7 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_12",
+		"no_perks": true,
 		# Nivel de COCINERO recomendado: ceil(numero del escenario x 1.09). Lo
 		# ensena la ficha del mapa, para distinguir "voy corto de nivel" de
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
@@ -1234,7 +1268,7 @@ const PORTS: Array = [
 		"patience_mult": 0.9,
 		"arrival_scale": 0.8,
 		"goal_stars": 2,
-		"star_money": [48, 84, 136],
+		"star_money": [48, 95, 136],
 		# CLIENTE CON TESORO: un capitán que, bien servido, paga con un
 		# COLECCIONABLE en vez de con oro (ver `collectible_client`). Es la
 		# lección del nivel y de aquí en adelante puede pasar en cualquiera.
@@ -1255,8 +1289,9 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_17",
+		"no_perks": true,
 		"chef_rec": 18,
-		"name": "Caleta del Cartografo",
+		"name": "Caleta del Cartógrafo",
 		"desc": "Un grumete trae un mapa heredado y lo cambia por una buena jornada.",
 		"client_mix": { "E": 4, "A": 3, "G": 1 },
 		# EL DEL MAPA ENTRA EL PRIMERO: su encargo es la jornada ENTERA, asi que
@@ -1266,7 +1301,7 @@ const PORTS: Array = [
 		"patience_mult": 0.95,
 		"arrival_scale": 0.85,
 		"goal_stars": 2,
-		"star_money": [51, 91, 146],
+		"star_money": [51, 102, 146],
 		# EL ESCENARIO QUE ESTRENA LOS MAPAS DEL TESORO. Lo trae un GRUMETE
 		# (pedido por el usuario), no un capitan: su encargo no es un capricho
 		# de mesa sino la jornada entera —"si haces un buen servicio, el mapa es
@@ -1283,9 +1318,10 @@ const PORTS: Array = [
 	},
 	{
 		"id": "nivel_18",
+		"no_perks": true,
 		"chef_rec": 19,
 		"name": "Rada de las Tres Anclas",
-		"desc": "Practica. Ni lecciones ni sorpresas: solo servicio.",
+		"desc": "Práctica. Ni lecciones ni sorpresas: solo servicio.",
 		# ESCENARIO 25: practica de la leccion de los MAPAS DEL TESORO, ya con
 		# la clientela completa. Estuvo en el 11 y era de grumetes a secas; al
 		# moverlo hasta aqui hubo que rehacerle la mezcla, que es la trampa de
@@ -1295,22 +1331,23 @@ const PORTS: Array = [
 		"patience_mult": 0.92,
 		"arrival_scale": 0.82,
 		"goal_stars": 2,
-		"star_money": [56, 99, 160],
+		"star_money": [56, 112, 160],
 		"reward_recipes": [],
 		"reward_recipes_3": ["nigiri_anguila"],
 	},
 	{
 		"id": "practica_12",
+		"no_perks": true,
 		"chef_rec": 20,
-		"name": "Bajio de la Carta Marcada",
-		"desc": "Carta cerrada y un capitan que paga con una receta a quien le sirva lo mas caro.",
+		"name": "Bajío de la Carta Marcada",
+		"desc": "Carta cerrada y un capitán que paga con una receta a quien le sirva lo más caro.",
 		"client_mix": { "E": 4, "A": 3, "G": 2 },
 		"client_order": ["E", "A", "G", "E", "A", "E", "G", "A", "E"],
 		"arrival_span": 120.0,
 		"patience_mult": 0.9,
 		"arrival_scale": 0.82,
 		"goal_stars": 2,
-		"star_money": [60, 107, 172],
+		"star_money": [60, 120, 172],
 		# PAGA CON UNA RECETA: el sashimi variado, de tres estrellas (pedido
 		# por el usuario: un cliente con encargo tambien puede pagar con una
 		# receta nueva). Pagaba con un mapa del tesoro; los mapas siguen
@@ -1325,7 +1362,7 @@ const PORTS: Array = [
 			"salmon_tsuke_don"],
 		"reward_recipes": [],
 		"reward_recipes_3": [],
-		"reward_ingredients_3": { "salmon": 5, "atun": 5 },
+		"reward_ingredients_3": { "salmon": 3, "atun": 3 },
 		"boat": true,
 	},
 	{
@@ -1341,7 +1378,7 @@ const PORTS: Array = [
 		"patience_mult": 0.85,
 		"arrival_scale": 0.7,
 		"goal_stars": 2,
-		"star_money": [53, 93, 150],
+		"star_money": [53, 105, 150],
 		# EL AYUDANTE: aquí se presenta y desde aquí se puede ganar.
 		# ALICE se sienta en la barra como una clienta mas: come de UNA estrella
 		# (es una aprendiza, no una lobo de mar) y trae su propio modelo.
@@ -1357,13 +1394,13 @@ const PORTS: Array = [
 		"id": "nivel_20",
 		"chef_rec": 21,
 		"name": "Muelle del Farolero",
-		"desc": "El ultimo puerto con clientela de verdad antes de la bruma.",
+		"desc": "Puerto de faena: sin lección, con la carta que tú elijas y la barra llena.",
 		"client_mix": { "E": 5, "A": 4, "G": 2 },
 		"arrival_span": 135.0,
 		"patience_mult": 0.9,
 		"arrival_scale": 0.8,
 		"goal_stars": 2,
-		"star_money": [62, 110, 178],
+		"star_money": [62, 125, 178],
 		"boat": true,
 		"reward_recipes": [],
 		"reward_recipes_3": ["uramaki_california"],
@@ -1375,13 +1412,13 @@ const PORTS: Array = [
 		# "lo estoy jugando mal". La curva de XP esta calibrada contra el.
 		"chef_rec": 21,
 		"name": "Muelle de las Bandejas",
-		"desc": "Muelle largo y clientela sin prisa: buen día para probar cosas.",
+		"desc": "Muelle largo y clientela que no da tregua: buen día para probar cosas... deprisa.",
 		"client_mix": { "E": 5, "A": 4, "G": 2 },
 		"arrival_span": 130.0,
 		"patience_mult": 0.85,
 		"arrival_scale": 0.7,
 		"goal_stars": 2,
-		"star_money": [62, 109, 176],
+		"star_money": [62, 123, 176],
 		"boat": true,
 		# SIN `unlocks_perk`: el BARCO se aprende en el mar 2 (decidido por el
 		# usuario). El puerto sigue PERMITIENDO el barco para cuando llegue, y
@@ -1402,7 +1439,7 @@ const PORTS: Array = [
 		"patience_mult": 0.88,
 		"arrival_scale": 0.8,
 		"goal_stars": 2,
-		"star_money": [69, 122, 196],
+		"star_money": [69, 137, 196],
 		"reward_recipes": [],
 		"reward_recipes_3": ["fugu"],
 		"reward_ingots_3": 2,
@@ -1423,7 +1460,7 @@ const PORTS: Array = [
 		"goal_stars": 2,
 		# JEFE: superar el nivel exige que el Kappa coma BOSS_PLATES platos (ver
 		# level_director._nivel_15). El dinero solo decide la 3ª estrella.
-		"star_money": [40, 70, 110],
+		"star_money": [40, 77, 110],
 		"boss": "kappa",
 		"boat": true,
 		"director": "nivel_15",
@@ -1442,7 +1479,7 @@ const PORTS: Array = [
 		"arrival_span": 120.0,
 		"patience_mult": 0.95,
 		"goal_stars": 2,
-		"star_money": [55, 95, 150],
+		"star_money": [55, 105, 150],
 		"fixed_recipes": ["nigiri_salmon", "maki_atun", "sunomono", "mochi"],
 		# EL PREMIO DE 3 ESTRELLAS ES LA PRIMERA MEJORA DE RECETA (ver el
 		# bloque de MEJORAS en RecipeData): el maki de aguacate coronado con
@@ -1462,7 +1499,7 @@ const PORTS: Array = [
 		# Mastican mas deprisa: vuelven a la cinta antes y piden mas.
 		"bite_speed": 1.15,
 		"goal_stars": 2,
-		"star_money": [58, 100, 158],
+		"star_money": [58, 111, 158],
 		"reward_recipes_3": ["bol_arroz"],
 		# CON UN CAPITAN EN LA MEZCLA, LA CARTA CERRADA LLEVA UN 3 ESTRELLAS
 		# (le paso al usuario: el capitan miraba la cinta toda la jornada).
@@ -1482,7 +1519,7 @@ const PORTS: Array = [
 		"patience_mult": 0.9,
 		"arrival_scale": 0.8,
 		"goal_stars": 2,
-		"star_money": [58, 100, 158],
+		"star_money": [58, 111, 158],
 		"reward_recipes_3": ["gunkan_shiitake"],
 	},
 	{
@@ -1498,7 +1535,7 @@ const PORTS: Array = [
 		# La carta se queda en TRES huecos: elegir duele.
 		"recipe_slots": 3,
 		"goal_stars": 2,
-		"star_money": [60, 105, 165],
+		"star_money": [60, 115, 165],
 		"reward_recipes_3": ["nigiri_caballa"],
 	},
 	{
@@ -1511,7 +1548,7 @@ const PORTS: Array = [
 		"arrival_span": 120.0,
 		"patience_mult": 0.9,
 		"goal_stars": 2,
-		"star_money": [58, 100, 160],
+		"star_money": [58, 112, 160],
 		"reward_recipes_3": ["tsukemono"],
 		"fixed_recipes": ["nigiri_atun", "maki_pepino", "edamame", "taiyaki"],
 		"alt_recipes": ["sashimi_atun_rojo", "nigiri_pulpo"],
@@ -1533,7 +1570,7 @@ const PORTS: Array = [
 		"arrival_span": 130.0,
 		"patience_mult": 0.9,
 		"goal_stars": 2,
-		"star_money": [60, 105, 165],
+		"star_money": [60, 115, 165],
 		"reward_recipes_3": ["ensalada_wakame"],
 	},
 	{
@@ -1550,10 +1587,14 @@ const PORTS: Array = [
 		"time_limit": 120.0,
 		"late_type": "G",
 		"goal_stars": 2,
-		"star_money": [52, 92, 145],
+		"star_money": [52, 102, 145],
 		"reward_recipes_3": ["gunkan_jurel"],
 	},
 	{
+		# PENDIENTE DE DISEÑO (decidido por el usuario, 2-9-2026): aquí (y en
+		# m2_09) se explicará la mecánica de MEJORAR un plato —de 1★ a 2★ y de
+		# 2★ a 3★— y el barco como mejora. Por eso la carta cerrada puede ir de
+		# 1★ con piratas en la barra: es la lección, no un descuido.
 		"id": "m2_08",
 		"sea": 2,
 		"chef_rec": 27,
@@ -1565,11 +1606,12 @@ const PORTS: Array = [
 		"sirena": true,
 		"director": "mar2_sirena",
 		"goal_stars": 2,
-		"star_money": [58, 102, 162],
+		"star_money": [58, 113, 162],
 		"reward_upgrade_3": "nigiri_salmon",
 		"fixed_recipes": ["nigiri_salmon", "maki_aguacate", "sunomono", "mochi"],
 	},
 	{
+		# PENDIENTE DE DISEÑO: ver m2_08 (la mejora de platos).
 		"id": "m2_09",
 		"sea": 2,
 		"chef_rec": 28,
@@ -1581,7 +1623,7 @@ const PORTS: Array = [
 		"bite_speed": 1.2,
 		"sirena": true,
 		"goal_stars": 2,
-		"star_money": [62, 108, 170],
+		"star_money": [62, 119, 170],
 		"reward_recipes_3": ["nigiri_besugo"],
 		"fixed_recipes": ["uramaki_california", "nigiri_pulpo", "te_verde", "dorayaki"],
 	},
@@ -1597,7 +1639,7 @@ const PORTS: Array = [
 		"sirena": true,
 		"director": "mar2_despertar",
 		"goal_stars": 2,
-		"star_money": [64, 112, 178],
+		"star_money": [64, 125, 178],
 		# EL PLATO COMPARTIDO SE GUARDA PARA EL MAR 3 (decidido por el
 		# usuario): el mar 2 ya estrena las CORONAS y el picoteo extra, y tres
 		# mecánicas nuevas en el mismo mar no se aprenden. Aquí entra en su
@@ -1616,7 +1658,7 @@ const PORTS: Array = [
 		"recipe_slots": 3,
 		"sirena": true,
 		"goal_stars": 2,
-		"star_money": [66, 115, 182],
+		"star_money": [66, 127, 182],
 		"reward_recipes_3": ["gyozas"],
 	},
 	{
@@ -1630,7 +1672,7 @@ const PORTS: Array = [
 		"patience_mult": 0.88,
 		"sirena": true,
 		"goal_stars": 2,
-		"star_money": [64, 112, 178],
+		"star_money": [64, 125, 178],
 		"reward_recipes_3": ["nigiri_pargo"],
 	},
 	{
@@ -1646,7 +1688,7 @@ const PORTS: Array = [
 		"late_type": "G",
 		"sirena": true,
 		"goal_stars": 2,
-		"star_money": [62, 110, 175],
+		"star_money": [62, 122, 175],
 		"reward_recipes_3": ["barbo_ahumado"],
 	},
 	{
@@ -1659,7 +1701,7 @@ const PORTS: Array = [
 		"arrival_span": 130.0,
 		"patience_mult": 0.92,
 		"goal_stars": 2,
-		"star_money": [64, 112, 178],
+		"star_money": [64, 125, 178],
 		"fixed_recipes": ["futomaki_salmon", "nigiri_inari", "edamame", "mochi"],
 		# MIKU aparece en mitad del nivel y pide un BARCO DE SUSHI. La primera
 		# vez NO se puede montar (su bonificador llega en m2_18): toca volver
@@ -1683,7 +1725,7 @@ const PORTS: Array = [
 		"arrival_batch": 2,
 		"sirena": true,
 		"goal_stars": 2,
-		"star_money": [68, 118, 188],
+		"star_money": [68, 132, 188],
 		"reward_upgrade_3": "bol_arroz",
 	},
 	{
@@ -1698,7 +1740,7 @@ const PORTS: Array = [
 		"bite_speed": 1.15,
 		"sirena": true,
 		"goal_stars": 2,
-		"star_money": [68, 118, 188],
+		"star_money": [68, 132, 188],
 		"reward_upgrade_3": "nigiri_pulpo",
 	},
 	{
@@ -1713,7 +1755,7 @@ const PORTS: Array = [
 		"recipe_slots": 3,
 		"sirena": true,
 		"goal_stars": 2,
-		"star_money": [70, 122, 195],
+		"star_money": [70, 136, 195],
 		"reward_upgrade_3": "onigiri",
 	},
 	{
@@ -1736,7 +1778,7 @@ const PORTS: Array = [
 		"unlocks_perk": "barco",
 		"director": "mar2_nach",
 		"goal_stars": 2,
-		"star_money": [70, 122, 195],
+		"star_money": [70, 136, 195],
 		"reward_ingots_3": 2,
 	},
 	{
@@ -1750,7 +1792,7 @@ const PORTS: Array = [
 		"patience_mult": 0.88,
 		"sirena": true,
 		"goal_stars": 2,
-		"star_money": [68, 120, 190],
+		"star_money": [68, 133, 190],
 		"reward_recipes_3": ["tataki_atun_rojo"],
 		"fixed_recipes": ["salmon_tsuke_don", "maki_atun", "sunomono", "taiyaki"],
 	},
@@ -1766,7 +1808,7 @@ const PORTS: Array = [
 		"bite_speed": 1.2,
 		"sirena": true,
 		"goal_stars": 2,
-		"star_money": [70, 122, 195],
+		"star_money": [70, 136, 195],
 		"reward_upgrade_3": "maki_pepino",
 		# OJO: aqui estuvo "gari", una receta que NO EXISTE en RecipeData (se
 		# cayo en el calibrado): su hueco de picoteo es del edamame.
@@ -1785,7 +1827,7 @@ const PORTS: Array = [
 		"time_limit": 120.0,
 		"sirena": true,
 		"goal_stars": 2,
-		"star_money": [58, 100, 160],
+		"star_money": [58, 112, 160],
 		"reward_upgrade_3": "nigiri_atun",
 		# (la corona de la caballa se mudó a m2_10 al aparcar el compartido)
 	},
@@ -1801,7 +1843,7 @@ const PORTS: Array = [
 		"arrival_batch": 2,
 		"sirena": true,
 		"goal_stars": 2,
-		"star_money": [74, 128, 205],
+		"star_money": [74, 144, 205],
 		"reward_upgrade_3": "caldo_dashi",
 	},
 	{
@@ -1816,7 +1858,7 @@ const PORTS: Array = [
 		"late_type": "G",
 		"sirena": true,
 		"goal_stars": 2,
-		"star_money": [72, 125, 200],
+		"star_money": [72, 140, 200],
 		"reward_recipes_3": ["toro_aleta"],
 	},
 	{
@@ -1830,7 +1872,7 @@ const PORTS: Array = [
 		"patience_mult": 0.82,
 		"recipe_slots": 3,
 		"goal_stars": 2,
-		"star_money": [78, 136, 218],
+		"star_money": [78, 153, 218],
 		"reward_upgrade_3": "fugu",
 	},
 	{
@@ -1846,7 +1888,7 @@ const PORTS: Array = [
 		# JEFE DEL MAR 2: LA SIRENA — su duelo convierte el CANTO en arma
 		# (tres fases en level_director._mar2_sirena_jefa). El nivel NO lleva
 		# "sirena": los cantos del duelo los dirige ella, no el planificador.
-		"star_money": [55, 95, 150],
+		"star_money": [55, 105, 150],
 		"boss": "sirena",
 		"director": "mar2_sirena_jefa",
 		"reward_ingots_3": 3,
@@ -1972,14 +2014,6 @@ const MAP_HEIGHT := 3430
 const LANE_LEFT := 175.0
 const LANE_CENTER := 360.0
 const LANE_RIGHT := 545.0
-
-## Separación vertical entre puertos, IGUAL para todos. La medida no es a ojo:
-## `level_select3d._setup_route` dibuja un guión cada 0.44 unidades de mundo, y
-## el tramo más corto (un salto de carril, 185 px en horizontal) tiene que dar
-## al menos 8. Con 215 px salen 10 en el corto y 13 en el largo.
-## Si se cambia este paso hay que bajar `main_menu.MENU_ANCHOR` otro tanto, o el
-## nivel 1 asoma por arriba estando en el menú.
-const MAP_STEP := 215.0
 
 ## EL CARRIL SALE DE LA POSICIÓN, NO DEL ID: ciclo [CENTRO, IZQUIERDA,
 ## DERECHA] contado desde el escenario 1, y la altura es 3220 − 312·(pos−1).
@@ -2116,6 +2150,19 @@ static func first_port_with(tipo: String) -> String:
 	return ""
 
 
+## Recetas de la carta cerrada de una isla que el jugador AÚN NO TIENE (y que
+## nadie le regala dentro): las que `fixed_recipes_for` deja fuera. El mapa
+## las canta antes de zarpar.
+static func fixed_recipes_faltan(port_id: String) -> Array[String]:
+	var port := get_port(port_id)
+	var regalos: Array = port.get("gift_recipes", [])
+	var out: Array[String] = []
+	for r in port.get("fixed_recipes", []):
+		if not GameState.is_recipe_unlocked(str(r)) and not str(r) in regalos:
+			out.append(str(r))
+	return out
+
+
 ## Devuelve el diccionario del nivel con ese id, o {} si no existe.
 static func get_port(id: String) -> Dictionary:
 	for p in PORTS:
@@ -2177,7 +2224,17 @@ static func fixed_recipes_for(port_id: String, superado := false) -> Array[Strin
 	if superado and not port.get("fixed_recipes_replay", []).is_empty():
 		fijas = port.get("fixed_recipes_replay", [])
 	var out: Array[String] = []
+	# SOLO LO QUE EL JUGADOR TIENE (o lo que David regala DENTRO del nivel,
+	# `gift_recipes`): la lista entraba entera y nueve islas montaban premios
+	# de 3★ sin ganar, que se cocinaban gratis mientras el recetario los
+	# enseñaba como "???" (repaso del 2-9-2026). La isla se juega igual, con
+	# una receta menos, y el mapa lo avisa antes de zarpar (decidido por el
+	# usuario). Fuera de la aventura (arcade, sondas) no se filtra.
+	var regalos: Array = port.get("gift_recipes", [])
 	for r in fijas:
+		if GameState.is_adventure() and not GameState.is_recipe_unlocked(str(r)) \
+				and not str(r) in regalos:
+			continue
 		out.append(str(r))
 	if out.is_empty():
 		return out

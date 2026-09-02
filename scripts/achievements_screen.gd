@@ -329,7 +329,8 @@ func _build_hidden_card(a: Dictionary) -> Control:
 	var desc := Label.new()
 	if es_pez:
 		var rareza := str(FishData.rarity_of(str(a["fish"])).get("name", "Común"))
-		desc.text = "Pesca un ejemplar de rareza %s para desvelar su logro." \
+		# "un ejemplar común / raro / épico", que "de rareza raro" no concuerda.
+		desc.text = "Pesca un ejemplar %s para desvelar su logro." \
 				% rareza.to_lower()
 	else:
 		desc.text = "Descubre esta receta para desvelar su logro."

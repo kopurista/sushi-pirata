@@ -75,6 +75,86 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 - El input usa eventos **táctiles** (`InputEventScreenTouch`/`ScreenDrag`) porque
   `project.godot` tiene `pointing/emulate_touch_from_mouse=true`.
 
+## EL REPASO COMPLETO DEL 2-9-2026 (81 hallazgos, aplicados)
+
+Se auditó el juego entero (ocho pasadas: economía, recetas, campaña, mecánicas,
+mapas del tesoro, diario, bonificadores/maestrías, coleccionables/logros/
+pesca, textos) y se aplicó la lista con las DECISIONES del usuario, que están
+en la memoria (`decisiones-repaso-2-9-2026`). Lo que cambió de REGLA, para no
+deshacerlo:
+- **El té verde NO reinicia el multiplicador**: limpia el paladar y la chapa se
+  queda. Hoja a 8 doblones, enfriamiento 6 s. La RECARGA por variedad se acota
+  a x5 aunque la chapa pase de ahí (`client3d`, combo con `mini(variety,
+  VARIETY_MAX)`); el oro sí cobra la chapa entera.
+- **El hastío drena desde la 2ª repetición** (`REPEAT_RECHARGE` [0.2]) **y el
+  repetido se mastica más deprisa** (`REPEAT_BITE_STEP` 0.25, tope ×2).
+- **Sal y sésamo se cobran** (2 doblones): solo el arroz es gratis. Los
+  ingredientes de 2★/3★ subieron un 30% (`tools`-script sobre la receta más
+  barata que los usa), los premios de despensa de las prácticas son 2 usos y
+  el regalo de estreno baja a 2 con la tienda abierta (`GameState.port_gift`).
+- **Las 2 estrellas piden el 70% del 3★** en los 60 escenarios (era el 62).
+- **Extras a 6 doblones** (eran 10: en oro puro perdían siempre).
+- **Vueltas del plato**: mar 1 dos, del mar 2 en adelante UNA (`plate3d`
+  compara `_pases < max_laps`; estuvo en `<=` y perdonaba una de más). El
+  arcade empieza con dos y el estorbo `vuelta_unica` se la quita.
+- **"Aroma confuso"** (era "Aroma irresistible", un placebo): 40 s con los
+  dados espejados entre 1★ y 3★. **"Cinta rápida"** suma una vuelta mientras
+  dura. **"Horas extra"** alarga la cola de llegadas. **"Más clientela"** no
+  cobra prima por los tres de regalo que no llegaron. El sorteo deja fuera
+  los potenciadores en marcha, y aplazar el cartel ya no regala otro
+  (`postpone_powerup_choice` sumaba un pendiente sin consumir el abierto).
+- **Buen precio** va con ACUMULADOR de céntimos (`client3d._precio_con_
+  maestria`) y valores 5/10/15/20/25: con precios de 2 a 8 los rangos bajos se
+  perdían enteros en el redondeo.
+- **Cuaderno de bitácora**: 20% sobre el TOTAL de la jornada con primas
+  (`_check_perk_unlocks(total_money)`); el turno cierra al tocar el oro base.
+- **Las cajas guardan precio, nivel y bocado** por unidad (`stacks[i].datos`):
+  una tempura clavada salía de la caja a 12.
+- **Kappa F3, `mismo_caro` y `receta_n` comparan por `RecipeData.base_id`**
+  (aburi_atun, tempura_cruda, coronas) y la fase del antojo salta picoteos.
+- **"Repetir" pasa por el selector** (carta y bonificadores) y sin arroz el
+  botón va apagado. Salir en preparación devuelve SOLO lo cobrado
+  (`GameState.ultimo_cobro`).
+- **Mapas del tesoro**: el reloj no corre en preparación; `platos_tiempo` usa
+  su `t` como reloj; el picoteo a media comida cuenta; `un_cliente`,
+  `cliente_lleno` y `clientes_platos` se apuntan ANTES de la guarda del bote;
+  `racha_limpia`, `sin_repetir` y `corte_perfecto` son CADENAS que se
+  reinician; el botón "Mapas" y el diario los compuertan hasta el 28
+  (`GameState.mapas_unlocked`). Los tapones de cera salieron del sorteo de la
+  pesca. **PENDIENTE (decidido por el usuario): los mapas serán ESCENARIOS
+  PROPIOS** (una isla con diseño modificado) desde su menú, no misiones
+  dentro de una jornada; `variedad_carta` sigue apuntándose solo en arcade
+  hasta ese rediseño.
+- **Bonus diario**: `_yesterday()` en hora LOCAL (en UTC rompía la racha entre
+  las 00:00 y las 02:00 en España), compuertas de lingotes/mapas/extras, el
+  fallback del día 7 fijo (200, sin × nivel) y `daily_history` con lo que dio
+  cada cofre.
+- **Pesca**: paga desde la PRIMERA captura y la primera de cada especie paga
+  DOBLE; legendario 250-400; cofre de oro 150-250; sin logros por pez
+  legendario y los épicos a 1/2/4.
+- **Lingotes**: sacos 2 / 5 / 12, monedas 500 = 5 y 1.000 = 9, uso de
+  bonificador 2. Los packs enseñan TACHADO lo que costaría de uno en uno. Los
+  precios de nivel de bonificador (500-10.000) SE QUEDAN: sumidero de lingotes
+  a propósito.
+- **Carta cerrada solo con lo ganado** (`fixed_recipes_for` filtra por
+  desbloqueo salvo `gift_recipes`), y el mapa avisa por Gigi de la receta que
+  falta (`_avisar_receta_faltante`): se juega igual con una menos.
+- **Género del jugador**: `GameState.cocinero()` y `GameState.gen(m, f)` en
+  los diálogos; nada de "cocinero" a mano.
+- **Combinaciones**: ningún escenario declara `combo` (mecánica para más
+  adelante, decidido por el usuario). Los títulos del cartel (`title_data`)
+  se borraron: código muerto.
+- La CUENTA de la campaña (simulación propia, `scratchpad/sp/sim_econ.py`,
+  60 escenarios al primer intento sin propinas ni pesca): a 3★ ingresos
+  8.269, reposición 2.574, neto ≈ 5.700; a 2★ 5.812 / 2.624 / 3.188. Antes
+  del repaso: 8.329 / 1.966 / 6.363 y 5.262 / 2.047 / 3.215.
+- `tools/auditar.gd` comprueba ahora las fuentes por `collectible_client`,
+  guion y hazaña, el 70% del 2★, `chef_rec` no decreciente, `client_order`
+  contra `client_mix`, las compuertas de la escuela y avisa de cartas
+  cerradas sin plato para un tipo presente (m2_08 y m2_09 lo son a
+  propósito). Bajo `--script` no puede llamar funciones de `CampaignData`
+  (la clase referencia `GameState` y no compila sin autoloads): usa campos.
+
 ## Contratos entre archivos (señales) — leer antes de editar
 
 - `prep_board.gd` → `dish_served(recipe_id, price_override, extras,
@@ -87,8 +167,8 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 - `client.gd` → `plate_served(food: int, tip: int)`: al terminar CADA plato; el
   nivel suma AL INSTANTE el precio del plato al dinero (estrellas + monedero) y
   envía la propina SOLO al bote de potenciadores (la propina NO cuenta como
-  dinero generado). La propina se tira por plato (cuantía = % del precio de ESE
-  plato).
+  dinero generado). La propina se tira por plato (cuantía = % de lo ACUMULADO
+  por ese cliente hasta ese plato).
 - `client.gd` → `finished(report: Dictionary)`: al irse; el diccionario lleva
   `type, money, tip (totales acumulados, ya cobrados), penalty, eaten (ids),
   satiety_eaten`. `level.gd` NO vuelve a sumar estos totales (evita el doble
@@ -101,7 +181,7 @@ Godot está en `C:/Users/KOPURISTA/Desktop/GODOT/Godot_v4.7.1-stable_win64.exe/`
 
 ## LA CAMPAÑA: EL MAR 1 SON 35 ESCENARIOS (reordenados el 1-9-2026)
 
-**12 islas, 13 puertos, 5 abordajes y 1 CUEVA**. El detalle en la cabecera de
+**14 islas, 15 puertos, 5 abordajes y 1 CUEVA**. El detalle en la cabecera de
 `campaign_data.gd`; los ids NO se renumeran (el número que ve el jugador es la
 posición en `PORTS`, y por eso `nivel_16` es el 12 y `nivel_15` el 35).
 
@@ -589,7 +669,8 @@ en el cartel de resultados antes de que nadie hubiera dicho qué era eso. Hoy
 solo `ayudante` (el 17) y `barco` (el 18) atan puerto propio; los otros dos
 abren con el sistema.
 
-**LOS BONIFICADORES SE MEJORAN, NO SE COMPRAN POR USOS** (`PerkData`): cinco
+**LOS BONIFICADORES SE MEJORAN, NO SE COMPRAN POR USOS** (`PerkData`; los
+usos sueltos se compran con 2 lingotes, `PERK_USO_LINGOTES`): cinco
 niveles por bonificador (500 / 2.000 / 5.000 / 10.000 doblones) y la pantalla
 de Bonificadores vende NIVELES. Los USOS se ganan repitiendo su hazaña —
 `unlock_perk` regala uno CADA VEZ que se cumple, no solo la primera. Efectos:
@@ -1071,9 +1152,14 @@ y no compiten con la campaña: la reinterpretan.
   el mapa se arma, se juega y su contador se queda a cero para siempre. Pasó
   con `punto_perfecto`. `tools/auditar.gd` lo comprueba ahora, igual que la
   marca y los modificadores.
-- **Los entrega** el grumete del escenario 20, los cofres de la PESCA y el
-  bonus diario. El primero de todos es el del grumete, y por eso `t01` es el
-  más sencillo del catálogo.
+- **Los entrega** el grumete del escenario 28, los cofres de la PESCA y el
+  bonus diario (estos dos SOLO con los mapas presentados). El primero de todos
+  es el del grumete, y por eso `t01` es el más sencillo del catálogo.
+- **PENDIENTE DE REDISEÑO (decidido por el usuario el 2-9-2026): cada mapa
+  será un ESCENARIO PROPIO** —una isla con diseño modificado— al que se entra
+  desde el menú de mapas, no una misión que se cumple dentro de una jornada
+  cualquiera. Los contadores de objetivo (17 tipos) valen igual para ese
+  escenario; lo que cambiará es dónde se juega y su lección en el 28.
 
 ## EL MAR 2: EL MAR DE LAS SIRENAS (25 escenarios, montado el 23-8-2026)
 
@@ -1346,7 +1432,9 @@ que ESTRENA una mecánica la llevan 1-2 platos; en los siguientes, hasta un
 tercio de la carta.
 
 **LA TANDA DE RECETAS DEL MAR 2 (24-8-2026)**: 13 recetas visibles nuevas —
-tsukemono (gari: limpia paladar +1 mult, no alarga bocado), bol de arroz
+tsukemono (limpia paladar y +1 mult LA PRIMERA VEZ por cliente —se mira
+`tried` antes de limpiar—, no alarga bocado; ingrediente propio `gari` a 2 y
+enfriamiento 9 s desde el 2-9-2026), bol de arroz
 (picoteo EXTRA: no gasta el turno de picoteo), ensalada de wakame (+50% de
 bocado, cooldown 9), gunkan de shiitake (bocado x0,4), nigiri de caballa
 (+10% al dado del siguiente plato), nigiri de besugo flambeado (punto en
@@ -1750,9 +1838,9 @@ La GUÍA lleva su sección ("El canto de sirena").
   cajas; con 490 termina en la 778 y las deja enteras, a cambio de 70 px del
   retrato de David por arriba (aire y el filo del pañuelo). Detalle: el primer grumete entra SOLO; cuando se ha
   comido su SEGUNDO plato (o su paciencia baja a 2/3) entran los otros TRES DE
-  GOLPE y arranca la lección: aparecen las cajas (`hide_storage` lo pone y lo
-  quita EL GUION, no el puerto, para que al repetir el nivel salgan de
-  entrada), las paciencias se retienen (`client3d.patience_hold`) y la CINTA SE
+  GOLPE y arranca la lección: las cajas ya están puestas (las gobierna el
+  puerto con `no_storage`; el guion no toca `hide_storage`), las paciencias
+  se retienen (`client3d.patience_hold`) y la CINTA SE
   CIERRA (`prep_board.block_serve`), así que hay que guardar 3 platos y
   soltarlos de golpe; si intenta servir, la señal `serve_blocked` hace saltar a
   Gigi (una sola vez) en vez de dejar un plato que no reacciona. Aquí David
@@ -2042,8 +2130,8 @@ La GUÍA lleva su sección ("El canto de sirena").
 - **`recipe_slots` sí se suelta al repetir** (`GameState.port_beaten`): un
   puerto ya superado se juega con los cuatro huecos de siempre.
 - **Los ingredientes GRATIS (coste 0) no se piden ni se gastan**:
-  `ingredients_for_selection` los salta. El sésamo estaba dejando el uramaki
-  California sin poder jugarse por un ingrediente que la tienda ni vende.
+  `ingredients_for_selection` los salta. Hoy solo el arroz es gratis (el
+  sésamo dejó de serlo el 2-9-2026).
   `has_ingredients_for` sigue la MISMA regla (los saltó tarde: esa función
   vetaba recetas por el sésamo en el selector y en los fichajes del arcade).
 - **"JUGAR IGUALMENTE" CON GÉNERO FALTANDO FUNCIONA DE VERDAD** (level3d,
@@ -2141,7 +2229,7 @@ La GUÍA lleva su sección ("El canto de sirena").
   no-vacío se descarta al emplatar (el plato final es el mismo voxel que el
   emplatado).
 - `scripts/powerup_data.gd` — catálogo de potenciadores DE PARTIDA: salen del
-  bote de propinas dentro del nivel. **TODOS son AUTOMÁTICOS** y son **16**
+  bote de propinas dentro del nivel. **TODOS son AUTOMÁTICOS** y son **15**
   (una, "Horas extra", solo se sortea donde hay reloj). Cinco tocan el sistema
   de hastío y variedad: "Variedad para todos" (+1 a los sentados), "Sobremesa
   dulce" (el próximo postre cobra el doble, `dessert_boost`, que solo se
@@ -2278,7 +2366,7 @@ La GUÍA lleva su sección ("El canto de sirena").
     puntos; `load_game` convierte los guardados viejos multiplicando por el
     coste del rango.
   · **SUBIR DE NIVEL** (`SkillData.level_reward`) da SIEMPRE el punto y ORO
-    (`30 + 5·n`, realzado ×1,2 en los múltiplos de 5, ×1,5 en los de 10 y ×2
+    (`8 + 2·n`, realzado ×1,2 en los múltiplos de 5, ×1,5 en los de 10 y ×2
     en los de 25 — suave a propósito: con la escalera vieja ×2/×3/×4 el nivel
     corriente se quedaba en nada al lado del hito, y cada nivel ya paga solo).
   · **Y CADA PREMIO DE BODEGA TIENE SU PROPIA CADENCIA**
@@ -2589,7 +2677,9 @@ La GUÍA lleva su sección ("El canto de sirena").
   pueda ganar de otra forma, así que la campaña cubre 33 de las 34 recetas
   visibles. **Completado el 7 la racha se reinicia al 1 y hay que desbloquearlo
   todo otra vez**; en esa segunda vuelta la casilla del 7 ya no da la receta
-  sino `RECIPE_FALLBACK` (**200**) doblones ADEMÁS del resto de su premio.
+  sino `RECIPE_FALLBACK` (**200**, FIJOS: sin escalar por nivel) doblones
+  ADEMÁS del resto de su premio. `_yesterday()` va en hora LOCAL como
+  `_today()`, y lo que dio cada cofre se apunta en `daily_history`.
   Solo sale en el menú de verdad, con el tutorial ya hecho y después del
   anuncio de recetas, para no apilar carteles.
   **EL REPARTO (23-8-2026, pedido por el usuario)**: 1) 50 oro + 1 saco ·
@@ -2613,11 +2703,10 @@ La GUÍA lleva su sección ("El canto de sirena").
     Cai no hay dónde usarlos y NO se guardan para después — la racha es una
     cadencia, no una deuda (el mismo criterio que las compuertas de premios
     de nivel).
-  · **LOS MAPAS DEL TESORO SE ACUMULAN EN `GameState.treasure_maps`** (clave
-    `treasure_maps` del save): el sistema de misiones secundarias que los
-    gasta AÚN NO EXISTE, así que el contador guarda lo cobrado para cuando
-    entre. El cartel los enseña con `col_mapa_tesoro.png`, que es el mismo
-    objeto de la vitrina, y los cebos con `ic_cebo.png`.
+  · **LOS MAPAS, LOS LINGOTES Y LOS EXTRAS SOLO CAEN YA PRESENTADOS**
+    (`mapas_unlocked`, `ingots_intro_done`, `unlocked_extras`; el mismo
+    criterio que el cebo). El cartel enseña los mapas con
+    `col_mapa_tesoro.png` y los cebos con `ic_cebo.png`.
 - **El cartel del bonus diario es un MAPA DEL TESORO** (`main_menu._show_daily`
   y compañía). Las siete paradas llevan un cofre y el estado se lee del dibujo:
   los días PASADOS con el cofre ABIERTO y los que FALTAN cerrado, los dos a
@@ -3153,7 +3242,8 @@ La GUÍA lleva su sección ("El canto de sirena").
     Cada captura trae un **TAMAÑO** (size 0..1, sorteado ANTES de la sombra)
     que decide sus doblones dentro de la horquilla de su rareza — **común
     45–65 · raro 60–80 · épico 85–120 · legendario 130–190** — y el largo
-    en cm de la ficha. Con el intento a **100 doblones**, **solo las piezas
+    en cm de la ficha (legendario **250-400**, también repetido: no tiene
+    logro propio). Con el intento a **100 doblones**, **solo las piezas
     gordas lo cubren**: pescar por dinero compensa con épicos y legendarios,
     y el resto se pesca por el álbum y por la despensa. (Toda recompensa
     lleva **+30** sobre la tabla anterior, subida junto al coste; la BASURA
@@ -3162,8 +3252,9 @@ La GUÍA lleva su sección ("El canto de sirena").
     el RÉCORD de talla (`GameState.fish_best`, la ficha enseña el mayor);
     un pez con `ingredient` da sus usos de despensa EN CADA captura (5, y
     **10 el salmón real** — la pesca es LA fuente de despensa: los cofres ya
-    no dan usos), y TODOS pagan las monedas por tamaño **desde la 2ª captura
-    de la especie**. El **PEZ LAPA** no pica nunca (`no_catch`): con
+    no dan usos), y TODOS pagan las monedas por tamaño **desde la PRIMERA
+    captura, y la primera de cada especie paga DOBLE** (`FIRST_CATCH_MULT`;
+    decidido el 2-9-2026: a 100 la tirada, pescar por oro perdía siempre). El **PEZ LAPA** no pica nunca (`no_catch`): con
     `LAPA_CHANCE` (7%) viene PEGADO a la captura y su valor se cobra APARTE
     y SIEMPRE. **Es una SORPRESA**: no se menciona en el cartel del pez —
     sale en el suyo propio ("¡Venía acompañado!") al pulsar Continuar, que
@@ -3172,8 +3263,8 @@ La GUÍA lleva su sección ("El canto de sirena").
     oloroso, Bata-Bata, Froggy) y basura clásica (lata, bota). Álbum con
     silueta + "???" y ficha (rareza, premio, récord en cm, veces, sabor).
   · **El COFRE** (`CHEST_CHANCE` **30%**, `FishData.CHEST_TABLE`): monedas
-    (peso 50; **100–150 SIEMPRE** — franja 100–125 al 70% y 126–150 al 30%,
-    así que un cofre de oro cubre el intento y compite con un pez épico),
+    (peso 42; **150–250 SIEMPRE** — franja 150–200 al 70% y 201–250 al 30%,
+    así que un cofre de oro cubre el intento de sobra),
     coleccionable pescable (25; repetido = 80 doblones, ver Pescables),
     fragmento de trifuerza (15; es SU fuente) y receta bloqueada al azar (10;
     ni ocultas ni dragon_roll, con el regalo de estreno `PORT_GIFT`; sin
@@ -3378,9 +3469,10 @@ La GUÍA lleva su sección ("El canto de sirena").
   "prepara N raciones de X" se generan solos de `RecipeData.RECIPES` (uno por
   receta no oculta; las ocultas —barco, combinados— tienen el suyo a mano), y
   los "pesca N ejemplares de X" de `FishData.FISH` (uno por pez; la BASURA se
-  queda fuera, que ya tiene el suyo). Sus metas salen de `FISH_TIERS` POR
-  RAREZA y van al revés que la dificultad: un común pide 10/30/80 y un
-  legendario 1/3/8. Cuentan por `derived:fish:<id>`, que lee el ÁLBUM, así que
+  queda fuera, que ya tiene el suyo, y los LEGENDARIOS también: un legendario
+  concreto cae 1 de cada ~1.800 tiradas, decidido el 2-9-2026). Sus metas
+  salen de `FISH_TIERS` POR RAREZA y van al revés que la dificultad: un común
+  pide 10/30/80 y un épico 1/2/4. Cuentan por `derived:fish:<id>`, que lee el ÁLBUM, así que
   funcionan hacia atrás con lo ya capturado.
 - **CADA LOGRO CON SU ICONO** (`AchievementData.icon_for`): el sprite del plato
   si es de receta, la ficha del álbum si es de pez, y si no el suyo propio de
@@ -3441,8 +3533,8 @@ La GUÍA lleva su sección ("El canto de sirena").
     esas cobran al de HOY, que es lo justo con quien ya las tenía.
     **El cartel NO enseña el multiplicador** (lo retiró el usuario): la
     cuenta no se explica, solo se cobra.
-  · **Reclamo**: `claimed_medals` (id → 0..3) y `MEDAL_REWARDS` 25/50/100 por
-    bronce/plata/oro. Si de un logro hay bronce Y plata sin reclamar, caen las
+  · **Reclamo**: `claimed_medals` (id → 0..3) y `MEDAL_REWARDS` 8/15/30 por
+    bronce/plata/oro (escalados por nivel, ver arriba). Si de un logro hay bronce Y plata sin reclamar, caen las
     dos de golpe. El botón "Reclamar todo" de `achievements_screen` (en el
     hueco que dejó la cinta del título, que se quitó) abre el cartel del COFRE
     (las texturas del diario: cerrado → meneo → abierto) con el total y el
@@ -4752,7 +4844,7 @@ La GUÍA lleva su sección ("El canto de sirena").
     CONTENEDOR: estira a todos sus hijos hasta llenarlo, así que el aspa metida
     dentro salía del tamaño del pergamino entero y lo tapaba. Su sitio lo pone
     `_ficha_offsets`, que es quien sabe el alto que tiene la ventana.
-  · Contenido: nombre, **"Fase N"**, tipo y nivel recomendado, las estrellas
+  · Contenido: nombre, **"Escenario N"**, tipo y nivel recomendado, las estrellas
     EN GRANDE, el OBJETIVO (cómo se cierra la jornada y qué castiga el tipo),
     la clientela, la carta, los escalones con sus premios, el récord y el
     tesoro. Las filas de la clientela y de la carta van **sin rótulo**: la
@@ -6625,7 +6717,9 @@ que no hay problema.
   la cinta exige soltar sobre su franja. Desde una caja se sirve con arrastre
   real (>24 px); un TOQUE en la caja con la tabla LIBRE **restaura el plato de
   arriba a la tabla** (ver abajo) y con la tabla ocupada no hace nada.
-- **LOS PLATOS GUARDADOS CONSERVAN SUS EXTRAS** (`stacks[i].units`, un array
+- **LOS PLATOS GUARDADOS CONSERVAN SUS EXTRAS Y SU PRECIO** (`stacks[i].datos`
+  lleva precio, nivel y bocado por unidad: una tempura clavada sale de la caja
+  a 20, no a 12; `stacks[i].units`, un array
   de extras POR UNIDAD en paralelo con `count`; el último es el de arriba, el
   próximo en salir). La caja enseña en miniatura los extras del plato de
   arriba (`_refresh_stack_extras`). Los extras marcados NO gastan despensa
@@ -6733,7 +6827,9 @@ de la carta entera, así que piden recalibrar `star_money`.
 
 ## Progresión y economía (cambios recientes)
 
-- **Un plato da UNA vuelta a la cinta** (`plate3d.MAX_LAPS` = 1, antes 2). Los
+- **Un plato da DOS vueltas en el mar 1 y UNA del mar 2 en adelante**
+  (`plate3d.MAX_LAPS` = 1, `level3d` suma una en el mar 1; `plate3d` compara
+  `_pases < max_laps` — estuvo en `<=` y perdonaba una de más). Los
   platos NACEN en la esquina inferior del circuito (`SPAWN_PROGRESS` cae justo
   en el vértice +X/+Z), así que una vuelta los devuelve exactamente a ese
   punto: ahí está el **cubo de basura 3D** (`level3d._add_trash_bin`) y el
@@ -6888,7 +6984,7 @@ de la carta entera, así que piden recalibrar `star_money`.
   "Recargar" son HISTORIA (ver el bloque de la tienda, arriba).
 - **La DESPENSA del inventario ordena por lo que sirve**: delante los
   ingredientes de recetas que ya se saben cocinar, detrás los demás en silueta
-  con "???" (`_ingredient_known`). Los GRATIS (arroz, sésamo) cuentan siempre
+  con "???" (`_ingredient_known`). Los GRATIS (el arroz) cuentan siempre
   como conocidos: no se compran ni se gastan, y `RecipeData.get_ingredients`
   los salta a propósito, así que buscarlos en las recetas no los encontraría.
 - **Campos nuevos de puerto en `CampaignData`**: `fixed_recipes` (carta
@@ -6922,7 +7018,8 @@ de la carta entera, así que piden recalibrar `star_money`.
   PIEZA**: el dragon roll vale 6 pero salen 3 piezas, o sea 18 por rollo, igual
   que el maki de aguacate siempre valió 2 la pieza. Consecuencia que hay que
   aceptar al leer el recetario: el precio ya NO indica lo lujoso que es el
-  plato, indica lo que paga UNA pieza.
+  plato, indica lo que paga UNA pieza. La DESPENSA de 2★/3★ va un 30% más cara
+  desde el 2-9-2026 (ver el bloque del repaso).
 - **Precios (doblones)**, por nivel y de menor a mayor. Los `(xN)` son las
   piezas que suelta una elaboración con maestría:
   **L1** edamame 1, te_verde 1, maki_pepino 2 (x4), sunomono 2, mochi 3,
@@ -6938,9 +7035,11 @@ de la carta entera, así que piden recalibrar `star_money`.
   te_verde) vale 1 porque su valor es alargar el bocado y limpiar el paladar, y
   los **postres** (mochi, dorayaki, taiyaki) son baratos a propósito porque lo
   que dan es vaciar la silla y la propina asegurada.
-  yaki_onigiri, tempura y nigiri_wagyu **no cobran su campo `price`**: lo pone
-  el cronómetro (3/8/14 · 7/12/20 · 12/16/30), y el campo solo guarda el "buen
-  punto" para que el recetario no mienta. moriawase y udon_tempura se calculan
+  tempura y nigiri_wagyu **no cobran su campo `price`**: lo pone el
+  cronómetro (7/12/20 · 12/16/30; el wagyu TIRA el plato si se suelta antes
+  de 0,5 s, como la tempura cruda), y el campo solo guarda el "buen punto"
+  para que el recetario no mienta. El yaki onigiri es hoy la CORONA del
+  onigiri, sin plancha. moriawase y udon_tempura se calculan
   al vuelo (suma de las partes + prima).
 - **MAKI DE PEPINO** (premio de 3★ del nivel 2): el maki de aguacate con el
   paso del arrastre cambiado por un CORTE — se toca el pepino y se dan 3 golpes
@@ -6999,9 +7098,9 @@ de la carta entera, así que piden recalibrar `star_money`.
   *udon* (`eat_mult` 1.8 y `patience_mult` 0.7: ocupa mucho al cliente pero le
   retiene poco — sirve para aparcar a un pesado),
   *gari* (picoteo que casi no alarga el bocado pero da +6% de propina),
-  *te_verde* (picoteo con `clears_boredom`: REINICIA el arco de variedad —
-  historial limpio, todos los platos vuelven a contar como nuevos, pero el
-  multiplicador cae a cero: reconstruir, no continuar),
+  *te_verde* (picoteo con `clears_boredom`: limpia el paladar —todos los
+  platos vuelven a contar como nuevos— y LA CHAPA SE QUEDA, decidido por el
+  usuario el 2-9-2026; a cambio la hoja vale 8 y el enfriamiento es de 6 s),
   *fugu* (corte con `fail_penalty` 5: cada corte rápido cuesta 5 doblones —el
   plato NO se pierde—; `tip_amount_mult` 1.15, la propina es más GORDA cuando
   cae, frente al atún rojo que la hace más PROBABLE),
@@ -7040,7 +7139,7 @@ de la carta entera, así que piden recalibrar `star_money`.
   precio viaja por `dish_served(recipe_id, price_override)` → `plate3d.
   price_override` → `client3d`, porque no vale el de la receta.
 - **El dinero del nivel NUNCA baja de 0**: los tres castigos (plato desechado
-  = 30% de su precio, `fail_penalty` del corte rápido y el cliente que se va de
+  = 20% de su precio, `fail_penalty` del corte rápido y el cliente que se va de
   vacío) se descuentan con `maxi(..., 0)`, así que el marcador se queda en $0.
 - **`fail_penalty`** en `slice_board`: cortar deprisa el pescado caro emite
   `money_penalty` y el nivel lo descuenta **sin bajar de 0**.
@@ -7067,23 +7166,28 @@ de la carta entera, así que piden recalibrar `star_money`.
   admite cualquier surtido), cada combo exige una **pareja exacta**, una unidad
   de cada parte, en el orden que sea. Precio = suma de las partes + `bonus`.
   El botón está siempre puesto y apagado hasta que la pareja esté completa.
-  De momento solo hay uno: **udon + tempura → udon con tempura** ($6+$7+3=16),
+  De momento solo hay uno: **udon + tempura → udon con tempura** ($10+$12+3=25),
   que hereda los efectos de los dos y se come aún más despacio (`eat_mult` 2.2).
   Para añadir otro: una línea en `COMBOS` y la receta `hidden` con su sprite.
+  **NINGÚN ESCENARIO DECLARA `combo`** (decidido por el usuario el 2-9-2026:
+  la combinación es una mecánica para más adelante), así que el botón no sale
+  en toda la campaña y la receta y su logro solo se alcanzan en el arcade.
 - **HASTÍO Y VARIEDAD** (`client3d`, bloque de constantes con el mismo nombre):
   cada cliente lleva la cuenta de qué platos ha PROBADO (`tried`). Un plato
   nunca probado alarga su **racha de variedad** (`variety`, el multiplicador
   x2, x3... que enseña una chapa dorada junto a su barra de paciencia) y
   recarga cada vez más (×1.2 el x2, ×1.3 el x3: `1 + 0.1×mult`, el primero
-  normal). Un REPETIDO rompe la racha a CERO y sube la **escalera del hastío**,
-  monótona por cliente: 1ª repetición recarga ×0.2, 2ª ×0.1, 3ª nada, y de la
-  4ª en adelante **drena** la barra (−5%, −10%... del MÁXIMO, tope −20%; es
+  normal, y ACOTADO a x5 aunque la chapa siga). Un REPETIDO rompe la racha a
+  CERO y sube la **escalera del hastío**, monótona por cliente: 1ª repetición
+  recarga ×0.2 y de la 2ª en adelante **drena** la barra (−5%, −10%... del
+  MÁXIMO, tope −20%) y acorta el bocado (×1.25, ×1.5... tope ×2); es
   fracción de la barra y no del plato porque multiplicar la recarga de un L1
   por un factor negativo daba drenajes del 1%, imperceptibles). Reglas clave:
   1) "nuevo" = **nunca comido por ESE cliente**, no "distinto del anterior"
   (con lo segundo, alternar dos platos sería combo infinito); 2) tras una
   rotura, los platos AÚN NO PROBADOS siempre reconstruyen — cuando ya probó
-  todo, las únicas salidas son el té (reinicia el arco) y los EXTRAS, que
+  todo, las únicas salidas son el té (limpia el paladar, la chapa se queda) y
+  los EXTRAS, que
   hacen que ese plato cuente como nuevo; 3) el PICOTEO y el POSTRE ni suman
   ni rompen;
   4) el barco combinado vale DOBLE (`variety_worth` 2 en su receta);
@@ -7092,9 +7196,9 @@ de la carta entera, así que piden recalibrar `star_money`.
   mientras corre el potenciador "Doble variedad" — de ahí que haya chapas
   dibujadas hasta **x20**, que es el techo real del juego. Con el tope base:
   recarga máxima ×1.5, bono de oro +5 y postre de 15 al bote (30 con Sobremesa
-  dulce), y encadenar jengibres más allá del quinto no rinde nada más; y el té
-  REINICIA el multiplicador en vez de continuarlo (si continuara, la recarga
-  crecería ciclando la carta y volvería el capitán inmortal).
+  dulce), y encadenar jengibres más allá del quinto no rinde nada más; y la
+  RECARGA se acota a x5 aunque la chapa llegue a x10 con el Paladar (sin ese
+  tope, un 3★ recargaba el 64% de la barra y volvía el capitán inmortal).
   Con la carta de 4 huecos esto le da a cada cliente un ARCO FINITO y la
   ROTACIÓN emerge sola: agotada la variedad, o se le despide con postre o se
   desangra repitiendo. La elección de carta se vuelve equipo (3 principales +
@@ -7223,8 +7327,8 @@ de la carta entera, así que piden recalibrar `star_money`.
   dragon roll (`free_uses` 2) sacan UNA pieza y las siguientes salen ya hechas,
   igual que los makis. Se intentó con un campo `yield` que emplataba 3 y 5
   piezas de golpe y NO es lo que se quiere.
-  **`free_uses` no pasa de 2 en ninguna receta** (el sashimi de tamago tenía 4
-  y el hana maki 3): cada punto de maestría multiplica el rendimiento de la
+  **`free_uses` no pasa de 2 en ninguna receta salvo el maki de pepino (3)**
+  (el sashimi de tamago tenía 4 y el hana maki 3): cada punto de maestría multiplica el rendimiento de la
   receta casi entero, así que es la perilla más peligrosa de la carta. Al
   tocarla hay que rehacer el precio POR PIEZA (ver el calibrado, arriba).
 - **En un paso de tiempo (`fry_board`), el utensilio tiene que ser la etapa del
@@ -7235,8 +7339,9 @@ de la carta entera, así que piden recalibrar `star_money`.
   pasada (el rebozado en sésamo del California). La barra del deslizamiento se
   llena **sobre la marcha** (`swipe_progress`): con `count` 1 solo saltaba de 0
   a 1 al terminar y parecía rota.
-- **El sésamo es GRATIS** (`cost` 0, como el arroz): ni se compra en la tienda
-  ni gasta usos de despensa.
+- **La sal y el sésamo SE COBRAN** (2 doblones, decidido el 2-9-2026): solo el
+  arroz es gratis. Las tres coronas que los usan se quedaban sin género para
+  siempre a coste 0, y el California y el tsukemono los gastan por jornada.
 - **Postres**: `tip_always` = la propina cae SIEMPRE (mínimo 1 doblón) y
   `no_extras` = no se les puede echar jengibre, wasabi ni soja. Sus precios son
   bajos a propósito (mochi 3, dorayaki 5, taiyaki 10): lo que dan es liberar el
@@ -7264,8 +7369,9 @@ de la carta entera, así que piden recalibrar `star_money`.
   **LOS TRES hacen que el plato cuente como NUEVO** aunque el cliente ya lo
   haya probado: no rompen la racha de variedad, la ALARGAN, esquivan la
   escalera del hastío y cobran el bono de oro del multiplicador. Eso rompe el
-  techo de la carta, así que **los tres traen contrapartida** y **cuestan 10
-  doblones** el uso (2 → 5 → 10 según fueron ganando poder):
+  techo de la carta, así que **los tres traen contrapartida** y **cuestan 6
+  doblones** el uso (2 → 5 → 10 → 6: a 10 perdían en oro puro; su valor es la
+  racha y la paciencia):
   · **jengibre** → reinicia el PALADAR entero (`tried.clear()`: todos los
     platos vuelven a contar como nuevos, ESE INCLUIDO — el mismo plato se le
     puede repetir acto seguido y contará como nuevo), pero BAJA un punto de
@@ -7381,8 +7487,9 @@ de la carta entera, así que piden recalibrar `star_money`.
   usuario (40) y el resto sube de forma gradual: 52 el 2, 88 el 6, 126 el 20,
   150 el 25 y 196 el 34 (era 145), con cada práctica un 10-15% por encima de
   la lección de al lado. El JEFE (35) no se toca: su segunda estrella es la
-  que saca al Kappa. 1★/2★ siguen al 35% y al 62% del 3★. **Son de MODELO,
-  no de partida jugada**: quieren una pasada real.
+  que saca al Kappa. 1★/2★ siguen al 35% y al 70% del 3★ (el 2★ subió del 62
+  el 2-9-2026). **Son de MODELO, no de partida jugada**: quieren una pasada
+  real.
   **Y el aluvión de clientes se limita SOLO**: los abordajes programan más
   llegadas que asientos, pero un cliente no aparece hasta que se libera un
   sitio y uno sin comer aguanta ~50-60 s (`FIRST_PLATE_DRAIN` 0.45), así que

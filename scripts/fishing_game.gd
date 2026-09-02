@@ -1770,11 +1770,11 @@ func _fill_chest_loot(fila: HBoxContainer, premio: Dictionary) -> void:
 Ábrelo en Mapas para ver su misión."
 			icon_tex = CollectibleData.get_icon("mapa_tesoro")
 		"triforce":
-			texto = "Fragmento del triángulo dorado\n(%d/%d)" \
+			texto = "Fragmento de la Tripuerca de Oro\n(%d/%d)" \
 				% [int(premio["pieces"]), CollectibleData.TRIFORCE_PIECES]
 			icon_tex = CollectibleData.get_icon("trifuerza")
 		"dup_triforce":
-			texto = "El triángulo ya está completo:\n+%d doblones" \
+			texto = "La Tripuerca ya está completa:\n+%d doblones" \
 				% int(premio["coins"])
 			icon_tex = load("res://assets/ui/moneda.png")
 		"recipe":
@@ -2382,7 +2382,7 @@ func _open_ficha(fish_id: String, album_overlay: Control) -> void:
 ## SALUDOS al entrar a pescar. Se sortea uno y no se repite el anterior.
 const CAI_SALUDOS: Array = [
 	"Mar tranquilo hoy. Bueno para pescar.",
-	"Ah. Cocinero. Tú vienes. Bien.",
+	"Ah. Tú vienes. Bien.",
 	"Hoy pican. Yo lo huelo.",
 	"Agua fría. Peces con hambre.",
 	"Silencio. Pez escucha ruido.",
@@ -2398,7 +2398,7 @@ const CAI_DESPEDIDAS: Array = [
 	"Buen brazo. Mejor cada día.",
 	"Yo guardo caña. Tú guardas pescado.",
 	"Mar te recuerda. Vuelve pronto.",
-	"Hasta luego, cocinero.",
+	"Hasta luego. Vuelve.",
 	"Hoy suficiente. Mañana más.",
 	"...  Adiós.",
 	"Cuidado con sedal. Sedal enfada rápido.",
@@ -2517,7 +2517,7 @@ func _clase_de_pesca() -> void:
 	GameState.bait = maxi(GameState.bait, CAI_TIRADAS_GRATIS)
 	GameState.save_game()
 	await _leccion([
-		{ "text": "Yo enseño poco. Tú haces mucho. Asi se aprende.", "who": "cai", "mood": "serio" },
+		{ "text": "Yo enseño poco. Tú haces mucho. Así se aprende.", "who": "cai", "mood": "serio" },
 		{ "text": "Hoy pago yo. Mira el cartel. Haz lo que dice.", "who": "cai", "mood": "hablando" },
 	])
 	# `_tutorial_guiado` pone `clase` él solo, así que aquí NO se toca: si se
@@ -2592,7 +2592,7 @@ func _cai_explica_coleccion() -> void:
 	caja.say([
 		{ "text": "Eso no se come. Eso se **guarda**.", "who": "cai", "mood": "serio" },
 		{ "text": "**Coleccionables**. Mar los esconde, gente los pierde. Tú los encuentras.", "who": "cai", "mood": "hablando" },
-		{ "text": "No dan oro. No dan comida. Solo... están. En vitrina de tu camarote, en **Inventario**.", "who": "cai", "mood": "hablando" },
+		{ "text": "No dan oro. No dan comida. Solo... están. En vitrina de tu camarote, en **Colección**.", "who": "cai", "mood": "hablando" },
 		{ "text": "A mí me gusta mirarlos. ...  Es bonito.", "who": "cai", "mood": "feliz" },
 	])
 	await caja.finished

@@ -117,6 +117,24 @@ func _init() -> void:
 		con_fuente[str(cid)] = "cofre de pesca"
 	for id2 in CollectibleData.BOSS_ITEMS.values():
 		con_fuente[str(id2)] = "jefe"
+	# EL CLIENTE DEL TESORO Y LA PIEZA DE GUION de cada escenario también son
+	# fuente (la lista imprimía la bandera, la espada y el tricornio como
+	# inalcanzables; repaso del 2-9-2026), y los TROFEOS que suelta GameState
+	# por estadística (`unlock_collectible("id")` en su código).
+	for p2 in CampaignData.PORTS:
+		var cc2 := str((p2.get("collectible_client", {}) as Dictionary).get("item", ""))
+		if cc2 != "":
+			con_fuente[cc2] = "cliente del tesoro (%s)" % p2.get("id", "")
+		var ch2 := str((p2.get("collectible_here", {}) as Dictionary).get("item", ""))
+		if ch2 != "":
+			con_fuente[ch2] = "guion (%s)" % p2.get("id", "")
+	var gs_src := FileAccess.get_file_as_string("res://scripts/game_state.gd")
+	var re_col := RegEx.new()
+	re_col.compile('unlock_collectible\\("([a-z_]+)"')
+	for mm in re_col.search_all(gs_src):
+		con_fuente[mm.get_string(1)] = "hazaña (game_state)"
+	for pid in CollectibleData.PALILLOS_IDS:
+		con_fuente[str(pid)] = "hazaña (palillos)"
 	var sin_desc := 0
 	for it in CollectibleData.ITEMS:
 		var cid2 := str(it.get("id", ""))
@@ -356,6 +374,63 @@ func _init() -> void:
 					% t + " no se pueden cumplir")
 			fallos += 1
 	print("  tipos de objetivo: %d" % TreasureData.TIPOS.size())
+
+	# --- ESCENARIOS: reglas que esta auditoria hacia a mano (2-9-2026) -----
+	print("=== REGLAS DE ESCENARIO ===")
+	var pos := 0
+	var chef_prev := 0
+	for p3 in CampaignData.PORTS:
+		var id3 := str(p3.get("id", ""))
+		# (sin `CampaignData.sea_of`: bajo --script no hay autoloads y la clase
+		# entera falla al compilar por su referencia a GameState; el campo vale)
+		var mar := int(p3.get("sea", 1))
+		if mar == 1:
+			pos += 1
+		# 1★ al ~35% y 2★ al 70% del 3★.
+		var sm: Array = p3.get("star_money", [0, 0, 0])
+		if sm.size() == 3 and int(sm[2]) > 0:
+			var dos := int(round(int(sm[2]) * 0.70))
+			if absi(int(sm[1]) - dos) > 1:
+				print("  ! %s: 2★ = %d, deberia ser el 70%% del 3★ (%d)" % [id3, sm[1], dos])
+				fallos += 1
+		# chef_rec nunca baja.
+		var cr := int(p3.get("chef_rec", 0))
+		if cr > 0 and cr < chef_prev:
+			print("  ! %s: chef_rec %d por debajo del anterior (%d)" % [id3, cr, chef_prev])
+			fallos += 1
+		chef_prev = maxi(chef_prev, cr)
+		# client_order tiene que sumar lo mismo que client_mix.
+		if p3.has("client_order"):
+			var cuenta := {}
+			for t in p3["client_order"]:
+				cuenta[str(t)] = int(cuenta.get(str(t), 0)) + 1
+			for t in p3.get("client_mix", {}):
+				if int(cuenta.get(str(t), 0)) != int(p3["client_mix"][t]):
+					print("  ! %s: client_order no cuadra con client_mix (%s)" % [id3, t])
+					fallos += 1
+		# Compuertas de la escuela (mar 1): sin extras hasta el 16 y sin
+		# bonificadores hasta el 30 — a mano en cada escenario.
+		if mar == 1:
+			if pos <= 16 and not bool(p3.get("no_extras", false)):
+				print("  ! %s (pos %d): falta no_extras" % [id3, pos])
+				fallos += 1
+			if pos <= 30 and not bool(p3.get("no_perks", false)):
+				print("  ! %s (pos %d): falta no_perks" % [id3, pos])
+				fallos += 1
+		# Carta cerrada contra clientela: aviso (no fallo: m2_08/m2_09 lo
+		# llevan a proposito, pendientes de la mejora de platos).
+		var fijas: Array = p3.get("fixed_recipes", []) + p3.get("alt_recipes", []) \
+			+ p3.get("optional_recipes", [])
+		if not fijas.is_empty():
+			var mix: Dictionary = p3.get("client_mix", {})
+			var niveles := {}
+			for r in fijas:
+				niveles[int(RecipeData.RECIPES.get(str(r), {}).get("level", 1))] = true
+			if int(mix.get("A", 0)) > 0 and not niveles.has(2):
+				print("  · aviso %s: piratas sin ningun plato de 2★ en la carta" % id3)
+			if int(mix.get("G", 0)) > 0 and not niveles.has(3):
+				print("  · aviso %s: capitanes sin ningun plato de 3★ en la carta" % id3)
+	print("  reglas de escenario comprobadas en %d escenarios" % CampaignData.PORTS.size())
 
 	print("=== RESUMEN: %d cosas que no cuadran ===" % fallos)
 	quit()

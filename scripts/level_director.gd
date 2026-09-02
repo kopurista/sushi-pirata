@@ -1,6 +1,6 @@
 extends StoryDirector
 ## Guion de David Jones DENTRO de los niveles de la campaña. La campaña ES el
-## tutorial: cada nivel del 1 al 10 presenta una mecánica jugando, y David solo
+## tutorial: cada lección de la campaña presenta una mecánica jugando, y David solo
 ## se asoma en los momentos justos (al hablar pausa el juego entero, como
 ## siempre). La regla de oro: poco texto, mucho juego — una idea por tanda.
 ##
@@ -269,7 +269,7 @@ func _adelantar_tipo(tipo: String) -> void:
 ## (gift_recipes) por si el turno se cierra antes de llegar aquí.
 func _regalar_receta(id: String) -> void:
 	if GameState.unlock_recipe(id):
-		GameState.gift_ingredients_for([id], GameState.PORT_GIFT)
+		GameState.gift_ingredients_for([id], GameState.port_gift())
 		GameState.save_game()
 	lv.prep_board.add_recipe(id)
 
@@ -458,7 +458,7 @@ func _nivel_1() -> void:
 const DESPRECIO_ESPERA := 1.5
 
 ## Platos que hay que tener guardados para que la lección de cajas dé el paso.
-const CAJAS_PEDIDAS := 4
+const CAJAS_PEDIDAS := 3
 ## Fracción de paciencia del primer cliente a la que entra el refuerzo si aún
 ## no ha llegado a su segundo plato.
 const REFUERZO_PACIENCIA := 2.0 / 3.0
@@ -657,7 +657,7 @@ func _nivel_4() -> void:
 		# atracar el barco.
 		{ "text": "¡Eh, los del barco! ¿Ese es el cocinero nuevo?", "who": "saverio", "mood": "hablando" },
 		{ "text": "El mismo. Saverio lleva el puesto de este muelle; ya hablaréis cuando cierres.", "mood": "feliz" },
-		{ "text": "Cocina bien y te hago precio, chaval. Cocina mal y te hago precio también, pero me río.", "who": "saverio", "mood": "riendo" },
+		{ "text": "Cocina bien y te hago precio, %s. Cocina mal y te hago precio también, pero me río." % GameState.gen("chaval", "chavala"), "who": "saverio", "mood": "riendo" },
 		{ "text": "Con tres recetas y ocho clientes vas a tener que repetir plato. Fíjate en lo que pasa cuando lo hagas.", "mood": "serio" },
 	])
 	_play()
@@ -728,7 +728,7 @@ func _nivel_4() -> void:
 	await _focus_node(lv.prep_board.buttons["te_verde"], 12.0)
 	await _say_raised([
 		{ "text": "El remedio: **té verde**. Es picoteo, como el edamame, y además le **limpia el paladar**.", "mood": "feliz" },
-		{ "text": "Un **paladar limpio** permite apreciar de nuevo cada plato. Ojo: la chapa se queda a cero, así que hay que reconstruirla.", "mood": "hablando" },
+		{ "text": "Un **paladar limpio** vuelve a hacer nuevo cada plato, y la **chapa se queda como está**. Pero no es gratis: la hoja de té cuesta lo suyo y tarda en volver a la tabla.", "mood": "hablando" },
 	])
 	_play()
 
@@ -793,7 +793,7 @@ func _nivel_5() -> void:
 
 # ------------------------------------------------------- los tres EXTRAS
 # LOS EXTRAS YA NO LLEGAN LOS TRES DE GOLPE (pedido por el usuario): cada uno
-# tiene SU escenario —el 15 el wasabi, el 16 el jengibre y el 17 la soja—, y
+# tiene SU escenario —el 17 el wasabi, el 18 el jengibre y el 19 la soja—, y
 # esos tres NO llevan práctica detrás porque cada uno YA es su práctica.
 #
 # Antes era una sola jornada con Saverio soltando los tres seguidos: cuatro
@@ -844,7 +844,7 @@ func _nivel_6() -> void:
 		{ "text": "Hoy te dejo el primero, y de uno en uno, que si te suelto los tres no te acuerdas de ninguno.", "who": "saverio", "mood": "feliz" },
 	], [
 		{ "text": "El **wasabi**. Sube la **probabilidad** de propina, pero en vez de dar paciencia la **quita**: no se lo pongas al que va justo.", "who": "saverio", "mood": "explicando" },
-		{ "text": "Diez usos, invita la casa. Gástalos hoy, %s: para eso te los doy." % GameState.player_title(), "who": "saverio", "mood": "hablando" },
+		{ "text": "%d usos, invita la casa. Gástalos hoy, %s: para eso te los doy." % [GameState.TUTORIAL_GIFT, GameState.player_title()], "who": "saverio", "mood": "hablando" },
 	], "Prueba el **wasabi** en un plato que ya le hayas servido a alguien.")
 
 
@@ -863,12 +863,12 @@ func _nivel_21() -> void:
 
 
 # ------------------------------------------------------------------ nivel 22
-# Ensenada de la Salazón (escenario 17): LA SOJA, y con ella los tres.
+# Ensenada de la Salazón (escenario 19): LA SOJA, y con ella los tres.
 
 func _nivel_22() -> void:
 	await _escena_extra("soja", [
 		{ "text": "**Ensenada de la Salazón**. Última entrega, y ya tienes la caja entera.", "mood": "hablando" },
-		{ "text": "La que faltaba, cocinero. Y esta tiene truco.", "who": "saverio", "mood": "feliz" },
+		{ "text": "La que faltaba, %s. Y esta tiene truco." % GameState.cocinero(), "who": "saverio", "mood": "feliz" },
 	], [
 		{ "text": "La **soja** engorda la propina: cuando cae, cae más gorda. Pero el que la lleva **mastica más deprisa**...", "who": "saverio", "mood": "explicando" },
 		{ "text": "...y mientras se mastica la paciencia no baja, así que acortarle el bocado es devolverlo a la cola antes de tiempo. Tú verás.", "who": "saverio", "mood": "hablando" },
@@ -901,7 +901,7 @@ func _explicar_coleccionables() -> void:
 	GameState.save_game()
 	await _say([
 		{ "text": "Eso que acabas de guardarte es un **coleccionable**.", "mood": "feliz" },
-		{ "text": "No dan oro ni sirven para cocinar. Se tienen, y punto: van a la **vitrina** del Inventario, y ahí se quedan para toda la travesía.", "mood": "hablando" },
+		{ "text": "No dan oro ni sirven para cocinar. Se tienen, y punto: van a la **vitrina** de la Colección, y ahí se quedan para toda la travesía.", "mood": "hablando" },
 		{ "text": "¡PARA TODA LA TRAVESÍA! ¡RAAAK!", "who": "gigi", "mood": "loro" },
 		{ "text": "Los hay repartidos por medio mar, y cada uno se consigue de una manera. Ese es el primero.", "mood": "serio" },
 	])
@@ -1042,13 +1042,12 @@ func _cliente_who(quien: String) -> Node3D:
 
 
 # ------------------------------------------------------------------- nivel 9
-# Puerto Tormenta: LOS BONIFICADORES. David los explica antes de cocinar y
-# regala el del PALADAR, el único que se puede ganar todavía; el foco obliga a
-# ponérselo antes de zarpar (lo hace `prep_screen`, ver `prep_dialog`).
+# Puerto Tormenta (escenario 22): el EXAMEN antes de Pablo. Sin lección: los
+# bonificadores llegan con Alice, en el 31.
 
 func _nivel_9() -> void:
 	await _say([
-		{ "text": "**Puerto Tormenta**. Diez bocas en dos oleadas, y la mitad son **piratas**: sin platos de dos estrellas aquí no se come.", "mood": "serio" },
+		{ "text": "**Puerto Tormenta**. Diez bocas en dos oleadas, y cuatro de ellas **piratas**: sin platos de dos estrellas aquí no se come.", "mood": "serio" },
 		# NADA DE BONIFICADORES AQUÍ (pedido por el usuario, no re-litigar): el
 		# sistema entero llega con ALICE, en el escenario 17. Este puerto tuvo
 		# la lección del "paladar de capitán" y sonaba a hablar de algo que el
@@ -1064,7 +1063,7 @@ func _nivel_9() -> void:
 # LENTO. Al cerrar, Pablo paga la broma con dos lingotes y David los explica.
 
 const RECETA_PABLO := "salmon_tsuke_don"
-const AVISO_TSUKE := "¡El **tsuke don**! ¡Córtalo DESPACIO y que se lo pongas al de las gafas!"
+const AVISO_TSUKE := "¡El **tsuke don**! ¡Córtalo DESPACIO y pónselo al de las gafas!"
 
 var _tsuke_servido := false
 var _ensenando_corte := false
@@ -1128,7 +1127,7 @@ func _nivel_10() -> void:
 		return
 	await _say([
 		{ "text": "¡Vaya, vaya! Esto no me lo esperaba en un barco de este tamaño.", "who": "pablo", "mood": "sorprendido" },
-		{ "text": "¿Lo ves? Te lo dije: el chico vale. Y ojo desde ahora: el corte con prisa SÍ cuesta oro.", "mood": "riendo" },
+		{ "text": "¿Lo ves? Te lo dije: %s vale. Y ojo desde ahora: el corte con prisa SÍ cuesta oro." % GameState.gen("el chico", "la chica"), "mood": "riendo" },
 	])
 	_play()
 
@@ -1200,7 +1199,7 @@ func _nivel_11() -> void:
 	await _say([
 		{ "text": "**Cala del Hambre**. Solo tres clientes... pero fíjate en cómo mastican.", "mood": "hablando" },
 		{ "text": "¡SE LO TRAGAN TODO! ¡RAAAK! ¡NO LES DA TIEMPO NI A SABOREARLO!", "who": "gigi", "mood": "loro_sorpresa" },
-		{ "text": "Aquí el **bocado** dura la mitad, así que vuelven a pedir enseguida. Sirve rápido o se te acumulan.", "mood": "serio" },
+		{ "text": "Aquí el **bocado** dura casi la mitad, así que vuelven a pedir enseguida. Sirve rápido o se te acumulan.", "mood": "serio" },
 	])
 	_play()
 	_vigilar_basura()
@@ -1277,7 +1276,7 @@ func _vigilar_tesoro() -> void:
 	# decía nada. La frase sale de `CampaignData.pago_texto`, la misma que
 	# luego lee la ficha del mapa.
 	var lineas: Array = [
-		{ "text": "Tú. Cocinero. Yo no pago con oro. Pago con esto: %s." % CampaignData.pago_texto(cfg), "who": quien, "mood": "serio" },
+		{ "text": "Tú. %s. Yo no pago con oro. Pago con esto: %s." % [GameState.cocinero(true), CampaignData.pago_texto(cfg)], "who": quien, "mood": "serio" },
 		{ "text": "Y solo lo suelto si me cumples el capricho: %s. Si no, me lo llevo por donde he venido." % CampaignData.reto_texto(cfg, true), "who": quien, "mood": "hablando" },
 	]
 	var receta := str(cfg.get("recipe", ""))
@@ -1287,7 +1286,10 @@ func _vigilar_tesoro() -> void:
 	if falta_receta:
 		var nombre := str(RecipeData.RECIPES.get(receta, {}).get("name", receta))
 		lineas.append({ "text": "¿**%s**? Hoy no lo llevamos en la carta, %s..." % [nombre, GameState.player_title()], "mood": "sorprendido" })
-		lineas.append({ "text": "Apúntatelo: cuando lo tengas, **vuelve aquí con él en la carta**. Este no parece de los que cambian de antojo.", "mood": "hablando" })
+		var como := "**vuelve aquí cuando lo tengas**" \
+				if CampaignData.get_kind(GameState.current_port) == "isla" \
+				else "**vuelve aquí con él en la carta**"
+		lineas.append({ "text": "Apúntatelo: cuando lo tengas, %s. Este no parece de los que cambian de antojo." % como, "mood": "hablando" })
 	await _say(lineas)
 	_play("Encargo: **%s**." % CampaignData.reto_texto(cfg))
 	# Bandera para los guiones que tienen algo que decir DESPUES del encargo
@@ -1418,14 +1420,14 @@ var _alice: Node3D = null
 var _alice_llena := false
 
 
-## RADA DE LOS DOS FUEGOS (escenario 17): llega ALICE. Se sienta de clienta, se
+## RADA DE LOS DOS FUEGOS (escenario 31): llega ALICE. Se sienta de clienta, se
 ## le da de comer, y el trato se cierra DESPUES en el mapa
 ## (`main_menu._presentar_alice`), que es donde se enrola y donde se abren los
 ## BONIFICADORES. Aqui NO se explica ningun bonificador: todavia no existen.
 func _nivel_13() -> void:
 	await _say([
 		{ "text": "**Rada de los Dos Fuegos**: abordaje, reloj corriendo y clientela que no se acaba. Lo de siempre... casi.", "mood": "serio" },
-		{ "text": "Y una chica que lleva media hora en el muelle mirando la cinta sin sentarse.", "mood": "hablando" },
+		{ "text": "Y una chica que lleva media hora en la borda mirando la cinta sin sentarse.", "mood": "hablando" },
 		{ "text": "¡PUES QUE MIRE DESDE OTRO LADO! ¡RAAAK! ¡ESTORBA!", "who": "gigi", "mood": "loro_grito" },
 		{ "text": "O que se siente. Tú a lo tuyo, %s, que hoy hay faena." % GameState.player_title(), "mood": "loro_resignado" },
 	])
@@ -1460,7 +1462,7 @@ func _nivel_13() -> void:
 		{ "text": "Aquí lo que hay es comida. Come algo primero y luego hablamos, que con hambre no se busca a nadie.", "mood": "loro_resignado" },
 		{ "text": "...Gracias.", "who": "alice", "mood": "callado" },
 	])
-	_play("¡**%d platos** para la chica del muelle!" % PLATOS_ALICE)
+	_play("¡**%d platos** para la chica de la borda!" % PLATOS_ALICE)
 
 	# --- Barriga llena: lo dice ella, y el trato se cierra ya en el mapa ---
 	await _esperar(func() -> bool: return lv.ended or _alice_llena)
@@ -1575,7 +1577,7 @@ func _nivel_16() -> void:
 
 
 # ------------------------------------------------------------------- nivel 17
-# Caleta del Cartógrafo (ESCENARIO 20): LOS MAPAS DEL TESORO. Lo trae un
+# Caleta del Cartógrafo (ESCENARIO 28): LOS MAPAS DEL TESORO. Lo trae un
 # GRUMETE (pedido por el usuario) que no pide un capricho de mesa sino la
 # JORNADA: "si haces un buen servicio, el mapa es tuyo" — o sea las tres
 # estrellas (`"reto": "estrellas"`).
@@ -1613,7 +1615,7 @@ func _nivel_17() -> void:
 		{ "text": "Lo cumples en la jornada que quieras y en el escenario que quieras. No es otra travesía: es la misma, mirando otra cosa.", "mood": "hablando" },
 		{ "text": "¡Y LOS HAY FÁCILES Y LOS HAY BRUTALES! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
 		{ "text": "Tres marcas: **fácil**, **medio** y **difícil**. Los difíciles te cambian la jornada por debajo —clientela impaciente, reloj encima, tropiezos que se pagan— y por eso pagan más **oro** y más **experiencia**.", "mood": "hablando" },
-		{ "text": "Los llevas **sin abrir** hasta que los abras. Se abren en el **mapa de la travesía**, en el tablón de abajo, y ahí eliges cuál llevas armado — **uno cada vez**, o acabas persiguiendo seis cosas y no cumples ninguna.", "mood": "serio" },
+		{ "text": "Los llevas **enrollados** hasta que los abres. Se abren en el **mapa de la travesía**, en el tablón de abajo, y ahí eliges cuál llevas armado — **uno cada vez**, o acabas persiguiendo seis cosas y no cumples ninguna.", "mood": "serio" },
 	])
 	_play("Cierra la jornada con **3 estrellas** y el mapa es tuyo.")
 
@@ -1867,7 +1869,7 @@ func _mar2_nach() -> void:
 	GameState.unlock_perk("barco")
 	_focus_client(_nach)
 	await _say([
-		{ "text": "¡JÁ! ¡Mirad qué bandeja! Ni en los banquetes del Rey del Coral. Aprobado, cocinero.", "who": "nach", "mood": "riendo" },
+		{ "text": "¡JÁ! ¡Mirad qué bandeja! Ni en los banquetes del Rey del Coral. %s, %s." % [GameState.gen("Aprobado", "Aprobada"), GameState.cocinero()], "who": "nach", "mood": "riendo" },
 		{ "text": "Desde hoy, el **barco de sushi** es tuyo: lo llevas de bonificador donde el puerto lo permita.", "mood": "feliz" },
 		{ "text": "Y una cosa más, pequeña... Miku anda por estos mares. Si la ves, dile que Nach sigue debiéndole una partida de cartas.", "who": "nach", "mood": "hablando" },
 		{ "text": "...Lo haré.", "who": "alice", "mood": "callado" },
@@ -2019,7 +2021,7 @@ func _mar2_sirena_jefa() -> void:
 		await _say([
 			{ "text": "Conque vosotros sois los que llenan MI mar de olores...", "who": "sirena", "mood": "serio" },
 			{ "text": "Voy a probar esa cocina. **%d platos**... y si me haces esperar, CANTO. Y cuando yo canto, tu clientela es mía." % SIRENA_PLATOS, "who": "sirena", "mood": "hablando" },
-			{ "text": "Su cara es tu **tercera estrella**, y las **cinco calaveras** de siempre. Sirve ANTES de que abra la boca, cocinero.", "mood": "serio" },
+			{ "text": "Su cara es tu **tercera estrella**, y las **cinco calaveras** de siempre. Sirve ANTES de que abra la boca, %s." % GameState.cocinero(), "mood": "serio" },
 		])
 	var aviso1 := "¡**%d platos** para la Sirena — y sirve ANTES de cada canto!" % SIRENA_PLATOS
 	_play(aviso1)
@@ -2059,7 +2061,7 @@ func _mar2_sirena_jefa() -> void:
 		])
 	else:
 		await _say([
-			{ "text": "Me estás gustando, humano. Última prueba: el **gran canto**.", "who": "sirena", "mood": "serio" },
+			{ "text": "Me estás gustando, %s. Última prueba: el **gran canto**." % GameState.gen("humano", "humana"), "who": "sirena", "mood": "serio" },
 			{ "text": "Cantaré casi sin parar... y solo comeré en los **silencios**. **%d platos**. A ver ese pulso." % SIRENA_FINAL, "who": "sirena", "mood": "cantando" },
 			{ "text": "¡Ojo! Los platos que pasen de largo mientras canta NO se pierden: siguen en la cinta. ¡Suéltalos y espera al silencio!", "mood": "hablando" },
 		])
@@ -2132,11 +2134,20 @@ func _fase_sirena(jefa: Node3D, objetivo: int, aviso: String) -> bool:
 ## la vez seria pelear en dos frentes.
 func _fase_presas(jefa: Node3D, aviso: String) -> bool:
 	jefa.patience_hold = true
+	# El decomiso es de LA FASE EN CURSO: sin esto, un fallo aquí restaba
+	# también lo comido en la fase 1.
+	_oro_fase = 0
+	_prop_fase = 0
 	var salvados := 0
 	lv.boss_chip_set(SIRENA_PRESAS)
 	while salvados < SIRENA_PRESAS:
 		var presa := _elegir_presa()
 		if presa == null:
+			# SIN PRESA NO HAY FASE: si la cola de llegadas se ha agotado, se
+			# llama a alguien — la jefa retiene su paciencia y la espera no
+			# podía ganarse ni perderse.
+			if lv.arrival_queue.is_empty():
+				lv.arrival_queue.append(lv.elapsed + 1.0)
 			await _esperar(func() -> bool:
 				return lv.ended or lv.boss_lost or _elegir_presa() != null)
 			if lv.ended or lv.boss_lost:
@@ -2173,6 +2184,11 @@ func _fase_presas(jefa: Node3D, aviso: String) -> bool:
 				reloj = 0.0
 				presa.canto_despierto = false
 				presa.set_atontado(true)
+	# La presa rescatada se quedaba "despierta" hasta el primer fin de canto,
+	# o sea inmune al primer canto de la fase 3.
+	for c in lv.seat_clients:
+		if c != null and is_instance_valid(c) and c != jefa:
+			c.canto_despierto = false
 	jefa.patience_hold = false
 	return true
 
@@ -2233,7 +2249,7 @@ func _fallo_sirena(jefa: Node3D, frase: String, aviso := "") -> bool:
 func _derrota_sirena() -> void:
 	if _cortes:
 		await _say([
-			{ "text": "Me voy con hambre... Otro día cantamos, cocinero.", "who": "sirena", "mood": "serio" },
+			{ "text": "Me voy con hambre... Otro día cantamos, %s." % GameState.cocinero(), "who": "sirena", "mood": "serio" },
 			{ "text": "Se acabó por hoy. Volvemos: ya sabemos cómo respira.", "mood": "triste" },
 		])
 	else:
@@ -2423,7 +2439,7 @@ func _nivel_15() -> void:
 		await _say([
 			{ "text": "HAMBRE.", "who": "kappa", "mood": "enfadado" },
 			{ "text": "Escúchame rápido: el Kappa come de TODO, a una velocidad de escándalo... y se **impacienta** igual de rápido.", "mood": "serio" },
-			{ "text": "**%d platos**, cocinero. Y que no se me vacíe la barriga... o nos enfadamos." % BOSS_PLATES, "who": "kappa", "mood": "hablando" },
+			{ "text": "**%d platos**, %s. Y que no se me vacíe la barriga... o nos enfadamos." % [BOSS_PLATES, GameState.cocinero()], "who": "kappa", "mood": "hablando" },
 			{ "text": "Su cara está en la barra de arriba: ¡esa es hoy tu **tercera estrella**! Y ojo a las **cinco calaveras**: cada fallo enciende una, y a la quinta nos vamos a pique.", "mood": "hablando" },
 		])
 	_play("¡**%d platos** para el Kappa, sin dejar que su barra toque fondo!" % BOSS_PLATES)
@@ -2478,10 +2494,10 @@ func _nivel_15() -> void:
 	lv.boss_chip_set(0)
 	await _kappa_duerme(kappa)
 	await _say([
-		{ "text": ("Gracias, cocinero. De verdad. Kappa... lleno."
+		{ "text": ("Gracias, %s. De verdad. Kappa... lleno." % GameState.cocinero()
 			if _cortes else "Kappa... lleno. Kappa... contento..."), "who": "kappa", "mood": "feliz" },
 		{ "text": "Ahora... dormir...", "who": "kappa", "mood": "dormido" },
-		{ "text": "¡Se rinde! ¡Mirad cómo ronca! ¡Eres el cocinero que las leyendas pedían, %s!" % GameState.player_title(), "mood": "riendo" },
+		{ "text": "¡Se rinde! ¡Mirad cómo ronca! ¡Eres %s que las leyendas pedían, %s!" % [GameState.gen("el cocinero", "la cocinera"), GameState.player_title()], "mood": "riendo" },
 		{ "text": "¡QUE ALGUIEN LO SAQUE DE LA BARRA! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
 	])
 	# Y LA VICTORIA CIERRA IGUAL QUE LA DERROTA: sin esto la última frase de
@@ -2523,6 +2539,10 @@ func _fase_kappa(kappa: Node3D, objetivo: int, modo: String,
 			continue
 		vistos += 1
 		var id := str(kappa.eaten_ids[vistos - 1])
+		# EN LA FASE DEL ANTOJO los picoteos que pesca él solo de la cinta no
+		# cuentan ni a favor ni en contra: los pica sin que se los sirvan.
+		if modo == "mismo" and RecipeData.get_recipe(id).get("snack", false):
+			continue
 		if modo == "distintos" and distintos.has(id):
 			if not await _fallo_kappa(kappa, ("Perdona... eso ya me lo he comido. Te dije distintos. ¿Empezamos otra vez?"
 					if _cortes else "Eso... YA LO HE COMIDO. ¡DISTINTOS he dicho! ¡Empezamos de nuevo!"), ira, aviso):
@@ -2535,7 +2555,10 @@ func _fase_kappa(kappa: Node3D, objetivo: int, modo: String,
 			kappa._limpiar_paladar()
 			lv.boss_chip_set(objetivo)
 			continue
-		if modo == "mismo" and id != target:
+		# POR RECETA BASE: el aburi elegido con atún llega como `aburi_atun` y
+		# una tempura poco hecha como `tempura_cruda`; comparando ids a pelo
+		# cantaba "¡ESO NO!" por servir justo lo pedido (repaso del 2-9-2026).
+		if modo == "mismo" and RecipeData.base_id(id) != RecipeData.base_id(target):
 			var nombre := str(RecipeData.get_recipe(target).get("name", target))
 			if not await _fallo_kappa(kappa, (("Uy... yo pedí **%s**. No pasa nada, pero vuelvo a empezar la cuenta." % nombre)
 					if _cortes else ("¡ESO NO! ¡He dicho **%s**! ¡La cuenta A CERO!" % nombre)), ira, aviso):
@@ -2570,7 +2593,7 @@ func _hambruna_kappa(kappa: Node3D, ira := "enfadado", aviso := "") -> bool:
 	kappa.boss_patience_set(frac)
 	_focus_client(kappa)
 	await _say([{ "text": ("Disculpa... me he quedado con **hambre** otra vez. ¿Un poco más rápido, por favor?"
-			if _cortes else "¡KAPPA TIENE **HAMBRE**! ¡Más deprisa, cocinero, o me como la cueva!"),
+			if _cortes else "¡KAPPA TIENE **HAMBRE**! ¡Más deprisa, %s, o me como la cueva!" % GameState.cocinero()),
 		"who": "kappa", "mood": ira }])
 	# LA CAJA SOLO LA CIERRA `_play`: sin esta llamada el diálogo del hambre se
 	# quedaba clavado en pantalla con todo el input tragado (softlock).
@@ -2599,7 +2622,7 @@ func _fallo_kappa(kappa: Node3D, frase: String, ira := "enfadado",
 func _derrota_kappa() -> void:
 	if _cortes:
 		await _say([
-			{ "text": "Lo siento... Me voy con hambre. Otro día será, cocinero.", "who": "kappa", "mood": "serio" },
+			{ "text": "Lo siento... Me voy con hambre. Otro día será, %s." % GameState.cocinero(), "who": "kappa", "mood": "serio" },
 			{ "text": "Se nos ha ido de vacío... y eso, con un Kappa, se paga. Volvemos mañana.", "mood": "triste" },
 		])
 	else:
