@@ -6231,9 +6231,62 @@ cadena que salió de él vale para el resto del reparto:
    · **OCLUSIÓN horneada con Cycles** (`bake AO`, CPU, 48 muestras) y
      multiplicada al 55%: es el degradado de juguete. Sin AO (medido) el
      modelo se lee plano.
+   · **LA OCLUSIÓN SE RELLENA HACIA FUERA ANTES DE APLICARLA**: fuera de las
+     islas del atlas el bake deja 0 (negro), y al muestrear con filtrado
+     bilineal ese negro se cuela por el borde de cada isla. Eran las MANCHAS
+     que salían en el pico de Gigi, y no se iban ni retexturizándola en Meshy
+     (10 créditos) ni suavizando la malla: no eran ni pintura ni geometría,
+     era el borde del atlas. Va además con distancia larga (`AO_DIST`, medio
+     personaje), que ignora los micro-hoyos de la malla de Meshy; difuminar
+     el mapa después NO vale, porque en el atlas se mezclan islas que en el
+     modelo no se tocan y aparecen COSTURAS rectas por la cara.
    · Rugosidad 0.32, metálico 0, export glb con la textura a 1024 en JPEG.
    Renders Workbench de comprobación en cada pasada; `PREF`/`AO` por entorno.
-4. **Godot**: `.import` con el hook y presupuesto 20000 (no se decima),
+4. **GIGI ES UN MODELO APARTE** (`gigi_toy.glb`), no parte de David: en el paso
+   a 3D el loro del concepto se perdía —Meshy lo funde con el hombro— y suelta
+   se le puede dar movimiento propio. Su concepto es un DEGRADADO (verde a
+   amarillo a rojo), así que va con `PLANO=0`: la textura no se cuantiza, solo
+   se le pasa una mediana. Cuantizarla la partía en bandas y parches.
+5. **EL RIG SE CONSTRUYE EN BLENDER** (`tools/blender/riggear.py`), porque el
+   de Meshy no puede con un cabezón. Lecciones, todas pagadas:
+   · **LAS MEDIDAS SALEN DEL CONCEPTO, no de la malla** (`tools/
+     medir_cuerpo.py`): la silueta del dibujo es una mancha limpia y partirla
+     por filas da islas que de verdad son "brazo, cuerpo, brazo"; en la malla,
+     cada ceja y cada punta del bigote cuenta como isla y el hombro salía a la
+     altura de los ojos. Se guardan en fracciones del alto y del ancho.
+   · **LOS HUESOS SE LLAMAN COMO EL RIG HUMANOIDE DEL JUEGO** (Pelvis, Spine1,
+     Neck, Head, L_Shoulder/Elbow/Wrist, L_Hip/Knee/Ankle y sus R_), y con eso
+     `CharacterAnim` los usa TAL CUAL: `_name` no pisa un nombre que ya venga
+     en el rig, así que no hay que acertar con su deducción topológica.
+   · **EL PESADO AUTOMÁTICO DE BLENDER NO VALE**: `ARMATURE_AUTO` (bone heat)
+     avisa "failed to find solution for one or more bones" y deja los grupos
+     vacíos, y entonces el exportador escribe los pesos pero NO el skin
+     ("Mesh_0 has no skin"): en Godot llegaba una malla suelta sin esqueleto,
+     y el glb salía con `skins: 0` pese a tener JOINTS_0 y WEIGHTS_0. Los
+     pesos se calculan aquí por DISTANCIA al segmento de cada hueso.
+   · **Y CON REGIONES DURAS**: la cabeza es una PIEZA RÍGIDA (todo lo que está
+     por encima del cuello, MÁS la barba, que cuelga por delante del pecho y
+     tiene que girar con ella como la de Tarin) y los brazos no tocan el
+     tronco. Con la distancia a secas, la cara se partía entre cuello y cabeza
+     —al girar, un ojo se estiraba— y el brazo arrastraba media casaca.
+   · Se comprueba con `tools/blender/probar_rig.py`, que aplica poses extremas
+     y las renderiza: a ojo, en reposo, un rig malo se ve perfecto.
+6. **LAS ANIMACIONES SON PROCEDURALES, no clips** (`CharacterAnim`): el
+   personaje NUNCA se queda quieto en el diálogo. Van tres capas: `idle`
+   (respiración y balanceo, siempre), `gesto(mood)` (la POSTURA del humor de
+   esa línea) y `hablar(t, fuerza)`, que solo corre mientras ese personaje
+   suelta su frase. La fuerza se funde (`HABLA_VEL`) porque cortarla en seco
+   se ve como un tirón, y el cabeceo lleva DOS ritmos que no son múltiplos
+   (9,3 y 5,1) más un tercero para el giro: con un solo seno el personaje
+   asiente como un metrónomo y se le ve el bucle en tres segundos.
+7. **DÓNDE VA GIGI**: colgada de la RAÍZ del modelo, no del hueso del hombro.
+   El espacio del hueso está girado 90° (medido: su Y local apunta al -X del
+   mundo) y su pose la mueve la animación, así que las coordenadas no se
+   podían ni medir ni razonar y el loro acababa dentro del pecho. Colgada de
+   la raíz, el desvío se lee en el sistema del modelo. **Y DAVID GIRA AL
+   REVÉS QUE LOS DEMÁS** (`R3D_YAW_VUELTA`): el giro de cortesía hacia la caja
+   le escondía justo el hombro donde va Gigi.
+8. **Godot**: `.import` con el hook y presupuesto 20000 (no se decima),
    `fix_texture_imports`. Al REEXPORTAR el glb hay que borrar la textura
    extraída y `.godot/imported/<id>*`. En la caja de diálogo: `RETRATO_3D_RUTA`
    apunta a `david_toy.glb`, banda de busto por hablante (`R3D_BANDA_QUIEN`,

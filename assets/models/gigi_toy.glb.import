@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://dsxuh4u8dhd7l"
-path="res://.godot/imported/david_busto.glb-1dc63311d51704b7b16393f5d627d89b.scn"
+uid="uid://njk76md3vufj"
+path="res://.godot/imported/gigi_toy.glb-56ffa1f05c85938e2e649a88b0a8b137.scn"
 
 [deps]
 
-source_file="res://assets/models/david_busto.glb"
-dest_files=["res://.godot/imported/david_busto.glb-1dc63311d51704b7b16393f5d627d89b.scn"]
+source_file="res://assets/models/gigi_toy.glb"
+dest_files=["res://.godot/imported/gigi_toy.glb-56ffa1f05c85938e2e649a88b0a8b137.scn"]
 
 [params]
 
@@ -24,8 +24,8 @@ nodes/import_as_skeleton_bones=false
 nodes/use_name_suffixes=true
 nodes/use_node_type_suffixes=true
 meshes/ensure_tangents=true
-meshes/generate_lods=false
-meshes/create_shadow_meshes=false
+meshes/generate_lods=true
+meshes/create_shadow_meshes=true
 meshes/light_baking=1
 meshes/lightmap_texel_size=0.2
 meshes/force_disable_compression=false
@@ -35,7 +35,7 @@ animation/fps=30
 animation/trimming=false
 animation/remove_immutable_tracks=true
 animation/import_rest_as_RESET=false
-import_script/path="res://import_hooks/decimate_import.gd"
+import_script/path=""
 materials/extract=0
 materials/extract_format=0
 materials/extract_path=""

@@ -597,29 +597,57 @@ func sit_idle(t: float) -> void:
 ## CANTO DE SIRENA (mar 2): el cliente atontado gira la cabeza hacia lo
 ## lejos y la mece despacio, como quien escucha algo que nadie mas oye. Se
 ## llama DESPUES de sit_idle y ACUMULA sobre esa pose (reset() ya paso).
-## GESTO DE DIÁLOGO según el humor de la línea (prototipo de retratos 3D):
-## va ENCIMA de `idle`, tocando solo la cabeza y algo el pecho. Un modelo no
-## tiene los doce gestos de un dibujo; tiene cinco o seis posturas.
+## GESTO DE DIÁLOGO según el humor de la línea: es la POSTURA del personaje
+## mientras dice esa frase, y va ENCIMA de `idle`. Un modelo no tiene los doce
+## gestos de un dibujo; tiene cinco o seis posturas, y lo que las distingue de
+## verdad es hacia dónde mira la cabeza y cuánto se echa el tronco.
 func gesto(mood: String, t: float) -> void:
 	match mood:
 		"hablando", "explicando", "loro":
-			_pitch("Head", 3.0 * sin(t * 7.0))
-			_yaw("Head", 2.5 * sin(t * 3.1))
+			_pitch("Head", 1.5 + 1.2 * sin(t * 1.7))
 		"feliz", "riendo":
-			_pitch("Head", -6.0 + 2.0 * sin(t * 9.0))
-			_roll("Head", 6.0)
+			_pitch("Head", -5.0 + 1.6 * sin(t * 8.0))
+			_roll("Head", 5.0)
+			_pitch("Spine1", -2.5)
 		"sorprendido", "loro_sorpresa", "mira_loro":
-			_pitch("Head", -10.0)
-			_pitch("Spine1", -4.0)
+			_pitch("Head", -8.0)
+			_pitch("Spine1", -3.5)
 		"enfadado", "furioso", "colerico", "gritando", "loro_grito", "punal":
-			_pitch("Head", 9.0)
-			_pitch("Spine1", 6.0)
+			_pitch("Head", 6.0)
+			_pitch("Spine1", 4.5)
+			_yaw("Head", 2.0 * sin(t * 6.0))
 		"triste", "callado", "dormido", "loro_resignado":
-			_pitch("Head", 10.0)
+			_pitch("Head", 8.0)
 			_roll("Head", 4.0)
+			_pitch("Spine1", 3.0)
 		"cantando":
-			_pitch("Head", -12.0)
+			_pitch("Head", -10.0)
 			_roll("Head", 5.0 * sin(t * 2.0))
+
+
+## MOVIMIENTO DE HABLA: se suma a la postura del humor MIENTRAS el personaje
+## está soltando su línea, y se apaga solo cuando calla (`fuerza` 0..1, que el
+## diálogo baja con un fundido; cortarlo de golpe se ve como un tirón).
+##
+## El cabeceo va con DOS ritmos que no son múltiplos uno del otro (9,3 y 5,1) y
+## un tercero aún más lento para el giro: con un solo seno el personaje asiente
+## como un metrónomo y se le ve el bucle en tres segundos. Los hombros
+## acompañan poco, que es lo que hace que hable con el cuerpo y no solo con la
+## cabeza; van sobre el eje Z, como en `_arms_at_rest`, que es el que abre y
+## cierra el brazo respecto al costado.
+func hablar(t: float, fuerza := 1.0) -> void:
+	if fuerza <= 0.001:
+		return
+	var acento := sin(t * 9.3) * 0.62 + sin(t * 5.1 + 1.7) * 0.38
+	var giro := sin(t * 2.7 + 0.6)
+	_pitch("Head", acento * 3.2 * fuerza)
+	_yaw("Head", giro * 2.8 * fuerza)
+	_roll("Head", sin(t * 3.9) * 1.5 * fuerza)
+	_pitch("Neck", acento * 1.1 * fuerza)
+	_pitch("Spine1", sin(t * 2.2 + 0.9) * 1.0 * fuerza)
+	var abre := (0.5 + 0.5 * sin(t * 4.3)) * 2.6 * fuerza
+	_roll("L_Shoulder", -abre)
+	_roll("R_Shoulder", abre)
 
 
 func embobado(t: float) -> void:

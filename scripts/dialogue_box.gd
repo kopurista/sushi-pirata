@@ -248,16 +248,33 @@ const RETRATO_3D_QUIEN := {
 const RETRATO_3D_RUTA := {
 	"david": "res://assets/models/david_toy.glb",
 }
+## Acompañantes que van POSADOS en un hueso del personaje. Gigi es un modelo
+## APARTE y no parte del de David: en el paso a 3D el loro del concepto se
+## perdía (Meshy lo fundía con el hombro), y separada se le puede dar su propio
+## movimiento. Va colgada del hueso, así que sigue al hombro cuando David se
+## mueve, con un desvío medido en fracciones del alto del personaje.
+const RETRATO_3D_POSADO := {
+	"david": {
+		"escena": "res://assets/models/gigi_toy.glb",
+		"alto": 0.30,                       # del alto de David
+		"desvio": Vector3(-0.255, 0.075, 0.085),  # del centro del modelo
+		"giro": -14.0,
+	},
+}
 ## Encuadre de BUSTO, el del cartel de recompensa: fov vertical, banda de
 ## altura del modelo que se ve y aire sobre la coronilla.
 const R3D_FOV := 34.0
 const R3D_BAND := 0.42
 ## Banda por hablante: un cabezón de juguete (la cabeza es media altura) pide
 ## más banda para que quepan la cabeza y el arranque de la barba.
-const R3D_BANDA_QUIEN := { "david": 0.62 }
+const R3D_BANDA_QUIEN := { "david": 0.85 }
 const R3D_AIR := 0.05
 ## El hablante mira hacia la caja: unos grados de guiñada hacia el centro.
 const R3D_YAW := 24.0
+## ...salvo quien lleve algo posado en un hombro: a David el giro de cortesía
+## le escondía justo el hombro donde va Gigi (medido: quedaba en pantalla pero
+## detrás del cuerpo). Estos hablantes giran al REVÉS, enseñando ese hombro.
+const R3D_YAW_VUELTA := ["david"]
 ## El viewport se dibuja al DOBLE y el TextureRect lo encoge (supermuestreo), con
 ## MSAA 4x: cuesta GPU en un rectángulo de 380×470, no pesa nada en el paquete.
 const R3D_SS := 2
@@ -745,7 +762,8 @@ func _retrato_3d(side: String, who: String, mood: String) -> bool:
 		canto.shadow_enabled = false
 		vp.add_child(canto)
 		_r3d[side] = { "vp": vp, "cam": cam, "root": null, "anim": null,
-			"who": "", "mood": "serio" }
+			"who": "", "mood": "serio", "habla": 0.0, "gigi": null,
+			"gigi_base": Vector3.ZERO }
 	var r: Dictionary = _r3d[side]
 	var vp: SubViewport = r["vp"]
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -756,9 +774,13 @@ func _retrato_3d(side: String, who: String, mood: String) -> bool:
 		vp.add_child(root)
 		var m: Node3D = (load(ruta) as PackedScene).instantiate()
 		# Hacia la caja: el de la izquierda gira a la derecha y al revés.
-		m.rotation_degrees = Vector3(0.0, -R3D_YAW if side == "left" else R3D_YAW, 0.0)
+		var yaw: float = -R3D_YAW if side == "left" else R3D_YAW
+		if who in R3D_YAW_VUELTA:
+			yaw = -yaw
+		m.rotation_degrees = Vector3(0.0, yaw, 0.0)
 		root.add_child(m)
 		r["root"] = root
+		_posar_acompanante(m, who, r)
 		r["anim"] = null
 		var skels := m.find_children("*", "Skeleton3D", true, false)
 		if not skels.is_empty():
@@ -772,6 +794,37 @@ func _retrato_3d(side: String, who: String, mood: String) -> bool:
 	r["mood"] = mood
 	p.texture = vp.get_texture()
 	return true
+
+
+## Posa al acompañante (Gigi) sobre el personaje. Va colgado de la RAÍZ del
+## modelo y no del hueso del hombro: el espacio del hueso está girado 90° y su
+## pose la mueve la animación, así que las coordenadas no se podían medir ni
+## razonar (tres intentos y el loro acababa dentro del pecho). Colgado de la
+## raíz, el desvío se lee en el sistema del propio modelo —el mismo en el que
+## está medido el hombro— y basta con la altura y el ancho de David.
+func _posar_acompanante(modelo: Node3D, who: String, r: Dictionary) -> void:
+	r["gigi"] = null
+	if not RETRATO_3D_POSADO.has(who):
+		return
+	var d: Dictionary = RETRATO_3D_POSADO[who]
+	if not ResourceLoader.exists(str(d["escena"])):
+		return
+	var caja_p := _aabb_3d(modelo)
+	var alto: float = caja_p.size.y if caja_p.size.y > 0.0 else 1.0
+	var g: Node3D = (load(str(d["escena"])) as PackedScene).instantiate()
+	var caja := _aabb_3d(g)
+	if caja.size.y > 0.0:
+		g.scale = Vector3.ONE * (float(d["alto"]) * alto / caja.size.y)
+	g.position = caja_p.get_center() + Vector3(d["desvio"]) * alto
+	g.rotation_degrees = Vector3(0.0, float(d["giro"]), 0.0)
+	modelo.add_child(g)
+	r["gigi"] = g
+	r["gigi_base"] = g.position
+
+
+func _alto_de(n: Node3D) -> float:
+	var c := _aabb_3d(n)
+	return c.size.y if c.size.y > 0.0 else 1.0
 
 
 ## El retrato de ese lado vuelve al dibujo: el viewport se para (no se libera,
@@ -810,8 +863,16 @@ func _aabb_3d(n: Node, acc := AABB()) -> AABB:
 	return acc
 
 
-## Los retratos 3D respiran y gesticulan según el mood de su línea. RESET
-## obligatorio cada fotograma: `CharacterAnim._rotate_bone` acumula.
+## Los retratos 3D respiran y gesticulan. RESET obligatorio cada fotograma:
+## `CharacterAnim._rotate_bone` acumula.
+##
+## Van SIEMPRE en marcha, hable quien hable: quieto, un personaje 3D se lee
+## como una foto y delata que no es un dibujo. Encima del reposo va la POSTURA
+## del humor de la línea, y encima de todo el movimiento de HABLA, que solo
+## corre mientras ese personaje está soltando su frase — se enciende y se apaga
+## con un fundido (`HABLA_VEL`), porque cortarlo en seco se ve como un tirón.
+const HABLA_VEL := 4.5
+
 func _tick_3d(delta: float) -> void:
 	if _r3d.is_empty():
 		return
@@ -820,10 +881,38 @@ func _tick_3d(delta: float) -> void:
 		var r: Dictionary = _r3d[side]
 		if r["who"] == "" or r["anim"] == null:
 			continue
+		var quiere: float = 1.0 if (_typing and side == _stage_side()) else 0.0
+		r["habla"] = move_toward(float(r["habla"]), quiere, HABLA_VEL * delta)
 		var a: CharacterAnim = r["anim"]
 		a.reset()
 		a.idle(_r3d_t)
 		a.gesto(str(r["mood"]), _r3d_t)
+		a.hablar(_r3d_t, float(r["habla"]))
+		_tick_gigi(r, delta)
+
+
+## Gigi nunca se queda quieta: se balancea en el hombro, y cuando su dueño
+## habla se mueve más y va girando la cabeza de un lado a otro, como un loro
+## de verdad al que le llega la voz por debajo.
+func _tick_gigi(r: Dictionary, _delta: float) -> void:
+	var g = r.get("gigi")
+	if g == null or not is_instance_valid(g):
+		return
+	var t := _r3d_t
+	var f: float = 0.35 + 0.65 * float(r.get("habla", 0.0))
+	g.position = Vector3(r["gigi_base"]) + Vector3(
+		0.0, sin(t * 2.3) * 0.004 * f, 0.0)
+	g.rotation_degrees = Vector3(
+		sin(t * 3.1) * 3.5 * f,
+		float(RETRATO_3D_POSADO[str(r["who"])]["giro"]) + sin(t * 1.9) * 9.0 * f,
+		sin(t * 2.7 + 1.1) * 4.0 * f)
+
+
+## De qué lado es el que tiene la palabra ahora mismo: el retrato que está a
+## plena luz, que es el mismo criterio con el que se hunde y se atenúa el que
+## escucha.
+func _stage_side() -> String:
+	return "left" if _is_speaking_side("left") else "right"
 
 
 func _process(delta: float) -> void:

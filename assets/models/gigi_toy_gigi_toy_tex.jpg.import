@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://43p330blxqev"
-path="res://.godot/imported/david_toy_david_toy_tex.jpg-b791270a62fa646623ad1548028e9ab4.ctex"
+uid="uid://d1yxybnfy78jn"
+path="res://.godot/imported/gigi_toy_gigi_toy_tex.jpg-a7d4b2e977f6ebc0965c0424e5ec0773.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "0628c1ea6ed1362960e057361bd84d1c"
+"md5": "5baf9f35a0092892b9f0503c853d8970"
 }
 
 [deps]
 
-source_file="res://assets/models/david_toy_david_toy_tex.jpg"
-dest_files=["res://.godot/imported/david_toy_david_toy_tex.jpg-b791270a62fa646623ad1548028e9ab4.ctex"]
+source_file="res://assets/models/gigi_toy_gigi_toy_tex.jpg"
+dest_files=["res://.godot/imported/gigi_toy_gigi_toy_tex.jpg-a7d4b2e977f6ebc0965c0424e5ec0773.ctex"]
 
 [params]
 

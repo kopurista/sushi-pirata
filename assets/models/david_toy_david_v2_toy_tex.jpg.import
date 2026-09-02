@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bkvfla4qsywbx"
-path="res://.godot/imported/david_busto_0.jpg-12f38e1b973cef28c566d53562ca1da6.ctex"
+uid="uid://d3thf55xsax2"
+path="res://.godot/imported/david_toy_david_v2_toy_tex.jpg-5b4fffaeb478e64e630c52dc043c38e3.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "c4c86422da780e7a57171cc62ee3efc2"
+"md5": "0ec38f3666d44d3e3ce99deb12cf59fe"
 }
 
 [deps]
 
-source_file="res://assets/models/david_busto_0.jpg"
-dest_files=["res://.godot/imported/david_busto_0.jpg-12f38e1b973cef28c566d53562ca1da6.ctex"]
+source_file="res://assets/models/david_toy_david_v2_toy_tex.jpg"
+dest_files=["res://.godot/imported/david_toy_david_v2_toy_tex.jpg-5b4fffaeb478e64e630c52dc043c38e3.ctex"]
 
 [params]
 
@@ -39,5 +39,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=1024
+process/size_limit=256
 detect_3d/compress_to=0

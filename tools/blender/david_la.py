@@ -15,10 +15,40 @@ args = sys.argv[sys.argv.index("--") + 1:]
 CRUDO = os.path.abspath(args[0]); ID = args[1]
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = "C:/Users/KOPURI~1/AppData/Local/Temp/claude/C--Users-KOPURISTA-Desktop-GODOT-sushi/ddc3d8d7-b243-4937-ae48-84636d59f46b/scratchpad/"
-GEN = os.path.join(ROOT, "_gen", "la_david")
-K = 13            # colores de la paleta (3 neutros + 10 saturados)
+GEN = os.path.join(ROOT, "_gen", "la_david")   # solo para la salida de la textura
+K = int(os.environ.get("K", 13))            # colores de la paleta (3 neutros + saturados)
+KS_SEMILLAS = int(os.environ.get("KS", 14))  # centros antes de fusionar
+# Umbral de FUSIÓN por tono, en grados. 10 y no 15 porque el pantalón de David
+# (en sombra bajo la casaca) tiene tono 35° y su piel 20,8°: con 15 se fundían
+# y el pantalón salía color carne. Los dos tonos del MISMO material (a la luz
+# y en sombra) distan mucho menos que eso.
+TONO_FUSION = float(os.environ.get("TONO", 10.0))
+MODA_R = int(os.environ.get("MODA", 2))      # radio del filtro de moda
+# PLANO=0: la textura NO se cuantiza, solo se le quita el ruido con una
+# mediana. Es para los personajes cuyo concepto es un DEGRADADO y no colores
+# planos por pieza (Gigi va de verde a amarillo a rojo): cuantizarlo lo parte
+# en bandas y parches, que es justo lo que no se quiere.
+PLANO = int(os.environ.get("PLANO", 1))
+# Meshy pinta las zonas que el concepto NO enseñaba (la espalda, el otro lado
+# del pico) con manchas oscuras inventadas. Se quitan por CONTRASTE LOCAL:
+# cada téxel que sea mucho más oscuro que la mediana de su entorno grande se
+# sustituye por ella. Es lo que se ve en el loro como churretes marrones.
+DESMANCHA = float(os.environ.get("DESMANCHA", 0.0))
 TEX = 1024        # tamaño de la textura final
-AO_FUERZA = float(os.environ.get("AO", 0.55))  # cuánto oscurece la oclusión (0 = nada, 1 = entera)
+AO_FUERZA = float(os.environ.get("AO", 0.55))
+AO_SUAVE = int(os.environ.get("AO_SUAVE", 4))    # pasadas de difuminado del mapa de oclusión
+# DISTANCIA de la oclusión, en fracciones del alto del personaje. Es la perilla
+# que decide si la sombra es la del CONJUNTO (la que se busca) o la de cada
+# arruguita de la malla de Meshy: corta, cada micro-hoyo sale como una mancha
+# —a Gigi la dejaba llena de churretes— y difuminar el mapa después no vale,
+# porque en el atlas se mezclan islas que en el modelo no se tocan y aparecen
+# COSTURAS rectas por la cara. Larga, solo cuentan los bultos grandes.
+AO_DIST = float(os.environ.get("AO_DIST", 0.5))
+# Pasadas de suavizado de la MALLA. Meshy deja bultos y hoyos de un par de
+# téxeles que la oclusión convierte en manchas (el pico de Gigi salía moteado
+# aunque se le cambiara la textura entera: no era pintura, era geometría).
+# Suavizar ataca la causa; bajar la oclusión solo disimula.
+MALLA_SUAVE = int(os.environ.get("SUAVE", 0))  # cuánto oscurece la oclusión (0 = nada, 1 = entera)
 RUGOSIDAD = 0.32
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -47,6 +77,11 @@ try:
 except Exception as e:
     print("[toy] limpiar normales:", e)
 for p in me.polygons: p.use_smooth = True
+if MALLA_SUAVE:
+    bpy.ops.object.mode_set(mode="EDIT"); bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.mesh.vertices_smooth(factor=0.5, repeat=MALLA_SUAVE)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    print("[toy] malla suavizada %d pasadas" % MALLA_SUAVE)
 print("[toy] normales personalizadas:", me.has_custom_normals)
 
 # --- 2) paleta ------------------------------------------------------------------
@@ -56,101 +91,125 @@ img = tex_node.image
 W, H = img.size
 px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4)
 rgb = px[..., :3]
-# LA PALETA SALE DEL CONCEPTO DE LUDO, no de la textura de Meshy: el concepto
-# trae los colores limpios que se pidieron, y Meshy hornea encima su propio
-# sombreado (y hasta las facetas), así que agrupando la textura salían la piel
-# y la barba partidas en dos tonos y las botas negras hechas un mosaico. Cada
-# téxel se asigna al color del concepto más cercano por CROMA (color dividido
-# por su brillo) con el brillo pesando poco, y lo casi negro va directo al
-# color más oscuro de la paleta.
 CONCEPTO = os.path.abspath(args[2]) if len(args) > 2 else os.path.join(GEN, ID + "_concepto.png")
-cimg = bpy.data.images.load(CONCEPTO)
-cw, ch = cimg.size
-cp = np.array(cimg.pixels[:], dtype=np.float32).reshape(ch, cw, 4)
-cpx = cp[cp[..., 3] > 0.9][:, :3]
-# Los NEUTROS (blanco, gris, negro) se separan por brillo en tres cubos fijos y
-# los colores SATURADOS se agrupan solo por croma, sin brillo: así el sombreado
-# horneado (del concepto y de Meshy) no parte la piel en tres rosas, y el blanco
-# de la camisa no se confunde con el gris de la barba.
-NEUTROS = np.array([[0.05, 0.05, 0.055], [0.62, 0.61, 0.60], [0.94, 0.93, 0.91]], dtype=np.float32)
-def croma(c):
-    return c / (c.max(axis=1, keepdims=True) + 1e-4)
-def satur(c):
-    return 1.0 - c.min(axis=1) / (c.max(axis=1) + 1e-4)
-def lum(c):
-    return c.max(axis=1)
-def bin_neutro(c):
-    l = lum(c); return np.where(l < 0.22, 0, np.where(l < 0.78, 1, 2))
-SAT_MIN = 0.10   # el beige del pantalón anda por 0.17 y con 0.16 la mitad de sus téxeles caían al blanco
-rng = np.random.default_rng(1)
-sat_px = cpx[(satur(cpx) >= SAT_MIN) & (lum(cpx) >= 0.16)]
-muestra = sat_px[rng.choice(len(sat_px), min(60000, len(sat_px)), replace=False)]
-fm = croma(muestra)
-KS = 14
-# semillas k-means++ (cada nueva lejos de las anteriores): con semillas al azar
-# los colores de POCA ÁREA, como el beige del pantalón, no salían nunca
-cent = fm[rng.choice(len(fm), 1)].copy()
-while len(cent) < KS:
-    d = ((fm[:, None, :] - cent[None, :, :]) ** 2).sum(axis=2).min(axis=1)
-    cent = np.vstack([cent, fm[rng.choice(len(fm), 1, p=d / d.sum())]])
-for _ in range(30):
-    d = ((fm[:, None, :] - cent[None, :, :]) ** 2).sum(axis=2)
-    lab = d.argmin(axis=1)
+if PLANO:
+    # LA PALETA SALE DEL CONCEPTO DE LUDO, no de la textura de Meshy: el concepto
+    # trae los colores limpios que se pidieron, y Meshy hornea encima su propio
+    # sombreado (y hasta las facetas), así que agrupando la textura salían la piel
+    # y la barba partidas en dos tonos y las botas negras hechas un mosaico. Cada
+    # téxel se asigna al color del concepto más cercano por CROMA (color dividido
+    # por su brillo) con el brillo pesando poco, y lo casi negro va directo al
+    # color más oscuro de la paleta.
+    cimg = bpy.data.images.load(CONCEPTO)
+    cw, ch = cimg.size
+    cp = np.array(cimg.pixels[:], dtype=np.float32).reshape(ch, cw, 4)
+    cpx = cp[cp[..., 3] > 0.9][:, :3]
+    # Los NEUTROS (blanco, gris, negro) se separan por brillo en tres cubos fijos y
+    # los colores SATURADOS se agrupan solo por croma, sin brillo: así el sombreado
+    # horneado (del concepto y de Meshy) no parte la piel en tres rosas, y el blanco
+    # de la camisa no se confunde con el gris de la barba.
+    NEUTROS = np.array([[0.05, 0.05, 0.055], [0.62, 0.61, 0.60], [0.94, 0.93, 0.91]], dtype=np.float32)
+    def croma(c):
+        return c / (c.max(axis=1, keepdims=True) + 1e-4)
+    def satur(c):
+        return 1.0 - c.min(axis=1) / (c.max(axis=1) + 1e-4)
+    def lum(c):
+        return c.max(axis=1)
+    def bin_neutro(c):
+        l = lum(c); return np.where(l < 0.22, 0, np.where(l < 0.78, 1, 2))
+    SAT_MIN = 0.10   # el beige del pantalón anda por 0.17 y con 0.16 la mitad de sus téxeles caían al blanco
+    rng = np.random.default_rng(1)
+    sat_px = cpx[(satur(cpx) >= SAT_MIN) & (lum(cpx) >= 0.16)]
+    muestra = sat_px[rng.choice(len(sat_px), min(60000, len(sat_px)), replace=False)]
+    fm = croma(muestra)
+    KS = KS_SEMILLAS
+    # semillas k-means++ (cada nueva lejos de las anteriores): con semillas al azar
+    # los colores de POCA ÁREA, como el beige del pantalón, no salían nunca
+    cent = fm[rng.choice(len(fm), 1)].copy()
+    while len(cent) < KS:
+        d = ((fm[:, None, :] - cent[None, :, :]) ** 2).sum(axis=2).min(axis=1)
+        cent = np.vstack([cent, fm[rng.choice(len(fm), 1, p=d / d.sum())]])
+    for _ in range(30):
+        d = ((fm[:, None, :] - cent[None, :, :]) ** 2).sum(axis=2)
+        lab = d.argmin(axis=1)
+        for k in range(KS):
+            sel = fm[lab == k]
+            if len(sel): cent[k] = sel.mean(axis=0)
+    # FUSIÓN POR TONO: dos grupos con el mismo matiz (a menos de 15°) y parecida
+    # saturación son el mismo material a dos luces (la piel a la luz y a la sombra,
+    # el azul del abrigo y su brillo); el beige del pantalón y el oro del galón
+    # comparten matiz pero no saturación, y se quedan aparte.
+    def tono_sat(c):
+        r, g, b = c[..., 0], c[..., 1], c[..., 2]
+        mx = c.max(axis=-1); mn = c.min(axis=-1); d = mx - mn + 1e-6
+        h = np.where(mx == r, (g - b) / d % 6, np.where(mx == g, (b - r) / d + 2, (r - g) / d + 4)) * 60.0
+        return h, 1.0 - mn / (mx + 1e-6)
+    hh, ss = tono_sat(cent)
+    vivos = list(range(KS))
+    for i in range(KS):
+        for j in range(i):
+            if j in vivos and i in vivos:
+                dh = abs((hh[i] - hh[j] + 180) % 360 - 180)
+                if dh < TONO_FUSION and abs(ss[i] - ss[j]) < 0.30:
+                    vivos.remove(i); break
+    cent = cent[vivos]; KS = len(cent)
+    # color plano de cada grupo saturado: mediana del cuarto más claro del concepto
+    d = ((fm[:, None, :] - cent[None, :, :]) ** 2).sum(axis=2); lab = d.argmin(axis=1)
+    colores = np.zeros((KS, 3), dtype=np.float32)
     for k in range(KS):
-        sel = fm[lab == k]
-        if len(sel): cent[k] = sel.mean(axis=0)
-# FUSIÓN POR TONO: dos grupos con el mismo matiz (a menos de 15°) y parecida
-# saturación son el mismo material a dos luces (la piel a la luz y a la sombra,
-# el azul del abrigo y su brillo); el beige del pantalón y el oro del galón
-# comparten matiz pero no saturación, y se quedan aparte.
-def tono_sat(c):
-    r, g, b = c[..., 0], c[..., 1], c[..., 2]
-    mx = c.max(axis=-1); mn = c.min(axis=-1); d = mx - mn + 1e-6
-    h = np.where(mx == r, (g - b) / d % 6, np.where(mx == g, (b - r) / d + 2, (r - g) / d + 4)) * 60.0
-    return h, 1.0 - mn / (mx + 1e-6)
-hh, ss = tono_sat(cent)
-vivos = list(range(KS))
-for i in range(KS):
-    for j in range(i):
-        if j in vivos and i in vivos:
-            dh = abs((hh[i] - hh[j] + 180) % 360 - 180)
-            if dh < 15 and abs(ss[i] - ss[j]) < 0.30:
-                vivos.remove(i); break
-cent = cent[vivos]; KS = len(cent)
-# color plano de cada grupo saturado: mediana del cuarto más claro del concepto
-d = ((fm[:, None, :] - cent[None, :, :]) ** 2).sum(axis=2); lab = d.argmin(axis=1)
-colores = np.zeros((KS, 3), dtype=np.float32)
-for k in range(KS):
-    sel = muestra[lab == k]
-    if len(sel) == 0: continue
-    l = lum(sel); colores[k] = np.median(sel[l >= np.quantile(l, 0.75)], axis=0)
-paleta = np.concatenate([NEUTROS, colores], axis=0); K = len(paleta); oscuro = 0
-def asignar(tr):
-    out = bin_neutro(tr)
-    sat = satur(tr) >= SAT_MIN
-    if sat.any():
-        d = ((croma(tr[sat])[:, None, :] - cent[None, :, :]) ** 2).sum(axis=2)
-        out[sat] = 3 + d.argmin(axis=1)
-    out[lum(tr) < 0.16] = 0
-    return out
-flat = rgb.reshape(-1, 3)
-labels = np.empty(len(flat), dtype=np.int32)
-for i in range(0, len(flat), 400000):
-    labels[i:i+400000] = asignar(flat[i:i+400000])
-labels = labels.reshape(H, W)
-cent = paleta
-print("[toy] paleta del concepto (%d):" % K, [tuple(int(c * 255) for c in col) for col in cent])
-# filtro de moda 5x5: cada téxel toma la etiqueta más repetida a su alrededor
-def moda(lab, r=2):
-    votos = np.zeros((K, H, W), dtype=np.int16)
-    for dy in range(-r, r + 1):
-        for dx in range(-r, r + 1):
-            v = np.roll(np.roll(lab, dy, 0), dx, 1)
-            for k in range(K):
-                votos[k] += (v == k)
-    return votos.argmax(axis=0)
-labels = moda(labels)
-plano = cent[labels]                         # H x W x 3, color plano
+        sel = muestra[lab == k]
+        if len(sel) == 0: continue
+        l = lum(sel); colores[k] = np.median(sel[l >= np.quantile(l, 0.75)], axis=0)
+    paleta = np.concatenate([NEUTROS, colores], axis=0); K = len(paleta); oscuro = 0
+    def asignar(tr):
+        out = bin_neutro(tr)
+        sat = satur(tr) >= SAT_MIN
+        if sat.any():
+            d = ((croma(tr[sat])[:, None, :] - cent[None, :, :]) ** 2).sum(axis=2)
+            out[sat] = 3 + d.argmin(axis=1)
+        out[lum(tr) < 0.16] = 0
+        return out
+    flat = rgb.reshape(-1, 3)
+    labels = np.empty(len(flat), dtype=np.int32)
+    for i in range(0, len(flat), 400000):
+        labels[i:i+400000] = asignar(flat[i:i+400000])
+    labels = labels.reshape(H, W)
+    cent = paleta
+    print("[toy] paleta del concepto (%d):" % K, [tuple(int(c * 255) for c in col) for col in cent])
+    # filtro de moda 5x5: cada téxel toma la etiqueta más repetida a su alrededor
+    def moda(lab, r=MODA_R):
+        votos = np.zeros((K, H, W), dtype=np.int16)
+        for dy in range(-r, r + 1):
+            for dx in range(-r, r + 1):
+                v = np.roll(np.roll(lab, dy, 0), dx, 1)
+                for k in range(K):
+                    votos[k] += (v == k)
+        return votos.argmax(axis=0)
+    labels = moda(labels)
+    plano = cent[labels]
+else:
+    # mediana 3x3 repetida: quita las motas de la proyección de Meshy sin
+    # tocar el degradado
+    plano = rgb.copy()
+    for _ in range(3):
+        pila = np.stack([np.roll(np.roll(plano, dy, 0), dx, 1)
+                         for dy in (-1, 0, 1) for dx in (-1, 0, 1)], axis=0)
+        plano = np.median(pila, axis=0)
+    labels = np.zeros(rgb.shape[:2], dtype=np.int32); cent = np.zeros((1, 3), np.float32); K = 1; oscuro = 0
+    print("[toy] textura suavizada (sin cuantizar)")
+
+if DESMANCHA > 0.0:
+    # mediana de entorno grande: se baja la textura a 1/8, se difumina y se sube
+    f = 8
+    ch = plano.reshape(H // f, f, W // f, f, 3).mean(axis=(1, 3))
+    for _ in range(6):
+        ch = (ch + np.roll(ch, 1, 0) + np.roll(ch, -1, 0) + np.roll(ch, 1, 1) + np.roll(ch, -1, 1)) / 5.0
+    fondo = np.repeat(np.repeat(ch, f, axis=0), f, axis=1)
+    lum_t = plano.max(axis=2); lum_f = fondo.max(axis=2)
+    mancha = lum_t < lum_f - DESMANCHA
+    plano = np.where(mancha[..., None], fondo, plano)
+    print("[toy] desmanchado: %.2f%% de la textura" % (100.0 * mancha.mean()))
+
 # OJOS POR CONSTRUCCIÓN (el usuario los quiere MÁS REDONDOS que los del
 # concepto): se localizan por los téxeles negros de la parte alta y delantera
 # de la cabeza, uno por lado, y se repintan como óvalos limpios de proporción
@@ -189,28 +248,33 @@ zt = np.nanmax(POS[..., 2]); zb = np.nanmin(POS[..., 2]); alto_m = zt - zb
 # cabeza a la altura de los ojos; altura y alto como fracción del alto
 # total). Tallados por Meshy salían cuencas con reborde que cogían luz.
 import json
-mj = os.path.join(GEN, ID_CONCEPTO + "_ojos.json") if "ID_CONCEPTO" in globals() else os.path.splitext(CONCEPTO)[0].replace("_concepto", "_ojos") + ".json"
-met = json.load(open(mj))
-zo = zt - met["z_frac"] * alto_m
-fila = cub & (np.abs(POS[..., 2] - zo) < 0.01)
-ancho_fila = np.nanmax(POS[fila][:, 0]) - np.nanmin(POS[fila][:, 0])
-sep = met["sep_frac"] * ancho_fila; rx = met["rx_frac"] * ancho_fila; ry = met["ry_frac"] * alto_m
-print("[toy] ojos: z %.3f sep %.3f rx %.3f ry %.3f (ancho de cabeza %.3f)" % (zo, sep, rx, ry, ancho_fila))
-for signo in (-1.0, 1.0):
-    cerca = cub & (NRM[..., 1] < -0.3) & (np.abs(POS[..., 0] - signo * sep) < rx) & (np.abs(POS[..., 2] - zo) < ry)
-    if cerca.sum() < 5:
-        print("[toy] ojo", signo, "sin superficie"); continue
-    C = np.array([signo * sep, np.median(POS[cerca][:, 1]), zo], dtype=np.float32)
-    zona = cub & (np.abs(POS[..., 1] - C[1]) < 0.06) & (NRM[..., 1] < -0.1)
-    e = np.sqrt(((POS[..., 0] - C[0]) / rx) ** 2 + ((POS[..., 2] - C[2]) / ry) ** 2)
-    # el óvalo se DILATA dos téxeles: entre triángulos vecinos del atlas queda
-    # un téxel sin cubrir y salían rayitas de piel cruzando el negro del ojo
-    m = zona & (e <= 1.0)
-    for _ in range(2):
-        m = m | np.roll(m, 1, 0) | np.roll(m, -1, 0) | np.roll(m, 1, 1) | np.roll(m, -1, 1)
-    plano[m] = [0.02, 0.02, 0.03]
+mj = os.path.splitext(CONCEPTO)[0].replace("_concepto", "_ojos") + ".json"
+met = json.load(open(mj)) if os.path.exists(mj) else None
+if met is None:
+    print("[toy] sin ojos que pintar (no hay %s)" % os.path.basename(mj))
+if met is not None:
+    zo = zt - met["z_frac"] * alto_m
+    fila = cub & (np.abs(POS[..., 2] - zo) < 0.01)
+    ancho_fila = np.nanmax(POS[fila][:, 0]) - np.nanmin(POS[fila][:, 0])
+    sep = met["sep_frac"] * ancho_fila; rx = met["rx_frac"] * ancho_fila; ry = met["ry_frac"] * alto_m
+    print("[toy] ojos: z %.3f sep %.3f rx %.3f ry %.3f (ancho de cabeza %.3f)" % (zo, sep, rx, ry, ancho_fila))
+    for signo in (-1.0, 1.0):
+        cerca = cub & (NRM[..., 1] < -0.3) & (np.abs(POS[..., 0] - signo * sep) < rx) & (np.abs(POS[..., 2] - zo) < ry)
+        if cerca.sum() < 5:
+            print("[toy] ojo", signo, "sin superficie"); continue
+        C = np.array([signo * sep, np.median(POS[cerca][:, 1]), zo], dtype=np.float32)
+        zona = cub & (np.abs(POS[..., 1] - C[1]) < 0.06) & (NRM[..., 1] < -0.1)
+        e = np.sqrt(((POS[..., 0] - C[0]) / rx) ** 2 + ((POS[..., 2] - C[2]) / ry) ** 2)
+        # el óvalo se DILATA dos téxeles: entre triángulos vecinos del atlas queda
+        # un téxel sin cubrir y salían rayitas de piel cruzando el negro del ojo
+        m = zona & (e <= 1.0)
+        for _ in range(2):
+            m = m | np.roll(m, 1, 0) | np.roll(m, -1, 0) | np.roll(m, 1, 1) | np.roll(m, -1, 1)
+        plano[m] = [0.02, 0.02, 0.03]
 
 # --- 3) oclusión horneada -------------------------------------------------------
+_pts = [obj.matrix_world @ v.co for v in me.vertices]
+alto_modelo = max(p.z for p in _pts) - min(p.z for p in _pts)
 ao_img = bpy.data.images.new("AO", TEX, TEX)
 nodes = mat.node_tree.nodes
 ao_node = nodes.new("ShaderNodeTexImage"); ao_node.image = ao_img
@@ -218,12 +282,38 @@ nodes.active = ao_node
 sc = bpy.context.scene
 sc.render.engine = "CYCLES"; sc.cycles.device = "CPU"; sc.cycles.samples = 48
 sc.render.bake.use_selected_to_active = False
-sc.render.bake.margin = 8
+sc.render.bake.margin = 24
 sc.world = bpy.data.worlds.new("W"); sc.world.use_nodes = True
 sc.world.node_tree.nodes["Background"].inputs[0].default_value = (1, 1, 1, 1)
+sc.world.light_settings.distance = alto_modelo * AO_DIST
 bpy.ops.object.bake(type="AO")
 ao = np.array(ao_img.pixels[:], dtype=np.float32).reshape(TEX, TEX, 4)[..., 0]
-print("[toy] AO media %.3f min %.3f" % (ao.mean(), ao.min()))
+# LA OCLUSIÓN SE DIFUMINA. El "degradado de juguete" del remake es una sombra
+# GRANDE (más oscuro hacia abajo y donde una pieza se mete en otra), no
+# detalle fino: sin difuminar, cada micro-hoyo de la malla de Meshy sale como
+# una MANCHA, y a Gigi la dejaba llena de churretes marrones (medido: sin AO
+# salía limpia, con AO manchada, con la misma textura).
+# EL MAPA SE RELLENA HACIA FUERA ANTES DE NADA. Fuera de las islas del atlas
+# el bake deja 0 (negro), y al muestrear la textura con filtrado bilineal ese
+# negro se cuela por el borde de cada isla: son las MANCHAS que salían en el
+# pico de Gigi, que no se iban ni cambiándole la textura entera ni suavizando
+# la malla, porque no eran ni pintura ni geometría, era el borde del atlas.
+m_ao = (ao > 0.002).astype(np.float32)
+for _ in range(24):
+    acc = np.zeros_like(ao); cnt = np.zeros_like(ao)
+    for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        acc += np.roll(np.roll(ao, dy, 0), dx, 1) * np.roll(np.roll(m_ao, dy, 0), dx, 1)
+        cnt += np.roll(np.roll(m_ao, dy, 0), dx, 1)
+    nuevo = (m_ao < 0.5) & (cnt > 0)
+    ao = np.where(nuevo, acc / np.maximum(cnt, 1e-4), ao)
+    m_ao = np.maximum(m_ao, nuevo.astype(np.float32))
+print("[toy] AO rellenada: cubre el %.1f%% del atlas" % (100.0 * m_ao.mean()))
+num = ao * m_ao; den = m_ao.copy()
+for _ in range(AO_SUAVE):
+    num = (num + np.roll(num, 1, 0) + np.roll(num, -1, 0) + np.roll(num, 1, 1) + np.roll(num, -1, 1)) / 5.0
+    den = (den + np.roll(den, 1, 0) + np.roll(den, -1, 0) + np.roll(den, 1, 1) + np.roll(den, -1, 1)) / 5.0
+ao = np.where(den > 0.02, num / np.maximum(den, 1e-4), ao)
+print("[toy] AO media %.3f min %.3f (difuminada %d veces)" % (ao.mean(), ao.min(), AO_SUAVE))
 
 # --- 4) composición y textura final --------------------------------------------
 # el color plano se reduce a TEX y se multiplica por la oclusión suavizada
