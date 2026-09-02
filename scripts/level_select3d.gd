@@ -93,6 +93,8 @@ const SCROLL_TOPE := -18076.0
 const SCROLL_SUELO := CampaignData.MAP_HEIGHT - 560.0
 ## El mar que se está enseñando, y los topes que le tocan.
 var mar_actual := 1
+## Lo que lleva recorrido el dedo desde que se posó (ver `_zona_de_paso`).
+var _toque_corrido := 0.0
 var scroll_min := SCROLL_TOPE
 var scroll_max := SCROLL_SUELO
 ## Todo lo que se monta POR MAR va en el grupo de SU MAR. Es un grupo por mar y
@@ -101,11 +103,15 @@ var scroll_max := SCROLL_SUELO
 ## aparecen de golpe en mitad de la travesía.
 func _grupo(mar: int) -> String:
 	return "mapa_mar_%d" % mar
-## RESPIRO MINIMO por encima y por debajo del mar: lo justo para que el cartel
-## de paso quepa ENTERO en cuadro, y ni un pixel mas ("sin que sobre espacio
-## por arriba o por abajo"). Estuvo a 0 y el cartel de SUBIR se quedaba pegado
-## a la barra de arriba, sin poder llegar a verlo (dicho por el usuario).
-const MARGEN_MAR := 200.0
+## RESPIRO por encima y por debajo del mar: lo justo para que el cartel de paso
+## quepa ENTERO en cuadro, y ni un pixel mas ("sin que sobre espacio por arriba
+## o por abajo"). Estuvo a 0 y el cartel de SUBIR se quedaba pegado a la barra
+## de arriba, sin poder llegar a verlo (dicho por el usuario), y a 200 con su
+## tabla todavia rozandola. A 260 se mete 60 px mas dentro de la pantalla por
+## los dos lados — que es ademas lo que le da sitio a la ZONA DE PASO (ver
+## `_zona_de_paso`): lo que hay al otro lado del cartel se pulsa para cruzar,
+## asi que cuanto mas adentro este el cartel, mas grande es esa zona.
+const MARGEN_MAR := 260.0
 ## HACIA ABAJO EL RESPIRO ES OTRO, y la cuenta sale del encuadre: el centro de
 ## la pantalla cae en `cam_center + BAND_CENTER_OFF`, o sea que la vista va
 ## corrida hacia el sur. Con el margen de arriba, el cartel de paso se quedaba
@@ -136,10 +142,23 @@ const PASO_CARTEL := 330.0
 ##          justo por debajo de la barra de nivel. Con 220 se le metia detras.
 const FIN_ABAJO := 300.0
 const FIN_ARRIBA := 120.0
+## LO QUE OCUPA EL CARTEL DE PASO EN PANTALLA, contado desde su anclaje. Lo
+## usan su BOTON y la ZONA DE PASO, que empieza donde el cartel acaba.
+## MEDIDO proyectando el modelo y su rotulo, no a ojo: la tabla llega a 151 px
+## por encima del anclaje y el rotulo cuelga 202 por debajo (su texto va
+## centrado ahi, asi que baja unos 30 mas). Estuvo en 215/115 y el nombre del
+## mar se quedaba FUERA del boton, que es justo lo que su comentario decia que
+## cubria.
+const PASO_BTN_ARRIBA := 170.0
+const PASO_BTN_ABAJO := 230.0
 ## LA TRAVESÍA ENTRE MARES, en segundos: primero hasta el cartel (agua abierta,
 ## donde el cambiazo no se ve) y después hacia dentro del mar nuevo.
 const PASO_VIAJE := 0.85
 const ENTRADA_VIAJE := 1.05
+## CUANTO PUEDE CORRERSE UN DEDO y seguir contando como TOQUE (px sumados).
+## Por debajo de esto, un toque en la zona de paso cruza de mar; por encima, el
+## jugador estaba recorriendo el mapa y no se le mueve de sitio.
+const TOQUE_QUIETO := 18.0
 ## Mientras dura, ni se toca otro nodo ni se vuelve a cambiar de mar.
 var cambiando_mar := false
 ## EL CARTEL QUE ESTÁ POR GIRAR durante una travesía (el mar al que lleva, o 0
@@ -2143,9 +2162,10 @@ func _build_paso_overlay(mar: int) -> Dictionary:
 	# letrero mide unos 300 px de ancho en pantalla y su nombre cuelga otros 90
 	# por debajo, así que el área se midió contra eso y no a ojo.
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(400, 330)
-	b.size = Vector2(400, 330)
-	b.position = Vector2(-200, -215)
+	var alto := PASO_BTN_ARRIBA + PASO_BTN_ABAJO
+	b.custom_minimum_size = Vector2(400, alto)
+	b.size = Vector2(400, alto)
+	b.position = Vector2(-200, -PASO_BTN_ARRIBA)
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 	b.set_meta("snd", "velas")
@@ -3257,6 +3277,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if scroll_tween != null:
 			scroll_tween.kill()
 			scroll_tween = null
+		# Un dedo que ha RECORRIDO mapa no es un toque: ver `_zona_de_paso`.
+		_toque_corrido += absf(event.relative.y) + absf(event.relative.x)
 		cam_center = clampf(cam_center - event.relative.y, scroll_min, scroll_max)
 		# Velocidad del dedo, suavizada, para que al soltar el mapa siga
 		# corriendo: un tirón fuerte recorre más ruta que un arrastre suave.
@@ -3267,7 +3289,51 @@ func _unhandled_input(event: InputEvent) -> void:
 		# Al posar el dedo se para la inercia; al levantarlo, corre sola.
 		if event.pressed:
 			scroll_speed = 0.0
+			_toque_corrido = 0.0
+		elif _toque_corrido < TOQUE_QUIETO:
+			_zona_de_paso(event.position)
 		scroll_dragging = event.pressed
+
+
+## LA ZONA DE PASO: TODO LO QUE HAY AL OTRO LADO DEL CARTEL SE PULSA PARA
+## CRUZAR (pedido por el usuario). El cartel es un letrero de 400 px en mitad
+## del mar y había que acertarle; ahora vale cualquier toque en la franja que
+## queda MÁS ALLÁ de él — hacia arriba la del cartel que sube, hacia abajo la
+## del que baja. Ahí no hay nada más que agua, el borde del mar vecino (que es
+## decorado y no lleva botón) y el propio cartel.
+##
+## VA EN `_unhandled_input` Y NO EN UN BOTÓN GIGANTE, y esa es la pieza que
+## hace que siga pudiéndose recorrer el mapa: un `Button` a pantalla completa
+## se traga el toque, así que arrastrar dentro de la franja habría cambiado de
+## mar al levantar el dedo en vez de mover la cámara. Aquí el toque llega
+## DESPUÉS de la interfaz (el "Atrás", el submenú y la ficha se lo quedan
+## ellos) y solo cuenta si el dedo no ha recorrido mapa.
+func _zona_de_paso(punto: Vector2) -> void:
+	if cam == null or _atado_al_puerto:
+		return
+	# Con la ficha abierta manda ella: el toque de fuera no cruza de mar.
+	if map_info_panel != null and map_info_panel.visible:
+		return
+	for m: int in [mar_actual - 1, mar_actual + 1]:
+		var clave := "__mar%d" % m
+		if not node_world.has(clave):
+			continue
+		var y: float = cam.unproject_position(
+				node_world[clave] + Vector3(0.0, 0.55, 0.0)).y
+		# LA RAYA NO CAE EN EL MISMO SITIO SUBIENDO QUE BAJANDO, y la culpa es
+		# del propio letrero: su poste se clava en la frontera pero la TABLA
+		# cuelga por encima, así que el cartel se dibuja siempre unos 180 px más
+		# arriba de lo que marca. Subiendo eso viene bien —la zona se queda con
+		# la tabla y todo lo que hay sobre ella—, y bajando no: la raya se metía
+		# por encima del último escenario del mar, y bastaba fallar la isla por
+		# unos píxeles para acabar cruzando. Bajando, la zona empieza en el
+		# ANCLAJE (el pie del poste), que queda ya por debajo de esa isla.
+		if m < mar_actual and punto.y >= y:
+			cambiar_de_mar(m)
+			return
+		if m > mar_actual and punto.y <= y + PASO_BTN_ABAJO:
+			cambiar_de_mar(m)
+			return
 
 
 func _on_sail_pressed() -> void:

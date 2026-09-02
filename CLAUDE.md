@@ -680,6 +680,30 @@ duplicado — el mapa, la cámara, los carriles y el barco son los mismos. Lo
   un letrero de madera clavado en el agua, en el carril del centro. Uno por
   punta, y solo si ese mar es alcanzable — hacia arriba pide tenerlo abierto
   (o sea, haber vencido al jefe del anterior) y hacia abajo siempre.
+  · **NO SE PULSA EL CARTEL: SE PULSA TODO LO QUE HAY AL OTRO LADO DE ÉL**
+    (`_zona_de_paso`, pedido por el usuario). El letrero mide 400 px en mitad
+    del mar y había que acertarle; ahora vale cualquier toque en la franja que
+    queda más allá, que es agua, el borde del mar vecino (decorado, sin botón)
+    y el propio cartel.
+    · **VA EN `_unhandled_input`, NO EN UN BOTÓN GIGANTE**, y esa es la pieza
+      que deja seguir recorriendo el mapa: un `Button` a pantalla completa se
+      traga el toque, así que ARRASTRAR dentro de la franja habría cambiado de
+      mar al levantar el dedo. Ahí el toque llega después de la interfaz (el
+      "Atrás", el submenú y la ficha se lo quedan ellos) y solo cuenta si el
+      dedo no ha recorrido mapa (`TOQUE_QUIETO`, 18 px sumados).
+    · **LA RAYA NO CAE EN EL MISMO SITIO SUBIENDO QUE BAJANDO**, y la culpa es
+      del propio letrero: su poste se clava en la frontera pero la TABLA cuelga
+      por encima, así que el cartel se dibuja unos 180 px más arriba de lo que
+      marca. SUBIENDO eso viene bien (la zona se queda con la tabla, su rótulo
+      y todo lo que hay encima: hasta el anclaje + `PASO_BTN_ABAJO`); BAJANDO
+      no, porque la raya se metía por encima del último escenario del mar y
+      bastaba fallar la isla por unos píxeles para cruzar — ahí la zona empieza
+      en el ANCLAJE, que ya queda por debajo de esa isla. MEDIDO con toques
+      inyectados: al sur 660 no cruza y 690 sí; al norte 500 no y 460 sí.
+    · **Y LAS MEDIDAS DEL CARTEL SE MIDEN PROYECTÁNDOLO**, no a ojo: la tabla
+      llega a 151 px por encima del anclaje y el rótulo cuelga 202 por debajo.
+      Estuvieron en 215/115 y el nombre del mar se quedaba FUERA del botón —
+      que es justo lo que su comentario decía que cubría.
   · **ES UN SOLO MODELO** (`cartel_mar.glb`, cadena Meshy con concepto de Ludo)
     **Y LA FLECHA VA PINTADA ENCIMA** (`assets/map/flecha_mar.png`, pintada a
     mano con brocha), sobre un quad que se gira 180° para bajar
