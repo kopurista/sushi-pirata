@@ -6117,6 +6117,21 @@ personajes en 3D. Está montado como PROTOTIPO en `DialogueBox` y ENCENDIDO
   pirata). David va con `size_limit` 1024 en su `.jpg.import` y se le ven las
   facetas del mentón. Para pasarlo a producción: texturas de cara a 1024, rig
   para David (Meshy `--rig`) y devolverle a Gigi como pieza aparte en Blender.
+- **LA DEFINICIÓN SE GANA SIN PESO, y se midió variante a variante** (el
+  usuario: "solo quiero que se vea más definido"). Cuatro cosas, y lo que da
+  cada una en captura: (1) **NO DECIMAR la malla** (`david_busto` a 15000 en
+  el hook, o sea entera: 14.871) es el 80% de la mejora — a 6000 la cara
+  salía facetada, con los ojos y el bigote deformados, y cuesta 230 KB de
+  malla; (2) **MSAA 4x y supermuestreo ×2** en el SubViewport (`R3D_SS`):
+  bordes limpios, cuesta GPU en 760×940 y cero en el paquete; (3) **la
+  textura se afina ANTES de importarla** (Lanczos a 1024 + máscara de
+  desenfoque, PIL): más detalle en barba y cara al MISMO tamaño de `.ctex`, y
+  el `.jpg` del repositorio baja de 2,4 a 0,4 MB; el original de Meshy queda
+  en `_gen/david_busto_0.original.jpg`; (4) **la compresión Basis NO cambia
+  nada a la vista**: `high_quality` dio el mismo `.ctex` al byte y
+  `rdo_quality_loss` 1 solo sube el peso (699 → 836 KB). Y **2048 tampoco**:
+  la comparativa 1024/2048 en la caja de diálogo no se distinguía, por 2,4 MB
+  contra 0,7.
 - Medidas del piloto en captura: `scratchpad/dialogo_david3d.png` y
   `dialogo_pirata.png`. Una sonda con dos `_advance()` seguidos SALTA una línea
   (el primero completa el tecleo y el segundo pasa): para capturar cada línea

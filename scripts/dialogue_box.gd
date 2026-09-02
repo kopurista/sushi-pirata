@@ -255,6 +255,9 @@ const R3D_BAND := 0.42
 const R3D_AIR := 0.05
 ## El hablante mira hacia la caja: unos grados de guiñada hacia el centro.
 const R3D_YAW := 24.0
+## El viewport se dibuja al DOBLE y el TextureRect lo encoge (supermuestreo), con
+## MSAA 4x: cuesta GPU en un rectángulo de 380×470, no pesa nada en el paquete.
+const R3D_SS := 2
 ## side → { "vp", "cam", "root", "anim", "who", "mood" }
 var _r3d := {}
 var _r3d_t := 0.0
@@ -710,7 +713,8 @@ func _retrato_3d(side: String, who: String, mood: String) -> bool:
 		vp.own_world_3d = true
 		vp.transparent_bg = true
 		vp.size = Vector2i(int(p.offset_right - p.offset_left) if side == "left"
-			else int(p.offset_right - p.offset_left), int(PORTRAIT_BOTTOM - PORTRAIT_TOP))
+			else int(p.offset_right - p.offset_left), int(PORTRAIT_BOTTOM - PORTRAIT_TOP)) * R3D_SS
+		vp.msaa_3d = Viewport.MSAA_4X
 		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 		add_child(vp)
 		var cam := Camera3D.new()
