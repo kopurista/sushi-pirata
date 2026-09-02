@@ -75,7 +75,7 @@ const ESMERALDA_PEZ := "froggy"
 const COFRE_PEZ := "pez_cofre"
 ## El TIMÓN se gana reuniendo estrellas por la campaña (pedido por el
 ## usuario; antes eran 5 vueltas al timón, que ahora no existe hasta tenerlo).
-const TIMON_ESTRELLAS := 45
+const TIMON_ESTRELLAS := 48
 ## Efecto de los TAPONES DE CERA: cada canto de sirena dura este factor.
 const TAPONES_CANTO := 0.65
 
@@ -110,12 +110,12 @@ const ITEMS: Array = [
 	# --- Tesoros del propio barco (los de mecánica viva, primero) ------------
 	{
 		"id": "timon", "name": "Timón",
-		"desc": "Reúne 45 estrellas por la campaña. Desde entonces corona el tablón del menú: gíralo y girará el barco.",
+		"desc": "Reúne 48 estrellas por la campaña. Desde entonces corona el tablón del menú: gíralo y girará el barco.",
 		"icon": "res://assets/ui/timon.png",
 	},
 	{
 		"id": "bandera", "name": "Bandera pirata",
-		"desc": "Regalo del pirata del Estrecho del Rayo, por darle bien de comer.",
+		"desc": "Regalo de un pirata del Paso de las Barracudas, por darle bien de comer.",
 	},
 	{
 		"id": "mapa_tesoro", "name": "Mapa del tesoro",

@@ -148,9 +148,13 @@ static func _bloque_datos(data: Dictionary) -> Control:
 		["Espera", "%.1f s de cooldown" % (float(data.get("cooldown", 0.0))
 			* RecipeData.RITMO_COOLDOWN)],
 	]
-	if int(data.get("free_uses", 0)) > 0:
-		rows.append(["Maestría", "Tras hacerla, las %d siguientes salen solas"
-			% int(data.get("free_uses", 0))])
+	# "USOS EXTRA", no "maestria" (pedido por el usuario), y en singular
+	# cuando es uno: el onigiri decia "las 1 siguientes salen solas".
+	var libres := int(data.get("free_uses", 0))
+	if libres == 1:
+		rows.append(["Uso extra", "Haces una y sale otra ya hecha"])
+	elif libres > 1:
+		rows.append(["Usos extra", "Haces una y salen %d más ya hechas" % libres])
 	if float(data.get("eat_mult", 1.0)) > 1.0:
 		rows.append(["Ojo", "Se come más despacio de lo normal"])
 	if float(data.get("tip_chance_bonus", 0.0)) > 0.0:
@@ -171,7 +175,7 @@ static func _bloque_datos(data: Dictionary) -> Control:
 			rows.append(["Maridaje", "+%d doblones si se sirve justo después de: %s"
 				% [int(mar.get("bono", 0)), ", ".join(nombres)]])
 	if float(data.get("fama", 0.0)) > 0.0:
-		rows.append(["Fama", "Cada uno que sirves sube su probabilidad un %.1f%% (tope +%d%% por jornada)"
+		rows.append(["Gusta más", "Cada plato que sirves sube un %.1f%% la probabilidad de que un cliente lo coja (tope +%d%% por jornada)"
 			% [float(data["fama"]) * 100.0,
 			int(round(float(data.get("fama_max", 0.10)) * 100.0))]])
 	for r in rows:

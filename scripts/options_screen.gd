@@ -40,9 +40,18 @@ var apply_graphics_btn: Button = null
 var wipe_bar: ProgressBar = null
 var wipe_holding := false
 var wipe_time := 0.0
+## A DONDE SE VUELVE ("mapa" o nada = el menu). SE LEE AL ENTRAR Y SE BORRA:
+## `GameState.options_from` lo pone el submenu del mapa y lo consumia solo el
+## boton de Atras, asi que quien saliera de Opciones por otro camino (borrar
+## el progreso) lo dejaba puesto — y la siguiente visita desde el MENU volvia
+## al mapa (le paso al usuario). Consumido a la entrada, una visita no puede
+## heredar el origen de la anterior.
+var _volver := ""
 
 
 func _ready() -> void:
+	_volver = GameState.options_from
+	GameState.options_from = ""
 	# Las pantallas de casa (inventario, opciones, logros, maestrías,
 	# bonificadores y perfil) siguen con el tema del menú: se entra y se sale
 	# de ellas todo el rato y cortar la música en cada una sería un tajo.
@@ -114,9 +123,7 @@ func _setup_ui() -> void:
 	# submenu del MAPA, y devolver siempre al menu sacaba al jugador de la
 	# travesia (el mismo patron que Maestrias con `skills_from`).
 	back.pressed.connect(func() -> void:
-		if GameState.options_from != "":
-			GameState.transition = GameState.options_from
-			GameState.options_from = ""
+		GameState.transition = _volver
 		GameState.fade_to_scene("res://scenes/main_menu.tscn", 0.35, 0.45))
 	bar.add_child(back)
 	# El rótulo va sobre su CINTA de tela (PrepBoard.make_title):

@@ -455,6 +455,14 @@ func is_talking() -> bool:
 	return visible
 
 
+## SIN RETRATOS: solo el pergamino y el tablón del nombre. Lo enciende el
+## guion cuando lo que hay que VER está justo donde cae el retrato — las tres
+## cartas de potenciador del 10 quedaban una y media detrás de David (medido
+## en captura: el retrato ocupa la x 0-370 desde la y 420, y las cartas la
+## 60-660 desde la 520). La voz y el nombre siguen diciendo quién habla.
+var sin_retratos := false
+
+
 ## Saca a un personaje de escena (su retrato desaparece).
 func clear_stage() -> void:
 	for side in _stage.keys():
@@ -607,6 +615,8 @@ func _set_speaker(who: String, mood: String, lado := "") -> void:
 		var sink: float = 0.0 if hablando else IDLE_SINK
 		q.offset_top = _portrait_home_y + dy + sink
 		q.offset_bottom = PORTRAIT_BOTTOM + dy + sink
+		if sin_retratos:
+			q.visible = false
 
 
 func _advance() -> void:

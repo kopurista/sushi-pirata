@@ -1270,8 +1270,15 @@ func _make_filter_chip(text: String, is_on: Callable, action: Callable) -> Butto
 	return b
 
 
-## Explicación de la pantalla, solo la primera vez que se entra.
+## Explicación de la pantalla, solo la primera vez que se entra. SON DOS
+## PANTALLAS Y DOS EXPLICACIONES: el recetario (con la despensa) y la
+## COLECCIÓN, que desde que tiene botón propio no comparte pestañas con el
+## libro. La de antes hablaba aquí de la vitrina y de los cachivaches, y en
+## el recetario ya no hay ninguna vitrina que mirar (le pasó al usuario).
 func _explicar_inventario() -> void:
+	if _solo_coleccion():
+		await _explicar_coleccion()
+		return
 	if GameState.inventario_intro_done:
 		return
 	GameState.inventario_intro_done = true
@@ -1280,12 +1287,29 @@ func _explicar_inventario() -> void:
 	caja.z_index = 220
 	ui.add_child(caja)
 	caja.say([
-		{ "text": "Tu **camarote**, %s. Aquí está todo lo que llevas encima." % GameState.player_title(), "mood": "feliz" },
-		{ "text": "El **recetario** es el libro de la izquierda: TODAS las recetas del juego. Las que aún no sabes salen en sombra, para que veas lo que te falta por aprender.", "mood": "hablando" },
+		{ "text": "Tu **recetario**, %s. Aquí está todo lo que sabes cocinar... y lo que te falta por aprender." % GameState.player_title(), "mood": "feliz" },
+		{ "text": "El libro de la izquierda lleva TODAS las recetas del juego. Las que aún no sabes salen en sombra, para que veas lo que queda por delante.", "mood": "hablando" },
 		{ "text": "Toca una y te cuenta lo que hace, quién se la come y **cómo se prepara**, paso a paso. Si un gesto se te resiste, míralo aquí antes de zarpar.", "mood": "serio" },
-		{ "text": "En la **despensa** están tus ingredientes y los usos que te quedan. Un uso es una jornada, no un plato.", "mood": "hablando" },
-		{ "text": "¡Y LA VITRINA! ¡RAAAK! ¡LOS CACHIVACHES!", "who": "gigi", "mood": "loro" },
-		{ "text": "La **colección**, plumas. Piezas que se pescan o que deja algún cliente agradecido. No sirven para nada... y aun así las quieres todas.", "mood": "riendo" },
+		{ "text": "¡Y LA DESPENSA! ¡RAAAK! ¡QUE SE ACABA!", "who": "gigi", "mood": "loro" },
+		{ "text": "En la **despensa** están tus ingredientes y los usos que te quedan. Un uso es una jornada, no un plato.", "mood": "loro_resignado" },
+	])
+	await caja.finished
+	await caja.close_and_free()
+
+
+## La COLECCIÓN, la primera vez que se abre el cofre.
+func _explicar_coleccion() -> void:
+	if GameState.coleccion_intro_done:
+		return
+	GameState.coleccion_intro_done = true
+	GameState.save_game()
+	var caja := DialogueBox.new()
+	caja.z_index = 220
+	ui.add_child(caja)
+	caja.say([
+		{ "text": "¡LA VITRINA! ¡RAAAK! ¡LOS CACHIVACHES!", "who": "gigi", "mood": "loro" },
+		{ "text": "La **colección**, plumas. Aquí se guarda cada pieza que se pesca o que deja algún cliente agradecido.", "mood": "riendo" },
+		{ "text": "No sirven para nada, %s... y aun así las vas a querer todas. Las que se te escapen por el camino te dirán dónde volver a por ellas." % GameState.player_title(), "mood": "hablando" },
 	])
 	await caja.finished
 	await caja.close_and_free()

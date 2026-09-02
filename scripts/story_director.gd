@@ -214,6 +214,28 @@ func _say_raised(lines: Array, espera := -1.0,
 	dialog.set_raised(false, alto)
 
 
+## Como `_say`, pero ENCIMA DEL CARTEL DE POTENCIADOR, que se queda a la
+## vista (la lección del bote, escenario 10): ni lo aplaza ni toca la pausa
+## —el árbol ya lo tiene parado el propio cartel— y al terminar lo deja como
+## estaba, para que el jugador elija con David ya callado. `_say` a secas
+## llamaba a `postpone_powerup_choice` y cerraba el cartel justo cuando había
+## que enseñarlo (le pasó al usuario: David hablaba de tres potenciadores que
+## no estaban en pantalla). Sin pausa propia tampoco hay respiro previo: el
+## cartel ya acaba de entrar con su rebote.
+func _say_sobre_cartel(lines: Array) -> void:
+	if not _vivo():
+		await _jamas
+		return
+	lv.clock_hold = true
+	# `create_timer` con `process_always`: el árbol está en pausa.
+	await get_tree().create_timer(0.45, true, false, true).timeout
+	# SIN RETRATO: David tapaba carta y media (ver `DialogueBox.sin_retratos`).
+	dialog.sin_retratos = true
+	dialog.say(lines, true)
+	await dialog.finished
+	dialog.sin_retratos = false
+
+
 ## Suelta el reloj: fase interactiva. `aviso` es lo que recordará Gigi si el
 ## jugador se queda parado.
 func _play(aviso := "") -> void:

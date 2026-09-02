@@ -38,13 +38,46 @@ func _init() -> void:
 					fallos += 1
 		if p.has("collectible_client"):
 			var cc: Dictionary = p["collectible_client"]
-			if not bool(cc.get("mapa", false)):
-				var it := str(cc.get("item", ""))
-				if it != "" and CollectibleData.get_item(it).is_empty():
+			# UN CLIENTE DEL TESORO PAGA DE UNA SOLA MANERA, y con algo que
+			# exista: pieza de vitrina, mapa, arroz, oro, receta o despensa.
+			var pagas := 0
+			var it := str(cc.get("item", ""))
+			if it != "":
+				pagas += 1
+				if CollectibleData.get_item(it).is_empty():
 					print("  ! %s: cliente del tesoro con pieza inexistente '%s'"
 						% [id, it])
 					fallos += 1
-			if cc.has("recipe") and not RecipeData.RECIPES.has(str(cc["recipe"])):
+			if bool(cc.get("mapa", false)):
+				pagas += 1
+			if int(cc.get("arroz", 0)) > 0:
+				pagas += 1
+			if int(cc.get("oro", 0)) > 0:
+				pagas += 1
+			var rp := str(cc.get("receta_premio", ""))
+			if rp != "":
+				pagas += 1
+				if not RecipeData.RECIPES.has(rp):
+					print("  ! %s: cliente del tesoro paga con receta inexistente '%s'"
+						% [id, rp])
+					fallos += 1
+			var usos: Dictionary = cc.get("ingredientes", {})
+			if not usos.is_empty():
+				pagas += 1
+				for ing in usos:
+					if not RecipeData.INGREDIENTS.has(str(ing)):
+						print("  ! %s: cliente del tesoro paga con ingrediente inexistente '%s'"
+							% [id, ing])
+						fallos += 1
+			if pagas != 1:
+				print("  ! %s: cliente del tesoro con %d pagas (tiene que ser UNA)"
+					% [id, pagas])
+				fallos += 1
+			var reto := str(cc.get("reto", "platos"))
+			if not CampaignData.RETO_TEXTOS.has(reto):
+				print("  ! %s: reto desconocido '%s'" % [id, reto])
+				fallos += 1
+			if reto in ["receta", "receta_n"] and not RecipeData.RECIPES.has(str(cc.get("recipe", ""))):
 				print("  ! %s: reto de receta inexistente" % id)
 				fallos += 1
 	print("  escenarios: %d" % CampaignData.PORTS.size())

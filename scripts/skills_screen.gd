@@ -68,6 +68,32 @@ func _ready() -> void:
 	backdrop = SceneBackdrop.build(self, "", 17.0, 40.0, 6.0)
 	_setup_ui()
 	GameState.take_transition()
+	_explicar_arbol.call_deferred()
+
+
+## LOS TRES ÁRBOLES SE EXPLICAN AQUÍ, con la mesa delante, la primera vez que
+## se entra (pedido por el usuario). En el menú David solo dice cómo se llega
+## (`main_menu._presentar_maestrias`) y trae al jugador hasta aquí; contarlo
+## allí era hablar de árboles y rangos mirando el mar.
+func _explicar_arbol() -> void:
+	if GameState.skills_tree_intro_done or ui == null:
+		return
+	GameState.skills_tree_intro_done = true
+	GameState.save_game()
+	await get_tree().create_timer(0.5).timeout
+	var caja := DialogueBox.new()
+	caja.z_index = 220
+	ui.add_child(caja)
+	caja.say([
+		{ "text": "Esta es la mesa de **Maestrías**, %s. Tres **árboles**, uno por pestaña: el **cuchillo** afila tus manos, el **cliente** te saca más de cada boca y el **chef** manda en los platos." % GameState.player_title(), "mood": "hablando" },
+		{ "text": "El del **cuchillo** acorta gestos y enfriamientos: cocinas más en el mismo rato. El del **cliente** los hace esperar más, pagar más y dejar más propina.", "mood": "hablando" },
+		{ "text": "Y el del **chef** toca los platos: más vueltas en la cinta, cajas más altas, platos que salen gratis o dobles.", "mood": "hablando" },
+		{ "text": "Cinco habilidades por árbol. Los puntos se meten **de uno en uno** con el **[+]** de cada tarjeta: al quinto se aprende, y cada cinco más sube de rango.", "mood": "serio" },
+		{ "text": "¡GÁSTALOS YA! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
+		{ "text": "Y tranquilo: **se pueden recolocar** cuando quieras con el **[−]**, así que no hay decisión que te ate. Empieza por lo que más te duela hoy.", "mood": "feliz" },
+	])
+	await caja.finished
+	await caja.close_and_free()
 
 
 func _process(delta: float) -> void:
@@ -912,7 +938,14 @@ func _fill_popup() -> void:
 	centro.add_theme_constant_override("separation", -2)
 	fila.add_child(centro)
 	var pts_l := Label.new()
-	pts_l.text = "%d / %d" % [pts, SkillData.max_points(id)]
+	# LA MISMA CUENTA QUE LA TARJETA DE LA REJILLA (pedido por el usuario): los
+	# puntos entregados HACIA EL SIGUIENTE RANGO sobre lo que pide ese rango
+	# ("3 / 5"). Decia "0 / 25" —lo invertido sobre el total de la habilidad—
+	# y con las bolitas de la tarjeta diciendo otra cosa parecian dos cuentas
+	# distintas de lo mismo.
+	var coste := SkillData.rank_cost(id)
+	var dados: int = coste if rank >= SkillData.MAX_RANK else pts % coste
+	pts_l.text = "%d / %d" % [dados, coste]
 	pts_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pts_l.add_theme_font_size_override("font_size", 36)
 	pts_l.add_theme_color_override("font_color",

@@ -493,14 +493,23 @@ static func reward_icon(clave: String) -> String:
 ## Experiencia que cuesta subir del nivel n al n+1.
 ## EL COCINERO EMPIEZA EN EL NIVEL 0 (pedido por el usuario) y sube al 1 al
 ## cerrar su primer escenario, que es cuando el juego le enseña la barra. Por
-## eso el escalón 0 → 1 es simbólico (`XP_PRIMERO`): cualquier escenario
-## aprobado lo cubre. De ahí en adelante manda la curva de siempre.
-const XP_PRIMERO := 12
+## eso el escalón 0 → 1 es simbólico: cualquier escenario aprobado lo cubre.
+##
+## Y HASTA EL 5 SE SUBE DEPRISA (pedido por el usuario: "subir al nivel 5 será
+## rápido, el resto tendrá un progreso más normal"). Los cuatro primeros
+## escalones van escritos a mano (`XP_PRIMEROS`, 242 XP en total contra los
+## 601 de la curva) y del 5 en adelante manda la curva de siempre. MEDIDO con
+## la tarifa de los escenarios: bordando los cuatro primeros se llega al 5 al
+## cerrar el escenario 5, y aprobando justo, al cerrar el 6. El salto de
+## 80 a 239 entre el escalón 4→5 y el 5→6 es a propósito: es donde empieza
+## el "progreso normal". Al tocar esto hay que volver a pasar
+## `tools/medir_chef_rec.gd` y pegar sus `chef_rec`.
+const XP_PRIMEROS := [12, 35, 50, 65, 80]
 
 
 static func xp_for_next(level: int) -> int:
-	if level <= 0:
-		return XP_PRIMERO
+	if level < XP_PRIMEROS.size():
+		return int(XP_PRIMEROS[maxi(level, 0)])
 	var k := float(maxi(level - 1, 0))
 	return int(round(XP_BASE + XP_STEP * k + XP_ACCEL * k * k))
 

@@ -117,23 +117,42 @@ oro. Y **lo que paga depende de por dónde va la campaña**, que es la regla que
 las sostiene: nadie regala un coleccionable antes de que se haya explicado qué
 es, ni un mapa del tesoro antes del 28, ni sale un capitán antes de que existan
 los capitanes.
-- **7 · Cala del Saco Perdido** — un GRUMETE paga con **3 sacos de arroz**.
-  Aquí no se ha hablado de coleccionables (eso llega en el 14, con la bandera)
-  y un cofre sin explicar no sería un premio sino un misterio; el arroz se
-  entiende desde el primer turno.
-- **16 · Fondeadero del Tuerto** — un PIRATA paga con el **parche**. Los
-  piratas existen desde el 14 y los coleccionables también.
+- **7 · Cala del Saco Perdido** — un GRUMETE paga con **3 sacos de arroz** a
+  cambio de **3 gunkan de wakame** (reto `receta_n`). Aquí no se ha hablado
+  de coleccionables y un cofre sin explicar no sería un premio sino un
+  misterio; el arroz se entiende desde el primer turno. Y pide una RECETA
+  CONCRETA a propósito (pedido por el usuario): el gunkan es el premio de 3★
+  del escenario 1, así que quien no lo tenga no puede cumplirlo hoy — la
+  ficha se lo dice al salir y vuelve con él. Por eso el gunkan entra en la
+  carta por `optional_recipes` y no por `alt_recipes`: con la lista de
+  preferencia, quien tuviera el maki de pepino jamás veía el gunkan.
+- **15 · Paso de las Barracudas** — EL PIRATA DE LA BANDERA (movido del 14,
+  pedido por el usuario: "en el 14 se presentan los piratas y en el 15
+  aparece este evento"). Va por el mecanismo general del cliente del tesoro
+  (`collectible_client` con `item: bandera`), no por guion propio: el que
+  tenía el 14 —la cuenta por señal, la entrega después de hablar— era
+  exactamente lo que hoy hace `_vigilar_tesoro` para cualquier escenario.
+- **16 · Fondeadero del Tuerto** — un PIRATA paga con un **cofre de 150
+  doblones** (`oro`). Pagaba con el parche, y se cambió con la regla de
+  abajo.
 - **20 · Rada del Rallador** — la práctica de los TRES EXTRAS juntos. Un PIRATA
   pide `extras_distintos`: tres platos, cada uno con un extra distinto. Es el
   único encargo del juego que obliga a usar los tres en la misma jornada, y
-  paga con el **rallador de piel de tiburón**, que es literalmente con lo que
-  se ralla el wasabi.
+  paga con **4 usos de cada extra** (`ingredientes`). Pagaba con el rallador
+  de piel de tiburón.
 - **25 · Escollo del Sable** — un CAPITÁN paga con la **espada**, más un
   lingote a las 3★. Los capitanes y los lingotes llegan con Pablo, en el 23.
-- **30 · Bajío de la Carta Marcada** — un CAPITÁN paga con un **MAPA DEL
-  TESORO**, dos escenarios después de que se estrenen. Su reto es `mismo_caro`
-  y el escenario lleva CARTA CERRADA a propósito: así el plato más caro está a
-  la vista y no cambia.
+- **30 · Bajío de la Carta Marcada** — un CAPITÁN paga con la **receta del
+  sashimi variado** (`receta_premio`). Su reto es `mismo_caro` y el escenario
+  lleva CARTA CERRADA a propósito: así el plato más caro está a la vista y
+  no cambia. Pagaba con un mapa del tesoro.
+
+**NO TODOS LOS CLIENTES CON ENCARGO PAGAN CON PIEZA DE VITRINA** (pedido por
+el usuario el 2-9-2026: "en este primer mar has puesto demasiados
+desbloqueables"): un encargo puede pagar con oro, con despensa o con una
+receta. Del mar 1 quedan de vitrina la bandera (15), la espada (25), el
+tricornio (27) y el diente del Kappa (35); el parche y el rallador se quedan
+sin fuente para otro mar.
 
 | # | Escenario | Tipo | Lección |
 |---|---|---|---|
@@ -143,20 +162,20 @@ los capitanes.
 | 4 | Playa de las Gaviotas | isla | PRÁCTICA de las cajas |
 | 5 | Isla del Bambú | isla | el PICOTEO (edamame) |
 | 6 | Caleta del Farol | isla | PRÁCTICA del picoteo |
-| 7 | Cala del Saco Perdido | isla | PRÁCTICA · grumete → 3 sacos de arroz |
+| 7 | Cala del Saco Perdido | isla | PRÁCTICA · grumete: 3 gunkan → 3 sacos de arroz |
 | 8 | Arrecife del Ron | puerto | multiplicador, hastío y paladar; abre la TIENDA |
 | 9 | Fondeadero del Tonel | puerto | PRÁCTICA con la carta y la tienda abiertas |
 | 10 | Cala del Calamar | isla | POSTRES, propinas y potenciadores |
 | 11 | Rada del Pulpo | isla | PRÁCTICA |
 | 12 | Ensenada del Maridaje | isla | el MARIDAJE (té verde → mochi), con ejercicio |
 | 13 | Islote de la Sal | isla | PRÁCTICA de postres, propinas y parejas |
-| 14 | Estrecho del Rayo | abordaje | primer ABORDAJE, EL pirata y su BANDERA |
-| 15 | Paso de las Barracudas | abordaje | PRÁCTICA del abordaje |
-| 16 | Fondeadero del Tuerto | puerto | PRÁCTICA · pirata → el parche |
+| 14 | Estrecho del Rayo | abordaje | primer ABORDAJE y los primeros PIRATAS |
+| 15 | Paso de las Barracudas | abordaje | PRÁCTICA · EL pirata de la BANDERA |
+| 16 | Fondeadero del Tuerto | puerto | PRÁCTICA · pirata → cofre de 150 doblones |
 | 17 | Bahía del Kraken | puerto | el **WASABI** (y con él, los extras) |
 | 18 | Rada del Paladar Limpio | puerto | el **JENGIBRE** |
 | 19 | Ensenada de la Salazón | puerto | la **SOJA** |
-| 20 | Rada del Rallador | puerto | PRÁCTICA de los tres extras · pirata → rallador |
+| 20 | Rada del Rallador | puerto | PRÁCTICA de los tres extras · pirata → 4 usos de cada extra |
 | 21 | Isla de Gades | isla | CAI y la PESCA |
 | 22 | Puerto Tormenta | puerto | PRÁCTICA: el examen antes de Pablo |
 | 23 | Flota de Pablo | abordaje | CAPITANES, corte lento y LINGOTES |
@@ -166,18 +185,49 @@ los capitanes.
 | 27 | Ensenada del Naufragio | puerto | PRÁCTICA; el capitán del TESORO pide una receta |
 | 28 | Caleta del Cartógrafo | puerto | los MAPAS DEL TESORO: un GRUMETE los trae |
 | 29 | Rada de las Tres Anclas | puerto | PRÁCTICA con un mapa armado |
-| 30 | Bajío de la Carta Marcada | isla | PRÁCTICA · capitán → un mapa del tesoro |
+| 30 | Bajío de la Carta Marcada | isla | PRÁCTICA · capitán → la receta del sashimi variado |
 | 31 | Rada de los Dos Fuegos | abordaje | ALICE y el AYUDANTE |
 | 32 | Muelle del Farolero | puerto | PRÁCTICA del ayudante |
 | 33 | Muelle de las Bandejas | puerto | ALICE y los BONIFICADORES |
 | 34 | Bruma del Estrecho | puerto | la víspera, a pulso |
 | 35 | Cueva del Kappa | cueva | el JEFE; superarlo abre el ARCADE |
 
-**UN CLIENTE DEL TESORO PUEDE PAGAR DE TRES MANERAS** (`collectible_client`):
-con una pieza de vitrina (`item`), con un mapa (`mapa: true`) o con **sacos de
+**UN CLIENTE DEL TESORO PUEDE PAGAR DE SEIS MANERAS** (`collectible_client`):
+con una pieza de vitrina (`item`), con un mapa (`mapa: true`), con **sacos de
 arroz** (`arroz: N`, que entró con el escenario 7 justamente porque allí las
-otras dos no se pueden usar todavía). Las tres salen por `level3d.
-_entregar_tesoro`.
+otras no se pueden usar todavía), con un **cofre de doblones** (`oro: N`, que
+va al monedero y al botín del cartel de recompensa), con **usos de despensa**
+(`ingredientes: {id: n}`) o con una **receta** (`receta_premio: id`, que se
+aprende con su despensa de estreno, entra en la carta de HOY y el menú la
+anuncia al volver). Las seis salen por `level3d._entregar_tesoro`, y
+`tools/auditar.gd` exige que cada cliente lleve EXACTAMENTE una.
+- **EL CLIENTE DICE CON QUÉ PAGA** (`CampaignData.pago_texto`, pedido por el
+  usuario: "pago con esto" sin decir qué no era un encargo). La misma frase
+  la lee la ficha del mapa.
+- **Y LA ENTREGA LA HACE EL PROPIO CLIENTE, HABLANDO** (pedido por el
+  usuario): level3d solo apunta la cuenta (`treasure_ready` + la señal
+  `treasure_cumplido`, la lección que ya tuvo la bandera) y `_vigilar_tesoro`
+  espera esa bandera, le pone el foco, suelta el "trato es trato" y entonces
+  llama a `_entregar_tesoro`. Si el turno se cierra con la cuenta hecha,
+  `_end_level` entrega igual y solo se pierde la escena. Con una pieza de
+  vitrina en la mano, el vigía encadena `_explicar_coleccionables`.
+- **Y `receta_n`**: N platos de una receta CONCRETA (los tres gunkan del 7).
+  Es el reto que se puede FALLAR por la carta: si la receta no va hoy, David
+  dice que se vuelva otro día con ella. El vigía mira `selected_recipes` Y
+  los botones de la tabla, que en una isla la carta no pasa por el selector.
+- **`GameState.tesoros_cobrados`** apunta el escenario cobrado: las pagas que
+  no son de vitrina no dejan huella en ningún otro sitio, y la ficha del mapa
+  quiere saber si el tesoro de ahí sigue pendiente.
+
+**LA FICHA DEL MAPA NO ENSEÑA EL TESORO HASTA HABER JUGADO EL ESCENARIO**
+(`_fill_tesoro` mira `level_stars.has(id)`, que tiene entrada en cuanto se
+cierra una jornada, aunque sea con cero; pedido por el usuario): antes de
+pisarlo es una SORPRESA, y anunciar la bandera con su encargo en la ficha
+"perdía la rejugabilidad". Jugado una vez, la ficha dice CON QUÉ paga y QUÉ
+pide (`pago_texto` + `tesoro_como`), y eso es lo que manda al jugador a volver
+con la carta que le faltaba. Las pagas que no son de vitrina se pintan a la
+vista (un saco de arroz no tiene nada que descubrir); la pieza y la receta,
+en silueta hasta tenerlas.
 
 **LOS EXTRAS SE PRESENTAN DE UNO EN UNO** (`GameState.unlocked_extras`, una
 LISTA, no el interruptor `extras_done` de antes): la esquina de la tabla, la
@@ -207,6 +257,16 @@ olvida** (todas se pagaron ampliando el mar: primero de 20 a 25 y luego a 30):
    se desplaza entero y su jefa se sale del alcance de la cámara.
 Y después, **`tools/auditar.gd`**: comprueba el tipo, el carril, la altura, los
 guiones declarados sin rama, los premios repetidos y las texturas de número.
+
+**LO QUE SE VE EN CADA ESCENARIO ES SOLO LO YA EXPLICADO, y son compuertas
+por escenario que hay que poner A MANO en cada práctica**: `no_storage` hasta
+las cajas (3), `no_variety_ui` hasta el multiplicador (8), `no_powerups` hasta
+los postres (10), `no_extras` hasta el wasabi (17) y `no_perks` hasta Alice
+(31). Se pagaron de verdad (2-9-2026): el 2 sacaba las cajas sin explicar y
+el 6 los bocadillos y las chapas del multiplicador. Y los PREMIOS de 3★ de
+una práctica son despensa de lo que ya se cocina, nunca de lo que está por
+venir: el 9 daba atún sin receta de atún, el 11 los tres extras sin haberlos
+presentado y el 15 un cebo sin caña.
 
 **LOS HÁNDICAPS SON DEL TIPO, no del escenario** (pedido por el usuario, para
 que cada tipo tenga SU dificultad como la isla tiene su carta cerrada):
@@ -614,9 +674,11 @@ clase de Cai se da cuando el jugador entra en Pesca por su cuenta
 (`fishing_intro_done`), así que no se pierde nada y no se le cambia de sitio
 justo al volver de un nivel.
 
-**Explicaciones de PANTALLA**: los LOGROS y el INVENTARIO se explican la
-primera vez que se entra en ellos (`logros_intro_done` /
-`inventario_intro_done`), no desde un nivel.
+**Explicaciones de PANTALLA**: los LOGROS, el RECETARIO y la COLECCIÓN se
+explican la primera vez que se entra en ellos (`logros_intro_done` /
+`inventario_intro_done` / `coleccion_intro_done`), no desde un nivel. La del
+recetario ya NO habla de la vitrina: la colección tiene pantalla propia
+(le pasó al usuario oírla en un sitio donde no había vitrina).
 
 ## EL MAPA VA POR MARES (montado el 1-9-2026 a petición del usuario)
 
@@ -1669,12 +1731,24 @@ La GUÍA lleva su sección ("El canto de sirena").
   —el cartel de resultados y la ficha del puerto la enseñan solas, y gastaba
   dos líneas en lo evidente—; en su hueco entró lo que no se ve por ningún
   lado, que es la experiencia.
-  **Y LAS MAESTRÍAS SE PRESENTAN AL LLEGAR AL NIVEL 5 DE COCINERO**
-  (`main_menu._presentar_maestrias`, bandera `skills_intro_done`, constante
-  `SKILLS_INTRO_LEVEL`): antes no, porque con un punto suelto la pantalla no
-  tiene nada que enseñar. Al cerrar el diálogo lleva DIRECTO al árbol, el
-  mismo patrón que Saverio con su puesto.
-  **N2 — LAS CAJAS, y nada más**: el primer grumete entra SOLO; cuando se ha
+  **Y LAS MAESTRÍAS SE PRESENTAN AL LLEGAR AL NIVEL 5 DE COCINERO, EN DOS
+  TIEMPOS** (pedido por el usuario): en el menú (`main_menu.
+  _presentar_maestrias`, `skills_intro_done`) David solo dice que hay puntos
+  que gastar y CÓMO SE LLEGA —tocando la barra de nivel, que se queda a plena
+  luz sobre el velo con su `z_index` subido a 160, el patrón del arroz— y
+  lleva al árbol; y es EN EL ÁRBOL (`skills_screen._explicar_arbol`,
+  `skills_tree_intro_done`) donde se cuentan los tres árboles y el reparto
+  punto a punto. Explicado todo en el menú, el jugador oía hablar de árboles
+  mirando el mar. Los guardados con la escena vieja ya hecha dan el árbol por
+  explicado.
+  **N2 — LAS CAJAS, y nada más** (hoy el escenario 3). **La caja de diálogo
+  sube `CAJAS_RAISE` (490 px), no los 330 de siempre, cuando habla de ellas**:
+  las cajas viven en la tabla, en la y 780-968 del lienzo, y subida lo normal
+  la caja de diálogo seguía cubriendo de la 544 a la 938 — las tapaba de
+  lleno mientras se explicaban (le pasó al usuario). MEDIDO en captura: con
+  470 terminaba en la 798 y su marco aún mordía los 18 px de arriba de las
+  cajas; con 490 termina en la 778 y las deja enteras, a cambio de 70 px del
+  retrato de David por arriba (aire y el filo del pañuelo). Detalle: el primer grumete entra SOLO; cuando se ha
   comido su SEGUNDO plato (o su paciencia baja a 2/3) entran los otros TRES DE
   GOLPE y arranca la lección: aparecen las cajas (`hide_storage` lo pone y lo
   quita EL GUION, no el puerto, para que al repetir el nivel salgan de
@@ -1703,42 +1777,36 @@ La GUÍA lleva su sección ("El canto de sirena").
   Saverio abre la tienda (`shop_intro_done = true` lo pone este guion) y deja
   `pending_shop_visit`, que hace que "Continuar" lleve DIRECTO al puesto.
   3★: onigiri.
-  **N5 — POSTRES Y PROPINAS**: el bote (foco en `tip_bar`), regalo del
-  **mochi** con la lección de que el postre cobra el multiplicador y libera la
-  silla, y la coletilla del primer potenciador. 3★: caldo dashi.
+  **N5 — POSTRES Y PROPINAS** (hoy el 10): el bote (foco en `tip_bar`), regalo
+  del **mochi** con la lección de que el postre cobra el multiplicador y
+  libera la silla, y **el primer potenciador se explica CON EL CARTEL
+  DELANTE** (pedido por el usuario): antes David hablaba en cuanto el bote
+  cruzaba el umbral —`powerups_claimed` sube en ese instante, la barra
+  todavía a medio pintar y el cartel sin salir—. Ahora el guion espera a
+  `powerup_panel.visible`, lo enfoca y habla ENCIMA con
+  `story_director._say_sobre_cartel`, que ni aplaza el cartel (`_say` a secas
+  llama a `postpone_powerup_choice` y lo cierra) ni toca la pausa, que ya la
+  tiene puesta el propio cartel; el jugador elige cuando David calla. **Y
+  HABLA SIN RETRATO** (`DialogueBox.sin_retratos`): medido en captura, el
+  retrato de David (x 0-370 desde la y 420) tapaba carta y media de las tres
+  (x 60-660 desde la y 520); con solo el pergamino y el tablón del nombre se
+  ven las tres enteras, que era lo que pedía la lección. 3★: sunomono.
   **N6 — LOS EXTRAS**: Saverio los saca al empezar el turno; el guion pone
   `GameState.extras_done = true` (que es lo que abre los extras en la tabla Y
   en la tienda) y regala 10 usos de cada uno. 3★: sopa de miso.
-  **N7 — PRIMER ABORDAJE Y EL PIRATA DE LA BANDERA**: reloj, clientela sin fin
-  y prima por tiempo; y el primer PIRATA del juego (los capitanes no llegan
-  hasta el 10, con Pablo), con el regalo del **nigiri de atún** para estrenarlo
-  con él. **SUBE UN SOLO PIRATA EN TODO EL NIVEL** —`client_weights` del puerto
-  es `{E: 1}`, porque en un abordaje, agotada la primera tanda, las llegadas se
-  siguen sorteando con las proporciones de la mezcla— y es a propósito: es EL
-  pirata de la **BANDERA PIRATA**, y con dos no habría forma de saber a cuál se
-  le está sirviendo. Habla POR SÍ MISMO (retrato propio) y pone precio a su
-  bandera: `PLATOS_BANDERA` (3) platos y es tuya, porque su capitán lo manda a
-  comer y no quiere volver con el buche vacío. Al cumplirlo se entrega el
-  coleccionable y David explica QUÉ SON los coleccionables — **este es el único
-  sitio del juego donde se consigue la bandera**. Estuvo colgada de "un
-  abordaje superado con 3 estrellas" (`complete_port`) y así aparecía sola en
-  el cartel de resultados, sin ninguna escena detrás.
-  **LA CUENTA Y LA ENTREGA SON DOS COSAS DISTINTAS**, y hay una razón para cada
-  una. La CUENTA la apunta una señal (`_on_pirata_come`, colgada del
-  `plate_served` del pirata) porque estuvo dentro de un `_esperar` que miraba
-  también `lv.ended`, y eso perdía el premio en el caso más normal: `eaten_ids`
-  cuenta platos TERMINADOS, no servidos, así que el último se estaba masticando
-  cuando se acababa el reloj del abordaje —o cuando al pirata se le agotaba la
-  paciencia— y el guion salía con la cuenta en N-1 y sin decir nada, después de
-  que el jugador le hubiera servido los platos. La ENTREGA
-  (`_entregar_bandera`) la hace el GUION y **después de que el pirata hable**:
-  la ventana del coleccionable la saca `GameState` en su capa global de avisos,
-  así que entregándola desde la señal se colaba encima de él y salía el cartel
-  del premio antes que el "lo prometido". Si el turno se cierra con la cuenta
-  hecha, se entrega igual y lo único que se pierde es la escena.
-  Y **son TRES platos, no cinco**: en un abordaje de 2:30, con el pirata
-  entrando el tercero y comiendo de dos estrellas, cinco eran casi todo el
-  turno dedicado a un solo cliente.
+  **N7 — PRIMER ABORDAJE Y LOS PRIMEROS PIRATAS** (hoy el 14): reloj,
+  clientela sin fin y prima por tiempo; y el primer PIRATA del juego (los
+  capitanes no llegan hasta el 23, con Pablo), con el regalo del **nigiri de
+  atún** para estrenarlo con él. **LA BANDERA YA NO SE GANA AQUÍ** (pedido por
+  el usuario, 2-9-2026): el 14 presenta a los piratas y es en el **15** donde
+  sube EL pirata que paga con su bandera, por el mecanismo general del cliente
+  del tesoro (ver arriba). El guion propio que tuvo aquí —la cuenta por señal
+  para no perder el premio cuando el último plato se mastica al acabarse el
+  reloj, y la entrega después de que el pirata hable— se generalizó en
+  `treasure_ready` + `_vigilar_tesoro`, que hacen exactamente eso para
+  cualquier escenario. Y **son TRES platos, no cinco**: en un abordaje de
+  2:30, con el pirata entrando el tercero y comiendo de dos estrellas, cinco
+  eran casi todo el turno dedicado a un solo cliente.
   **N8**: la flota de **Pablo el Rubio**: broma del puñal, Pablo tardío que se
   adelanta al 80%, regalo del **salmón tsuke don** y con él la lección del
   CORTE LENTO (`free_mistakes` hasta servir el primero, y Gigi regaña vía
@@ -2188,7 +2256,15 @@ La GUÍA lleva su sección ("El canto de sirena").
   puros; el ESTADO (chef_xp, chef_level, skills, arcade_best) vive en GameState
   y se guarda en el save. Las reglas, todas en la cabecera del archivo:
   · **450 niveles = 450 puntos** (el nivel 1 ya trae el suyo) = el catálogo
-    entero (150 por árbol). Curva de XP en RECTA: 60 + 20·(n−1).
+    entero (150 por árbol). Curva cuadrática (100 + 30k + 1,2k²), **y hasta
+    el 5 se sube deprisa** (`XP_PRIMEROS` = 12·35·50·65·80, pedido por el
+    usuario): bordando los cuatro primeros escenarios se llega al 5 al cerrar
+    el 5, aprobando justo al cerrar el 6, y de ahí en adelante el "progreso
+    normal" (el escalón 5→6 vale 239). Al tocarla hay que volver a pasar
+    `tools/medir_chef_rec.gd` y pegar TODOS los `chef_rec` (los dos mares):
+    hoy el mar 1 se cierra en el nivel 23 bordado y el 2 en el 37. **El
+    medidor NO reinicia la cuenta por mar** — lo hacía, y el primer escenario
+    del mar 2 salía recomendado para "nivel 1".
   · **LOS PUNTOS SE INVIERTEN DE UNO EN UNO, y el RANGO es su escalón**
     (decisión del usuario, no re-litigar). `GameState.skills` guarda los
     PUNTOS invertidos, no el rango, y `SkillData.rank_for_points` lo deriva:
@@ -3505,7 +3581,8 @@ La GUÍA lleva su sección ("El canto de sirena").
     **tapones_cera** (cuyo efecto ya está implementado: cada canto de sirena
     dura un tercio menos, `level3d._empezar_canto`). Eran justo las siete que
     no se ganaban de ninguna otra forma.
-  · **Disparadores nuevos de la misma tanda**: `timon` a las **45 estrellas**
+  · **Disparadores nuevos de la misma tanda**: `timon` a las **48 estrellas**
+    (eran 45; lo subió el usuario)
     (`estrellas_totales`; la vía de las 5 vueltas murió — sin timón no hay
     timón que girar), `cofre` al pescar el **pez cofre** (vía álbum, como la
     esmeralda) y `barril` en el sorteo de la pesca.
@@ -4324,6 +4401,11 @@ La GUÍA lleva su sección ("El canto de sirena").
   esqueleto (la mano llega sola). Alturas por tipo: E 1.45 · A 1.75 · G 1.95.
 - `scripts/plate3d.gd` — plato en cinta: PathFollow3D por el Path3D del
   circuito, modelo normalizado por huella (0.62 u), 2 vueltas → descarte.
+- **LOS AVISOS DE "SE ABRE EN EL ESCENARIO N" SALEN DE LOS DATOS**
+  (`main_menu._donde_se_abre` + `CampaignData.port_with(flag)`): estaban
+  escritos a mano y al reordenar la campaña se quedaron viejos (la tienda
+  decía escenario 2, la pesca 8 y el arcade 20; hoy son 8, 21 y 35). Nada que
+  diga un número de escenario se escribe a mano.
 - `scripts/main_menu.gd` — menú inicial (ESCENA PRINCIPAL, raíz **Node3D**):
   CUATRO botones de modo con icono propio — **Aventura** (campaña), **Arcade**
   (el ARCADE SIN FIN, ver su bloque: una jornada de verdad que gasta arroz y
@@ -4723,7 +4805,11 @@ La GUÍA lleva su sección ("El canto de sirena").
     `options_from`, el mismo patrón que `skills_from`): a las dos se llega
     también desde el menú principal, así que el destino del "Atrás" lo apunta
     quien abre la pantalla. Con `GameState.map_port` puesto, el barco aparece
-    justo donde se dejó.
+    justo donde se dejó. **Y OPCIONES LO CONSUME AL ENTRAR** (`_volver`): lo
+    consumía solo su botón de Atrás, así que quien saliera por otro camino
+    (borrar el progreso) lo dejaba puesto y la siguiente visita desde el MENÚ
+    volvía al mapa (le pasó al usuario). Consumido a la entrada, una visita
+    no puede heredar el origen de la anterior.
   · La FICHA no entra en `_map_ui_fade` ni se enciende en
     `_set_map_ui_visible`: es una ventana modal y encenderla con el resto del
     mapa la sacaba sola.
@@ -4853,6 +4939,12 @@ La GUÍA lleva su sección ("El canto de sirena").
 - **`RecipeData.summary` DICE CIFRAS, no adjetivos**: "se come un 80% más
   despacio" se puede comparar con otra receta y "muy despacio" no. Son hasta
   `SUMMARY_MAX` (4) frases cortas, deducidas de los propios datos.
+  **Y EN CRISTIANO** (pedido por el usuario): la fama ya no "se hace famoso"
+  ni "sube su probabilidad" — dice que sube **la probabilidad de que un
+  cliente lo coja**; y los `free_uses` se llaman **"usos extra"** (no
+  "maestría", que es la palabra de los árboles del cocinero), en singular
+  cuando es uno (el onigiri decía "las 1 siguientes"). Vale para el resumen,
+  la hoja del recetario, la ficha del selector y el guion del futomaki.
 - **LA COMIDA VEGETARIANA SE RETIRÓ** (pedido por el usuario): el campo
   `vegetarian`, su hoja verde en el libro y en el selector, su filtro y su
   línea en la ficha. Ningún cliente la pedía, así que el icono prometía una
@@ -5989,6 +6081,23 @@ Instalar en un móvil (no hay caducidad ni cuenta de pago, al contrario que iOS)
 
 ## Rendimiento en móvil (medido, no a ojo)
 
+- **EN EL MÓVIL EL JUEGO ARRANCA EN "MEDIA"** (`GameState.ajustes_de_serie`:
+  escala de render 0,8 y 30 fps, pedido por el usuario el 2-9-2026 porque el
+  juego se comía la batería y el teléfono lo recargaba al entrar en ahorro de
+  energía). Solo vale para un guardado SIN ajustes elegidos; uno con ajustes
+  se respeta. `es_movil()` cuenta el export nativo y la build WEB abierta
+  desde un teléfono (`web_ios` / `web_android`), que es como se prueba en el
+  iPhone: ahí `has_feature("mobile")` es falso. Es lo que más pesa en un
+  teléfono —el 3D a resolución nativa a 60 fps— y lo que de verdad ahorra.
+- **LOS ESCENARIOS A MÁS DE `RECORTE_PX` (1.500 px) DE LA CÁMARA SE APAGAN**
+  (`level_select3d._recortar_lejanos`, pedido por el usuario). MEDIDO con
+  sonda sobre el mapa (`RenderingServer.get_rendering_info`, 30 fotogramas,
+  31 de 37 pivotes apagados): **82 draw calls y 66.098 primitivas CON y SIN el
+  recorte — idéntico**. El recorte por frustum del motor ya dejaba fuera lo
+  que no se ve; lo único que se ahorra es la comprobación por instancia. Se
+  queda porque no cuesta nada y el usuario lo pidió, pero que nadie lo cuente
+  como ahorro de GPU: el ahorro real es el bloque "Media".
+
 Para medirlo se inyecta un helper que imprime
 `RenderingServer.get_rendering_info(...)` por escena. Dos trampas al medir:
 el frame sale clavado a 16,67 ms si no se quitan **`Engine.max_fps = 0` Y
@@ -7082,6 +7191,10 @@ de la carta entera, así que piden recalibrar `star_money`.
   notaba.) Van con `only_type`, así que **solo los coge su tipo** — el
   descarte va ANTES de tirar el dado, así que ni con potenciadores los coge
   otro. La ficha del recetario lo refleja (si no, mentiría).
+- **EL "¡MARIDAJE!" LLEVA LA CIFRA** ("¡Maridaje! +3", pedido por el
+  usuario): a secas decía que había pasado algo, no cuánto valía. **Y EL
+  MARIDAJE SE ENSEÑA UNA SOLA VEZ, en el 12**: el 10 lo adelantaba de pasada
+  al regalar el mochi y el jugador oía la misma lección dos veces.
 - **`patience_freeze`** (unagi glaseado): al terminarlo, la barra de paciencia
   se queda **congelada N segundos** (5) y se tiñe de azul. Como además se come
   en menos de la mitad de tiempo (`eat_mult` 0.45), sirve para encadenar dos
@@ -7253,15 +7366,18 @@ de la carta entera, así que piden recalibrar `star_money`.
   contra la clientela (clientes × platos × PRECIO medio de la carta). Confundir
   los dos da cifras imposibles: reescalando el nivel 2 por $/s pedía 127
   doblones cuando su techo real ronda los 75.
-  Umbrales vigentes (campaña-escuela, BAJOS a propósito — aquí se aprende):
-  n1 10/25/40 · n2 14/26/40 · n3 18/32/50 · n4 26/46/72 · n5 20/38/58 ·
-  n6 28/52/82 · n7 32/55/88 · n8 36/62/95 · n9 40/68/105 · n10 30/55/90
-  (en el 10 el aprobado es el JEFE, el dinero solo decide la 3ª estrella).
-  Los seis primeros salen de la ancla que puso el usuario en el n1 —cuatro
-  grumetes, 40 doblones para las 3 estrellas, o sea ~10 por grumete— escalada
-  por clientela y por lo que aporta la mecánica del nivel (el 4 suma el bono de
-  oro del multiplicador; el 5 suma propinas, que SÍ cuentan para estrellas).
-  **Son de MODELO, no de partida jugada**: quieren una pasada real.
+  **LA DIFICULTAD SUBE A LO LARGO DEL MAR Y LAS PRÁCTICAS VAN POR ENCIMA DE
+  SU LECCIÓN** (pedido por el usuario el 2-9-2026). Se midió con un modelo de
+  capacidad (clientes × 3 platos × el mejor precio de su nivel entre lo que
+  se puede llevar): con los umbrales de antes, un escenario del final del mar
+  pedía el **44%** de lo que la carta podía rendir y uno del principio el
+  **83%** — la dificultad BAJABA, porque la carta se encarece y los umbrales
+  se quedaban en ~11 doblones por cliente. Hoy el 1 se queda en su ancla del
+  usuario (40) y el resto sube de forma gradual: 52 el 2, 88 el 6, 126 el 20,
+  150 el 25 y 196 el 34 (era 145), con cada práctica un 10-15% por encima de
+  la lección de al lado. El JEFE (35) no se toca: su segunda estrella es la
+  que saca al Kappa. 1★/2★ siguen al 35% y al 62% del 3★. **Son de MODELO,
+  no de partida jugada**: quieren una pasada real.
   **Y el aluvión de clientes se limita SOLO**: los abordajes programan más
   llegadas que asientos, pero un cliente no aparece hasta que se libera un
   sitio y uno sin comer aguanta ~50-60 s (`FIRST_PLATE_DRAIN` 0.45), así que

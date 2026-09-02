@@ -437,27 +437,40 @@ func _explicar_nivel_cocinero() -> void:
 const SKILLS_INTRO_LEVEL := 5
 
 
-## LAS MAESTRÍAS, presentadas al llegar al nivel 5. David señala la barra, dice
-## para qué sirven los puntos y abre la pantalla: la explicación de verdad la
-## da el propio árbol, que ya se explica solo.
+## LAS MAESTRÍAS, presentadas al llegar al nivel 5 — EN DOS TIEMPOS (pedido
+## por el usuario): aquí David solo dice que hay puntos que gastar y CÓMO SE
+## LLEGA (tocando la barra de nivel, que se queda a plena luz sobre el velo),
+## y lleva al jugador al árbol. Los tres árboles y el reparto se explican
+## ALLÍ, con la mesa delante (`skills_screen._explicar_arbol`). Explicados
+## aquí, el jugador oía hablar de árboles y rangos mirando el mar, sin saber
+## ni dónde estaban.
 func _presentar_maestrias() -> void:
 	GameState.skills_intro_done = true
 	GameState.save_game()
+	# EL VELO VA PRIMERO y la barra de nivel POR ENCIMA de él (el velo se
+	# dibuja a z 150, así que a la barra se le sube el suyo mientras dura): es
+	# lo que se señala, y así el "esa de ahí" apunta a algo que se ve.
+	var velo := _velo_guia()
+	var z_barra := 0
+	if level_bar != null and is_instance_valid(level_bar):
+		z_barra = level_bar.z_index
+		level_bar.z_index = 160
 	var caja := DialogueBox.new()
 	caja.z_index = 200
+	caja.veil_on = false
 	ui_layer.add_child(caja)
 	caja.say([
 		{ "text": "¡Nivel **%d**, %s! Ya no cocinas como el que llegó a este barco." % [GameState.chef_level, GameState.player_title()], "mood": "riendo" },
 		{ "text": "Cada nivel te deja un **punto de maestría**, y llevas unos cuantos sin gastar. Eso es oficio guardado en el bolsillo.", "mood": "hablando" },
-		{ "text": "Se gastan en tres **árboles**: el **cuchillo** afila tus manos, el **cliente** te saca más de cada boca y el **chef** manda en los platos.", "mood": "hablando" },
-		{ "text": "El del **cuchillo** acorta gestos y enfriamientos: cocinas más en el mismo rato. El del **cliente** los hace esperar más, pagar más y dejar más propina.", "mood": "hablando" },
-		{ "text": "Y el del **chef** toca los platos: más vueltas en la cinta, cajas más altas, platos que salen gratis o dobles.", "mood": "hablando" },
-		{ "text": "Cinco habilidades por árbol, y cada una sube de rango si le echas más puntos. Empieza por lo que más te duela hoy.", "mood": "serio" },
+		{ "text": "Se gastan en la mesa de **Maestrías**, y se entra **tocando tu barra de nivel**: esa de ahí, la de la estrella.", "mood": "serio" },
 		{ "text": "¡GÁSTALOS YA! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
-		{ "text": "Y tranquilo: **se pueden recolocar** cuando quieras, así que no hay decisión que te ate. Vamos, que te enseño la mesa — se llega tocando tu **barra de nivel**.", "mood": "feliz" },
+		{ "text": "Vamos, que te la enseño.", "mood": "feliz" },
 	])
 	await caja.finished
 	await caja.close_and_free()
+	if level_bar != null and is_instance_valid(level_bar):
+		level_bar.z_index = z_barra
+	_quitar_velo(velo)
 	_go_skills()
 
 
@@ -3347,7 +3360,8 @@ func _go_arcade() -> void:
 	if leaving:
 		return
 	if not GameState.arcade_unlocked():
-		_show_locked_notice("El Arcade sin fin se abre al vencer al Kappa\nen la Cueva del Kappa (escenario 20).")
+		_show_locked_notice("El Arcade sin fin se abre al vencer al Kappa\nen %s."
+			% _donde_se_abre(GameState.ARCADE_PORT))
 		return
 	leaving = true
 	_sonar_zarpe()
@@ -3380,7 +3394,8 @@ func _go_fishing() -> void:
 	if leaving or fishing_ui != null:
 		return
 	if not GameState.fishing_unlocked():
-		_show_locked_notice("La Pesca se abre al superar\nla Isla de Gades (nivel 8).")
+		_show_locked_notice("La Pesca se abre al superar\n%s."
+			% _donde_se_abre(CampaignData.port_with("unlocks_fishing")))
 		return
 	leaving = true
 	_sonar_zarpe(false)
@@ -4315,14 +4330,26 @@ func _show_reveal(ids: Array) -> void:
 		out.chain().tween_callback(panel.queue_free))
 
 
+## "Cala Tortuga (escenario 1)": el nombre y el NÚMERO que ve el jugador de un
+## escenario, para los avisos de modo cerrado. Sale de los datos, que es lo
+## único que no se queda viejo al reordenar la campaña (los tres avisos
+## estaban escritos a mano con los números de antes: 2, 8 y 20).
+func _donde_se_abre(port_id: String) -> String:
+	var p := CampaignData.get_port(port_id)
+	if p.is_empty():
+		return "más adelante en la travesía"
+	return "%s (escenario %d)" % [str(p.get("name", port_id)),
+		CampaignData.port_number(port_id)]
+
+
 ## TIENDA: entra un puerto por la derecha, el barco navega hasta él con la
 ## CÁMARA DETRÁS, atraca, zoom sobre el atraque y a negro.
 func _go_shop() -> void:
 	if leaving:
 		return
 	if not GameState.shop_unlocked():
-		_show_locked_notice("La tienda abre cuando superes
-el nivel 2 de la Aventura.")
+		_show_locked_notice("La tienda abre cuando superes\n%s."
+			% _donde_se_abre(CampaignData.port_with("unlocks_shop")))
 		return
 	leaving = true
 	# PRIMERO VIRA HACIA ABAJO Y LEVANTA EL VIENTO, y solo entonces navega

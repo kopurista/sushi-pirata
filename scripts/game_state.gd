@@ -211,6 +211,19 @@ var nivel_intro_done := false
 ## Explicaciones de PANTALLA: se dan la primera vez que se entra en cada una.
 var logros_intro_done := false
 var inventario_intro_done := false
+## La COLECCION tiene pantalla propia desde que se separo del recetario, y su
+## explicacion va aparte: la del camarote hablaba de una vitrina que ya no
+## esta alli (le paso al usuario).
+var coleccion_intro_done := false
+## Los tres arboles se explican EN EL PROPIO ARBOL, la primera vez que se
+## entra (`skills_screen._explicar_arbol`); `skills_intro_done` es solo la
+## escena del menu que lleva hasta el.
+var skills_tree_intro_done := false
+## Escenarios cuyo cliente del tesoro YA PAGO. Las pagas que no son de vitrina
+## (arroz, oro, despensa, mapa, receta) no dejan huella en ningun sitio, y la
+## ficha del mapa necesita saber si el tesoro de ese escenario sigue
+## pendiente o ya se cobro.
+var tesoros_cobrados: Array = []
 ## David ya explicó para qué sirve el ARROZ (al elegir el primer puerto).
 var rice_intro_done := false
 ## Ya se vio la escena de Pablo y Saverio en la tienda (tras su nivel).
@@ -332,6 +345,30 @@ const GRAPHICS_PRESETS := {
 	"baja": { "quality": 0, "fps": 30, "shadows": false, "anim": false },
 }
 const PRESET_ORDER := ["alta", "media", "baja", "custom"]
+
+
+## ¿Esto corre en un movil? Cuenta el export nativo y la build WEB abierta
+## desde un telefono, que es como se prueba el juego en el iPhone: ahi
+## `has_feature("mobile")` es falso y lo que dice la plataforma es
+## `web_ios` / `web_android`.
+func es_movil() -> bool:
+	return OS.has_feature("mobile") or OS.has_feature("web_ios") \
+		or OS.has_feature("web_android")
+
+
+## LOS AJUSTES CON LOS QUE ARRANCA UNA PARTIDA SIN AJUSTES GUARDADOS. En el
+## MOVIL es el bloque "Media" (escala de render 0.8 y 30 fps), no "Alta"
+## (pedido por el usuario: el juego se comia la bateria y el telefono lo
+## recargaba al entrar en ahorro de energia). Es lo que mas pesa en un
+## telefono: el 3D a resolucion nativa a 60 fps. Quien quiera "Alta" la tiene
+## a un dedo en Opciones, y un guardado con ajustes elegidos no se toca.
+func ajustes_de_serie() -> Dictionary:
+	var s: Dictionary = DEFAULT_SETTINGS.duplicate()
+	if es_movil():
+		s["preset"] = "media"
+		for k in GRAPHICS_PRESETS["media"]:
+			s[k] = GRAPHICS_PRESETS["media"][k]
+	return s
 const PRESET_NAMES := {
 	"alta": "Alta", "media": "Media", "baja": "Baja", "custom": "Personalizado",
 }
@@ -2631,6 +2668,16 @@ func shadows_on() -> bool:
 	return bool(get_setting("shadows"))
 
 
+## ¿Se dibuja el pase de POST-PROCESO del 3D (el glow y el ajuste de color)?
+## Solo en calidad ALTA, y no es un capricho: MEDIDO en el nivel, el pase
+## cuesta +0,13 ms por fotograma (0,72 -> 0,85), un 18% más, mientras que lo
+## que se ve cambia entre el 1% y el 3% de la imagen. En un móvil esa cuenta no
+## sale, así que en media y baja se apaga. La LUZ DE RELLENO no entra aquí:
+## esa sí es gratis (0,73 contra 0,72, dentro del ruido) y va siempre.
+func post_fx_on() -> bool:
+	return int(get_setting("quality")) >= 2
+
+
 func animations_on() -> bool:
 	return bool(get_setting("anim"))
 
@@ -2745,6 +2792,9 @@ func save_game() -> void:
 		"nivel_intro_done": nivel_intro_done,
 		"logros_intro_done": logros_intro_done,
 		"inventario_intro_done": inventario_intro_done,
+		"coleccion_intro_done": coleccion_intro_done,
+		"skills_tree_intro_done": skills_tree_intro_done,
+		"tesoros_cobrados": tesoros_cobrados,
 		"bait": bait,
 		"treasure_maps": treasure_maps,
 		"treasure_open": treasure_open,
@@ -2935,7 +2985,7 @@ func load_game() -> void:
 			seen_medals[str(a["id"])] = AchievementData.medal_for(a,
 				achievement_value(a))
 	play_seconds = float(parsed.get("play_seconds", 0.0))
-	settings = DEFAULT_SETTINGS.duplicate()
+	settings = ajustes_de_serie()
 	var set_dict: Dictionary = parsed.get("settings", {})
 	for k in set_dict.keys():
 		if DEFAULT_SETTINGS.has(str(k)):
@@ -2993,6 +3043,14 @@ func load_game() -> void:
 	nivel_intro_done = bool(parsed.get("nivel_intro_done", false))
 	logros_intro_done = bool(parsed.get("logros_intro_done", tutorial_done))
 	inventario_intro_done = bool(parsed.get("inventario_intro_done", tutorial_done))
+	coleccion_intro_done = bool(parsed.get("coleccion_intro_done", inventario_intro_done))
+	# Un guardado anterior con las maestrias ya presentadas da por explicado
+	# el arbol: aquella escena del menu lo contaba entero.
+	skills_tree_intro_done = bool(parsed.get("skills_tree_intro_done",
+		parsed.get("skills_intro_done", false)))
+	tesoros_cobrados = []
+	for t in parsed.get("tesoros_cobrados", []):
+		tesoros_cobrados.append(str(t))
 	# Las "tiradas gratis" de los guardados viejos son los CEBOS de hoy: el
 	# mecanismo era el mismo y solo cambió de nombre al ganarse por nivel.
 	bait = int(parsed.get("bait", parsed.get("free_casts", 0)))
@@ -3042,7 +3100,7 @@ func _new_game() -> void:
 	# ensena como botin, y dejandolo sin poner el rescate de guardados viejos
 	# (money + money_spent) lo sembraba con los 50 doblones de bienvenida.
 	stats = { "money_total": 0 }
-	settings = DEFAULT_SETTINGS.duplicate()
+	settings = ajustes_de_serie()
 	play_seconds = 0.0
 	player_gender = CharacterData.MALE
 	player_name = ""
@@ -3113,6 +3171,9 @@ func _new_game() -> void:
 	nivel_intro_done = false
 	logros_intro_done = false
 	inventario_intro_done = false
+	coleccion_intro_done = false
+	skills_tree_intro_done = false
+	tesoros_cobrados = []
 	bait = 0
 	treasure_maps = 0
 	treasure_open.clear()

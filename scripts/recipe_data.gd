@@ -1807,7 +1807,7 @@ static func summary(id: String) -> String:
 		f.append("Pero su humo **baja %d puntos** de multiplicador al vecino de cada lado."
 			% -int(r.get("neighbor_mult", 0)))
 	if float(r.get("next_take_bonus", 0.0)) > 0.0:
-		f.append("Quien lo come coge el **siguiente plato** que le pase con un **+%d%%** en el dado."
+		f.append("Quien lo come tiene un **+%d%%** de probabilidad de coger el **siguiente plato** que le pase."
 			% int(round(float(r.get("next_take_bonus", 0.0)) * 100.0)))
 	if bool(r.get("frescura", false)):
 		f.append("**Recién hecho paga hasta un 30% más**: cada vuelta de cinta lo abarata.")
@@ -1832,8 +1832,11 @@ static func summary(id: String) -> String:
 		f.append("**Plato de valientes**: quien lo deja pasar pierde paciencia; quien lo coge la rellena ENTERA.")
 	var fama := float(r.get("fama", 0.0))
 	if fama > 0.0:
+		# EN CRISTIANO (pedido por el usuario): "se hace famoso" y "sube su
+		# probabilidad" no decian probabilidad DE QUE. Lo que sube es la
+		# probabilidad de que un cliente lo coja de la cinta.
 		var tope := float(r.get("fama_max", 0.10))
-		f.append("**Se hace famoso**: cada uno que sirves sube su probabilidad un **%.1f%%**, hasta un **+%d%%** en la jornada."
+		f.append("**Gusta más cuanto más lo sirves**: cada plato de estos que sirvas sube un **%.1f%%** la probabilidad de que un cliente lo coja, hasta **+%d%%** en la jornada."
 			% [fama * 100.0, int(round(tope * 100.0))])
 	if bool(r.get("variety_snack", false)):
 		f.append("Y **sube el multiplicador**, cosa que los demás picoteos no hacen.")
@@ -1847,9 +1850,10 @@ static func summary(id: String) -> String:
 		f.append("Además **limpia el paladar**: todo vuelve a contar como nuevo.")
 
 	var libres := int(r.get("free_uses", 0))
-	if libres > 0:
-		f.append("**Maestría**: %d piezas por elaboración (haces la primera; las otras %d salen hechas)."
-			% [libres + 1, libres])
+	if libres == 1:
+		f.append("**Uso extra**: preparas uno y sale **otro** ya hecho.")
+	elif libres > 1:
+		f.append("**Usos extra**: preparas uno y salen **%d más** ya hechos." % libres)
 
 	var congela := float(r.get("patience_freeze", 0.0))
 	if congela > 0.0:

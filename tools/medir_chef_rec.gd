@@ -19,9 +19,13 @@ extends SceneTree
 func _init() -> void:
 	print("escenario                        pos  3*  2*   XP(3*)")
 	print("-------------------------------------------------------")
+	# LOS ACUMULADORES NO SE REINICIAN CON EL MAR: el cocinero entra en el mar
+	# 2 con lo que se trae del 1, asi que su `chef_rec` sigue la cuenta. Se
+	# reiniciaban, y el primer escenario del mar 2 salia recomendado para
+	# "nivel 1".
+	var xp_bordando := 0
+	var xp_aprobando := 0
 	for mar in [1, 2]:
-		var xp_bordando := 0
-		var xp_aprobando := 0
 		var pos := 0
 		for p in CampaignData.PORTS:
 			var id := str(p.get("id", ""))

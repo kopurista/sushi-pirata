@@ -1137,7 +1137,10 @@ func _scan_belt(snack_only: bool = false) -> void:
 			if not mar.is_empty() and not eaten_ids.is_empty() \
 					and str(eaten_ids.back()) in mar.get("con", []):
 				current_price += int(mar.get("bono", 0))
-				_float_text("¡Maridaje!", Color(1.0, 0.86, 0.2), -50.0)
+				# CON LA CIFRA (pedido por el usuario): "¡Maridaje!" a secas decia
+				# que habia pasado algo, no cuanto valia.
+				_float_text("¡Maridaje! +%d" % int(mar.get("bono", 0)),
+					Color(1.0, 0.86, 0.2), -50.0)
 			current_satiety = plate_satiety
 			current_id = rid
 			current_extras = plate.extras.duplicate()

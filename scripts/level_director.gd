@@ -462,6 +462,14 @@ const CAJAS_PEDIDAS := 4
 ## Fracción de paciencia del primer cliente a la que entra el refuerzo si aún
 ## no ha llegado a su segundo plato.
 const REFUERZO_PACIENCIA := 2.0 / 3.0
+## CUÁNTO SUBE LA CAJA DE DIÁLOGO AL HABLAR DE LAS CAJAS. Las cajas viven en la
+## tabla, entre la y 780 y la 968 del lienzo, y la caja de diálogo subida lo
+## de siempre (330) sigue ocupando de la 544 a la 938: las tapaba de lleno
+## mientras se explicaban (le pasó al usuario). MEDIDO en captura: con 470
+## terminaba en la 798 y su marco todavía mordía los 18 px de arriba de las
+## cajas; con 490 termina en la 778 y las deja enteras. El retrato de David
+## pierde 70 px por arriba, que son el aire y el filo de su pañuelo.
+const CAJAS_RAISE := 490.0
 
 var _cajas_regano := false
 
@@ -477,15 +485,16 @@ func _nivel_2() -> void:
 		{ "text": "**Playa del Coco**. Hoy te voy a enseñar el truco que separa a un cocinero de un friegaplatos.", "mood": "feliz" },
 	])
 	await _focus_node(pb.storage_box, 16.0)
-	# SUBIDA (`_say_raised`): las cajas viven abajo del todo y la caja de
-	# diálogo, a su altura de siempre, las tapaba justo mientras se explican.
+	# SUBIDA (`_say_raised`) Y MÁS QUE DE COSTUMBRE (`CAJAS_RAISE`): las cajas
+	# viven abajo del todo y la caja de diálogo, a su altura de siempre, las
+	# tapaba justo mientras se explican.
 	await _say_raised([
 		{ "text": "Estas dos **cajas** son tuyas desde hoy. Guardan platos ya hechos y los mantienen calientes hasta que tú digas.", "mood": "hablando" },
 		{ "text": "Sirve para adelantar trabajo: cocinas cuando tienes hueco y sueltas cuando hace falta.", "mood": "serio" },
 		{ "text": "¡CAJAS! ¡RAAAK!", "who": "gigi", "mood": "loro" },
 		{ "text": "Y otra cosa: desde hoy la **despensa se gasta**. Cada receta que embarques consume un uso de sus ingredientes.", "mood": "serio" },
 		{ "text": "Empieza tranquilo, que de momento solo hay una boca. Ya te avisaré yo cuando toque.", "mood": "hablando" },
-	])
+	], -1.0, CAJAS_RAISE)
 	_play()
 	_vigilar_basura()
 	await _tras_la_preparacion()
@@ -533,11 +542,11 @@ func _leccion_cajas() -> void:
 	# (Las cajas ya están puestas y explicadas desde el principio del nivel: lo
 	# que se enseña AQUÍ es para qué sirven de verdad cuando la barra aprieta.)
 	await _focus_node(pb.storage_box, 16.0)
-	await _say([
+	await _say_raised([
 		{ "text": "¡Ahora sí! Se nos llena la barra, y un plato en la cinta se lo queda **el primero que pase**, no el que tú quieras.", "mood": "sorprendido" },
 		{ "text": "Aquí es donde las cajas valen su peso en oro: cocinas de antemano y los sueltas TODOS DE GOLPE, uno para cada boca.", "mood": "hablando" },
 		{ "text": "Prepara **%d platos** y mételos en las cajas. Yo te espero: hoy nadie se me impacienta." % CAJAS_PEDIDAS, "mood": "serio" },
-	])
+	], -1.0, CAJAS_RAISE)
 	# Si intenta mandarlo a la cinta, Gigi le corta (una sola vez).
 	pb.block_serve = true
 	if not pb.serve_blocked.is_connected(_on_cinta_cerrada):
@@ -758,20 +767,26 @@ func _nivel_5() -> void:
 		{ "text": "¡FUERA! ¡SITIO PARA EL SIGUIENTE! ¡RAAAK!", "who": "gigi", "mood": "loro_sorpresa" },
 		{ "text": "Eso. Cuanto más alta lleve la chapa, más gorda la propina: súbele la variedad y **entonces** le sacas el postre.", "mood": "loro_resignado" },
 	])
-	await _say_raised([
-		{ "text": "Y un secreto de cocinero: hay platos que **casan** con otros. Si a alguien le sirves el mochi justo después de un **té verde**, paga más.", "mood": "feliz" },
-		{ "text": "Se llama **maridaje**, y lo dice el recetario de cada plato. Cuando lo aciertes, verás saltar el aviso.", "mood": "hablando" },
-	])
+	# (EL MARIDAJE YA NO SE ADELANTA AQUÍ: se enseña entero en el 12, y contado
+	# dos veces el jugador oía la misma lección en dos escenarios seguidos —
+	# le pasó al usuario.)
 	_play("¡Súbele la chapa y despídelo con un **mochi**!")
 
-	# --- El primer potenciador elegido ---
+	# --- El primer potenciador: la lección se da CON EL CARTEL DELANTE ---
+	# (pedido por el usuario). Antes David hablaba en cuanto el bote cruzaba
+	# el umbral —con la barra aún a medio pintar y sin cartel en pantalla—,
+	# porque `powerups_claimed` sube en ese mismo instante y el cartel tarda
+	# un respiro en salir. Ahora se espera al cartel, se enfoca, y se explica
+	# encima de él con las tres cartas a la vista (`_say_sobre_cartel`, que ni
+	# lo aplaza ni le quita la pausa). El jugador elige cuando David calla.
 	await _esperar(func() -> bool:
-		return lv.ended or (lv.powerups_claimed >= 1
-				and not lv.powerup_panel.visible))
+		return lv.ended or lv.powerup_panel.visible)
 	if lv.ended:
 		return
-	await _say([
-		{ "text": "¡Tu primer **potenciador**! Son de un solo turno y el sorteo cambia cada vez: gástalos sin pena.", "mood": "feliz" },
+	await _focus_node(lv.powerup_panel, 6.0)
+	await _say_sobre_cartel([
+		{ "text": "¡Bote lleno! Y ahí lo tienes: tres **potenciadores** a elegir. Coge UNO, y vale para el resto del turno.", "mood": "feliz" },
+		{ "text": "El sorteo cambia cada vez que se llena el bote, así que gástalos sin pena. Elige.", "mood": "hablando" },
 	])
 	_play()
 
@@ -862,42 +877,23 @@ func _nivel_22() -> void:
 
 
 # ------------------------------------------------------------------- nivel 7
-# Estrecho del Rayo: el primer ABORDAJE (reloj y clientela sin fin) y los
-# primeros PIRATAS del juego. Los capitanes NO salen aquí: llegan con Pablo, en
-# el 10. El pirata es el TERCER cliente (`client_order` del puerto), así que no
-# hay que adelantar a nadie: solo esperar a que se siente.
+# Estrecho del Rayo (ESCENARIO 14): el primer ABORDAJE (reloj y clientela sin
+# fin) y los primeros PIRATAS del juego. Los capitanes NO salen aquí: llegan
+# con Pablo, en el 23. El pirata es el TERCER cliente (`client_order` del
+# puerto), así que no hay que adelantar a nadie: solo esperar a que se siente.
 #
-# Y ES **EL** PIRATA: sube uno solo en todo el nivel (ver `client_weights` del
-# puerto) porque es quien lleva encima la BANDERA PIRATA, y este es el único
-# sitio del juego donde se consigue. Le pone precio él mismo, en su propio
-# retrato: `platos_bandera()` platos y el trapo es tuyo.
-
-## Platos que hay que servirle al pirata para que suelte su bandera. TRES, no
-## cinco: en un abordaje de 2:30, con el pirata entrando el tercero y comiendo
-## de dos estrellas, cinco eran casi todo el turno dedicado a un solo cliente.
-## El número lo manda el PROPIO ESCENARIO (`collectible_here.n`), no esta
-## constante: la vitrina lee esos mismos datos para su pista, y con dos
-## números sueltos el pirata podía pedir tres platos y la pista decir otra
-## cosa. Aquí solo queda el respaldo por si el dato faltara.
-static func platos_bandera() -> int:
-	var cfg: Dictionary = CampaignData.get_port("nivel_7").get(
-		"collectible_here", {})
-	return maxi(int(cfg.get("n", 3)), 1)
-## EL pirata del nivel 7 y su trato, que se resuelve por señal (ver
-## `_on_pirata_come`).
-var _pirata_bandera: Node3D = null
-## La CUENTA está hecha (la apunta la señal) y el premio ya se ha ENTREGADO
-## (lo hace el guion, después de que el pirata hable). Son dos cosas distintas
-## a propósito: ver `_on_pirata_come` y `_entregar_bandera`.
-var _bandera_dada := false
-var _bandera_entregada := false
-
+# LA BANDERA PIRATA YA NO SE GANA AQUÍ (pedido por el usuario): el 14 presenta
+# a los piratas y es en el 15, la práctica del abordaje, donde sube EL pirata
+# que paga con su bandera. Aquel trato tenía guion propio en este nivel (la
+# cuenta por señal, la entrega después de hablar); hoy va por el mecanismo
+# general del cliente del tesoro (`_vigilar_tesoro`), que hace exactamente
+# eso para cualquier escenario.
 
 ## QUÉ SON LOS COLECCIONABLES. Se cuenta UNA sola vez en toda la partida y
 ## SIEMPRE con una pieza recién ganada en la mano (`col_intro_done`): la bandera
-## del pirata, el tesoro del cliente del nivel 12 o el primer cofre de la pesca,
-## lo que llegue antes. Soltado a palo seco al empezar un puerto sonaba a
-## folleto; con la pieza delante se explica solo.
+## del pirata del 15, el tricornio del capitán del 27 o el primer cofre de la
+## pesca, lo que llegue antes. Soltado a palo seco al empezar un puerto sonaba
+## a folleto; con la pieza delante se explica solo.
 func _explicar_coleccionables() -> void:
 	if GameState.col_intro_done:
 		return
@@ -955,104 +951,6 @@ func _nivel_7() -> void:
 	await lv.prep_board.dish_served
 	_play()
 
-	# --- EL TRATO DE LA BANDERA ---
-	# El pirata habla por sí mismo (retrato propio) y pone precio a su bandera.
-	# Es el ÚNICO sitio del juego donde se consigue ese coleccionable, y por eso
-	# este puerto trae un solo pirata: con dos no habría forma de saber a cuál
-	# se le está sirviendo.
-	if pirata == null or not is_instance_valid(pirata) or lv.ended:
-		return
-	await _pausa(1.0)
-	if not is_instance_valid(pirata) or lv.ended:
-		return
-	# LA CUENTA LA LLEVA EL PROPIO PIRATA, POR SEÑAL. Estaba en un `_esperar`
-	# que además de la cuenta miraba `lv.ended`, y eso perdía la bandera en el
-	# caso más normal de todos: `eaten_ids` cuenta platos TERMINADOS, no
-	# servidos, así que el último plato se estaba masticando cuando se acabó el
-	# reloj del abordaje —o cuando al pirata se le agotó la paciencia— y el
-	# guion salía por la puerta de atrás con la cuenta en N-1. Se le habían
-	# servido los platos, pero el trato no se cumplía nunca.
-	# Ahora el premio lo entrega `_on_pirata_come` en cuanto el plato baja, sin
-	# preguntarle al nivel si sigue vivo. Lo único que se pierde si el turno se
-	# cierra en ese instante es la escena de agradecimiento.
-	_pirata_bandera = pirata
-	if not pirata.plate_served.is_connected(_on_pirata_come):
-		pirata.plate_served.connect(_on_pirata_come)
-	# EL RETRATO ES EL DEL PIRATA QUE HAY SENTADO: si el spawner lo sacó
-	# femenino, habla la pirata. Se compone con `DialogueBox.speaker_for`, nunca
-	# a mano, para que no se pueda quedar desparejado del taburete.
-	var quien := DialogueBox.speaker_for("pirata", str(pirata.gender))
-	_focus_client(pirata)
-	await _say([
-		{ "text": "Eh, cocinero. Baja un momento.", "who": quien, "mood": "nervioso" },
-		{ "text": "Mi capitán me manda a comer y vuelvo con el buche vacío... y esta noche me deja fregando la sentina.", "who": quien, "mood": "hablando" },
-		{ "text": "Ponme **%d platos** y te doy mi **bandera**. La llevo desde el primer abordaje, pero prefiero cenar." % platos_bandera(),
-			"who": quien, "mood": "serio" },
-		{ "text": "¡%d PLATOS POR UN TRAPO! ¡RAAAK!" % platos_bandera(), "who": "gigi", "mood": "loro" },
-		{ "text": "Ese trapo es un **coleccionable**, plumas. Tú sírvele, %s." % GameState.player_title(), "mood": "loro_resignado" },
-	])
-	_play("¡%d platos para el **pirata**! Lo demás ya vendrá." % platos_bandera())
-
-	# --- Se cumple el trato: la bandera en mano ---
-	# LA SEÑAL SOLO APUNTA QUE LA CUENTA ESTÁ HECHA; QUIEN ENTREGA ES ESTE
-	# GUION, Y DESPUÉS DE HABLAR. La ventana del coleccionable la saca
-	# `GameState` en su capa global de avisos, así que entregándola desde la
-	# señal se colaba ENCIMA del pirata antes de que le diera tiempo a decir
-	# nada: primero salía el cartel del premio y después el "lo prometido".
-	# El premio sigue sin depender de que al nivel le quede reloj: si el turno
-	# se cierra con la cuenta hecha, se entrega igual (abajo), y lo único que
-	# se pierde es la escena.
-	await _esperar(func() -> bool: return lv.ended or _bandera_dada)
-	if not _bandera_dada:
-		return
-	if not lv.ended and is_instance_valid(pirata):
-		_focus_client(pirata)
-		await _say([
-			{ "text": "Uf. Hacía años que no comía así.", "who": quien, "mood": "feliz" },
-			{ "text": "Lo prometido. Cuídala mejor que yo.", "who": quien, "mood": "hablando" },
-		])
-		_play()
-		await _pausa(0.4)
-	_entregar_bandera()
-	if lv.ended:
-		return
-	# DAVID ESPERA A QUE SE CIERRE LA VENTANA DEL COLECCIONABLE. La saca
-	# `GameState` en su capa global de avisos, que va por encima de todo: si
-	# David arrancaba a hablar en el mismo momento, la caja de diálogo salía
-	# debajo del cartel de la bandera y las dos cosas se pisaban.
-	await _esperar(func() -> bool:
-		return lv.ended or not GameState.notices_busy())
-	if lv.ended:
-		return
-	await _pausa(0.35)
-	await _explicar_coleccionables()
-	_play()
-
-
-## Entrega DE VERDAD el coleccionable (una sola vez, se llame desde donde se
-## llame). Separado de la cuenta a propósito: ver `_on_pirata_come`.
-func _entregar_bandera() -> void:
-	if _bandera_entregada:
-		return
-	_bandera_entregada = true
-	GameState.unlock_collectible("bandera")
-
-
-## Cada plato que se termina EL pirata del nivel 7. Cumplida la cuenta, la
-## bandera se entrega AQUÍ MISMO y no en el guion: así el premio no depende de
-## que al nivel le quede reloj ni de que al pirata le quede paciencia. La
-## ventana del coleccionable la saca `GameState` en su capa global de avisos,
-## que sobrevive incluso al cartel de resultados.
-func _on_pirata_come(_precio: int, _propina: int) -> void:
-	if _bandera_dada or _pirata_bandera == null \
-			or not is_instance_valid(_pirata_bandera):
-		return
-	if _pirata_bandera.eaten_ids.size() < platos_bandera():
-		return
-	# AQUÍ SOLO SE APUNTA QUE LA CUENTA ESTÁ HECHA. La entrega (y con ella la
-	# ventana del coleccionable) la hace el guion cuando el pirata ha terminado
-	# de hablar; ver `_entregar_bandera`.
-	_bandera_dada = true
 
 
 # ------------------------------------------------------------------- nivel 8
@@ -1321,7 +1219,7 @@ func _nivel_11() -> void:
 	_regalar_receta(RECETA_RAPIDA)
 	await _focus_node(lv.prep_board.buttons[RECETA_RAPIDA], 12.0)
 	await _say_raised([
-		{ "text": "El **futomaki de salmón**: tres estrellas y **maestría**. Lo haces una vez y salen tres piezas.", "mood": "feliz" },
+		{ "text": "El **futomaki de salmón**: tres estrellas y con **usos extra**. Lo haces una vez y salen tres piezas.", "mood": "feliz" },
 		{ "text": "Esa es la jugada: un plato caro para el capitán y un rollo rápido para tapar los huecos.", "mood": "riendo" },
 	])
 	if not lv.prep_board.dish_served.is_connected(_on_plato_servido):
@@ -1364,7 +1262,8 @@ func _vigilar_tesoro() -> void:
 	if lv == null or not is_instance_valid(lv) or lv.ended:
 		return
 	await _pausa(0.9)
-	if lv.ended or lv.treasure_client == null 			or not is_instance_valid(lv.treasure_client):
+	if lv.ended or lv.treasure_client == null \
+			or not is_instance_valid(lv.treasure_client):
 		return
 	var quien := DialogueBox.speaker_for(
 		str(lv.treasure_client.client_type), str(lv.treasure_client.gender))
@@ -1374,14 +1273,19 @@ func _vigilar_tesoro() -> void:
 	# encargo es una RECETA CONCRETA que hoy no va en la carta — para decir que
 	# se puede volver otro día con ella, que sin esa frase el tesoro parecería
 	# perdido para siempre.
+	# Y DICE CON QUÉ PAGA (pedido por el usuario): "pago con esto" a secas no
+	# decía nada. La frase sale de `CampaignData.pago_texto`, la misma que
+	# luego lee la ficha del mapa.
 	var lineas: Array = [
-		{ "text": "Tú. Cocinero. Yo no pago con oro: pago con esto.", "who": quien, "mood": "serio" },
+		{ "text": "Tú. Cocinero. Yo no pago con oro. Pago con esto: %s." % CampaignData.pago_texto(cfg), "who": quien, "mood": "serio" },
 		{ "text": "Y solo lo suelto si me cumples el capricho: %s. Si no, me lo llevo por donde he venido." % CampaignData.reto_texto(cfg, true), "who": quien, "mood": "hablando" },
 	]
-	var falta_receta := str(cfg.get("reto", "")) == "receta" 			and not str(cfg.get("recipe", "")) in GameState.selected_recipes
+	var receta := str(cfg.get("recipe", ""))
+	var falta_receta: bool = str(cfg.get("reto", "")) in ["receta", "receta_n"] \
+			and not receta in GameState.selected_recipes \
+			and not lv.prep_board.buttons.has(receta)
 	if falta_receta:
-		var nombre := str(RecipeData.RECIPES.get(str(cfg.get("recipe", "")), {})
-				.get("name", cfg.get("recipe", "")))
+		var nombre := str(RecipeData.RECIPES.get(receta, {}).get("name", receta))
 		lineas.append({ "text": "¿**%s**? Hoy no lo llevamos en la carta, %s..." % [nombre, GameState.player_title()], "mood": "sorprendido" })
 		lineas.append({ "text": "Apúntatelo: cuando lo tengas, **vuelve aquí con él en la carta**. Este no parece de los que cambian de antojo.", "mood": "hablando" })
 	await _say(lineas)
@@ -1389,6 +1293,39 @@ func _vigilar_tesoro() -> void:
 	# Bandera para los guiones que tienen algo que decir DESPUES del encargo
 	# (el del mapa del tesoro): hablar encima del cliente le pisaria su escena.
 	_tesoro_cantado = true
+
+	# --- SE CUMPLE EL TRATO: LO ENTREGA ÉL, HABLANDO (pedido por el usuario)
+	# La cuenta la lleva level3d (`treasure_ready`, que se enciende al plato
+	# que cierra el encargo) y la ENTREGA es de este guion, después de que el
+	# cliente diga lo suyo: si la hiciera level3d, la ventana del premio
+	# saltaría antes de que abriera la boca. Si el turno se cierra con la
+	# cuenta hecha, `_end_level` entrega igual y solo se pierde la escena.
+	await _esperar(func() -> bool: return lv.ended or lv.treasure_ready)
+	if lv.ended or not lv.treasure_ready:
+		return
+	if is_instance_valid(lv.treasure_client) and lv.treasure_client in lv.seat_clients:
+		_focus_client(lv.treasure_client)
+		await _say([
+			{ "text": "Mmm. Trato es trato.", "who": quien, "mood": "feliz" },
+			{ "text": "Toma: %s. Bien ganado." % CampaignData.pago_texto(cfg), "who": quien, "mood": "hablando" },
+		])
+		_play()
+		await _pausa(0.4)
+	if lv.ended:
+		return
+	lv._entregar_tesoro()
+	# Con una pieza de VITRINA en la mano, David explica qué es un
+	# coleccionable (una sola vez en toda la partida). Espera a que se cierre
+	# la ventana del premio, que va por encima de todo.
+	if str(cfg.get("item", "")) == "":
+		return
+	await _esperar(func() -> bool:
+		return lv.ended or not GameState.notices_busy())
+	if lv.ended:
+		return
+	await _pausa(0.35)
+	await _explicar_coleccionables()
+	_play()
 
 
 ## EL HÁNDICAP DEL TIPO DE ESCENARIO, una vez por tipo en toda la partida:
@@ -1579,11 +1516,10 @@ func _nivel_14() -> void:
 
 
 # ------------------------------------------------------------------- nivel 16
-# Ensenada del Maridaje (ESCENARIO 8): EL MARIDAJE. Va pegado al de los postres
-# a propósito (pedido por el usuario): allí David lo menciona de pasada al
-# regalar el mochi —"si le sirves el mochi justo después de un té verde, paga
-# más"— y aquí se hace. Por eso la pareja del ejercicio es EXACTAMENTE esa: lo
-# que se oyó en el 7 es lo que se practica en el 8.
+# Ensenada del Maridaje (ESCENARIO 12): EL MARIDAJE, entero y por primera vez.
+# Iba adelantado de pasada en el de los postres (el 10) y el usuario oía la
+# misma lección dos veces: ahora el 10 no lo menciona y aquí se presenta y se
+# practica con la pareja más a mano, el té y el mochi.
 #
 # Y los dos platos son REGALOS de guion (el té en el 5, el mochi en el 7), así
 # que a estas alturas los tiene cualquiera. La sopa de miso, que era la pareja
@@ -1619,7 +1555,7 @@ func _nivel_16() -> void:
 	if not botones.is_empty():
 		await _focus_nodes(botones, 14.0)
 	await _say_raised([
-		{ "text": "Ahí la tienes, la pareja de la que te hablé: el **té verde** y el **mochi**. Ese postre casa con ese té.", "mood": "hablando" },
+		{ "text": "Ahí tienes una pareja de las buenas: el **té verde** y el **mochi**. Ese postre casa con ese té.", "mood": "hablando" },
 		{ "text": "Primero el té. Y cuando se lo haya **terminado** —terminado, no servido— le sacas el mochi.", "mood": "serio" },
 		{ "text": "¡EL ORDEN! ¡QUE SE MIRA EL ÚLTIMO QUE COMIÓ! ¡RAAAK!", "who": "gigi", "mood": "loro_grito" },
 		{ "text": "Eso mismo: si le cuelas otro plato en medio, se rompe. Pruébalo con uno y verás saltar el aviso sobre su cabeza.", "mood": "feliz" },

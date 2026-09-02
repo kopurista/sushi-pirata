@@ -1367,6 +1367,33 @@ func _setup_route(mar := mar_actual) -> void:
 ## dice qué grupo tiene cada uno, así que montar dos veces el mismo es
 ## imposible por construcción.
 var montados: Dictionary = {}
+## El pivote de cada escenario montado, para APAGAR los que quedan lejos de la
+## cámara (ver `_recortar_lejanos`).
+var nodo_pivots: Dictionary = {}
+
+
+## LOS ESCENARIOS A MÁS DE UNA PANTALLA DE LA CÁMARA SE APAGAN (pedido por el
+## usuario, para la batería del móvil): se recorre la lista cada 10
+## fotogramas y cada pivote se enciende o se apaga según lo lejos que quede su
+## `y` de `cam_center`. El margen es más de una pantalla (la vista abarca de
+## −500 a +780 alrededor de la cámara), así que nada se apaga a la vista.
+## Lo que se ahorra es lo que el motor hace POR INSTANCIA aunque acabe fuera
+## del encuadre — el recorte por frustum de cada malla y sus sombras de
+## mancha—, que con 35 escenarios de ~8.000 triángulos no es cero.
+const RECORTE_PX := 1500.0
+var _recorte_tic := 0
+
+
+func _recortar_lejanos() -> void:
+	_recorte_tic += 1
+	if _recorte_tic % 10 != 0:
+		return
+	for id in nodo_pivots:
+		var pv = nodo_pivots[id]
+		if pv == null or not is_instance_valid(pv):
+			continue
+		var y: float = CampaignData.map_pos(str(id)).y
+		pv.visible = absf(y - cam_center) <= RECORTE_PX
 
 
 func _setup_nodes(mar := mar_actual, solo: Array = []) -> void:
@@ -1381,6 +1408,7 @@ func _setup_nodes(mar := mar_actual, solo: Array = []) -> void:
 		var pivot := _spawn_model(load(KIND_MODELS[kind]), pos,
 			float(KIND_FOOT.get(kind, 2.5)))
 		pivot.add_to_group(_grupo(mar_montando))
+		nodo_pivots[id] = pivot
 		# Los barcos se hunden un poco en el agua; las islas asientan su base.
 		pivot.position.y = -0.10 if kind != "abordaje" else -0.06
 		# Y LO QUE FLOTA, FLOTA: un barco enemigo sube y baja con la marea; una
@@ -3009,15 +3037,58 @@ func _texto_cierre(id: String) -> String:
 ## EL COLECCIONABLE QUE SE PUEDE CONSEGUIR AQUÍ, con una interrogación encima
 ## mientras no se tenga: dice que en este escenario hay algo que llevarse sin
 ## desvelar qué es. Ya conseguido sale a plena luz y con su visto.
+## La primera LETRA en mayúscula y nada más. `String.capitalize()` pone en
+## mayúscula cada palabra ("3 Sacos De Arroz"), y aquí la frase empieza por
+## los `**` de la palabra clave, así que se busca la primera letra de verdad.
+func _mayuscula_inicial(s: String) -> String:
+	for i in s.length():
+		var c := s[i]
+		if c == "*" or c == " ":
+			continue
+		# Empieza por una cifra ("3 sacos de arroz"): se deja como está.
+		if c.to_upper() == c.to_lower():
+			return s
+		return s.substr(0, i) + c.to_upper() + s.substr(i + 1)
+	return s
+
+
 func _fill_tesoro(id: String) -> void:
-	var item := CampaignData.collectible_of(id)
-	_ver_seccion(info_tesoro, item != "")
-	if item == "":
+	var t := CampaignData.tesoro_de(id)
+	# SOLO DESPUÉS DE HABER JUGADO EL ESCENARIO (pedido por el usuario): antes,
+	# el tesoro es una SORPRESA — enseñarlo con su encargo en la ficha
+	# desvelaba lo que hay que hacer sin haber pisado el sitio y se comía la
+	# rejugabilidad. Jugado una vez, se enseña con su encargo, que es lo que
+	# manda al jugador a volver con la carta que le faltaba. `level_stars`
+	# tiene entrada en cuanto se cierra una jornada, aunque sea con cero.
+	var jugado := GameState.level_stars.has(id)
+	_ver_seccion(info_tesoro, not t.is_empty() and jugado)
+	if t.is_empty() or not jugado:
 		return
 	for c in info_tesoro_row.get_children():
 		c.queue_free()
-	var tengo := GameState.has_collectible(item)
-	var tex: Texture2D = CollectibleData.get_icon(item)
+	var kind := str(t.get("kind", ""))
+	var item := str(t.get("id", ""))
+	# Ya cobrado: la pieza en la vitrina, la receta aprendida, o el escenario
+	# apuntado en `tesoros_cobrados` (arroz, oro, despensa, mapa).
+	var tengo: bool = id in GameState.tesoros_cobrados
+	if kind == "item":
+		tengo = tengo or GameState.has_collectible(item)
+	elif kind == "receta":
+		tengo = tengo or GameState.is_recipe_unlocked(item)
+	var tex: Texture2D = null
+	match kind:
+		"item":
+			tex = CollectibleData.get_icon(item)
+		"receta":
+			tex = RecipeData.get_dish_texture(item)
+		"ingredientes":
+			tex = RecipeData.get_ingredient_texture(item)
+		"arroz":
+			tex = load("res://assets/ui/ic_arroz.png")
+		"oro":
+			tex = load("res://assets/ui/daily_cofre.png")
+		"mapa":
+			tex = load("res://assets/ui/col_mapa_tesoro.png")
 	if tex == null:
 		return
 	var caja := Control.new()
@@ -3028,10 +3099,13 @@ func _fill_tesoro(id: String) -> void:
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.size = Vector2(48, 48)
 	# EN SILUETA mientras no se tenga, como en la vitrina: la pieza existe,
-	# pero cuál es se descubre consiguiéndola.
-	# YA CONSEGUIDO: a plena luz y con el VISTO VERDE encima, como las
-	# recompensas. En silueta mientras no se tenga.
-	ic.modulate = Color.WHITE if tengo else Color(0.14, 0.11, 0.09, 0.9)
+	# pero cuál es se descubre consiguiéndola. YA CONSEGUIDO: a plena luz y
+	# con el VISTO VERDE encima, como las recompensas. Las pagas que no son de
+	# vitrina (arroz, oro, despensa...) se enseñan a la vista siempre — el
+	# cliente ya ha dicho en voz alta con qué paga, y no hay nada que
+	# descubrir en un saco de arroz.
+	var silueta: bool = not tengo and kind in ["item", "receta"]
+	ic.modulate = Color(0.14, 0.11, 0.09, 0.9) if silueta else Color.WHITE
 	caja.add_child(ic)
 	if tengo:
 		var visto := TextureRect.new()
@@ -3053,8 +3127,14 @@ func _fill_tesoro(id: String) -> void:
 	como.bbcode_enabled = true
 	como.fit_content = true
 	como.scroll_active = false
-	como.text = DialogueBox.format_keywords(
-		CampaignData.collectible_how(id, item))
+	# El encargo Y con qué paga: la misma frase que canta el cliente al
+	# sentarse, así que la ficha no puede contradecir lo que se oye jugando.
+	var cli: Dictionary = CampaignData.get_port(id).get("collectible_client", {})
+	var paga := "Una pieza de vitrina"
+	if not cli.is_empty():
+		paga = _mayuscula_inicial(CampaignData.pago_texto(cli))
+	como.text = DialogueBox.format_keywords("%s: %s." % [paga,
+		CampaignData.tesoro_como(id)])
 	como.custom_minimum_size = Vector2(FICHA_W - 250.0, 0)
 	como.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	como.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -3598,6 +3678,7 @@ func _process(delta: float) -> void:
 	# tapando, que es su oficio, pero deja de costar fotograma.
 	if GameState.animations_on():
 		_mover_niebla()
+	_recortar_lejanos()
 	# Inercia del arrastre del mapa: la velocidad que llevaba el dedo al soltar
 	# se va apagando sola. Con el dedo apoyado no se aplica (manda el dedo)
 	# pero TAMPOCO se borra: es la que da el impulso al levantarlo. Cualquier

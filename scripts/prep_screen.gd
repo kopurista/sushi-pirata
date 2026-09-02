@@ -1281,8 +1281,10 @@ func _rasgos(id: String) -> Array[String]:
 		# aquí el renglón se lee igual de bien con una palabra.
 		out.append("Postre")
 	var libres := int(r.get("free_uses", 0))
-	if libres > 0:
-		out.append("Maestría x%d" % (libres + 1))
+	if libres == 1:
+		out.append("1 uso extra")
+	elif libres > 1:
+		out.append("%d usos extra" % libres)
 	var bocado := float(r.get("eat_mult", 1.0))
 	if not is_equal_approx(bocado, 1.0):
 		out.append("Bocado %s" % _mult(bocado))

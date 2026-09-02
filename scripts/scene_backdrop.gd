@@ -21,6 +21,62 @@ const KIND_MODELS := {
 }
 
 
+## AJUSTE DE IMAGEN COMÚN a todas las escenas 3D del juego. Va aquí, en un solo
+## sitio, para que el mundo tenga el mismo aire en el nivel, el mapa, el menú y
+## la tienda, y para que retocarlo o quitarlo sea UNA función.
+##
+## Son las tres cosas que el renderer del juego (gl_compatibility) sí soporta,
+## COMPROBADAS midiendo la imagen antes y después:
+##   - GLOW con umbral ALTO: solo florece lo que de verdad emite luz (faroles,
+##     cristales de la cueva, el brillo del agua), no la escena entera.
+##   - Un toque de contraste y saturación, porque el ambiente plano de este
+##     montaje deja los colores algo lavados.
+## Lo que NO se usa, y se probó: el TONEMAP filmic. Comprime los medios, y
+## estos escenarios están pintados en lineal y con luz plana: la isla salía con
+## la arena apagada y verdosa, más sucia que antes (medido y visto en un A/B con
+## el árbol congelado). En la cueva no aportaba nada. El tonemap se queda en
+## LINEAR, que es lo que asume el arte.
+## Lo que NO se usa: la NIEBLA de profundidad. Funciona, pero a la escala de
+## estos escenarios se come la imagen y además se cuela en la interfaz 2D
+## (medido: 38 de diferencia media sobre el pergamino, contra 0.00 del glow y
+## del tonemap, que solo tocan el 3D).
+##
+## `oscuro` es para la CUEVA: allí el umbral del glow baja, que es lo que hace
+## que los cristales sean lo único que llegue a florecer.
+static func apply_look(env: Environment, oscuro := false) -> void:
+	# El pase de post-proceso solo en calidad ALTA: cuesta +0,13 ms por
+	# fotograma (un 18%) para un 1-3% de cambio en la imagen, y en un móvil esa
+	# cuenta no sale. Ver GameState.post_fx_on().
+	if not GameState.post_fx_on():
+		env.glow_enabled = false
+		env.adjustment_enabled = false
+		return
+	env.glow_enabled = true
+	env.glow_intensity = 0.75
+	env.glow_strength = 1.0
+	env.glow_bloom = 0.10
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
+	env.glow_hdr_threshold = 0.72 if oscuro else 1.0
+	env.adjustment_enabled = true
+	env.adjustment_contrast = 1.05
+	env.adjustment_saturation = 1.12 if oscuro else 1.08
+
+
+## LUZ DE RELLENO: una segunda direccional muy floja desde el lado contrario al
+## sol. Hasta ahora las caras en sombra las pintaba SOLO el ambiente, que es un
+## color plano y las dejaba sin volumen; con esto cogen un poco de forma sin
+## tener que subir el ambiente general (que aplanaría el resto).
+##
+## Va sin sombras, como todas las luces del juego.
+static func fill_light() -> DirectionalLight3D:
+	var l := DirectionalLight3D.new()
+	l.rotation_degrees = Vector3(-28.0, 55.0, 0.0)
+	l.light_energy = 0.34
+	l.light_color = Color(0.72, 0.82, 1.0)
+	l.shadow_enabled = false
+	return l
+
+
 ## Monta el fondo bajo "root" y devuelve el pivote del modelo (para animarlo).
 ## band_off: píxeles que se sube la escena en pantalla (positivo = sube).
 static func build(root: Node3D, kind: String, cam_size := 19.0,
@@ -31,6 +87,7 @@ static func build(root: Node3D, kind: String, cam_size := 19.0,
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.76, 0.81, 0.9)
 	env.ambient_light_energy = 0.95
+	apply_look(env)
 	var we := WorldEnvironment.new()
 	we.environment = env
 	root.add_child(we)
@@ -43,6 +100,7 @@ static func build(root: Node3D, kind: String, cam_size := 19.0,
 	# fija (SceneBackdrop.blob_shadow).
 	sun.shadow_enabled = false
 	root.add_child(sun)
+	root.add_child(fill_light())
 
 	var mesh := PlaneMesh.new()
 	mesh.size = Vector2(120.0, 120.0)

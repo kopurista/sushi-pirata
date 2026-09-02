@@ -227,6 +227,13 @@ var collectible_client: Dictionary = {}
 ## El cliente del tesoro de esta partida (ya sentado), y si ya lo ha pagado.
 var treasure_client: Node3D = null
 var treasure_given := false
+## LA CUENTA Y LA ENTREGA SON DOS COSAS (la misma leccion que tuvo la bandera
+## del pirata): aqui se apunta que el encargo esta CUMPLIDO y quien entrega es
+## el guion, DESPUES de que el cliente hable ("lo prometido"). Entregando desde
+## la cuenta, la ventana del premio salia antes de que el cliente abriera la
+## boca. Si el turno se cierra con la cuenta hecha, `_end_level` entrega igual.
+var treasure_ready := false
+signal treasure_cumplido
 ## Segundos entre llegada y llegada (se deduce de arrival_span y la clientela).
 var arrival_step := 12.0
 var star_money: Array = DEFAULT_STAR_MONEY
@@ -1078,6 +1085,10 @@ func _setup_environment() -> void:
 		env.background_color = Color(0.030, 0.040, 0.058)
 		env.ambient_light_color = Color(0.50, 0.57, 0.68)
 		env.ambient_light_energy = 0.90
+	# Ajuste de imagen comun (glow + tonemap + contraste). En la cueva va en
+	# modo "oscuro": sin subir la exposicion y con el glow mas sensible, que es
+	# lo que hace que los cristales sean lo unico que brilla.
+	SceneBackdrop.apply_look(env, scenery_kind == "cueva")
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -1096,6 +1107,11 @@ func _setup_environment() -> void:
 	# decenas de piezas, la sombra dinámica bailaba y costaba un pase entero.
 	sun.shadow_enabled = false
 	add_child(sun)
+	# Luz de relleno desde el lado contrario, salvo en la CUEVA: alli la gracia
+	# es que la piedra solo se encienda donde llega un cristal, y un relleno
+	# general lo desharia.
+	if scenery_kind != "cueva":
+		add_child(SceneBackdrop.fill_light())
 
 
 func _setup_camera() -> void:
@@ -4062,12 +4078,17 @@ func _on_client_served(food: int, tip: int) -> void:
 ## por la capa global de avisos (`unlock_collectible`), que ya sabe esperar a
 ## que el árbol esté en un momento razonable.
 func _check_treasure() -> void:
-	if treasure_given or treasure_client == null \
+	if treasure_given or treasure_ready or treasure_client == null \
 			or not is_instance_valid(treasure_client):
 		return
 	if not _reto_cumplido():
 		return
-	_entregar_tesoro()
+	treasure_ready = true
+	treasure_cumplido.emit()
+	# Sin director que le ponga voz (no deberia pasar: un puerto con cliente
+	# del tesoro lo monta siempre), se entrega en el acto.
+	if get_node_or_null("LevelDirector") == null:
+		_entregar_tesoro()
 
 
 ## ¿Ha cumplido el cliente del tesoro lo que pedía? Sin `reto` en el puerto es
@@ -4115,6 +4136,9 @@ func _reto_cumplido() -> bool:
 			return comidos.count(caro) >= n
 		"receta":
 			return str(cfg.get("recipe", "")) in comidos
+		"receta_n":
+			# N platos de una receta concreta (los tres gunkan del grumete del 7).
+			return comidos.count(str(cfg.get("recipe", ""))) >= n
 		"postre_solo":
 			# Su ÚNICO plato tiene que ser un postre: en cuanto le entra otra
 			# cosa, el encargo se pierde para esta jornada.
@@ -4166,6 +4190,51 @@ func _entregar_tesoro() -> void:
 	if treasure_given:
 		return
 	treasure_given = true
+	# Se apunta el escenario COBRADO: las pagas que no son de vitrina no dejan
+	# huella en ningun sitio, y la ficha del mapa quiere saber si el tesoro de
+	# aqui sigue pendiente o ya se cobro.
+	if not GameState.current_port in GameState.tesoros_cobrados:
+		GameState.tesoros_cobrados.append(GameState.current_port)
+	# UN COFRE DE DOBLONES (el pirata del 16): oro al monedero, y cuenta como
+	# botin de la travesia (`money_total`, lo que ensena el cartel de
+	# recompensa), que un cofre es oro ganado.
+	var oro := int(collectible_client.get("oro", 0))
+	if oro > 0:
+		GameState.money += oro
+		GameState.bump_stat("money_total", oro)
+		GameState.save_game()
+		GameState._ensure_notices().toast_achievement(
+			load("res://assets/ui/daily_cofre.png"), Color(1, 0.9, 0.55),
+			"¡Un cofre con %d doblones!" % oro, "Te han pagado en oro")
+		return
+	# UNA RECETA (el capitan del 30): se aprende, llega con su despensa de
+	# estreno, entra en la carta de HOY y el menu la anuncia al volver.
+	var receta := str(collectible_client.get("receta_premio", ""))
+	if receta != "":
+		var nombre := str(RecipeData.RECIPES.get(receta, {}).get("name", receta))
+		if GameState.unlock_recipe(receta):
+			GameState.gift_ingredients_for([receta], GameState.PORT_GIFT)
+			GameState.pending_reveal.append(receta)
+		GameState.save_game()
+		prep_board.add_recipe(receta)
+		GameState._ensure_notices().toast_achievement(
+			RecipeData.get_dish_texture(receta), Color(1, 0.92, 0.7),
+			"¡Receta nueva!", "Te han pagado con el %s" % nombre.to_lower())
+		return
+	# USOS DE DESPENSA (el pirata de los extras del 20).
+	var usos: Dictionary = collectible_client.get("ingredientes", {})
+	if not usos.is_empty():
+		var primero := ""
+		for ing in usos:
+			GameState.add_ingredient_uses(str(ing), int(usos[ing]))
+			if primero == "":
+				primero = str(ing)
+		GameState.save_game()
+		GameState._ensure_notices().toast_achievement(
+			RecipeData.get_ingredient_texture(primero), Color(0.8, 1, 0.75),
+			"¡Despensa!", "Te han pagado con %s" % CampaignData.pago_texto(
+				collectible_client).replace("**", ""))
+		return
 	# El capitán del MAPA (m2_05) paga con un mapa del tesoro, no con pieza de
 	# vitrina: suma al contador persistente y se anuncia con un toast.
 	if bool(collectible_client.get("mapa", false)):
@@ -5356,6 +5425,11 @@ func _end_level() -> void:
 	# El encargo de "que siga sentado cuando acabe el turno" solo se puede
 	# resolver AQUÍ, y antes de que la barra se vacíe.
 	_check_treasure_al_cerrar()
+	# Y UN ENCARGO CUMPLIDO CUYO CLIENTE NO LLEGO A ENTREGARLO (el turno se
+	# cerro en el mismo plato) se cobra igual: lo unico que se pierde es la
+	# escena del "lo prometido".
+	if treasure_ready and not treasure_given:
+		_entregar_tesoro()
 	# Se acabo: ya no hay nada que abandonar, manda el panel de resultados.
 	if exit_button != null:
 		exit_button.visible = false
