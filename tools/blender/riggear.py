@@ -44,6 +44,40 @@ brazo_x = met["brazo_x"] * ancho; pierna_x = met["pierna_x"] * ancho
 print("[rig] hombro z %.3f | muñeca z %.3f | brazo x %.3f | cadera z %.3f | pierna x %.3f"
       % (z_hombro, z_muneca, brazo_x, z_cadera, pierna_x))
 
+# --- LA MANO, SEPARADA DE LA MANGA POR COLOR ----------------------------------
+# El traje llega hasta la muñeca, así que la carne que asoma ES la mano: se
+# separa mirando el COLOR de la textura por vértice (piel contra tela), no
+# adivinando una altura. Con eso, girar la muñeca mueve solo la mano y el traje
+# se queda quieto, que es lo que hace legible la palma hacia arriba.
+img_tex = None
+for mat in me.materials:
+    if mat and mat.use_nodes:
+        for nodo in mat.node_tree.nodes:
+            if nodo.type == "TEX_IMAGE" and nodo.image:
+                img_tex = nodo.image
+mano_lado = {}
+if img_tex is not None and me.uv_layers.active:
+    TW, TH = img_tex.size
+    tex = np.array(img_tex.pixels[:], dtype=np.float32).reshape(TH, TW, 4)
+    uvl = me.uv_layers.active.data
+    col = np.zeros((len(me.vertices), 3), dtype=np.float32)
+    cnt = np.zeros(len(me.vertices), dtype=np.float32)
+    for poly in me.polygons:
+        for li in poly.loop_indices:
+            vi = me.loops[li].vertex_index
+            uu, vv = uvl[li].uv
+            col[vi] += tex[int(np.clip(vv, 0, 0.999) * (TH - 1)),
+                           int(np.clip(uu, 0, 0.999) * (TW - 1)), :3]
+            cnt[vi] += 1
+    col /= np.maximum(cnt, 1.0)[:, None]
+    piel = (col[:, 0] > col[:, 2] + 0.12) & (col[:, 0] > 0.45)
+    fuera = piel & (np.abs(V[:, 0]) > brazo_x * 0.70) & (V[:, 2] < z_muneca + alto * 0.08)
+    for lado, sg in (("L", 1.0), ("R", -1.0)):
+        sel = fuera & (np.sign(V[:, 0]) == sg)
+        if sel.sum() > 30:
+            mano_lado[lado] = sel
+    print("[rig] manos por color: %s" % {k: int(v.sum()) for k, v in mano_lado.items()})
+
 # La CABEZA de estas figuritas es la mitad de arriba; su hueso va en el centro
 # de masa de lo que queda por encima del hombro (así la barba, que cuelga por
 # delante del pecho, reparte peso entre cabeza y torso y acompaña a las dos).
@@ -77,7 +111,19 @@ for lado, s in (("L", 1.0), ("R", -1.0)):
     ze = (z_hombro + z_muneca) / 2
     hueso("%s_Shoulder" % lado, (s * brazo_x * 0.55, y_medio, zc), (s * brazo_x, y_medio, ze), "Spine1")
     hueso("%s_Elbow" % lado, (s * brazo_x, y_medio, ze), (s * brazo_x, y_medio, z_muneca), "%s_Shoulder" % lado)
-    hueso("%s_Wrist" % lado, (s * brazo_x, y_medio, z_muneca), (s * brazo_x, y_medio, z_muneca - alto * 0.05), "%s_Elbow" % lado)
+    # LA MUÑECA VA SOBRE EL EJE REAL DE LA MANO (de su unión con la manga a la
+    # punta), no recta hacia abajo: con el hueso vertical, girarla separaba la
+    # carne de la tela y se veía el rasgón.
+    if lado in mano_lado:
+        Pm = V[mano_lado[lado]]
+        dd = np.abs(Pm[:, 0])
+        union = Pm[dd < np.quantile(dd, 0.18)].mean(axis=0)
+        punta = Pm[dd > np.quantile(dd, 0.82)].mean(axis=0)
+        eje = punta - union
+        largo = float(np.linalg.norm(eje)) or alto * 0.05
+        hueso("%s_Wrist" % lado, tuple(union), tuple(union + eje / largo * largo * 1.15), "%s_Elbow" % lado)
+    else:
+        hueso("%s_Wrist" % lado, (s * brazo_x, y_medio, z_muneca), (s * brazo_x, y_medio, z_muneca - alto * 0.05), "%s_Elbow" % lado)
     zr = (z_cadera + lo[2]) / 2
     hueso("%s_Hip" % lado, (s * pierna_x, y_medio, z_cadera), (s * pierna_x, y_medio, zr), "Pelvis")
     hueso("%s_Knee" % lado, (s * pierna_x, y_medio, zr), (s * pierna_x, y_medio, lo[2] + alto * 0.02), "%s_Hip" % lado)
@@ -125,6 +171,14 @@ k_head = np.maximum(k_head, np.where(barba, 0.92, 0.0))
 fuera = suave(np.abs(V[:, 0]), brazo_x * 0.55, brazo_x * 0.85)
 W[:, brazos] *= fuera[:, None]
 
+# 4) la MANO entera va a su muñeca, sin repartir: es lo que deja girarla sola
+k_mano = np.zeros(len(V), dtype=np.float32)
+i_wrist = {}
+for lado in ("L", "R"):
+    if lado in mano_lado and ("%s_Wrist" % lado) in nombres:
+        i_wrist[lado] = nombres.index("%s_Wrist" % lado)
+        k_mano[mano_lado[lado]] = 1.0
+
 W[:, i_head] = 0.0
 orden = np.argsort(-W, axis=1)[:, :MAX_INF]
 mask = np.zeros_like(W, dtype=bool)
@@ -134,6 +188,10 @@ suma = W.sum(axis=1, keepdims=True)
 W = np.divide(W, suma, out=np.zeros_like(W), where=suma > 0)
 W *= (1.0 - k_head)[:, None]
 W[:, i_head] = k_head
+for lado, iw in i_wrist.items():
+    sel = mano_lado[lado]
+    W[sel, :] = 0.0
+    W[sel, iw] = 1.0
 suma = W.sum(axis=1, keepdims=True)
 W = np.divide(W, suma, out=np.zeros_like(W), where=suma > 0)
 print("[rig] cabeza rígida: %d vértices al 90%%+ | barba: %d" % (int((W[:, i_head] > 0.9).sum()), int(barba.sum())))

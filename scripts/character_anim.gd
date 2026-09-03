@@ -65,6 +65,10 @@ const CROUCH_F := 0.118
 ## ayudante. Se mide la apertura de CADA personaje y se le recoge lo que le
 ## sobre hasta este objetivo, asi que todos acaban con la misma silueta.
 const IDLE_ARM_SPREAD := 9.0
+## Cuanto MAS se pegan los brazos al costado en reposo. Va aparte del recogido
+## general porque es una decision de estilo de estas figuritas: en el remake,
+## quieto, el personaje tiene los brazos colgando del todo.
+const IDLE_ARM_DROP := 7.0
 ## Lo minimo que puede medir un miembro para darlo por bueno, en fracciones del
 ## alto del personaje. Los brazos sanos miden entre el 25% y el 35%; los rigs
 ## fallidos dejan el brazo entero en el 1-2%. Ver _measure().
@@ -375,9 +379,12 @@ func _arms_at_rest(breath: float) -> void:
 		return
 	for side in ["L", "R"]:
 		var mirror := -1.0 if side == "L" else 1.0
-		_roll("%s_Shoulder" % side, mirror * arm_tuck)
-		_pitch("%s_Shoulder" % side, breath * 1.5)
-		_pitch("%s_Elbow" % side, -ELBOW_BEND * 0.6)
+		# EN REPOSO LOS BRAZOS CAEN DEL TODO, nada levantados (así es como
+		# están las figuritas del remake cuando no hablan): al recogido de
+		# siempre se le suma un pelín más y el codo casi se estira.
+		_roll("%s_Shoulder" % side, mirror * (arm_tuck + IDLE_ARM_DROP))
+		_pitch("%s_Shoulder" % side, breath * 1.5 + IDLE_ARM_DROP * 0.35)
+		_pitch("%s_Elbow" % side, -ELBOW_BEND * 0.35)
 		# Las manos descansan cerradas, no con los dedos estirados.
 		_fist(side)
 
@@ -646,25 +653,31 @@ func hablar(t: float, fuerza := 1.0) -> void:
 	_pitch("Neck", acento * 1.1 * fuerza)
 	_pitch("Spine1", sin(t * 2.2 + 0.9) * 1.0 * fuerza)
 	# LOS BRAZOS, COMO EN EL REMAKE: al hablar las manos se adelantan con las
-	# PALMAS HACIA ARRIBA y los codos semiflexionados, moviéndose despacio; en
-	# reposo caen del todo (de eso ya se encarga `_arms_at_rest`, y al callar
-	# la fuerza vuelve a 0 y los devuelve solos).
+	# PALMAS HACIA ARRIBA —el pulgar mirando hacia fuera— y los codos
+	# semiflexionados, y todo se mueve despacio; en reposo caen del todo (de eso
+	# se encarga `_arms_at_rest`, y al callar la fuerza vuelve a 0 sola).
 	#
-	# El gesto sale del HOMBRO y no del codo: estas figuritas tienen el brazo
+	# El gesto sale sobre todo del HOMBRO: estas figuritas tienen el brazo
 	# entero en un 9% de su altura, así que el antebrazo es un muñón y girarlo
-	# no se ve (medido en render, poses `codoX±`). Los ritmos van LENTOS a
-	# propósito (~1 rad/s) y desfasados entre los dos brazos, que es lo que
-	# hace que el gesto acompañe a la voz en vez de aletear.
+	# apenas se ve (medido en render, poses `codoX±`). La MUÑECA sí cuenta, y
+	# mucho: su hueso va sobre el eje real de la mano y la mano pesa entera en
+	# él, así que al girarla se le da la vuelta a la carne sin mover la manga.
+	# Los ritmos van LENTOS (~1 rad/s) y desfasados entre los dos brazos, que
+	# es lo que hace que el gesto acompañe a la voz en vez de aletear.
 	var l1 := sin(t * 1.05)
 	var l2 := sin(t * 0.78 + 2.1)
-	_pitch("L_Shoulder", (-20.0 + l1 * 6.0) * fuerza)
-	_pitch("R_Shoulder", (-20.0 + l2 * 6.0) * fuerza)
-	_roll("L_Shoulder", -(8.0 + l1 * 3.0) * fuerza)
-	_roll("R_Shoulder", (8.0 + l2 * 3.0) * fuerza)
-	_pitch("L_Elbow", (-28.0 + l2 * 8.0) * fuerza)
-	_pitch("R_Elbow", (-28.0 + l1 * 8.0) * fuerza)
-	_yaw("L_Wrist", 52.0 * fuerza)
-	_yaw("R_Wrist", -52.0 * fuerza)
+	var l3 := sin(t * 1.31 + 0.7)
+	_pitch("L_Shoulder", (-26.0 + l1 * 8.0) * fuerza)
+	_pitch("R_Shoulder", (-26.0 + l2 * 8.0) * fuerza)
+	_roll("L_Shoulder", -(11.0 + l1 * 4.0) * fuerza)
+	_roll("R_Shoulder", (11.0 + l2 * 4.0) * fuerza)
+	_yaw("L_Shoulder", l3 * 5.0 * fuerza)
+	_yaw("R_Shoulder", -l3 * 5.0 * fuerza)
+	_pitch("L_Elbow", (-34.0 + l2 * 9.0) * fuerza)
+	_pitch("R_Elbow", (-34.0 + l1 * 9.0) * fuerza)
+	# la palma se vuelve hacia arriba: es el giro que enseña el pulgar por fuera
+	_yaw("L_Wrist", (72.0 + l2 * 10.0) * fuerza)
+	_yaw("R_Wrist", -(72.0 + l1 * 10.0) * fuerza)
 
 
 func embobado(t: float) -> void:

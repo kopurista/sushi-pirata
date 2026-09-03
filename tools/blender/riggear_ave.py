@@ -43,6 +43,26 @@ ala_x = float(np.abs(alas[:, 0]).mean()) if len(alas) else (hi[0] - lo[0]) * 0.3
 print("[ave] cuello z %.3f | cabeza %s | cola %s | ala x %.3f"
       % (z_cuello, np.round(c_cab, 2), np.round(c_col, 2), ala_x))
 
+# --- LA CABEZA, MÁS PEQUEÑA ----------------------------------------------------
+# El loro de Meshy sale con la cabeza mucho mayor que el cuerpo y en el hombro
+# de David competía con la suya (pedido por el usuario: "hacer la cabeza de
+# Gigi algo más pequeña, o el cuerpo igual de grande que la cabeza"). Se
+# encoge hacia la base del cuello, así que la unión no se mueve y no hay que
+# retocar nada más.
+CABEZA_ESC = float(os.environ.get("CABEZA", 0.84))
+if CABEZA_ESC != 1.0:
+    pivote = np.array([0.0, float(c_cab[1]) * 0.35, z_cuello], dtype=np.float32)
+    mezcla = np.clip((V[:, 2] - (z_cuello - alto * 0.10)) / (alto * 0.16), 0.0, 1.0)
+    mezcla = mezcla * mezcla * (3.0 - 2.0 * mezcla)
+    Mi = M.inverted()
+    for i in np.nonzero(mezcla > 0.001)[0]:
+        f = 1.0 + (CABEZA_ESC - 1.0) * float(mezcla[i])
+        nuevo = pivote + (V[i] - pivote) * f
+        me.vertices[int(i)].co = Mi @ Vector(nuevo.tolist())
+    V = np.array([M @ v.co for v in me.vertices], dtype=np.float32)
+    lo, hi = V.min(axis=0), V.max(axis=0)
+    print("[ave] cabeza encogida a %.2f (alto ahora %.3f)" % (CABEZA_ESC, hi[2] - lo[2]))
+
 arm_data = bpy.data.armatures.new("Rig")
 arm = bpy.data.objects.new("Rig", arm_data)
 bpy.context.scene.collection.objects.link(arm)

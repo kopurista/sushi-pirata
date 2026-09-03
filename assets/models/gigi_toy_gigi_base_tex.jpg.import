@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://vuq7hhwbcy4y"
-path="res://.godot/imported/gigi_toy_gigi_toy_tex.jpg-a7d4b2e977f6ebc0965c0424e5ec0773.ctex"
+uid="uid://ccnxwnw821p7p"
+path="res://.godot/imported/gigi_toy_gigi_base_tex.jpg-bb5d6d11bf5603a9fc05764f11b4daf6.ctex"
 metadata={
 "vram_texture": false
 }
@@ -13,8 +13,8 @@ generator_parameters={
 
 [deps]
 
-source_file="res://assets/models/gigi_toy_gigi_toy_tex.jpg"
-dest_files=["res://.godot/imported/gigi_toy_gigi_toy_tex.jpg-a7d4b2e977f6ebc0965c0424e5ec0773.ctex"]
+source_file="res://assets/models/gigi_toy_gigi_base_tex.jpg"
+dest_files=["res://.godot/imported/gigi_toy_gigi_base_tex.jpg-bb5d6d11bf5603a9fc05764f11b4daf6.ctex"]
 
 [params]
 

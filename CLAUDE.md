@@ -6317,7 +6317,25 @@ cadena que salió de él vale para el resto del reparto:
    meciéndose. Un tercio de las veces LADEA la cabeza en vez de girarla, que
    es el gesto que más se lee como pájaro. Mira más veces cuando su dueño
    habla, la cola la sigue con retardo y cada pocos segundos sacude las alas.
-11. **Godot**: `.import` con el hook y presupuesto 20000 (no se decima),
+   **Y SU CABEZA SE ENCOGE AL 84%** (`CABEZA` en `riggear_ave.py`): la de
+   Meshy salía mucho mayor que el cuerpo y en el hombro competía con la de
+   David. Se encoge hacia la base del cuello, así que la unión no se mueve.
+11. **LA MUÑECA GIRA LA MANO, NO LA MANGA** (idea del usuario): el traje llega
+   hasta la muñeca, así que la carne que asoma ES la mano, y se separa de la
+   tela mirando el COLOR de la textura por vértice. Esa mano pesa ENTERA en su
+   muñeca, y su hueso se coloca sobre el EJE REAL de la mano —de su unión con
+   la manga a la punta, los dos puntos medidos— y no recto hacia abajo: con el
+   hueso vertical, girarla separaba la carne de la tela y se veía el rasgón.
+   Con eso, 72° de giro dan la palma hacia arriba con el pulgar hacia fuera y
+   la manga ni se entera.
+12. **EL TALLER DE BLENDER SE ABRE CON `tools/blender/abrir_david.py`**: prepara
+   un `.blend` con David y Gigi en SEGUNDO PLANO y luego lo abre con el
+   servidor del MCP en marcha, para trabajar en vivo mientras el usuario mira.
+   El `.blend` se monta aparte porque importar un `.glb` desde el script de
+   arranque de la interfaz revienta con "Context object has no attribute
+   'object'" (el importador pide un objeto activo y ahí todavía no hay
+   ventana), y ni un temporizador ni vaciar la escena lo arreglan.
+13. **Godot**: `.import` con el hook y presupuesto 20000 (no se decima),
    `fix_texture_imports`. Al REEXPORTAR el glb hay que borrar la textura
    extraída y `.godot/imported/<id>*`. En la caja de diálogo: `RETRATO_3D_RUTA`
    apunta a `david_toy.glb`, banda de busto por hablante (`R3D_BANDA_QUIEN`)
