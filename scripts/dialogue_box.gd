@@ -863,13 +863,28 @@ func _encuadrar_3d(side: String) -> void:
 	cam.rotation_degrees = Vector3.ZERO
 
 
+## OJO: la transformada se ACUMULA por el camino en vez de pedir la global de
+## cada malla. Aquí se mide también una escena RECIÉN INSTANCIADA (Gigi, antes
+## de colgarla del modelo), y `global_transform` fuera del árbol devuelve
+## identidad soltando un error por cada malla: la consola se llenaba de
+## "Condition !is_inside_tree() is true" cada vez que David abría la boca.
 func _aabb_3d(n: Node, acc := AABB()) -> AABB:
+	var base := Transform3D.IDENTITY
+	if n is Node3D:
+		var n3 := n as Node3D
+		base = n3.global_transform if n3.is_inside_tree() else n3.transform
+	return _aabb_en(n, base, acc)
+
+
+func _aabb_en(n: Node, t: Transform3D, acc: AABB) -> AABB:
 	if n is MeshInstance3D:
-		var mi := n as MeshInstance3D
-		var suya: AABB = mi.global_transform * mi.get_aabb()
+		var suya: AABB = t * (n as MeshInstance3D).get_aabb()
 		acc = suya if acc.size == Vector3.ZERO else acc.merge(suya)
 	for c in n.get_children():
-		acc = _aabb_3d(c, acc)
+		var tc := t
+		if c is Node3D:
+			tc = t * (c as Node3D).transform
+		acc = _aabb_en(c, tc, acc)
 	return acc
 
 
