@@ -1,5 +1,5 @@
-# Prepara para el juego el David que Meshy devolvió RIGUEADO (el pirate doll
-# que pidió el usuario). Hace de una pasada todo lo que le falta:
+# Prepara para el juego un personaje que Meshy devuelve RIGUEADO. Hace de una
+# pasada todo lo que le falta:
 #
 #   1. OJOS. Viene sin ellos —solo cejas—, que es el fallo de siempre de
 #      imagen→3D con una cara de trazo fino. Se ponen como GEOMETRÍA (dos
@@ -14,17 +14,22 @@
 #   4. TEXTURA a 1024 (la de Meshy viene a 4096: 16 veces más de la que este
 #      retrato necesita).
 #
-#   blender --background --python tools/blender/pirata_preparar.py -- <salida.glb>
+#   5. MATERIAL sin emisión ni metálico, que Meshy los deja encendidos.
+#
+#   blender --background --python tools/blender/preparar_personaje.py -- #       <entrada.glb> <salida.glb> [ojos.json]
+#
+# Con el JSON que escribe `tools/quitar_ojos.py` los ojos van EXACTOS: sus
+# fracciones se midieron sobre el concepto 2D del que salió el modelo, así que
+# no hay que tantear nada.
 import bpy, sys, os, math
 import mathutils
 from mathutils import Vector
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-GLB = os.environ.get("PIRATA_GLB", os.path.join(
-    ROOT, "_gen", "meshy", "pirata_zip", "Meshy_AI_pirate_doll_rigged_biped",
-    "Meshy_AI_pirate_doll_rigged_biped_Animation_Walking_withSkin.glb"))
-DEST = os.path.abspath(sys.argv[sys.argv.index("--") + 1]
-                       if "--" in sys.argv else "_gen/meshy/david_meshy.glb")
+_a = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+GLB = os.path.abspath(_a[0])
+DEST = os.path.abspath(_a[1])
+OJOS_JSON = os.path.abspath(_a[2]) if len(_a) > 2 else ""
 
 # Sitio del ojo, en fracciones del ALTO DE LA CABEZA. Medido sobre el primer
 # plano de la cara despejando contra la proyección de la cámara.
@@ -32,8 +37,21 @@ F_SEP = float(os.environ.get("OJO_SEP", 0.263))    # separación al eje
 F_ANCHO = float(os.environ.get("OJO_ANCHO", 0.080))
 F_ALTO = float(os.environ.get("OJO_ALTO", 0.126))
 F_BAJO = float(os.environ.get("OJO_BAJO", 0.575))
-HUNDIDO = float(os.environ.get("OJO_HUNDIDO", 0.78))  # del semieje, hacia dentro  # por debajo de la coronilla
+PROF = float(os.environ.get("OJO_PROF", 0.45))     # grosor del ojo, del semieje
+# LO QUE SE HUNDE ES FRACCIÓN DE LA PROFUNDIDAD DEL OJO, no del semieje
+# horizontal: el ojo es una lenteja (0.45 de grosor) y hundiéndolo 0.78 del
+# semieje se metía ENTERO dentro de la cabeza y desaparecía de la cara.
+HUNDIDO = float(os.environ.get("OJO_HUNDIDO", 0.45))
+OJO_ESC = float(os.environ.get("OJO_ESC", 1.55))  # los del concepto salen justos  # por debajo de la coronilla
 TEX_LADO = int(os.environ.get("TEX_LADO", 1024))
+
+# Si viene el JSON del concepto, sus fracciones MANDAN sobre las de arriba: se
+# midieron sobre el dibujo del que salió este mismo modelo.
+OJOS_DIBUJO = {}
+if OJOS_JSON and os.path.exists(OJOS_JSON):
+    import json
+    OJOS_DIBUJO = json.load(open(OJOS_JSON, encoding="utf-8"))
+    print("[pir] ojos del concepto:", OJOS_DIBUJO)
 
 # Mixamo -> el esquema que CharacterAnim reconoce por nombre
 RENOMBRAR = {
@@ -89,10 +107,21 @@ def lente(signo: float):
     lo mismo que hace el ojo del David modelado a mano, y no puede fallar: lo
     que asoma es siempre un óvalo limpio.
     """
-    x = signo * F_SEP * alto_cab
-    z = hi.z - F_BAJO * alto_cab
-    ra = F_ANCHO * alto_cab
-    rb = F_ALTO * alto_cab
+    if OJOS_DIBUJO:
+        # z_frac se mide DESDE LA CORONILLA sobre el alto total, y las medidas
+        # horizontales sobre el ANCHO DE LA SILUETA a esa altura, que es como
+        # las apunta quitar_ojos.py
+        z = hi.z - float(OJOS_DIBUJO["z_frac"]) * alto
+        banda = [v for v in vs if abs(v.z - z) < alto * 0.02]
+        ancho = (max(v.x for v in banda) - min(v.x for v in banda)) if banda else alto * 0.5
+        x = signo * float(OJOS_DIBUJO["sep_frac"]) * ancho
+        ra = float(OJOS_DIBUJO["rx_frac"]) * ancho
+        rb = float(OJOS_DIBUJO["ry_frac"]) * alto
+    else:
+        x = signo * F_SEP * alto_cab
+        z = hi.z - F_BAJO * alto_cab
+        ra = F_ANCHO * alto_cab
+        rb = F_ALTO * alto_cab
     # ¿a qué profundidad está la cara en ese punto? se pregunta con un rayo,
     # no se estima
     Minv = malla.matrix_world.inverted()
@@ -105,14 +134,16 @@ def lente(signo: float):
         nor = Vector((0.0, -1.0, 0.0))
     p = malla.matrix_world @ loc
     n = (malla.matrix_world.to_3x3() @ nor).normalized()
-    centro = p - n * (ra * HUNDIDO)
+    ra *= OJO_ESC
+    rb *= OJO_ESC
+    centro = p - n * (ra * PROF * HUNDIDO)
     bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=1.0,
                                          location=centro)
     o = bpy.context.object
     o.name = "Ojo%s" % ("L" if signo > 0 else "R")
     # POCA PROFUNDIDAD (no una bola): con la esfera redonda, al girar la cabeza
     # su parte trasera asomaba por el CANTO de la cara como una mancha negra
-    o.scale = (ra, ra * 0.45, rb)
+    o.scale = (ra, ra * PROF, rb)
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
     bpy.ops.object.shade_smooth()
     m = bpy.data.materials.get("OjoNegro")
