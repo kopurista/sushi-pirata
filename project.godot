@@ -32,7 +32,7 @@ window/handheld/orientation=1
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/godotiq/plugin.cfg")
+enabled=PackedStringArray("res://addons/godotiq/plugin.cfg", "res://addons/meshy-godot-plugin/plugin.cfg")
 
 [gui]
 

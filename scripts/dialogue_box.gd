@@ -261,13 +261,19 @@ const RETRATO_3D_POSADO := {
 		# tiene que reescribir "gigi_base", no `position`: el _process recoloca
 		# a Gigi desde ahí cada fotograma). Más abajo o más adelante se hunde en
 		# la barba, que en esta figurita es ancha y llega hasta el hombro.
-		"desvio": Vector3(-0.295, 0.255, -0.125),  # del centro del modelo
+		# MEDIDO con un barrido de cuatro sitios sobre el retrato real (la sonda
+		# tiene que reescribir "gigi_base", no `position`: el _process recoloca
+		# a Gigi desde ahí cada fotograma). Más abajo o más adelante se hunde en
+		# la barba, que en esta figurita es ancha y llega hasta el hombro.
+		"desvio": Vector3(-0.295, 0.215, -0.040),  # del centro del modelo
 		"giro": -14.0,
 	},
 }
 ## Encuadre de BUSTO, el del cartel de recompensa: fov vertical, banda de
 ## altura del modelo que se ve y aire sobre la coronilla.
 const R3D_FOV := 34.0
+## Cuánto levanta el ambiente las sombras del retrato.
+const R3D_AMBIENTE := 0.30
 const R3D_BAND := 0.42
 ## Banda por hablante: un cabezón de juguete (la cabeza es media altura) pide
 ## más banda para que quepan la cabeza y el arranque de la barba.
@@ -744,16 +750,28 @@ func _retrato_3d(side: String, who: String, mood: String) -> bool:
 		var cam := Camera3D.new()
 		cam.fov = R3D_FOV
 		vp.add_child(cam)
+		# ENTORNO PROPIO: con `own_world_3d` y sin él, el viewport hereda el
+		# entorno por defecto del proyecto y el personaje sale QUEMADO (la piel
+		# y la barba a blanco). Aquí la luz la ponen las tres direccionales de
+		# abajo y el ambiente solo levanta las sombras.
+		var ent := Environment.new()
+		ent.background_mode = Environment.BG_CANVAS
+		ent.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		ent.ambient_light_color = Color(0.55, 0.58, 0.66)
+		ent.ambient_light_energy = R3D_AMBIENTE
+		var we := WorldEnvironment.new()
+		we.environment = ent
+		vp.add_child(we)
 		# Luz FLOJA, la lección del cartel de recompensa: con la del nivel las
 		# caras claras se queman y el personaje sale sin rasgos.
 		var sun := DirectionalLight3D.new()
 		sun.rotation_degrees = Vector3(-32.0, 38.0 if side == "right" else -38.0, 0.0)
-		sun.light_energy = 0.62
+		sun.light_energy = 0.46
 		sun.shadow_enabled = false
 		vp.add_child(sun)
 		var relleno := DirectionalLight3D.new()
 		relleno.rotation_degrees = Vector3(-12.0, -128.0 if side == "right" else 128.0, 0.0)
-		relleno.light_energy = 0.26
+		relleno.light_energy = 0.20
 		relleno.shadow_enabled = false
 		vp.add_child(relleno)
 		# Luz de CANTO por detrás y arriba: es lo que enciende el borde de una
@@ -761,7 +779,7 @@ func _retrato_3d(side: String, who: String, mood: String) -> bool:
 		# con solo clave y relleno el juguete salía plano.
 		var canto := DirectionalLight3D.new()
 		canto.rotation_degrees = Vector3(-40.0, 150.0 if side == "right" else -150.0, 0.0)
-		canto.light_energy = 0.55
+		canto.light_energy = 0.42
 		canto.light_color = Color(0.85, 0.92, 1.0)
 		canto.shadow_enabled = false
 		vp.add_child(canto)
