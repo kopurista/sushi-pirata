@@ -6346,6 +6346,51 @@ cadena que salió de él vale para el resto del reparto:
    salía BORROSA — se vio comparando el render de Blender, nítido, con la
    misma cabeza dentro del juego. Gigi, que va pequeña en el hombro, a 512.
 
+**DAVID SE MODELA EN BLENDER, SIN PASAR POR MESHY** (`tools/blender/
+modelar_david.py`, pedido por el usuario: "prueba a hacer tú el modelo 3D
+directamente en Blender... a ver si así da menos problemas"). Y da MENOS
+problemas, porque quita de raíz los tres que costaron la tarde: el modelo se
+construye con PRIMITIVAS (esferas, cápsulas y superficies de revolución) en
+las proporciones medidas del concepto, así que cada pieza es un objeto
+—cabeza, barba, casaca, mangas, botas, manos— y no hay una malla única que
+haya que partir a base de pesos. Nueve materiales de COLOR PLANO y **ninguna
+textura**: el sombreado lo pone la luz del retrato, así que el `.glb` no
+arrastra atlas ni AO horneado (el modelo de Meshy costaba 0,7 MB de textura
+solo para la cara). 29.364 triángulos.
+- **Y LAS MANOS SÍ SON DE MESHY** (`_gen/meshy/mano_toy_crudo.glb`), como una
+  pieza más: tienen dedos y pulgar de verdad, y al entrar como objeto suelto
+  **giran sin deformar nada** — que es justo lo que no se consiguió nunca
+  operando el modelo entero (seis intentos, con el brazo desfigurándose en
+  todos). Su material propio (`PielMano`) es además lo que deja al rig
+  detectarlas sin adivinar.
+- **SOLDAR ANTES DE DECIMAR, CON UMBRAL DIMINUTO** (0.0001): la malla de Meshy
+  viene partida en cada costura del atlas, y el simplificador no puede
+  colapsar una arista que en realidad son dos — decimada a pelo, la mano salía
+  llena de AGUJEROS (probado a 1.800 y a 3.600, agrietada las dos veces). Con
+  los duplicados exactos ya soldados, 5.000 triángulos por mano salen limpios.
+  El umbral de serie de `remove_doubles` NO vale: suelda vértices que no son
+  vecinos y la agujerea igual.
+- **LA BARBA SE ACOTA AL MATERIAL DEL PELO** (`riggear.py`): detectada solo por
+  geometría ("lo que sobresale por delante del pecho") se llevaba a la cabeza
+  la SOLAPA de la casaca, que asoma exactamente ahí, y al girar la cabeza el
+  abrigo se abría de par en par. Se perdieron dos rondas culpando al reparto
+  por distancia.
+- **Y LA ROPA DEL TORSO VA ENTERA AL TRONCO**: lo que ya tiene peso de brazo es
+  MANGA y sigue al brazo; el resto es tela y va 100% a `Spine1`. Acotarlo por
+  `|x|` dejaba fuera el vuelo del faldón, que seguía girando con la cabeza.
+- **LA MANGA ARRANCA DENTRO DE LA HOMBRERA** (0.60 del ancho del cuerpo, no
+  0.80): la hombrera va con el tronco y la manga con el brazo, así que al
+  levantar el hombro se separaban y se veía el HUECO del interior.
+- **GIGI SE COLOCA MIDIENDO, con un barrido de sitios sobre el retrato real**
+  (`RETRATO_3D_POSADO`): esta figurita tiene la cabeza enorme y la barba llega
+  hasta el hombro, así que el sitio "natural" la entierra en el pelo. Va alta y
+  hacia fuera, junto a la oreja. **Y la sonda tiene que reescribir
+  `r["gigi_base"]`, no `position`**: el `_process` de la caja la recoloca desde
+  ahí cada fotograma, así que tocando `position` las cuatro pruebas salían
+  idénticas y parecía que el desvío no hacía nada.
+- Presupuesto del hook 32.000 (no se decima: el decimado de Godot funde las
+  superficies de dos materiales y aquí hay nueve).
+
 ## EL EXPERIMENTO DE ESTILO DE SEPTIEMBRE (revertido, NO reintroducir sin
 ## pedirlo)
 

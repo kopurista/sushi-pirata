@@ -29,7 +29,7 @@ ORO = (0.93, 0.67, 0.11)
 BLANCO = (0.94, 0.93, 0.91)
 MARRON = (0.34, 0.18, 0.09)
 NEGRO = (0.05, 0.05, 0.055)
-BEIGE = (0.87, 0.80, 0.70)
+BEIGE = (0.80, 0.72, 0.60)
 
 
 def lineal(c):
@@ -181,65 +181,95 @@ pieza(punta, mat("Pelo", GRIS_PELO))
 cuerpo = capsula("Cuerpo", (0.0, 0.0, Z_CADERA), (0.0, 0.0, Z_HOMBRO), ANCHO_CUERPO, segs=28)
 pieza(cuerpo, mat("Camisa", BLANCO))
 
-# CASACA: un abrigo ABIERTO de verdad. Es un cilindro sin tapas alrededor del
-# torso al que se le quita el sector de delante, para que se vea la camisa; con
-# dos bolas a los lados (el primer intento) parecia que llevara flotadores.
-bpy.ops.mesh.primitive_cylinder_add(vertices=48, radius=1.0, depth=1.0,
-                                    end_fill_type="NOTHING",
-                                    location=(0.0, 0.0, (Z_CADERA + Z_HOMBRO) / 2))
-casaca = bpy.context.active_object
-casaca.name = "Casaca"
-casaca.scale = (ANCHO_CUERPO * 1.14, ANCHO_CUERPO * 1.24, (Z_HOMBRO - Z_CADERA) * 1.30)
-bpy.ops.object.transform_apply(scale=True)
-# se abre por delante: fuera los vértices del sector frontal
-ABRE = math.radians(float(os.environ.get("ABERTURA", 54.0)))
-bpy.ops.object.mode_set(mode="EDIT")
-bpy.ops.mesh.select_all(action="DESELECT")
-bpy.ops.object.mode_set(mode="OBJECT")
-for v in casaca.data.vertices:
-    ang = math.atan2(v.co.x, -v.co.y)      # 0 = justo delante
-    if abs(ang) < ABRE:
-        v.select = True
-bpy.ops.object.mode_set(mode="EDIT")
-bpy.ops.mesh.delete(type="VERT")
-bpy.ops.object.mode_set(mode="OBJECT")
-# y se le da grosor, o se ve como un papel
-gr = casaca.modifiers.new("solid", "SOLIDIFY")
-gr.thickness = 0.012
-gr.offset = 0.0
-bpy.context.view_layer.objects.active = casaca
-bpy.ops.object.modifier_apply(modifier="solid")
-pieza(casaca, mat("Azul", AZUL))
+# CASACA: un abrigo ABIERTO, hecho como superficie de revolucion. El primer
+# intento fue un cilindro liso al que se le quitaba el sector de delante, y
+# salia como dos TABLAS planas a los lados: sin anillos intermedios no hay nada
+# que curvar y el solidify lo remata en plancha. Aqui se levanta anillo a
+# anillo con un perfil que se abre hacia abajo, como un faldon.
+def faldon(nombre, z0, z1, perfil, lados=44, abertura=0.0, material=None):
+    """Superficie de revolucion: `perfil` da el radio (x, y) a cada altura."""
+    mesh = bpy.data.meshes.new(nombre)
+    obj = bpy.data.objects.new(nombre, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    verts, faces = [], []
+    n_anillos = len(perfil)
+    # el sector de delante se salta: asi el abrigo queda ABIERTO de verdad
+    angs = []
+    for k in range(lados + 1):
+        a = -math.pi + 2.0 * math.pi * k / lados
+        if abs(a) >= abertura:
+            angs.append(a)
+    for i, (rx, ry) in enumerate(perfil):
+        z = z0 + (z1 - z0) * i / (n_anillos - 1)
+        for a in angs:
+            verts.append((math.sin(a) * rx, -math.cos(a) * ry, z))
+    m = len(angs)
+    for i in range(n_anillos - 1):
+        for j in range(m - 1):
+            v0 = i * m + j
+            faces.append((v0, v0 + 1, v0 + m + 1, v0 + m))
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    bpy.context.view_layer.objects.active = obj
+    gr = obj.modifiers.new("solid", "SOLIDIFY")
+    gr.thickness = 0.014
+    gr.offset = 0.0
+    bpy.ops.object.modifier_apply(modifier="solid")
+    return pieza(obj, material)
+
+
+R_C = ANCHO_CUERPO
+faldon("Casaca", Z_CADERA - 0.055, Z_HOMBRO + 0.010,
+       [(R_C * 1.32, R_C * 1.34), (R_C * 1.26, R_C * 1.30), (R_C * 1.16, R_C * 1.22),
+        (R_C * 1.08, R_C * 1.14), (R_C * 1.06, R_C * 1.10), (R_C * 1.08, R_C * 1.12)],
+       abertura=math.radians(float(os.environ.get("ABERTURA", 40.0))),
+       material=mat("Azul", AZUL))
+# el RIBETE dorado del canto delantero, que es lo que dibuja la solapa
+for s_ in (1.0, -1.0):
+    ab = math.radians(float(os.environ.get("ABERTURA", 40.0)))
+    pts = []
+    for i, (rx, ry) in enumerate([(R_C * 1.30, R_C * 1.32), (R_C * 1.16, R_C * 1.22),
+                                  (R_C * 1.06, R_C * 1.12)]):
+        z = (Z_CADERA - 0.040) + (Z_HOMBRO - 0.005 - (Z_CADERA - 0.040)) * i / 2.0
+        pts.append((s_ * math.sin(ab) * rx, -math.cos(ab) * ry, z))
+    for i in range(len(pts) - 1):
+        c = capsula("Ribete%s%d" % ("L" if s_ > 0 else "R", i), pts[i], pts[i + 1],
+                    0.0095, segs=12)
+        pieza(c, mat("Oro", ORO, rug=0.3))
 
 # hombreras, que rematan el abrigo arriba
 for s_ in (1.0, -1.0):
     h = esfera("Hombro%s" % ("L" if s_ > 0 else "R"),
                (s_ * ANCHO_CUERPO * 0.86, 0.0, Z_HOMBRO - 0.020),
-               (ANCHO_CUERPO * 0.46, ANCHO_CUERPO * 0.66, 0.070), segs=24, anillos=14)
+               (ANCHO_CUERPO * 0.60, ANCHO_CUERPO * 0.74, 0.082), segs=24, anillos=14)
     pieza(h, mat("Azul", AZUL))
 
 # CINTURON y hebilla
-cint = capsula("Cinturon", (-ANCHO_CUERPO * 0.55, 0.0, Z_CINTURON),
-               (ANCHO_CUERPO * 0.55, 0.0, Z_CINTURON), ANCHO_CUERPO * 0.72, segs=28)
-pieza(cint, mat("Cuero", MARRON))
-bpy.ops.mesh.primitive_cube_add(size=1.0, location=(0.0, -ANCHO_CUERPO * 0.98, Z_CINTURON))
+# CINTURON: un aro fino CEÑIDO al cuerpo. Como cápsula gorda asomaba por los
+# lados de la casaca como dos bolas marrones.
+faldon("Cinturon", Z_CINTURON - 0.030, Z_CINTURON + 0.030,
+       [(ANCHO_CUERPO * 1.02, ANCHO_CUERPO * 1.06),
+        (ANCHO_CUERPO * 1.03, ANCHO_CUERPO * 1.07),
+        (ANCHO_CUERPO * 1.02, ANCHO_CUERPO * 1.06)],
+       abertura=0.0, material=mat("Cuero", MARRON))
+bpy.ops.mesh.primitive_cube_add(size=1.0, location=(0.0, -ANCHO_CUERPO * 1.16, Z_CINTURON))
 heb = bpy.context.active_object
 heb.name = "Hebilla"
-heb.scale = (0.055, 0.02, 0.055)
+heb.scale = (0.038, 0.022, 0.038)
 bpy.ops.object.transform_apply(scale=True)
 suavizar(heb, niveles=2)
 pieza(heb, mat("Oro", ORO, rug=0.25))
 
 # PANTALON
-pant = capsula("Pantalon", (0.0, 0.0, Z_BOTA + 0.02), (0.0, 0.0, Z_CADERA + 0.02),
-               ANCHO_CUERPO * 0.68, segs=24)
+pant = capsula("Pantalon", (0.0, 0.0, Z_BOTA + 0.015), (0.0, 0.0, Z_CADERA - 0.01),
+               ANCHO_CUERPO * 0.72, segs=24)
 pieza(pant, mat("Beige", BEIGE))
 
 # BOTAS
 for s in (1.0, -1.0):
     b = esfera("Bota%s" % ("L" if s > 0 else "R"),
-               (s * 0.062, -0.012, Z_BOTA * 0.55),
-               (0.062, 0.085, Z_BOTA * 0.75), segs=24, anillos=14)
+               (s * 0.070, -0.020, Z_BOTA * 0.62),
+               (0.072, 0.098, Z_BOTA * 0.92), segs=24, anillos=14)
     pieza(b, mat("Negro", NEGRO, rug=0.28))
 
 # BRAZOS: capsulas de piel con la manga azul por encima
@@ -248,11 +278,11 @@ Z_MUNECA = 0.255
 for s in (1.0, -1.0):
     lado = "L" if s > 0 else "R"
     br = capsula("Brazo%s" % lado,
-                 (s * ANCHO_CUERPO * 0.85, 0.0, Z_HOMBRO - 0.03),
+                 (s * ANCHO_CUERPO * 0.60, 0.0, Z_HOMBRO - 0.03),
                  (s * BRAZO_X, 0.0, Z_MUNECA), 0.043, segs=20)
     pieza(br, mat("Piel", PIEL))
     mg = capsula("Manga%s" % lado,
-                 (s * ANCHO_CUERPO * 0.80, 0.0, Z_HOMBRO - 0.02),
+                 (s * ANCHO_CUERPO * 0.60, 0.0, Z_HOMBRO - 0.025),
                  (s * (BRAZO_X - 0.022), 0.0, Z_MUNECA + 0.042), 0.052, segs=20)
     pieza(mg, mat("Azul", AZUL))
     pu = capsula("Puno%s" % lado,
@@ -275,24 +305,45 @@ if os.path.exists(MANO_GLB):
     mhi = Vector([max(p[i] for p in mp) for i in range(3)])
     tris_m = sum(len(p.vertices) - 2 for p in mano.data.polygons)
     bpy.context.view_layer.objects.active = mano
-    md = mano.modifiers.new("dec", "DECIMATE")
-    md.ratio = min(1.0, 1800.0 / tris_m)
-    bpy.ops.object.modifier_apply(modifier="dec")
+    # LA MANO NO SE DECIMA: la malla de Meshy tiene aristas no-manifold y el
+    # simplificador la deja llena de AGUJEROS (probado a 1.800 y a 3.600
+    # triángulos, y las dos veces salió agrietada). Entera son 13.000
+    # triángulos por mano, que en un retrato de busto se pagan de sobra.
+    tris_obj = float(os.environ.get("MANO_TRIS", 5000.0))
+    if tris_obj > 0 and tris_m > tris_obj:
+        # SOLDAR ANTES DE DECIMAR, con umbral DIMINUTO. La malla de Meshy viene
+        # partida en cada costura del atlas, y el simplificador no puede
+        # colapsar una arista que en realidad son dos: por eso decimarla a pelo
+        # la dejaba llena de AGUJEROS. Soldando solo los duplicados exactos
+        # (0.0001) la malla queda cerrada y el decimado sale limpio; con el
+        # umbral de serie suelda vértices que no son vecinos y la agujerea
+        # igual.
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.mesh.remove_doubles(threshold=0.0001)
+        bpy.ops.object.mode_set(mode="OBJECT")
+        md = mano.modifiers.new("dec", "DECIMATE")
+        md.ratio = tris_obj / len(mano.data.polygons)
+        bpy.ops.object.modifier_apply(modifier="dec")
+    # y se suaviza: decimada a lo bruto, la mano sale facetada y con picos
+    bpy.ops.object.shade_smooth()
     mano.data.materials.clear()
     for s_ in (1.0, -1.0):
         d = mano.copy(); d.data = mano.data.copy()
         bpy.context.scene.collection.objects.link(d)
         d.name = "Mano%s" % ("L" if s_ > 0 else "R")
-        esc = 0.115 / (mhi[2] - mlo[2])
+        esc = float(os.environ.get("MANO_ESC", 0.135)) / (mhi[2] - mlo[2])
         eje = Vector((s_ * 0.40, 0.0, -1.0)).normalized()
         q = Vector((0.0, 0.0, 1.0)).rotation_difference(eje)
-        q = q @ Matrix.Rotation(math.radians(90.0 * s_), 4, "Z").to_quaternion()
+        q = q @ Matrix.Rotation(math.radians(float(os.environ.get("MANO_GIRO", 270.0)) * s_), 4, "Z").to_quaternion()
         centro = (mlo + mhi) / 2
-        ancla = Vector((s_ * BRAZO_X, 0.0, Z_MUNECA + 0.010))
+        ancla = Vector((s_ * (BRAZO_X + 0.012), 0.0, Z_MUNECA + 0.004))
         d.matrix_world = (Matrix.Translation(ancla) @ q.to_matrix().to_4x4()
                           @ Matrix.Scale(esc, 4)
                           @ Matrix.Translation(-Vector((centro.x, centro.y, mlo.z))))
-        pieza(d, mat("Piel", PIEL))
+        # material PROPIO: es lo que hace que `riggear.py` reconozca la mano y le
+        # dé su hueso entero, y lo que permite girar la muñeca sin tocar la manga
+        pieza(d, mat("PielMano", PIEL))
     bpy.data.objects.remove(mano, do_unlink=True)
     print("[david] manos injertadas")
 

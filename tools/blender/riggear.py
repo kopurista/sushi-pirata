@@ -168,10 +168,39 @@ i_head = nombres.index("Head")
 brazos = [nombres.index(n) for n in nombres if n.endswith(("_Shoulder", "_Elbow", "_Wrist"))]
 # 1) todo lo que está por encima del cuello es cabeza, con una transición corta
 k_head = suave(V[:, 2], z_cuello - (z_cuello - z_hombro) * 0.9, z_cuello)
+# LA ROPA NO ES CABEZA: en el personaje modelado por piezas, el cuello del
+# abrigo llega tan arriba como la barbilla, y al girar la cabeza se llevaba
+# media casaca. Los materiales que no son carne ni pelo se quedan fuera.
+mats_ropa = [i for i, mm in enumerate(me.materials)
+             if mm and any(k in mm.name for k in ("Azul", "Oro", "Cuero", "Camisa", "Beige"))]
+if mats_ropa:
+    de_ropa = np.zeros(len(V), dtype=bool)
+    for poly in me.polygons:
+        if poly.material_index in mats_ropa:
+            for vi in poly.vertices:
+                de_ropa[vi] = True
+    k_head[de_ropa] = 0.0
+    print("[rig] ropa fuera de la cabeza: %d vértices" % int(de_ropa.sum()))
+else:
+    de_ropa = np.zeros(len(V), dtype=bool)
 # 2) y la BARBA también: cuelga por delante del pecho (y negativo) y tiene que
 #    girar con la cabeza, como la de Tarin en el remake
+#    OJO: la barba se acota AL MATERIAL DEL PELO cuando lo hay. Detectada solo
+#    por geometría ("lo que sobresale por delante del pecho"), se llevaba a la
+#    cabeza la SOLAPA de la casaca —que asoma exactamente ahí— y al girar la
+#    cabeza el abrigo se abría de par en par. Se perdieron dos rondas
+#    culpando al reparto por distancia.
 barba = (V[:, 1] < y_medio - (hi[1] - lo[1]) * 0.12) & (V[:, 2] > z_cadera)
+mats_pelo = [i for i, mm in enumerate(me.materials) if mm and "Pelo" in mm.name]
+if mats_pelo:
+    es_pelo = np.zeros(len(V), dtype=bool)
+    for poly in me.polygons:
+        if poly.material_index in mats_pelo:
+            for vi in poly.vertices:
+                es_pelo[vi] = True
+    barba &= es_pelo
 k_head = np.maximum(k_head, np.where(barba, 0.92, 0.0))
+k_head[de_ropa] = 0.0
 # 3) los brazos no tocan el tronco: solo desde la mitad de su separación
 fuera = suave(np.abs(V[:, 0]), brazo_x * 0.55, brazo_x * 0.85)
 W[:, brazos] *= fuera[:, None]
@@ -193,6 +222,18 @@ suma = W.sum(axis=1, keepdims=True)
 W = np.divide(W, suma, out=np.zeros_like(W), where=suma > 0)
 W *= (1.0 - k_head)[:, None]
 W[:, i_head] = k_head
+# LA ROPA DEL TORSO ES UNA PIEZA DEL TRONCO. El cuello del abrigo llega a la
+# altura de la barbilla, así que por distancia cogía peso de la cabeza y del
+# cuello y al girarlos se llevaba media casaca. Todo lo que sea tela del torso
+# (no las mangas, que sí siguen al brazo) pasa entero a Spine1.
+if de_ropa.any() and "Spine1" in nombres:
+    # lo que ya tiene peso de brazo es MANGA y sigue al brazo; el resto es tela
+    # del tronco. Acotarlo por |x| dejaba fuera el vuelo del faldón.
+    torso = de_ropa & (W[:, brazos].sum(axis=1) < 0.05)
+    W[torso, :] = 0.0
+    W[torso, nombres.index("Spine1")] = 1.0
+    print("[rig] ropa del torso al tronco: %d vértices" % int(torso.sum()))
+
 for lado, iw in i_wrist.items():
     sel = mano_lado[lado]
     W[sel, :] = 0.0

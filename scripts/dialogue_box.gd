@@ -257,7 +257,11 @@ const RETRATO_3D_POSADO := {
 	"david": {
 		"escena": "res://assets/models/gigi_toy.glb",
 		"alto": 0.30,                       # del alto de David
-		"desvio": Vector3(-0.255, 0.075, 0.085),  # del centro del modelo
+		# MEDIDO con un barrido de cuatro sitios sobre el retrato real (la sonda
+		# tiene que reescribir "gigi_base", no `position`: el _process recoloca
+		# a Gigi desde ahí cada fotograma). Más abajo o más adelante se hunde en
+		# la barba, que en esta figurita es ancha y llega hasta el hombro.
+		"desvio": Vector3(-0.295, 0.255, -0.125),  # del centro del modelo
 		"giro": -14.0,
 	},
 }
