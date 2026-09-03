@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ccnxwnw821p7p"
-path="res://.godot/imported/gigi_toy_gigi_base_tex.jpg-bb5d6d11bf5603a9fc05764f11b4daf6.ctex"
+uid="uid://dc2jcpua57883"
+path="res://.godot/imported/gigi_toy_gigi_pintada.jpg-6ad7e89f491348e99f02606211863c3f.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "5baf9f35a0092892b9f0503c853d8970"
+"md5": "1edbada645857019129aab0aecdacd09"
 }
 
 [deps]
 
-source_file="res://assets/models/gigi_toy_gigi_base_tex.jpg"
-dest_files=["res://.godot/imported/gigi_toy_gigi_base_tex.jpg-bb5d6d11bf5603a9fc05764f11b4daf6.ctex"]
+source_file="res://assets/models/gigi_toy_gigi_pintada.jpg"
+dest_files=["res://.godot/imported/gigi_toy_gigi_pintada.jpg-6ad7e89f491348e99f02606211863c3f.ctex"]
 
 [params]
 

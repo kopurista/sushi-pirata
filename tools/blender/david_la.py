@@ -273,12 +273,36 @@ if PLANO:
                     votos[k] += (v == k)
         return votos.argmax(axis=0)
     labels = moda(labels)
+    # QUITAMOTAS: se compara cada téxel con la moda de un entorno GRANDE y solo
+    # se cambia si su color casi no existe ahí (menos del 18%). Eso borra las
+    # motas sueltas que Meshy deja en zonas que el concepto no enseñaba —el
+    # pico del loro salía picado— y NO toca los bordes buenos, donde los dos
+    # colores se reparten mitad y mitad.
+    R_MOTA = int(os.environ.get("MOTA", 0))
+    if R_MOTA:
+        votos = np.zeros((K, H, W), dtype=np.float32)
+        for dy in range(-R_MOTA, R_MOTA + 1, 2):
+            for dx in range(-R_MOTA, R_MOTA + 1, 2):
+                v = np.roll(np.roll(labels, dy, 0), dx, 1)
+                for k in range(K):
+                    votos[k] += (v == k)
+        total = votos.sum(axis=0)
+        mayor = votos.argmax(axis=0)
+        propio = np.take_along_axis(votos, labels[None], axis=0)[0]
+        mota = (propio / np.maximum(total, 1.0)) < 0.18
+        labels = np.where(mota, mayor, labels)
+        print("[toy] quitamotas: %.2f%% de la textura" % (100.0 * mota.mean()))
     plano = cent[labels]
 else:
     # mediana 3x3 repetida: quita las motas de la proyección de Meshy sin
     # tocar el degradado
     plano = rgb.copy()
-    for _ in range(3):
+    # MEDIANA REPETIDA: cada pasada se come las motas de un téxel, así que el
+    # número de pasadas es el tamaño de mancha que borra. Meshy deja motas
+    # oscuras de 20-40 téxeles en el pico y el cuerpo del loro, y con tres
+    # pasadas seguían todas. El degradado que hay que conservar es MUY suave,
+    # así que aguanta de sobra este martillo.
+    for _ in range(int(os.environ.get("MEDIANA", 3))):
         pila = np.stack([np.roll(np.roll(plano, dy, 0), dx, 1)
                          for dy in (-1, 0, 1) for dx in (-1, 0, 1)], axis=0)
         plano = np.median(pila, axis=0)
@@ -286,15 +310,38 @@ else:
     print("[toy] textura suavizada (sin cuantizar)")
 
 if DESMANCHA > 0.0:
-    # mediana de entorno grande: se baja la textura a 1/8, se difumina y se sube
+    # Meshy pinta las zonas que el concepto NO enseñaba (la espalda, el otro
+    # lado del pico) con manchas oscuras inventadas. En el atlas son GRANDES
+    # —medido: radio de 20 a 40 téxeles— así que ni una mediana de radio 14 las
+    # toca: se quitan por CONTRASTE con un fondo de radio muy grande.
+    #
+    # Y el fondo se calcula DOS VECES: a la primera incluye las propias
+    # manchas (son enormes), así que el reemplazo salía oscuro también. La
+    # segunda pasada promedia solo lo que NO es mancha, y entonces sí devuelve
+    # el color bueno de esa zona.
     f = 8
-    ch = plano.reshape(H // f, f, W // f, f, 3).mean(axis=(1, 3))
-    for _ in range(6):
-        ch = (ch + np.roll(ch, 1, 0) + np.roll(ch, -1, 0) + np.roll(ch, 1, 1) + np.roll(ch, -1, 1)) / 5.0
-    fondo = np.repeat(np.repeat(ch, f, axis=0), f, axis=1)
-    lum_t = plano.max(axis=2); lum_f = fondo.max(axis=2)
-    mancha = lum_t < lum_f - DESMANCHA
-    plano = np.where(mancha[..., None], fondo, plano)
+    peq = plano.reshape(H // f, f, W // f, f, 3).mean(axis=(1, 3))
+    def difuso(img, m, n):
+        num = img * m[..., None]; den = m.copy()
+        for _ in range(n):
+            num = (num + np.roll(num, 1, 0) + np.roll(num, -1, 0)
+                   + np.roll(num, 1, 1) + np.roll(num, -1, 1)) / 5.0
+            den = (den + np.roll(den, 1, 0) + np.roll(den, -1, 0)
+                   + np.roll(den, 1, 1) + np.roll(den, -1, 1)) / 5.0
+        return num / np.maximum(den, 1e-4)[..., None]
+    m1 = np.ones(peq.shape[:2], dtype=np.float32)
+    fondo = difuso(peq, m1, 14)
+    limpio = (peq.max(axis=2) >= fondo.max(axis=2) - DESMANCHA).astype(np.float32)
+    fondo = difuso(peq, limpio, 14)
+    grande = np.repeat(np.repeat(fondo, f, axis=0), f, axis=1)
+    mancha = plano.max(axis=2) < grande.max(axis=2) - DESMANCHA
+    # se sustituye con un borde suave, o el parche se nota como un recorte
+    mk = mancha.astype(np.float32)
+    for _ in range(3):
+        mk = (mk + np.roll(mk, 1, 0) + np.roll(mk, -1, 0)
+              + np.roll(mk, 1, 1) + np.roll(mk, -1, 1)) / 5.0
+    mk = np.clip(mk * 2.2, 0.0, 1.0)
+    plano = plano * (1.0 - mk[..., None]) + grande * mk[..., None]
     print("[toy] desmanchado: %.2f%% de la textura" % (100.0 * mancha.mean()))
 
 # OJOS POR CONSTRUCCIÓN (el usuario los quiere MÁS REDONDOS que los del

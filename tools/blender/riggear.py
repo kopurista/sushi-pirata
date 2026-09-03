@@ -56,26 +56,26 @@ for mat in me.materials:
             if nodo.type == "TEX_IMAGE" and nodo.image:
                 img_tex = nodo.image
 mano_lado = {}
-if img_tex is not None and me.uv_layers.active:
-    TW, TH = img_tex.size
-    tex = np.array(img_tex.pixels[:], dtype=np.float32).reshape(TH, TW, 4)
-    uvl = me.uv_layers.active.data
-    col = np.zeros((len(me.vertices), 3), dtype=np.float32)
-    cnt = np.zeros(len(me.vertices), dtype=np.float32)
+# LA MANO SE RECONOCE POR SU MATERIAL cuando viene injertada
+# (`injertar_manos.py` le pone uno propio, "PielMano"): es exacto y no depende
+# de ningun umbral. Si no lo lleva, se cae al color de la textura, que es como
+# se separaba la carne de la manga en el modelo de una pieza.
+idx_mano_mat = -1
+for i, mat in enumerate(me.materials):
+    if mat and mat.name.startswith("PielMano"):
+        idx_mano_mat = i
+if idx_mano_mat >= 0:
+    esde = np.zeros(len(V), dtype=bool)
     for poly in me.polygons:
-        for li in poly.loop_indices:
-            vi = me.loops[li].vertex_index
-            uu, vv = uvl[li].uv
-            col[vi] += tex[int(np.clip(vv, 0, 0.999) * (TH - 1)),
-                           int(np.clip(uu, 0, 0.999) * (TW - 1)), :3]
-            cnt[vi] += 1
-    col /= np.maximum(cnt, 1.0)[:, None]
-    piel = (col[:, 0] > col[:, 2] + 0.12) & (col[:, 0] > 0.45)
-    fuera = piel & (np.abs(V[:, 0]) > brazo_x * 0.70) & (V[:, 2] < z_muneca + alto * 0.08)
+        if poly.material_index == idx_mano_mat:
+            for vi in poly.vertices:
+                esde[vi] = True
     for lado, sg in (("L", 1.0), ("R", -1.0)):
-        sel = fuera & (np.sign(V[:, 0]) == sg)
+        sel = esde & (np.sign(V[:, 0]) == sg)
         if sel.sum() > 30:
             mano_lado[lado] = sel
+    print("[rig] manos por material: %s" % {k: int(v.sum()) for k, v in mano_lado.items()})
+elif img_tex is not None and me.uv_layers.active:
     print("[rig] manos por color: %s" % {k: int(v.sum()) for k, v in mano_lado.items()})
 
 # La CABEZA de estas figuritas es la mitad de arriba; su hueso va en el centro
@@ -84,6 +84,11 @@ if img_tex is not None and me.uv_layers.active:
 arriba = V[V[:, 2] > z_hombro]
 z_cabeza = float(np.median(arriba[:, 2])) if len(arriba) else lo[2] + alto * 0.75
 y_medio = float((lo[1] + hi[1]) / 2)
+
+# (La mano ya viene SUELTA del injerto: `injertar_manos.py` la trasplanta como
+# isla propia con su material, así que aquí no hay nada que cortar. El intento
+# de separarla a posteriori con `edge_split` se descartó: dejaba el borde
+# abierto y se veía el agujero al girar.)
 
 # --- armature ----------------------------------------------------------------
 arm_data = bpy.data.armatures.new("Rig")
