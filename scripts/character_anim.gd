@@ -645,9 +645,26 @@ func hablar(t: float, fuerza := 1.0) -> void:
 	_roll("Head", sin(t * 3.9) * 1.5 * fuerza)
 	_pitch("Neck", acento * 1.1 * fuerza)
 	_pitch("Spine1", sin(t * 2.2 + 0.9) * 1.0 * fuerza)
-	var abre := (0.5 + 0.5 * sin(t * 4.3)) * 2.6 * fuerza
-	_roll("L_Shoulder", -abre)
-	_roll("R_Shoulder", abre)
+	# LOS BRAZOS, COMO EN EL REMAKE: al hablar las manos se adelantan con las
+	# PALMAS HACIA ARRIBA y los codos semiflexionados, moviéndose despacio; en
+	# reposo caen del todo (de eso ya se encarga `_arms_at_rest`, y al callar
+	# la fuerza vuelve a 0 y los devuelve solos).
+	#
+	# El gesto sale del HOMBRO y no del codo: estas figuritas tienen el brazo
+	# entero en un 9% de su altura, así que el antebrazo es un muñón y girarlo
+	# no se ve (medido en render, poses `codoX±`). Los ritmos van LENTOS a
+	# propósito (~1 rad/s) y desfasados entre los dos brazos, que es lo que
+	# hace que el gesto acompañe a la voz en vez de aletear.
+	var l1 := sin(t * 1.05)
+	var l2 := sin(t * 0.78 + 2.1)
+	_pitch("L_Shoulder", (-20.0 + l1 * 6.0) * fuerza)
+	_pitch("R_Shoulder", (-20.0 + l2 * 6.0) * fuerza)
+	_roll("L_Shoulder", -(8.0 + l1 * 3.0) * fuerza)
+	_roll("R_Shoulder", (8.0 + l2 * 3.0) * fuerza)
+	_pitch("L_Elbow", (-28.0 + l2 * 8.0) * fuerza)
+	_pitch("R_Elbow", (-28.0 + l1 * 8.0) * fuerza)
+	_yaw("L_Wrist", 52.0 * fuerza)
+	_yaw("R_Wrist", -52.0 * fuerza)
 
 
 func embobado(t: float) -> void:

@@ -6286,12 +6286,24 @@ cadena que salió de él vale para el resto del reparto:
    la raíz, el desvío se lee en el sistema del modelo. **Y DAVID GIRA AL
    REVÉS QUE LOS DEMÁS** (`R3D_YAW_VUELTA`): el giro de cortesía hacia la caja
    le escondía justo el hombro donde va Gigi.
-8. **Godot**: `.import` con el hook y presupuesto 20000 (no se decima),
+8. **LOS BRAZOS, COMO EN EL REMAKE** (pedido por el usuario mirando el juego):
+   al HABLAR las manos se adelantan con las **palmas hacia arriba** y los
+   codos semiflexionados, moviéndose despacio; en REPOSO caen del todo, nada
+   levantados. El gesto sale del HOMBRO y no del codo: el brazo entero de
+   estas figuritas mide un 9% de su altura, así que el antebrazo es un muñón y
+   girarlo no se ve (medido con las poses `codoX±` de `probar_rig.py`). Los
+   ritmos van a ~1 rad/s y desfasados entre los dos brazos, o el personaje
+   aletea en vez de acompañar a la voz.
+9. **Godot**: `.import` con el hook y presupuesto 20000 (no se decima),
    `fix_texture_imports`. Al REEXPORTAR el glb hay que borrar la textura
    extraída y `.godot/imported/<id>*`. En la caja de diálogo: `RETRATO_3D_RUTA`
-   apunta a `david_toy.glb`, banda de busto por hablante (`R3D_BANDA_QUIEN`,
-   0.62 para el cabezón) y una LUZ DE CANTO fría por detrás, que es lo que
-   enciende el borde del vinilo.
+   apunta a `david_toy.glb`, banda de busto por hablante (`R3D_BANDA_QUIEN`)
+   y una LUZ DE CANTO fría por detrás, que es lo que enciende el borde del
+   vinilo. **Y SU TEXTURA VA A 1024, no a los 256 del atrezzo**
+   (`GRANDES` en `fix_texture_imports.py`): en el retrato el personaje ocupa
+   media pantalla, mucho más que en la cinta o en el mapa, y a 256 la cara
+   salía BORROSA — se vio comparando el render de Blender, nítido, con la
+   misma cabeza dentro del juego. Gigi, que va pequeña en el hombro, a 512.
 
 ## EL EXPERIMENTO DE ESTILO DE SEPTIEMBRE (revertido, NO reintroducir sin
 ## pedirlo)

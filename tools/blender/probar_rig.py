@@ -42,6 +42,16 @@ POSES = {
     "asiente": {"Head": (26, 0, 0), "Neck": (10, 0, 0)},
     "brazos": {"L_Shoulder": (0, 0, -55), "R_Shoulder": (0, 0, 55)},
     "tronco": {"Spine1": (-14, 0, 10), "Head": (6, 0, -8)},
+    "codoX-": {"L_Elbow": (-35, 0, 0), "R_Elbow": (-35, 0, 0)},
+    "codoX+": {"L_Elbow": (35, 0, 0), "R_Elbow": (35, 0, 0)},
+    "hombroX-": {"L_Shoulder": (-30, 0, 0), "R_Shoulder": (-30, 0, 0)},
+    "manoY": {"L_Wrist": (0, 45, 0), "R_Wrist": (0, -45, 0)},
+    "habla_A": {"L_Shoulder": (-16, 0, -6), "R_Shoulder": (-16, 0, 6),
+                "L_Elbow": (-22, 0, 0), "R_Elbow": (-22, 0, 0),
+                "L_Wrist": (0, 45, 0), "R_Wrist": (0, -45, 0)},
+    "habla_B": {"L_Shoulder": (-26, 0, -10), "R_Shoulder": (-26, 0, 10),
+                "L_Elbow": (-34, 0, 0), "R_Elbow": (-34, 0, 0),
+                "L_Wrist": (0, 60, 0), "R_Wrist": (0, -60, 0)},
 }
 for nombre, r in POSES.items():
     pose(**r)

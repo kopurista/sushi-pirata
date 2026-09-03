@@ -31,6 +31,13 @@ BIG_PREFIXES = (
     "chef", "ayudante", "grumete", "pirata", "capitan", "vip", "tendero", "map_",
 )
 
+## LOS RETRATOS DEL DIALOGO NECESITAN MAS: ahi el personaje se ve a media
+## pantalla, mucho mas grande que en la cinta o en el mapa, y a 256 px la cara
+## sale BORROSA (se vio comparando el render de Blender, nitido a 1024, con la
+## misma cabeza dentro del juego). El de David a 1024 y el loro, que va
+## pequeño en su hombro, a 512.
+GRANDES = {"david_toy": "1024", "gigi_toy": "512"}
+
 ## LA PALETA DE KENNEY SE QUEDA EN LOSSLESS, y no es un descuido. Es una
 ## tabla de bandas de color plano que tiñe LOS 72 MODELOS del mundo: comprimir
 ## por bloques correria los colores en los cantos de cada banda, y como las UV
@@ -48,6 +55,9 @@ RULES = {
 
 
 def size_limit(name: str) -> str:
+    for pref, lim in GRANDES.items():
+        if name.startswith(pref):
+            return lim
     return "512" if name.startswith(BIG_PREFIXES) else "256"
 
 
