@@ -934,9 +934,22 @@ func _tick_3d(delta: float) -> void:
 		_tick_gigi(r, delta)
 
 
-## Gigi nunca se queda quieta. El cuerpo entero se mece en el hombro y, si
-## tiene esqueleto, `BirdAnim` le da lo que de verdad la hace un loro: los
-## giros de cabeza a golpes, la cola con retardo y algún aleteo.
+## Gigi nunca se queda quieta. El cuerpo entero se mece en el hombro y, ADEMÁS,
+## pega los GOLPES de cabeza de un loro.
+##
+## Esos golpes van sobre la TRANSFORMADA DEL NODO, no sobre huesos. El modelo
+## bueno de Gigi es el crudo de Meshy y NO lleva rig: riguearlo le encogía la
+## cabeza y le rompía la silueta —el bicho es un óvalo continuo de cabeza y
+## cuerpo, y en cuanto se separan las dos mitades deja de leerse como un loro—.
+## Girando el objeto entero es IMPOSIBLE que se desfigure, y a este tamaño (va
+## posada en un hombro) se lee exactamente igual. Si algún día vuelve a tener
+## esqueleto, `BirdAnim` toma el relevo y esto se queda de meneo de fondo.
+const GIGI_GOLPE := 0.11        ## lo que tarda en llegar al giro nuevo
+const GIGI_ESPERA := Vector2(0.9, 2.6)    ## quieta, callado
+const GIGI_ESPERA_HABLA := Vector2(0.45, 1.4)
+const GIGI_PROB_LADEO := 0.35   ## de las veces, ladea en vez de girar
+const GIGI_GIRO := 22.0
+const GIGI_LADEO := 18.0
 func _tick_gigi(r: Dictionary, delta: float) -> void:
 	var g = r.get("gigi")
 	if g == null or not is_instance_valid(g):
@@ -944,13 +957,45 @@ func _tick_gigi(r: Dictionary, delta: float) -> void:
 	var t := _r3d_t
 	var f: float = 0.35 + 0.65 * float(r.get("habla", 0.0))
 	g.position = Vector3(r["gigi_base"]) + Vector3(0.0, sin(t * 2.3) * 0.004 * f, 0.0)
-	g.rotation_degrees = Vector3(
-		sin(t * 3.1) * 2.0 * f,
-		float(RETRATO_3D_POSADO[str(r["who"])]["giro"]) + sin(t * 1.9) * 5.0 * f,
-		sin(t * 2.7 + 1.1) * 2.5 * f)
 	var ba = r.get("gigi_anim")
+	var golpe := Vector3.ZERO
 	if ba != null:
 		(ba as BirdAnim).tick(delta, float(r.get("habla", 0.0)))
+	else:
+		golpe = _gigi_golpe(r, delta)
+	g.rotation_degrees = Vector3(
+		sin(t * 3.1) * 2.0 * f + golpe.x,
+		float(RETRATO_3D_POSADO[str(r["who"])]["giro"]) + sin(t * 1.9) * 5.0 * f + golpe.y,
+		sin(t * 2.7 + 1.1) * 2.5 * f + golpe.z)
+
+
+## El golpe de cabeza: se sortea una postura, se llega a ella en un suspiro y se
+## QUEDA CLAVADA hasta el siguiente. El contraste entre el golpe y la quietud es
+## todo el efecto: con una interpolación suave el bicho parece un peluche
+## meciéndose. Mira más veces mientras su dueño habla.
+func _gigi_golpe(r: Dictionary, delta: float) -> Vector3:
+	var espera: float = float(r.get("gigi_espera", 0.0)) - delta
+	var v: Vector3 = r.get("gigi_dest", Vector3.ZERO)
+	var de: Vector3 = r.get("gigi_de", Vector3.ZERO)
+	var k: float = float(r.get("gigi_k", 1.0))
+	if k < 1.0:
+		k = minf(1.0, k + delta / GIGI_GOLPE)
+		r["gigi_k"] = k
+	elif espera <= 0.0:
+		var hablando: bool = float(r.get("habla", 0.0)) > 0.5
+		var rango: Vector2 = GIGI_ESPERA_HABLA if hablando else GIGI_ESPERA
+		r["gigi_espera"] = randf_range(rango.x, rango.y)
+		r["gigi_de"] = v
+		r["gigi_k"] = 0.0
+		if randf() < GIGI_PROB_LADEO:
+			r["gigi_dest"] = Vector3(0.0, 0.0, randf_range(-GIGI_LADEO, GIGI_LADEO))
+		else:
+			r["gigi_dest"] = Vector3(randf_range(-6.0, 6.0),
+				randf_range(-GIGI_GIRO, GIGI_GIRO), 0.0)
+		return de
+	else:
+		r["gigi_espera"] = espera
+	return de.lerp(v, k * k * (3.0 - 2.0 * k))
 
 
 ## De qué lado es el que tiene la palabra ahora mismo: el retrato que está a

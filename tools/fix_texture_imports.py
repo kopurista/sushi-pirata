@@ -36,7 +36,7 @@ BIG_PREFIXES = (
 ## sale BORROSA (se vio comparando el render de Blender, nitido a 1024, con la
 ## misma cabeza dentro del juego). El de David a 1024 y el loro, que va
 ## pequeño en su hombro, a 512.
-GRANDES = {"david_toy": "1024", "david_meshy": "1024", "gigi_toy": "512"}
+GRANDES = {"david_toy": "1024", "gigi_toy": "512"}
 
 ## LA PALETA DE KENNEY SE QUEDA EN LOSSLESS, y no es un descuido. Es una
 ## tabla de bandas de color plano que tiñe LOS 72 MODELOS del mundo: comprimir

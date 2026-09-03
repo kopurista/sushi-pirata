@@ -30,7 +30,6 @@ const BUDGETS := {
 	# Entrado por Meshy (tools/meshy.py).
 	# Entrado por Meshy (tools/meshy.py).
 	"david_toy": 32000,
-	"david_meshy": 14000,
 	"gigi_toy": 8000,
 	# Entrado por Meshy (tools/meshy.py).
 	# Entrado por Meshy (tools/meshy.py).
