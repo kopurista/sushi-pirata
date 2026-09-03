@@ -265,7 +265,7 @@ const RETRATO_3D_POSADO := {
 		# tiene que reescribir "gigi_base", no `position`: el _process recoloca
 		# a Gigi desde ahí cada fotograma). Más abajo o más adelante se hunde en
 		# la barba, que en esta figurita es ancha y llega hasta el hombro.
-		"desvio": Vector3(-0.270, 0.165, -0.020),  # del centro del modelo
+		"desvio": Vector3(-0.295, 0.215, -0.050),  # del centro del modelo
 		"giro": -14.0,
 	},
 }

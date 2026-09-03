@@ -6346,6 +6346,56 @@ cadena que salió de él vale para el resto del reparto:
    salía BORROSA — se vio comparando el render de Blender, nítido, con la
    misma cabeza dentro del juego. Gigi, que va pequeña en el hombro, a 512.
 
+**LA CADENA BUENA DE UN PERSONAJE (rehecha entera el 3-9-2026, y es la que hay
+que seguir)**: concepto en Ludo → Meshy image→3D **con `--rig`** →
+`tools/blender/preparar_personaje.py` → Godot. Nada de modelar a mano y nada de
+operar el modelo después.
+- **EL CONCEPTO SE PIDE YA SIN PULGAR** (decidido por el usuario): manos de
+  MUÑÓN, un bulto liso sin dedos, sin pulgar y sin muescas. Una manopla con
+  pulgar obliga a que el giro de muñeca signifique algo —hay derecho y revés— y
+  a este tamaño eso no se lee, solo se ve el bulto deformarse. Quitárselo
+  DESPUÉS al modelo se puede (`tools/blender/david_munon.py`, que sigue ahí y
+  funciona), pero es media tarde de trabajo que el prompt ahorra.
+- **Y SE PIDE SIN OJOS**: Meshy los talla como cuencas con reborde que cogen luz
+  y no hay repintado que las esconda. `tools/quitar_ojos.py` los borra del
+  concepto y APUNTA SUS MEDIDAS en `<salida>_ojos.json`, que luego coloca los
+  ojos 3D exactos. **Su salida tiene que llamarse `<algo>_concepto.png`**: la
+  ruta del JSON sale de un `replace` sobre ese nombre, así que con cualquier
+  otro el JSON se escribe ENCIMA del PNG y lo destruye.
+- **EL GENERADOR SOLO ATIENDE A UNA PARTE DEL PROMPT, y con uno largo se come
+  el resto SIN AVISAR.** Medido en tres tandas seguidas: pidiendo proporción +
+  barba + uniforme salió DESNUDO; poniendo el uniforme en cabecera y en lista
+  salió sin BARBA; y con la barba enfatizada volvió a perder la ropa. Lo que
+  funciona es ENCADENAR: una tanda para la base vestida y después `editImage`
+  añadiendo UNA cosa por pasada (la barba, y en otra el calvo). Es la misma
+  regla que ya costó una docena de intentos con el puñal de Pablo.
+- **EL RIG DE MESHY SÍ FUNCIONA con esta proporción** (24 huesos estilo Mixamo,
+  ~60 s). Falló con el Kappa y con el primer David de esta tanda porque eran
+  MUY cabezones ("Pose estimation failed"); con la cabeza en torno al 40% del
+  alto entra a la primera. `preparar_personaje.py` renombra sus huesos al
+  esquema del juego y `CharacterAnim` los coge por nombre sin tocar código.
+- **`preparar_personaje.py` hace de una pasada** los ojos, el renombrado de
+  huesos, la normalización a 1.0 de alto con la base en 0, la textura a 1024 y
+  —esto es obligatorio— **apagar la EMISIÓN y el METÁLICO**, que Meshy los deja
+  encendidos (medido en Godot: `emision=true energia=1.00 met=1.00`) y con eso
+  el retrato sale QUEMADO, con la piel y la barba a blanco, sin que ninguna
+  perilla de luz lo arregle.
+  · **LOS OJOS SON ESFERAS ACHATADAS MEDIO HUNDIDAS**, no una calcomanía ni un
+    disco pegado con shrinkwrap: sobre una cara facetada el disco se pliega y
+    sale RAYADO de z-fighting, y proyectando hacia dentro sus bordes atraviesan
+    la cabeza y se pegan a la NUCA.
+  · **Y LO QUE SE HUNDE ES FRACCIÓN DE LA PROFUNDIDAD DEL OJO, no del semieje
+    horizontal**: el ojo es una lenteja (0.45 de grosor) y hundiéndolo 0.78 del
+    semieje se metía ENTERO dentro de la cabeza y desaparecía de la cara.
+  · **Sus PESOS se copian de la piel donde se apoya** (con un KDTree), no se
+    ponen a `Head` al 100%: la carne de la cara reparte entre Neck y Head y se
+    deforma poco, así que un ojo clavado a Head giraba de más y se DESPEGABA al
+    volver la cabeza.
+- **La escala se aplica a los DATOS** (huesos en modo edición + vértices), no al
+  objeto: el armature de Meshy viene con escala 0.01 y dejándosela puesta el
+  conjunto mide 0.005 en Godot, entra entero por delante del plano cercano de la
+  cámara del retrato y de él solo se ve una cuña negra.
+
 **DAVID SE MODELA EN BLENDER, SIN PASAR POR MESHY** (`tools/blender/
 modelar_david.py`, pedido por el usuario: "prueba a hacer tú el modelo 3D
 directamente en Blender... a ver si así da menos problemas"). Y da MENOS
