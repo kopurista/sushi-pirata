@@ -10,6 +10,7 @@
 # 4) material de vinilo (rugosidad baja) y exportación a assets/models/<id>.glb.
 import bpy, sys, os, math
 import numpy as np
+from mathutils import Vector
 
 args = sys.argv[sys.argv.index("--") + 1:]
 CRUDO = os.path.abspath(args[0]); ID = args[1]
@@ -83,6 +84,92 @@ if MALLA_SUAVE:
     bpy.ops.object.mode_set(mode="OBJECT")
     print("[toy] malla suavizada %d pasadas" % MALLA_SUAVE)
 print("[toy] normales personalizadas:", me.has_custom_normals)
+# --- DEDOS EN LA MANO: PROBADO Y DESCARTADO (DEDOS=0) --------------------------
+# Se intentaron de dos maneras y las dos quedaron mal: PINTADOS en la textura
+# salían como manchas irregulares y sucias (la UV de Meshy va troceada y el
+# surco se rompe), y SURCADOS en la malla —subdividiendo la manopla y hundiendo
+# los vértices— salían como dedos gordos y deformes ("esas manos son
+# horribles", dijo el usuario). Y no hacían falta: en el remake las manos son
+# manoplas LISAS, y lo que hace legible la palma hacia arriba es el GIRO de la
+# muñeca, no unos dedos dibujados. El código se queda apagado por si algún día
+# entra un personaje con manos de verdad; para encenderlo, DEDOS=1.
+DEDOS = int(os.environ.get("DEDOS", 0))
+CUERPO_JSON = os.path.splitext(
+    (os.path.abspath(args[2]) if len(args) > 2 else "")
+)[0].replace("_concepto", "_cuerpo") + ".json"
+if DEDOS and os.path.exists(CUERPO_JSON):
+    import json as _json
+    cu = _json.load(open(CUERPO_JSON))
+    MW0 = obj.matrix_world
+    # LA MANO SE SUBDIVIDE ANTES DE SURCARLA: tal cual, la manopla tiene ~266
+    # vértices y cuatro surcos no caben (129 vértices movidos, y los pliegues
+    # salían como una ondulación tenue). Dos cortes le dan resolución de sobra
+    # y cuestan poco: solo se subdividen sus caras.
+    _P = np.array([MW0 @ v.co for v in me.vertices], dtype=np.float32)
+    _zt = _P[:, 2].max(); _al = _zt - _P[:, 2].min()
+    _anc = cu["ancho_hombro"] * _al
+    _zmu = _zt - cu["muneca_z"] * _al
+    _bx = cu["brazo_x"] * _anc
+    _mano = (np.abs(_P[:, 0]) > _bx * 0.74) & (_P[:, 2] < _zmu + _al * 0.05)
+    bpy.ops.object.mode_set(mode="EDIT"); bpy.ops.mesh.select_all(action="DESELECT")
+    bpy.ops.object.mode_set(mode="OBJECT")
+    for i in np.nonzero(_mano)[0]:
+        me.vertices[int(i)].select = True
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.subdivide(number_cuts=2, smoothness=1.0)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    print("[toy] manos subdivididas: %d -> %d vértices" % (len(_P), len(me.vertices)))
+    P0 = np.array([MW0 @ v.co for v in me.vertices], dtype=np.float32)
+    N0 = np.array([(MW0.to_3x3() @ v.normal).normalized() for v in me.vertices], dtype=np.float32)
+    z_top = P0[:, 2].max(); alto_g = z_top - P0[:, 2].min()
+    anc_g = cu["ancho_hombro"] * alto_g
+    z_mu = z_top - cu["muneca_z"] * alto_g
+    bx_g = cu["brazo_x"] * anc_g
+    SURCO_W = alto_g * 0.010          # ancho del surco
+    SURCO_H = alto_g * 0.013          # cuánto se hunde
+    movidos = 0
+    for lado in (1.0, -1.0):
+        sel = np.nonzero((np.sign(P0[:, 0]) == lado) & (np.abs(P0[:, 0]) > bx_g * 0.78)
+                         & (P0[:, 2] < z_mu + alto_g * 0.03))[0]
+        if len(sel) < 30:
+            continue
+        Q = P0[sel]; C = Q.mean(axis=0)
+        _, _, Vt = np.linalg.svd(Q - C, full_matrices=False)
+        e1, e2 = Vt[0], Vt[1]
+        u = (Q - C) @ e1; w = (Q - C) @ e2
+        u0, u1 = np.quantile(u, 0.03), np.quantile(u, 0.97)
+        w0, w1 = np.quantile(w, 0.03), np.quantile(w, 0.97)
+        for k, (frac, desde, hondo) in enumerate(
+                [(0.25, 0.50, 1.0), (0.50, 0.50, 1.0), (0.75, 0.50, 1.0), (0.12, 0.18, 1.25)]):
+            wk = w0 + (w1 - w0) * frac
+            d = np.abs(w - wk) / SURCO_W
+            dentro = (d < 1.0) & (u > u0 + (u1 - u0) * desde)
+            for i in np.nonzero(dentro)[0]:
+                vi = int(sel[i])
+                caida = (1.0 - d[i] ** 2) * SURCO_H * hondo
+                # se hunde en RADIAL (hacia el eje de la mano), no por la
+                # normal de cada vértice: con las normales, la malla recién
+                # subdividida salía con picos y el canto dentado
+                rad = (P0[vi] - C) - e1 * float((P0[vi] - C) @ e1)
+                n = float(np.linalg.norm(rad))
+                dirr = rad / n if n > 1e-6 else N0[vi]
+                co = P0[vi] - dirr * caida
+                me.vertices[vi].co = MW0.inverted() @ Vector(co.tolist())
+                movidos += 1
+    # un pase corto de suavizado SOLO en las manos redondea el surco y quita
+    # los picos que deja la subdivisión, sin llegar a borrarlo
+    if movidos:
+        P1 = np.array([MW0 @ v.co for v in me.vertices], dtype=np.float32)
+        m1 = (np.abs(P1[:, 0]) > bx_g * 0.74) & (P1[:, 2] < z_mu + alto_g * 0.05)
+        bpy.ops.object.mode_set(mode="EDIT"); bpy.ops.mesh.select_all(action="DESELECT")
+        bpy.ops.object.mode_set(mode="OBJECT")
+        for i in np.nonzero(m1)[0]:
+            me.vertices[int(i)].select = True
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.vertices_smooth(factor=0.35, repeat=3)
+        bpy.ops.object.mode_set(mode="OBJECT")
+    print("[toy] manos surcadas en la malla: %d vértices hundidos" % movidos)
+
 
 # --- 2) paleta ------------------------------------------------------------------
 mat = obj.material_slots[0].material
@@ -317,6 +404,42 @@ print("[toy] AO media %.3f min %.3f (difuminada %d veces)" % (ao.mean(), ao.min(
 
 # --- 4) composición y textura final --------------------------------------------
 # el color plano se reduce a TEX y se multiplica por la oclusión suavizada
+# --- LAS LÍNEAS DE LOS DEDOS ---------------------------------------------------
+# Tres líneas de sombra pintadas en la manopla, y nada más: un detalle pequeño
+# que ni se distingue de lejos, que es justo lo que se busca (decidido por el
+# usuario). La geometría NO se toca — surcar la malla dejaba unos dedos gordos
+# y deformes— y el gesto de "palma hacia arriba" lo lee el GIRO de la muñeca.
+#
+# La dirección de las líneas sale de un PCA de los vértices de cada mano: a ojo,
+# en planos de Y constante, cruzaban la manopla en diagonal.
+mc = os.path.splitext(CONCEPTO)[0].replace("_concepto", "_cuerpo") + ".json"
+if met is not None and os.path.exists(mc):
+    cu = json.load(open(mc))
+    anc = cu["ancho_hombro"] * alto_m
+    z_mu = zt - cu["muneca_z"] * alto_m
+    bx = cu["brazo_x"] * anc
+    LINEA = alto_m * 0.006     # media línea de ancho
+    SOMBRA = 0.76              # un surco es la propia piel en sombra
+    for lado in (1.0, -1.0):
+        mano = cub & (np.sign(POS[..., 0]) == lado) & (np.abs(POS[..., 0]) > bx * 0.78)             & (POS[..., 2] < z_mu + alto_m * 0.03)
+        if mano.sum() < 50:
+            continue
+        P = POS[mano]; C = P.mean(axis=0)
+        _, _, Vt = np.linalg.svd(P - C, full_matrices=False)
+        e1, e2 = Vt[0], Vt[1]
+        U = (POS - C) @ e1; W = (POS - C) @ e2
+        u = (P - C) @ e1; w = (P - C) @ e2
+        u0, u1 = np.quantile(u, 0.03), np.quantile(u, 0.97)
+        w0, w1 = np.quantile(w, 0.03), np.quantile(w, 0.97)
+        n = 0
+        for frac, desde in ((0.30, 0.52), (0.55, 0.52), (0.80, 0.52)):
+            wk = w0 + (w1 - w0) * frac
+            linea = mano & (np.abs(W - wk) < LINEA) & (U > u0 + (u1 - u0) * desde)
+            plano[linea] = plano[linea] * SOMBRA
+            n += int(linea.sum())
+        print("[toy] mano %+d: %d téxeles de línea" % (lado, n))
+
+
 def reducir(a, n):
     f = a.shape[0] // n
     return a.reshape(n, f, n, f, -1).mean(axis=(1, 3))

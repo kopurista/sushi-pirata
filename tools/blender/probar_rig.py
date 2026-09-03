@@ -49,15 +49,31 @@ POSES = {
     "habla_A": {"L_Shoulder": (-16, 0, -6), "R_Shoulder": (-16, 0, 6),
                 "L_Elbow": (-22, 0, 0), "R_Elbow": (-22, 0, 0),
                 "L_Wrist": (0, 45, 0), "R_Wrist": (0, -45, 0)},
+    "manos": {"L_Shoulder": (-20, 0, -8), "R_Shoulder": (-20, 0, 8),
+              "L_Elbow": (-28, 0, 0), "R_Elbow": (-28, 0, 0),
+              "L_Wrist": (0, 52, 0), "R_Wrist": (0, -52, 0)},
+    "manos_neg": {"L_Shoulder": (-20, 0, -8), "R_Shoulder": (-20, 0, 8),
+              "L_Elbow": (-28, 0, 0), "R_Elbow": (-28, 0, 0),
+              "L_Wrist": (0, -52, 0), "R_Wrist": (0, 52, 0)},
     "habla_B": {"L_Shoulder": (-26, 0, -10), "R_Shoulder": (-26, 0, 10),
                 "L_Elbow": (-34, 0, 0), "R_Elbow": (-34, 0, 0),
                 "L_Wrist": (0, 60, 0), "R_Wrist": (0, -60, 0)},
 }
 for nombre, r in POSES.items():
     pose(**r)
-    d = alto * 2.3; a = math.radians(28)
-    cam.location = (c[0] + d * math.sin(a), c[1] - d * math.cos(a), c[2] + alto * 0.05)
-    cam.rotation_euler = (math.radians(88.0), 0.0, a)
+    if nombre.startswith("manos"):
+        # primer plano de la mano: se APUNTA al hueso de la muñeca, que es lo
+        # que hay que mirar (centrando en el cuerpo salían las botas)
+        pb = arm.pose.bones.get("L_Wrist")
+        obj_pt = (arm.matrix_world @ pb.head) if pb else (c + Vector((alto * 0.33, 0, -alto * 0.28)))
+        d = alto * 0.55; a = math.radians(20)
+        cam.location = Vector((obj_pt[0] + d * math.sin(a) + alto * 0.10,
+                               obj_pt[1] - d * math.cos(a), obj_pt[2] + alto * 0.10))
+        cam.rotation_euler = (cam.location - Vector(obj_pt)).to_track_quat("Z", "Y").to_euler()
+    else:
+        d = alto * 2.3; a = math.radians(28)
+        cam.location = (c[0] + d * math.sin(a), c[1] - d * math.cos(a), c[2] + alto * 0.05)
+        cam.rotation_euler = (math.radians(88.0), 0.0, a)
     sc.render.filepath = OUT + "%s_%s.png" % (PREF, nombre)
     bpy.ops.render.render(write_still=True)
     print("[pose]", nombre)

@@ -820,6 +820,12 @@ func _posar_acompanante(modelo: Node3D, who: String, r: Dictionary) -> void:
 	modelo.add_child(g)
 	r["gigi"] = g
 	r["gigi_base"] = g.position
+	r["gigi_anim"] = null
+	var sk_g := g.find_children("*", "Skeleton3D", true, false)
+	if not sk_g.is_empty():
+		var ba := BirdAnim.new(sk_g[0])
+		if ba.tiene_huesos():
+			r["gigi_anim"] = ba
 
 
 func _alto_de(n: Node3D) -> float:
@@ -891,21 +897,23 @@ func _tick_3d(delta: float) -> void:
 		_tick_gigi(r, delta)
 
 
-## Gigi nunca se queda quieta: se balancea en el hombro, y cuando su dueño
-## habla se mueve más y va girando la cabeza de un lado a otro, como un loro
-## de verdad al que le llega la voz por debajo.
-func _tick_gigi(r: Dictionary, _delta: float) -> void:
+## Gigi nunca se queda quieta. El cuerpo entero se mece en el hombro y, si
+## tiene esqueleto, `BirdAnim` le da lo que de verdad la hace un loro: los
+## giros de cabeza a golpes, la cola con retardo y algún aleteo.
+func _tick_gigi(r: Dictionary, delta: float) -> void:
 	var g = r.get("gigi")
 	if g == null or not is_instance_valid(g):
 		return
 	var t := _r3d_t
 	var f: float = 0.35 + 0.65 * float(r.get("habla", 0.0))
-	g.position = Vector3(r["gigi_base"]) + Vector3(
-		0.0, sin(t * 2.3) * 0.004 * f, 0.0)
+	g.position = Vector3(r["gigi_base"]) + Vector3(0.0, sin(t * 2.3) * 0.004 * f, 0.0)
 	g.rotation_degrees = Vector3(
-		sin(t * 3.1) * 3.5 * f,
-		float(RETRATO_3D_POSADO[str(r["who"])]["giro"]) + sin(t * 1.9) * 9.0 * f,
-		sin(t * 2.7 + 1.1) * 4.0 * f)
+		sin(t * 3.1) * 2.0 * f,
+		float(RETRATO_3D_POSADO[str(r["who"])]["giro"]) + sin(t * 1.9) * 5.0 * f,
+		sin(t * 2.7 + 1.1) * 2.5 * f)
+	var ba = r.get("gigi_anim")
+	if ba != null:
+		(ba as BirdAnim).tick(delta, float(r.get("habla", 0.0)))
 
 
 ## De qué lado es el que tiene la palabra ahora mismo: el retrato que está a

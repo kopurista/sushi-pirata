@@ -6294,7 +6294,30 @@ cadena que salió de él vale para el resto del reparto:
    girarlo no se ve (medido con las poses `codoX±` de `probar_rig.py`). Los
    ritmos van a ~1 rad/s y desfasados entre los dos brazos, o el personaje
    aletea en vez de acompañar a la voz.
-9. **Godot**: `.import` con el hook y presupuesto 20000 (no se decima),
+9. **LAS MANOS SE QUEDAN LISAS, con tres líneas de sombra y nada más**
+   (decidido por el usuario). Se probaron dedos de dos maneras y las dos
+   quedaron mal: PINTADOS anchos salían como manchas sucias (la UV de Meshy va
+   troceada y el surco se rompe), y SURCADOS en la malla —subdividiendo la
+   manopla y hundiendo vértices— salían como dedos gordos y deformes ("esas
+   manos son horribles"). Hoy son tres líneas finas que oscurecen la propia
+   piel, orientadas con un PCA de los vértices de cada mano (a ojo, en planos
+   de Y constante, cruzaban la manopla en diagonal). El código del surcado
+   geométrico se queda apagado (`DEDOS=0`). Lo que hace legible la palma hacia
+   arriba es el GIRO de la muñeca, no unos dedos dibujados.
+10. **GIGI TIENE SU PROPIO RIG Y SU PROPIA ANIMACIÓN**
+   (`tools/blender/riggear_ave.py` y `scripts/bird_anim.gd`): cinco huesos
+   —Cuerpo, Cabeza, Cola y las dos alas— medidos sobre la PROPIA MALLA, que en
+   un ave sí se puede (el pico asoma delante y arriba, la cola detrás y abajo;
+   es el humanoide el que obliga a medir sobre el dibujo). **Y NO SE MUEVE CON
+   SENOS COMO EL RESTO DEL JUEGO: la cabeza va a GOLPES** (pedido por el
+   usuario: "sus giros de cabeza deben ser rápidos y un poco aleatorios"). Se
+   sortea una postura, se llega a ella en 0,11 s y se queda clavada hasta el
+   siguiente golpe; el contraste entre el golpe y la quietud es TODO el
+   efecto, y con una interpolación suave el bicho parece un peluche
+   meciéndose. Un tercio de las veces LADEA la cabeza en vez de girarla, que
+   es el gesto que más se lee como pájaro. Mira más veces cuando su dueño
+   habla, la cola la sigue con retardo y cada pocos segundos sacude las alas.
+11. **Godot**: `.import` con el hook y presupuesto 20000 (no se decima),
    `fix_texture_imports`. Al REEXPORTAR el glb hay que borrar la textura
    extraída y `.godot/imported/<id>*`. En la caja de diálogo: `RETRATO_3D_RUTA`
    apunta a `david_toy.glb`, banda de busto por hablante (`R3D_BANDA_QUIEN`)
