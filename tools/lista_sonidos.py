@@ -65,6 +65,8 @@ CUANDO = {
     "moneda": ("Premios", "Un cliente PAGA su plato (al 85% de velocidad)",
                "usuario"),
     "monedas": ("Premios", "Cobrar los logros de UNA tarjeta", "audio"),
+    "compra": ("Interfaz", "Comprar en la tienda: las monedas SALEN del "
+               "monedero hacia el articulo y la cifra baja contando", "audio"),
     "tesoro": ("Premios", "Cobrar una tarjeta de 200+ doblones", "audio"),
     "monedas_todo": ("Premios", "Reclamar TODO, cuando el cofre se abre (al "
                      "60% de velocidad)", "usuario"),
