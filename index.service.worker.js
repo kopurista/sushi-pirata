@@ -4,7 +4,7 @@
 // Incrementing CACHE_VERSION will kick off the install event and force
 // previously cached resources to be updated from the network.
 /** @type {string} */
-const CACHE_VERSION = '1787489380|39101764';
+const CACHE_VERSION = '1788866090|6889518';
 /** @type {string} */
 const CACHE_PREFIX = 'Sushi Pirata-sw-cache-';
 const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;

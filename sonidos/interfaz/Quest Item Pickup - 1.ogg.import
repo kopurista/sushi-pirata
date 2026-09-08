@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://buvk1uq64gjft"
+path="res://.godot/imported/Quest Item Pickup - 1.ogg-bbfa2f68df1b5aba283964d12d0e02c9.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/juego/interfaz/Quest Item Pickup - 1.ogg"
+dest_files=["res://.godot/imported/Quest Item Pickup - 1.ogg-bbfa2f68df1b5aba283964d12d0e02c9.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

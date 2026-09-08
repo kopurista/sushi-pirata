@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://bsnaa1r6r8r6x"
+path="res://.godot/imported/Moving Line Closer - 1.ogg-4ea3ee74cc91016c1f3d83b4f1451b40.oggvorbisstr"
+
+[deps]
+
+source_file="res://sounds/juego/pesca/Moving Line Closer - 1.ogg"
+dest_files=["res://.godot/imported/Moving Line Closer - 1.ogg-4ea3ee74cc91016c1f3d83b4f1451b40.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4
