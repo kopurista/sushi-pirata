@@ -22,7 +22,7 @@ for p in "$@"; do
 
   # PABLO lleva su PUÑAL en la muñeca izquierda en vez de esfera.
   if [ "$p" = "pablo" ]; then
-    export ESFERA_HOJA=L ESFERA_PUNAL=assets/models/punal_pablo3.glb
+    export ESFERA_HOJA=L ESFERA_PUNAL=assets/models/source/punal_pablo3.glb
   else
     unset ESFERA_HOJA ESFERA_PUNAL
   fi
