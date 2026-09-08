@@ -60,11 +60,20 @@ var money_label: Label = null
 ## El orden de la balda de HOY: se calcula al entrar y no se rebaraja al
 ## comprar (un genero que salta de sitio bajo el dedo marea).
 var _catalogo: Array[String] = []
+## Las tarjetas de la balda, por ingrediente: {btn, usos, cost}. Se
+## ACTUALIZAN en el sitio al comprar en vez de rehacer la balda entera.
+var _tarjetas: Dictionary = {}
+## La cifra que ENSEÑA el monedero: al comprar baja poco a poco hasta el
+## dinero de verdad (ver `_comprado`).
+var _dinero_visto := 0
+var _contando: Tween = null
 var grid: GridContainer = null
 var extras_row: HBoxContainer = null
 var ui: CanvasLayer = null
 ## Raíz de la interfaz 2D, para colgar de ella los carteles modales.
 var ui_root: Control = null
+var shopkeeper_anim: CharacterAnim = null
+var _habla := 0.0
 var shopkeeper: Node3D = null
 ## Sprites del género expuesto en el mostrador (se rehacen al recargar).
 var goods_root: Node3D = null
@@ -219,22 +228,43 @@ func _build_dock() -> void:
 	deck.material_override = _wood(Color(0.86, 0.88, 0.90), 3.2)
 	var canto := _box_ret(Vector3(12.4, 0.62, 11.8), Vector3(1.1, -0.35, 1.3), poste)
 	canto.rotation_degrees.y = 45.0
+	if SceneryLA.ON:
+		# mas apagada que en el nivel: el sol de la tienda es mas fuerte y con
+		# el tinte del nivel la tarima salia naranja (visto en captura)
+		# TABLONES PALIDOS, como el muelle del concepto LA: la textura de Ludo
+		# es naranja de fabrica (media 169,121,81) y con el sol de la tienda
+		# salia terracota (medido: 145,98,64 en captura); el tinte le baja el
+		# rojo y le sube el azul
+		deck.material_override = SceneryLA.mat_tex("muelle", Color(0.70, 0.74, 0.80), 0.38, 0.95)
+		canto.material_override = SceneryLA.mat_tex("muelle", Color(0.52, 0.50, 0.50), 0.9, 0.95)
 	# Pilotes asomando por los bordes.
 	for pp in [Vector3(-5.3, 0.0, -1.6), Vector3(-1.9, 0.0, -5.4),
 			Vector3(7.5, 0.0, 4.2), Vector3(4.1, 0.0, 8.0),
 			Vector3(-5.5, 0.0, 5.2), Vector3(7.1, 0.0, -3.4)]:
 		_cyl_ret(0.16, 0.18, 1.15, pp + Vector3(0.0, 0.45, 0.0), Color(0.35, 0.26, 0.15))
 		_cyl_ret(0.20, 0.22, 0.14, pp + Vector3(0.0, 1.08, 0.0), Color(0.30, 0.22, 0.13))
-	# Norays de amarre con su cabo enrollado.
+	# Norays de amarre con su cabo enrollado (los de Meshy en estilo LA).
+	var noray_la := SceneryLA.ON and ResourceLoader.exists("res://assets/models/la_noray.glb")
 	for bb in [Vector3(-3.4, 0.0, 4.9), Vector3(6.0, 0.0, -0.6)]:
+		if noray_la:
+			var nr := SceneBackdrop._spawn_model(self, load("res://assets/models/la_noray.glb"), 0.55)
+			nr.position = bb + Vector3(0.0, 0.21, 0.0)
+			nr.add_to_group("no_batch")
+			continue
 		_cyl_ret(0.17, 0.21, 0.5, bb + Vector3(0.0, 0.25, 0.0), Color(0.22, 0.20, 0.19))
 		_cyl_ret(0.26, 0.26, 0.09, bb + Vector3(0.0, 0.16, 0.0), Color(0.52, 0.42, 0.26))
 	_dock_railing()
 	# Farol de muelle. Va apartado del puesto: en el sitio de antes, el toldo le
 	# tapaba el poste y solo se veía la caja de la luz, flotando en el aire.
 	var fx := Vector3(-4.3, 0.0, -1.7)
-	_cyl_ret(0.09, 0.12, 2.6, fx + Vector3(0.0, 1.3, 0.0), Color(0.30, 0.30, 0.32))
-	_box(Vector3(0.34, 0.42, 0.34), fx + Vector3(0.0, 2.75, 0.0), Color(0.33, 0.30, 0.20))
+	if SceneryLA.ON and ResourceLoader.exists("res://assets/models/la_farola.glb"):
+		var fa := SceneBackdrop._spawn_model(self, load("res://assets/models/la_farola.glb"), 3.0)
+		fa.position = fx + Vector3(0.0, 0.21, 0.0)
+		fa.rotation_degrees.y = 45.0
+		fa.add_to_group("no_batch")
+	else:
+		_cyl_ret(0.09, 0.12, 2.6, fx + Vector3(0.0, 1.3, 0.0), Color(0.30, 0.30, 0.32))
+		_box(Vector3(0.34, 0.42, 0.34), fx + Vector3(0.0, 2.75, 0.0), Color(0.33, 0.30, 0.20))
 	var luz := OmniLight3D.new()
 	luz.position = fx + Vector3(0.0, 2.75, 0.0)
 	luz.light_color = Color(1.0, 0.82, 0.5)
@@ -303,9 +333,19 @@ func _cyl_ret(rt: float, rb: float, hh: float, pos: Vector3,
 
 
 func _setup_shopkeeper() -> void:
+	# SAVERIO ES EL MISMO MODELO QUE HABLA EN EL DIALOGO (la figurita v5, con
+	# rig): el `tendero.glb` sin esqueleto que hubo aqui se mecia desde su
+	# pivote; este respira con `CharacterAnim` como el resto del reparto.
+	# MAS ALTO con el puesto LA (1.75): su mostrador le llega al pecho y a
+	# 1.5 solo asomaba la cara (medido en captura)
 	shopkeeper = SceneBackdrop._spawn_model(self,
-		load("res://assets/models/tendero.glb"), 1.5)
-	shopkeeper.position = Vector3(1.2, 0.03, 1.2)
+		load(CharacterData.model("saverio", CharacterData.MALE)), 1.75 if _puesto_la() else 1.5)
+	var skels := shopkeeper.find_children("*", "Skeleton3D", true, false)
+	if not skels.is_empty():
+		shopkeeper_anim = CharacterAnim.new(skels[0])
+		if not shopkeeper_anim.has_humanoid_bones():
+			shopkeeper_anim = null
+	shopkeeper.position = Vector3(1.35, 0.21, 1.55) if _puesto_la() else Vector3(1.2, 0.03, 1.2)
 	shopkeeper.rotation_degrees.y = 0.0
 	_build_stall()
 	_place_goods()
@@ -328,13 +368,36 @@ func _setup_shopkeeper() -> void:
 const STALL_X := 1.15          ## eje del puesto
 const COUNTER_Z := 2.75        ## dónde se apoya el cliente
 const AWNING_FRONT := 1.9      ## hasta dónde llega el techo (ver arriba)
+## EL PUESTO EN ESTILO LINK'S AWAKENING (7-9-2026): un solo modelo de Meshy
+## (`la_puesto.glb`, concepto de Ludo con toldo a rayas, baldas y su cartel
+## de pez) en vez de las cajas y listones de antes. Alto en unidades de mundo,
+## giro para que el mostrador mire a la camara y donde se apoya.
+const PUESTO_GLB := "res://assets/models/la_puesto.glb"
+const PUESTO_ALTO := 3.6
+const PUESTO_YAW := 0.0
+const PUESTO_POS := Vector3(STALL_X, 0.21, 1.35)
+## Donde va el genero sobre el tablero del modelo (medido en captura).
+const PUESTO_GENERO_Y := 1.27
+const PUESTO_GENERO_Z := 2.05
+const PUESTO_GENERO_DZ := 0.50
 
 
 func _build_stall() -> void:
+	if _puesto_la():
+		var puesto := SceneBackdrop._spawn_model(self, load(PUESTO_GLB), PUESTO_ALTO)
+		puesto.position = PUESTO_POS
+		puesto.rotation_degrees.y = PUESTO_YAW
+		puesto.add_to_group("no_batch")
+		_stall_props()
+		return
 	_counter()
 	_frame_and_awning()
 	_back_shelf()
 	_stall_props()
+
+
+func _puesto_la() -> bool:
+	return SceneryLA.ON and ResourceLoader.exists(PUESTO_GLB)
 
 
 ## Mostrador: cuerpo de tablas, tablero de encima más claro y un zócalo que lo
@@ -454,18 +517,38 @@ func _stall_props() -> void:
 	# La tarima del muelle tiene su cara superior en y=0.21: los modelos van
 	# apoyados AHÍ, no en y=0, o se hunden un palmo en las tablas.
 	var suelo := 0.21
+	var la := SceneryLA.ON and ResourceLoader.exists("res://assets/models/la_caja.glb")
 	for d in [{"m": "caja", "p": Vector3(4.30, suelo, 2.60), "f": 0.80, "r": 18.0},
 			{"m": "caja", "p": Vector3(4.20, suelo + 0.80, 2.52), "f": 0.62, "r": -24.0},
 			{"m": "barril", "p": Vector3(4.70, suelo, 1.55), "f": 0.82, "r": 0.0}]:
-		var ruta: String = "res://assets/models/%s.glb" % d["m"]
+		var ruta: String = "res://assets/models/%s%s.glb" % ["la_" if la else "", d["m"]]
 		if not ResourceLoader.exists(ruta):
 			continue
 		var n := SceneBackdrop._spawn_model(self, load(ruta), float(d["f"]))
 		n.position = d["p"]
 		n.rotation_degrees.y = float(d["r"])
-		if d["m"] == "caja":
+		n.add_to_group("no_batch")
+		if d["m"] == "caja" and not la:
 			_tint(n, CRATE_TINT)
 	_trofeos_tienda(suelo)
+	if not la:
+		return
+	# EL LADO IZQUIERDO DEL MUELLE estaba pelado (visto en captura): una red,
+	# un cabo y otro barril, los props LA de siempre
+	# (sitios despejados contra la captura: 72 px por unidad de x hacia la
+	# derecha y 71 por unidad de z hacia la izquierda; a x -3.3 se salian)
+	for d in [{"m": "red", "p": Vector3(0.4, suelo, 4.0), "f": 0.85, "r": 25.0},
+			{"m": "cuerda", "p": Vector3(-2.2, suelo, 1.85), "f": 0.28, "r": 0.0},
+			{"m": "barril", "p": Vector3(-3.1, suelo, -0.05), "f": 0.82, "r": 40.0}]:
+		var ruta2: String = "res://assets/models/la_%s.glb" % d["m"]
+		if not ResourceLoader.exists(ruta2):
+			continue
+		var n2 := SceneBackdrop._spawn_model(self, load(ruta2), float(d["f"]))
+		n2.position = d["p"]
+		n2.rotation_degrees.y = float(d["r"])
+		n2.add_to_group("no_batch")
+		if d["m"] == "cuerda":
+			_tint(n2, SceneryLA.CABO)
 
 
 ## LOS TRES AMULETOS DE LA TIENDA (coleccionables): el maneki-neko sobre la
@@ -481,7 +564,8 @@ func _trofeos_tienda(suelo: float) -> void:
 			{ "id": "daruma", "png": "col_daruma",
 				"p": Vector3(4.70, suelo + 0.98, 1.55), "px": 0.0024 },
 			{ "id": "omamori", "png": "col_omamori",
-				"p": Vector3(-1.05, 1.10, COUNTER_Z - 0.35), "px": 0.0020 }]:
+				"p": Vector3(-0.15, 1.72, 2.52) if _puesto_la() else Vector3(-1.05, 1.10, COUNTER_Z - 0.35),
+				"px": 0.0020 }]:
 		if not GameState.has_collectible(str(d["id"])):
 			continue
 		var ruta := "res://assets/ui/%s.png" % str(d["png"])
@@ -511,6 +595,13 @@ func _place_goods() -> void:
 	goods_root = Node3D.new()
 	add_child(goods_root)
 	var stock: Array[String] = GameState.shop_catalog().slice(0, 8)
+	if _puesto_la():
+		# el tablero del puesto LA es mas corto: dos filas de cuatro, mas
+		# juntas, y sin reserva en las baldas (el modelo trae sus tarros)
+		for i in stock.size():
+			_good(str(stock[i]), Vector3(STALL_X - 0.95 + (i % 4) * 0.66, PUESTO_GENERO_Y + 0.04,
+				PUESTO_GENERO_Z + (i / 4) * PUESTO_GENERO_DZ), 0.54)
+		return
 	for i in stock.size():
 		# 0.62 u de alto: caben ocho en el tablero sin amontonarse.
 		_good(str(stock[i]), Vector3(-0.55 + (i % 4) * 1.15, 1.32,
@@ -557,11 +648,18 @@ func _box(size: Vector3, pos: Vector3, color: Color) -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	if shopkeeper != null and GameState.animations_on():
-		# Respira y se balancea: no tiene esqueleto, así que la vida se la da
-		# el propio pivote.
-		shopkeeper.position.y = sin(_t * 1.6) * 0.03
-		shopkeeper.rotation_degrees.y = sin(_t * 0.5) * 7.0
-		shopkeeper.rotation_degrees.z = sin(_t * 0.9 + 0.6) * 1.2
+		if shopkeeper_anim != null:
+			# Con esqueleto: respira y, mientras habla, gesticula como en el
+			# dialogo. La fuerza del habla se funde para no dar un tiron.
+			var quiere := 1.0 if _saverio_hablando() else 0.0
+			_habla = move_toward(_habla, quiere, 3.0 * delta)
+			shopkeeper_anim.reset()
+			shopkeeper_anim.idle(_t)
+			shopkeeper_anim.hablar(_t, _habla)
+		else:
+			shopkeeper.position.y = sin(_t * 1.6) * 0.03
+			shopkeeper.rotation_degrees.y = sin(_t * 0.5) * 7.0
+			shopkeeper.rotation_degrees.z = sin(_t * 0.9 + 0.6) * 1.2
 
 
 # ----------------------------------------------------------------------- UI
@@ -647,10 +745,22 @@ func _setup_ui() -> void:
 	scroll.offset_left = 52.0
 	scroll.offset_top = 36.0
 	scroll.offset_right = -52.0
-	scroll.offset_bottom = -158.0
+	scroll.offset_bottom = -164.0
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
 	shelf.add_child(scroll)
+	# UNA RAYA entre la balda que se desliza y los extras: sin ella, la fila
+	# que asoma cortada por debajo del ultimo renglon se leia como un fallo de
+	# maquetacion y no como "hay mas abajo" (visto en captura).
+	var raya := ColorRect.new()
+	raya.color = Color(0.36, 0.22, 0.09, 0.45)
+	raya.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	raya.offset_left = 60.0
+	raya.offset_right = -60.0
+	raya.offset_top = -158.0
+	raya.offset_bottom = -155.0
+	raya.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shelf.add_child(raya)
 	TouchScroll.attach(scroll)
 	var grid_box := CenterContainer.new()
 	grid_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -682,23 +792,44 @@ func _make_money_box() -> Control:
 
 ## Repinta el surtido y los contadores.
 func _refresh() -> void:
-	money_label.text = "%d" % GameState.money
-	for c in grid.get_children():
-		c.queue_free()
+	if _contando == null or not _contando.is_valid():
+		money_label.text = "%d" % GameState.money
+		_dinero_visto = GameState.money
 	# TODO el genero, con lo que FALTA delante y el resto de menos a mas
 	# existencias (el orden se decide al entrar y no se rebaraja al comprar:
 	# ver _catalogo, una balda que se reordena bajo el dedo marea).
 	if _catalogo.is_empty():
 		_catalogo = GameState.shop_catalog()
-	for ing in _catalogo:
-		grid.add_child(_build_item(ing))
-	# Los EXTRAS (jengibre, wasabi, soja) no entran en el sorteo del día: el
-	# tendero los tiene SIEMPRE, pequeños y centrados en su propia balda.
-	for c in extras_row.get_children():
-		c.queue_free()
-	for ing in RecipeData.EXTRAS:
-		if GameState.has_extra(str(ing)):
-			extras_row.add_child(_build_item(ing, true))
+	# LA BALDA SE MONTA UNA VEZ, escalonada, y despues se ACTUALIZA EN EL
+	# SITIO: rehacerla entera en cada compra hacia que los articulos volvieran
+	# a entrar uno a uno (lo vio el usuario).
+	if grid.get_child_count() == 0:
+		for ing in _catalogo:
+			grid.add_child(_build_item(ing))
+		UIFx.escalonar(grid.get_children(), 0.03, 0.9)
+		# Los EXTRAS (jengibre, wasabi, soja) no entran en el sorteo del día:
+		# el tendero los tiene SIEMPRE, pequeños y centrados en su propia balda.
+		for ing in RecipeData.EXTRAS:
+			if GameState.has_extra(str(ing)):
+				extras_row.add_child(_build_item(ing, true))
+		return
+	for ing in _tarjetas:
+		_actualizar_tarjeta(str(ing))
+
+
+## Refresca el "precio · xN" y el atenuado de una tarjeta ya montada.
+func _actualizar_tarjeta(ing: String, con_bote := false) -> void:
+	if not _tarjetas.has(ing):
+		return
+	var t: Dictionary = _tarjetas[ing]
+	var b: Button = t["btn"]
+	if not is_instance_valid(b):
+		return
+	(t["usos"] as Label).text = "%d · x%d" % [int(t["cost"]), GameState.get_ingredient_uses(ing)]
+	b.modulate = Color.WHITE
+	_marcar_agotado(b, ing)
+	if con_bote:
+		UIFx.bump(b, 1.14, 0.34)
 
 
 ## Un artículo del mostrador: icono, nombre, precio unitario y usos que ya
@@ -757,6 +888,7 @@ func _fill_small_item(b: Button, ing: String, data: Dictionary, cost: int) -> Bu
 	b.add_child(info)
 	b.pressed.connect(_open_buy_dialog.bind(ing))
 	_marcar_agotado(b, ing)
+	_tarjetas[ing] = { "btn": b, "usos": txt, "cost": cost }
 	return b
 
 
@@ -829,6 +961,7 @@ func _build_item(ing: String, small: bool = false) -> Button:
 
 	b.pressed.connect(_open_buy_dialog.bind(ing))
 	_marcar_agotado(b, ing)
+	_tarjetas[ing] = { "btn": b, "usos": pl, "cost": cost }
 	return b
 
 
@@ -914,7 +1047,9 @@ func _open_buy_dialog(ing: String) -> void:
 	cancel.custom_minimum_size = Vector2(216, 80)
 	PrepBoard.skin_action_button(cancel, false)
 	cancel.add_theme_font_size_override("font_size", 23)
-	cancel.pressed.connect(overlay.queue_free)
+	# CANCELAR cierra con el cartel encogiendose (UIFx.cerrar); COMPRAR
+	# manda las monedas del boton al monedero y cierra despues.
+	cancel.pressed.connect(func() -> void: UIFx.cerrar(overlay))
 	var buy := Button.new()
 	buy.custom_minimum_size = Vector2(216, 80)
 	buy.text = "Comprar"
@@ -955,13 +1090,90 @@ func _open_buy_dialog(ing: String) -> void:
 		GameState.bump_stat("shop_spent", total)
 		GameState.add_ingredient_uses(ing, qty)
 		GameState.save_game()
-		overlay.queue_free()
-		_refresh())
+		_comprado(ing, total)
+		UIFx.cerrar(overlay))
 	refresh.call()
+	# (la entrada del cartel la pone `UIFx.ventana_abre`, via Audio.ventana)
 
-	box.scale = Vector2(0.7, 0.7)
-	var tw := box.create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_property(box, "scale", Vector2.ONE, 0.22)
+
+## LA COMPRA SE VE Y SE OYE (pedido por el usuario): las monedas salen del
+## boton de Comprar y vuelan al monedero, que da un bote al recibirlas; la
+## tarjeta del articulo se actualiza en el sitio con su propio bote y suena
+## el puñado de monedas de `compra`.
+## COMPRAR ES PERDER DINERO, Y TIENE QUE VERSE ASI (pedido por el usuario: con
+## las monedas volando AL monedero parecia que se ganaba, como en los logros).
+## Las monedas SALEN del monedero hacia el articulo comprado, un "-N" en rojo
+## cae por debajo de la cifra, y el total BAJA poco a poco hasta lo que queda.
+func _comprado(ing: String, coste: int) -> void:
+	Audio.sfx("compra")
+	var caja: Control = money_label.get_parent() if money_label != null else null
+	# salen de la MONEDA del monedero (cabalga su canto izquierdo), no de la
+	# cifra: un abanico sobre el numero tapaba justo lo que esta bajando
+	var desde := money_label.global_position + money_label.size * 0.5
+	if caja is Control:
+		desde = caja.global_position + Vector2(26.0, caja.size.y * 0.5)
+	var hasta := desde + Vector2(0.0, 300.0)
+	if _tarjetas.has(ing):
+		var b: Button = _tarjetas[ing]["btn"]
+		if is_instance_valid(b):
+			hasta = b.global_position + b.size * 0.5
+	UIFx.monedas(ui_root, desde, hasta, 8, func() -> void:
+		_actualizar_tarjeta(ing, true), true)
+	if caja is Control:
+		UIFx.sacudir(caja, 5.0, 0.28)
+		# el "-N" cuelga del canto DERECHO del monedero: por la izquierda caia
+		# sobre el rotulo de la balda (visto en captura)
+		_flotar_resta(coste, caja.global_position + Vector2(caja.size.x - 4.0, caja.size.y + 2.0))
+	else:
+		_flotar_resta(coste, desde + Vector2(40.0, 30.0))
+	# la cifra baja contando, no de golpe
+	if _contando != null and _contando.is_valid():
+		_contando.kill()
+	var objetivo := GameState.money
+	_contando = create_tween()
+	_contando.tween_method(func(v: float) -> void:
+		money_label.text = "%d" % int(round(v)), float(_dinero_visto), float(objetivo), 0.75) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_contando.tween_callback(func() -> void:
+		_dinero_visto = objetivo
+		money_label.text = "%d" % objetivo)
+
+
+## El "-N" con la moneda, en ROJO, que cae bajo el monedero y se apaga.
+func _flotar_resta(coste: int, sobre: Vector2) -> void:
+	var fila := HBoxContainer.new()
+	fila.add_theme_constant_override("separation", 4)
+	fila.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fila.z_index = 210
+	var l := Label.new()
+	l.text = "-%d" % coste
+	l.add_theme_font_size_override("font_size", 30)
+	l.add_theme_color_override("font_color", Color(1.0, 0.30, 0.24))
+	l.add_theme_color_override("font_outline_color", Color(0.25, 0.04, 0.02))
+	l.add_theme_constant_override("outline_size", 8)
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		l.add_theme_font_override("font", negrita)
+	fila.add_child(l)
+	var mon := TextureRect.new()
+	mon.texture = load("res://assets/ui/moneda.png")
+	mon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	mon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	mon.custom_minimum_size = Vector2(28, 28)
+	mon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	fila.add_child(mon)
+	ui_root.add_child(fila)
+	# `sobre` es la esquina de abajo a la DERECHA: el ancho sale del minimo
+	# del contenedor (el Label ya sabe medir su texto sin esperar un fotograma)
+	var ancho := fila.get_combined_minimum_size().x
+	fila.position = sobre - Vector2(ancho, 0.0)
+	fila.pivot_offset = Vector2(ancho * 0.5, 18.0)
+	fila.scale = Vector2(0.6, 0.6)
+	var tw := fila.create_tween().set_parallel(true)
+	tw.tween_property(fila, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(fila, "position:y", fila.position.y + 44.0, 1.1).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(fila, "modulate:a", 0.0, 0.35).set_delay(0.75)
+	tw.chain().tween_callback(fila.queue_free)
 
 
 ## Botón de flecha con imagen propia (madera + marco de oro), sin texto.
@@ -979,3 +1191,12 @@ func _make_arrow(dir: String) -> TextureButton:
 
 ## Disco de madera del botón redondo: se dibuja una vez y se reutiliza.
 static var _disc: Texture2D = null
+
+
+## Si hay una caja de dialogo abierta con SAVERIO soltando su linea: entonces
+## el de detras del mostrador gesticula a la vez que su retrato.
+func _saverio_hablando() -> bool:
+	for n in get_tree().root.find_children("*", "", true, false):
+		if n is DialogueBox and n.is_talking() and n.hablante_actual() == "saverio":
+			return true
+	return false

@@ -188,9 +188,38 @@ func _show_group(group: String) -> void:
 		var b: Button = tab_buttons[g]
 		b.modulate = Color.WHITE if g == group else Color(0.66, 0.62, 0.56)
 	for c in list_host.get_children():
+		list_host.remove_child(c)
 		c.queue_free()
-	for a in AchievementData.in_group(group):
-		list_host.add_child(_build_card(a))
+	# LA PESTAÑA RESPONDE EN EL ACTO: se montan las diez primeras tarjetas (mas
+	# de las que caben en pantalla) y el resto entra por tandas de seis en los
+	# fotogramas siguientes. Montar las noventa de Pesca de golpe costaba
+	# 650 ms —cargar noventa iconos— y encima entraban escalonadas a 40 ms
+	# cada una, asi que la ultima aparecia a los cuatro segundos: eso era el
+	# "tardan demasiado en cargar" que vio el usuario.
+	var lista := AchievementData.in_group(group)
+	var primeras := mini(10, lista.size())
+	for i in primeras:
+		list_host.add_child(_build_card(lista[i]))
+	UIFx.escalonar(list_host.get_children(), 0.035, 0.9)
+	_build_gen += 1
+	_construir_resto(lista, primeras, _build_gen)
+
+
+## Generacion del montaje en curso: un cambio de pestaña a medio montar
+## invalida las tandas pendientes de la anterior.
+var _build_gen := 0
+
+
+func _construir_resto(lista: Array, desde: int, gen: int) -> void:
+	var i := desde
+	while i < lista.size():
+		await get_tree().process_frame
+		if gen != _build_gen or not is_inside_tree():
+			return
+		var tope := mini(i + 6, lista.size())
+		while i < tope:
+			list_host.add_child(_build_card(lista[i]))
+			i += 1
 
 
 # -------------------------------------------------------------- una tarjeta

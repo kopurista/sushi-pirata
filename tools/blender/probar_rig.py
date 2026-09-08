@@ -7,7 +7,8 @@ from mathutils import Vector
 
 args = sys.argv[sys.argv.index("--") + 1:]
 GLB = os.path.abspath(args[0]); PREF = args[1]
-OUT = "C:/Users/KOPURI~1/AppData/Local/Temp/claude/C--Users-KOPURISTA-Desktop-GODOT-sushi/ddc3d8d7-b243-4937-ae48-84636d59f46b/scratchpad/"
+# la carpeta de salida se puede fijar con POSE_OUT (por defecto, la del rig)
+OUT = os.environ.get("POSE_OUT", os.path.dirname(GLB)) + "/"
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=GLB)

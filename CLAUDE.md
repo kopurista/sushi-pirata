@@ -6350,18 +6350,51 @@ cadena que salió de él vale para el resto del reparto:
 que seguir)**: concepto en Ludo → Meshy image→3D **con `--rig`** →
 `tools/blender/preparar_personaje.py` → Godot. Nada de modelar a mano y nada de
 operar el modelo después.
-- **EL CONCEPTO SE PIDE YA SIN PULGAR** (decidido por el usuario): manos de
-  MUÑÓN, un bulto liso sin dedos, sin pulgar y sin muescas. Una manopla con
-  pulgar obliga a que el giro de muñeca signifique algo —hay derecho y revés— y
-  a este tamaño eso no se lee, solo se ve el bulto deformarse. Quitárselo
-  DESPUÉS al modelo se puede (`tools/blender/david_munon.py`, que sigue ahí y
-  funciona), pero es media tarde de trabajo que el prompt ahorra.
-- **Y SE PIDE SIN OJOS**: Meshy los talla como cuencas con reborde que cogen luz
-  y no hay repintado que las esconda. `tools/quitar_ojos.py` los borra del
-  concepto y APUNTA SUS MEDIDAS en `<salida>_ojos.json`, que luego coloca los
-  ojos 3D exactos. **Su salida tiene que llamarse `<algo>_concepto.png`**: la
-  ruta del JSON sale de un `replace` sobre ese nombre, así que con cualquier
-  otro el JSON se escribe ENCIMA del PNG y lo destruye.
+- **EL CONCEPTO SE PIDE SIN MANOS: LAS MANGAS SELLADAS, Y LA ESFERA LA PONE
+  BLENDER** (decidido por el usuario el 4-9-2026, tras tres tandas). El camino
+  fue este, y no hay que volver a andarlo: (1) se pidió "muñón/manopla sin
+  pulgar" y Ludo dibujaba SIEMPRE una mano con pulgar; (2) se pidió "una BOLA
+  en vez de mano", en una pasada de `editImage` aparte, y Ludo sí la dibuja —
+  pero **Meshy la reconstruye como una MANO CON PULGAR**, porque "corrige" lo
+  que interpreta como un brazo mal hecho, y los trece modelos de la tanda v4
+  salieron con manos (dicho por el usuario: "ningún personaje salió con las
+  manos con forma esférica"); redondear esa mano después
+  (`tools/blender/david_munon.py`) deja un bulto alargado, no una esfera. (3)
+  Lo que funciona: el concepto con la manga terminada en un corte liso y NADA
+  después, que Meshy respeta (medido en el capitán v5: mangas selladas, ni un
+  dedo), y `tools/blender/manos_esfera.py`, que colapsa lo que pese en la
+  muñeca hacia el hueso y cuelga de ella una ESFERA con el radio del antebrazo
+  (percentil 80 de los vértices del codo, medido) y la piel mediana de la
+  textura. Una manopla con pulgar obliga a que el giro de muñeca signifique
+  algo —hay derecho y revés— y a este tamaño eso no se lee, solo se ve el bulto
+  deformarse; la esfera gira sin deformar nada.
+- **Y SE PIDE CON OJOS** (decidido por el usuario en la tanda v4: "todo con
+  ojos incluidos, ya que lo que haremos será que gesticule con los brazos, no
+  con la cara"): Meshy los talla algo hundidos, y a esta escala eso es lo que
+  hace que la cara se lea. `tools/quitar_ojos.py` y los ojos 3D de
+  `preparar_personaje.py` (JSON `<salida>_ojos.json`, y la salida tiene que
+  llamarse `<algo>_concepto.png` o el JSON pisa al PNG) se quedan para un
+  personaje al que le hicieran falta; con "-" el script los deja como vienen.
+- **CADA PERSONAJE VA A MESHY CON TRES VISTAS** (`tools/meshy.py multi`,
+  frente/lado/espalda de `rotateSprite` a 90 y 180, 0,5 créditos cada una):
+  con una sola vista la espalda y los costados salen inventados. Multi-image
+  va por `/openapi/v1/multi-image-to-3d` con `meshy-7` (no admite
+  `smart-topology`) y **a MÁXIMA calidad** (`--poly-crudo 100000 --textura 4k`,
+  `remove_lighting`, pedido por el usuario: "la mayor calidad posible aunque
+  pesen mucho más"; lo que sobre se reduce después en Blender). MEDIDO en el
+  capitán v5: 101 k triángulos y 5,4 MB con la textura ya a 1024. Al pirata
+  se le dibujan las correas del parche POR CÓDIGO en las tres vistas
+  (`tools/parche_correas.py`: `parche` con `ANG_SUP=44` de frente y `banda …
+  0.58 10` / `0.58 -14` de lado y de espalda): Ludo nunca acertó con una sola
+  correa.
+- **BAJO RÁFAGA MESHY CONTESTA 202 CON EL CUERPO VACÍO** (y a veces 429/5xx):
+  nueve de doce peticiones del lote v4 murieron con `JSONDecodeError`.
+  `meshy.py` reintenta seis veces con espera creciente (20 s → 180 s), y los
+  lotes se lanzan en tres tandas de cuatro con 20-40 s entre ellas.
+- **EL 3D PESA MENOS QUE EL 2D, y por eso compensa**: el juego de retratos
+  dibujados de David son ~25 MB (12 humores × 4 variantes de vestuario) y su
+  modelo 3D con textura a 1024 se queda en ~1,5 MB y da todos los humores y
+  todos los ángulos.
 - **EL GENERADOR SOLO ATIENDE A UNA PARTE DEL PROMPT, y con uno largo se come
   el resto SIN AVISAR.** Medido en tres tandas seguidas: pidiendo proporción +
   barba + uniforme salió DESNUDO; poniendo el uniforme en cabecera y en lista
@@ -6395,7 +6428,308 @@ operar el modelo después.
   objeto: el armature de Meshy viene con escala 0.01 y dejándosela puesta el
   conjunto mide 0.005 en Godot, entra entero por delante del plano cercano de la
   cámara del retrato y de él solo se ve una cuña negra.
+- **EL PUÑAL DE PABLO ES UN MODELO APARTE DE MESHY** (`assets/models/punal_pablo3.glb`) y se lo cuelga de la muñeca `manos_esfera.py` con `ESFERA_HOJA=L ESFERA_PUNAL=…` — la izquierda, que es donde lo lleva en su retrato 2D. Reglas que salieron de las tres vueltas que costo:
+  · **La CAZOLETA manda sobre la hoja**: tiene que ser gorda para taparle la boca de la manga, o asoma un anillo de piel entre la tela y el puñal (lo pidio el usuario). Va metida `PUNAL_ATRAS` (0.95 radios de antebrazo) dentro del puño, y el anillo de transicion de la muñeca se estrecha igual que con la esfera.
+  · **La hoja se alarga en el CONCEPTO y con una sola pasada de `editImage`**: pidiendo "que ocupe todo el ancho" salio una aguja con la cazoleta diminuta; pidiendo "un 60% mas larga, misma cazoleta" sale el puñal corto y ancho que se buscaba.
+  · **`smart-topology` NO vale para una pieza con filo**: su tope de 15.000 triangulos devolvio una cuña facetada. Con `tools/meshy.py imagen --alta` (meshy-7 a 60.000 y textura 4k) sale limpio.
+  · **El extremo que va en la muñeca se decide por GROSOR, no por coordenada**: el `.glb` puede venir mirando a cualquier lado y por coordenada salio del reves, con la punta metida en la manga.
+- **UN OJO QUE SOBRESALE DEL ARO DE LAS GAFAS SALE DUPLICADO EN 3D** (lo cazó el usuario en Pablo): su concepto tenía los ojos tan altos que asomaban por encima del aro, y Meshy reconstruyó cada uno como DOS piezas —una sobre las gafas y otra dentro—. Se arregla en el CONCEPTO, no en el modelo: se borran los ojos rellenando por interpolación en la misma fila (dentro del aro toma el cristal y fuera la piel, así que el tono casa solo) y se redibujan como óvalos supermuestreados que caben enteros en el cristal. Y después hay que regenerar.
+- **LA BOLA DE LA MANO USA EL MATERIAL DEL CUERPO Y UNA UV DE PIEL**, no un material propio de color plano (lo cazo el usuario: "el color de las manos no es el mismo que el del cuerpo"). Con material aparte, el cuerpo se pinta con la textura y la bola con un factor de color, y por el camino del espacio de color la bola sale palida y desaturada. Apuntando TODAS sus UV al mismo texel, se pinta literalmente con el pixel de al lado. Dos reglas que costaron una pasada cada una: el texel se coge de la PROPIA MANO (con manga, lo que hay pegado a la muñeca es el puño de la ropa y la bola salia de color tela), y **no vale la UV mediana** —el atlas va troceado y el punto medio de varias islas cae en cualquier sitio, salio en el pelo y las bolas se volvieron marrones—: se coge la UV del texel cuyo color mas se parece a la mediana.
+- **Y EL BRAZO TIENE QUE ACABAR EN BOLA LIMPIA** (el usuario, mirando los brazos remangados: "el corte de la piel del brazo tiene trazas que no deberian verse... que fuese como el de la sirena"). Lo que las dejaba era mover a lo largo del hueso los vertices de peso intermedio: eso comprime la textura del antebrazo VISIBLE. Hoy la mano (peso > 0.5) se colapsa al centro de la esfera, el anillo de transicion (0.15-0.5) solo se estrecha EN RADIO —se mete dentro de la bola sin arrastrar textura— y la esfera va un pelo mas gorda que el antebrazo (`ESFERA_RADIO` 1.15) y bien metida (`ESFERA_AVANCE` 0.35), asi que se traga la muñeca entera.
+- **EL KAPPA SIGUE SIN RIG (pendiente)**: Meshy contesta "Pose estimation failed" con su proporcion —lo mismo que le pasaba al Kappa viejo—, y el rig por medida de `riggear.py` le da la cabeza rigida a 48.000 vertices (se traga el caparazon), asi que al girar la cabeza el cuerpo se desgarra. Su concepto no ensena los brazos, de modo que `medir_cuerpo.py` no puede sacar el hombro de la silueta; para eso esta `tools/blender/silueta.py`, que renderea el MODELO de frente con fondo transparente y se mide eso en su lugar. Queda pendiente afinar sus medidas a mano.
+- **PARA RIGUEAR UNA TAREA QUE YA EXISTE**: `python tools/meshy.py riguear <id> <task_id>` (5 creditos, contra los 30 de regenerar). **Y EL `task_id` SE IDENTIFICA POR EL TAMANO DEL .glb, no por la hora**: los ids de Meshy no dicen de quien son y adivinandolo por marca de tiempo se riguea otro personaje (paso: salio el pirata guardado como kappa). Se listan las tareas y se compara su `Content-Length` con el `_crudo.glb` que ya esta en disco.
+- **LA MANO ES LO QUE PESA EN LA MUÑECA *Y ESTA CERCA DE ELLA* (`MANO_ALCANCE`)**: el rig de Meshy puede meter en ese grupo geometria que no es la mano — a la SIRENA le metio la MELENA entera (10.620 vertices, la mediana a 0.316 de un modelo que mide 1.0, llegando hasta la coronilla), asi que colapsarlos le aplastaba el pelo y le encogia la cabeza. Sin el filtro no se nota en el que sale bien y destroza al que sale mal.
+- **Y HAY PERSONAJES A LOS QUE NO SE LES PONE BOLA** (`ESFERA_SALTAR`, hoy la sirena): ella ya viene con los brazos cruzados y acabados en muñon redondo, y su rig pone las muñecas a la altura del pecho, dentro del pelo, asi que la bola quedaba flotando en la melena. Cuando el modelo ya acaba bien, no se toca.
+- **EL TAMAÑO Y EL SITIO DE LA BOLA** (`ESFERA_RADIO` 1.02 del radio del antebrazo, `ESFERA_AVANCE` 0.22): un pelo mas gorda que el brazo y bastante metida, que es lo justo para tragarse la muñeca sin que la bola se vea grande (lo afino el usuario mirando las fichas).
+- **UN DEFECTO QUE ESTA EN EL MODELO SE ARREGLA REGENERANDO, NO PARCHEANDO** (Miku, con los aros de las gafas a medias). Se probaron las dos vias y la cuenta esta clara: `tools/blender/gafas_cerrar.py` —que MIDE los aros ajustando una circunferencia repesada y les pone un toro completo— cierra los aros, pero lo que sobra del aro roto se queda DENTRO del cristal, y limpiarlo no se puede: el OJO y la CEJA son del MISMO marron y estan justo ahi, asi que ensanchando la zona se los come y estrechandola no llega a los restos (cuatro intentos, dos de ellos dejandole la cara sin ojos). Volver a pedirle el personaje a Meshy costo 35 creditos y seis minutos, y salio con las gafas perfectas —aros completos, patillas hasta la oreja y cristales limpios—. La herramienta se queda por si algun dia el defecto se repite en un modelo que no se pueda regenerar.
+- **EL KAPPA SE RIGUEA EN BLENDER, y su pasada tiene tres perillas propias** (Meshy dice "Pose estimation failed" con su proporcion, y con la del mar 1 tambien fallaba):
+    blender --background --python tools/blender/riggear.py -- \n        _gen/meshy/kappa_v5_crudo.glb _gen/meshy/kappa_v5_rig.glb \n        _gen/meshy/kappa_v5_cuerpo.json      (con BRAZO_R=0.10)
+  · **SUS MEDIDAS VAN A MANO**: `medir_cuerpo.py` busca la primera fila con TRES islas para el hombro, y en el sus brazos no se separan del caparazon hasta muy abajo, asi que ponia el hombro en 0.672 —dentro de la concha— y el rig se comia el cuerpo. Leyendo la silueta fila a fila salen los buenos: hombro 0.47 (el cuello, donde la silueta se estrecha), muñeca 0.75, cadera 0.875, ancho_hombro 0.397.
+  · **"LA BARBA" HAY QUE DESCARTARLA CUANDO SALE ENORME**: sin material de pelo que la acote, la regla geometrica se queda con todo lo que sobresalga por delante del pecho, y en el Kappa eso es su BARRIGA (25.678 vertices pegados a la cabeza al 92%): al girar la cabeza se le desgarraba el cuerpo entero.
+  · **Y LOS BRAZOS SE ACOTAN POR DISTANCIA AL HUESO** (`BRAZO_R`), no por coordenada x: los suyos caen pegados al caparazon, que llega al mismo |x|. La caida va ANCHA (0.6R a 2.4R): con la banda estrecha el brazo se separa de golpe de su vecino y la superficie se DESGARRA en tiras.
+- **LA MANO SE ENVUELVE SOBRE LA BOLA, NO SE COLAPSA A UN PUNTO** (lo pidio el usuario: "antes de la esfera, la muñeca se desfigura"). Colapsando al centro, la superficie que une el antebrazo con ese punto se arruga; y con una rampa corta, el vertice de peso 0.15 casi no se mueve mientras el de 0.3 se va entero, que deja un ESCALON. Hoy cada vertice se lleva a la ESFERA conservando su direccion, con la rampa larga y suave.
+- **SOLDAR Y ALISAR SOLO DONDE HACE FALTA** (`MANO_SOLDAR`, `MANO_SUAVIZA`, apagados por defecto y encendidos SOLO para el Kappa): su mano de origen tiene pulgar y hay que fundirla en la bola. Sobre una malla PARTIDA —la de Meshy lo esta en cada costura del atlas: 68.272 vertices que soldados son 50.345— el alisado ABRE la superficie y el empalme sale en ASTILLAS, asi que van los dos juntos o ninguno. **Y no se le pasan a quien ya esta bien**: encendidos para todos, a Saverio le salieron manchas en la piel del brazo (lo vio el usuario). Al arreglar a uno, no se toca al resto.
+- **AL KAPPA LA BOLA VA EN LA MUÑECA Y LE COME LA MANO**, no al final del brazo: su mitton trae PULGAR modelado y, puesta en la punta, asomaba por detras se hiciera lo que se hiciera (mas grande, mas metida, envolviendo mas fuerte —esto ultimo le afilaba el antebrazo como un lapiz—). Puesta donde EMPIEZA la mano (0.335, -0.030, -0.198 con r 0.080), la envoltura se traga el mitton entero y el brazo acaba ahi. Dos cosas que hicieron falta con ella: **`ESFERA_UV` forzada**, porque a esa altura la bola de vertices toca el caparazon y el texel salia GRANATE; y que el **filtro de carne solo actue con `ESFERA_COLOR_DE=carne`** —es para la melena de la sirena—, porque al Kappa, que es VERDE, le dejaba fuera su propio brazo (96 vertices de 2.000) y la mano vieja no se envolvia.
+- **Y HAY DOS PERSONAJES CON LA BOLA PUESTA A MANO** (`ESFERA_POS_L/R`, `ESFERA_R_FIJO` y `ESFERA_ALCANCE_POS`), porque su rig no dice donde esta la mano: la SIRENA (sus muñecas caen a la altura del pecho, dentro de la melena) y el KAPPA (su rig de Blender apenas pesa en la muñeca —157 vertices— asi que la bola le quedaba colgando AL LADO de su mano de verdad, y se le veian las dos, como si sujetara una pelota). Los sitios se MIDEN sobre la malla, no se miran en el render. **Y ahi la carne se envuelve ENTERA**: con la rampa empezando en el propio radio, lo que quedaba a media distancia se movia a medias y seguia asomando — al Kappa se le veia el PULGAR saliendo por detras de la bola.
+- **Los lotes van por script**: `tools/_lote_meshy2.sh <personajes>` (vistas en
+  `_gen/la4/meshy2/<p>_{f,l,b}.png` → `_gen/meshy/<p>_v5_rig.glb`) y
+  `tools/_lote_acabar2.sh <personajes>` (preparar + esferas + fichas de cuatro
+  vistas y tres primeros planos de la mano en `_gen/la4/fichas/<p>_v5_hoja.png`).
+  Cada modelo se mira en su hoja ANTES de darlo por bueno.
 
+## EL CHEF ES MODULAR (personalizacion del jugador, 4-9-2026)
+
+**Decidido por el usuario**: el chef deja de ser dos modelos cerrados y pasa a
+personalizarse al empezar la partida, en la ficha del cartel de recompensa, y lo
+elegido es lo que sale en el cartel (que ya no se puede cambiar). Lo que se
+elige: **4 tonos de piel** (muy blanca, neutra, morena, oscura), **11 peinados**
+(5 masculinos, 5 femeninos y calvo) con **5 colores** cada uno (negro, castano,
+rubio, gris, pelirrojo), **2 tamanos de ojo** (los normales del reparto y unos
+mas pequenos y redondos), **3 de nariz**, **gafas si o no** y **barba/bigote**
+(solo bigote, solo barba, los dos, o nada).
+
+**ES UN CUERPO UNICO, no dos** (decidido por el usuario): lo que distingue al
+personaje es el pelo, la barba y la cara, y los 10 peinados valen para
+cualquiera. El GENERO se sigue eligiendo aparte, porque los dialogos lo usan
+(`GameState.gen()` y "cocinero"/"cocinera") — el aspecto no lo decide.
+
+**LA CUENTA ES LO QUE OBLIGA A QUE SEA MODULAR**: 4 x 51 x 2 x 3 x 2 x 4 son
+**9.792 combinaciones**. Asi que el cuerpo se genera CALVO y con la CARA LISA
+—sin ojos, sin nariz, sin cejas, sin gorro ni cinta— y cada rasgo es una pieza
+suelta que el juego cuelga del hueso `Head` con un BoneAttachment3D.
+- **La piel son 4 TEXTURAS del mismo cuerpo**, recoloreadas por codigo, no 4
+  modelos.
+- **EL MANDIL SE PIDE DE UN SOLO COLOR EN EL CONCEPTO**: Meshy le puso el peto
+  blanco como la casaca y la falda azul, y repintarlo despues
+  (`tools/blender/chef_mandil.py`, que localiza el peto por geometria y color y
+  rasteriza por baricentricas) deja el borde DENTADO y se come las costuras.
+  Regenerar el concepto con el mandil entero azul sale limpio y cuesta 35
+  creditos. La herramienta se queda por si vuelve a pasar.
+- **LOS OJOS VIENEN DEL CONCEPTO, NO SE GENERAN** (decidido por el usuario tras
+  verlo): son UNOS SOLOS, como los del resto del reparto, y no se eligen. Se
+  intentaron por codigo en dos tamanos y **no cuela**: el ojo del reparto es un
+  HUECO —esta metido en su cuenca, con el borde de piel alrededor— y un casquete
+  negro pegado a una cara lisa se lee como una pegatina por mucho que se le
+  afine el tamano y el material. Tallando la cuenca mejoraba, pero la cuenca es
+  geometria del CUERPO, o sea un cuerpo por tamano de ojo.
+- **La NARIZ y las CEJAS si son geometria generada en Blender**
+  (`tools/blender/chef_piezas.py`): sus medidas salen de la cara con un RAYO,
+  como en `preparar_personaje.py`. La nariz lleva el MATERIAL DEL CUERPO con la
+  UV de la piel de la cara (con material propio de color plano no casaria, la
+  leccion de las bolas de las manos) y las cejas llevan material PROPIO, porque
+  su color es el del pelo y el juego lo tinta.
+- **Los 5 colores de pelo son un TINTE del material**, no 5 mallas.
+- **Las gafas** pueden salir del modelo de Miku v6, que las trae completas.
+
+**LOS PEINADOS SON UNA CASCARA DEL PROPIO CRANEO** (`tools/blender/chef_pelo.py`,
+11 con el calvo): se copian las caras de la cabeza que quedan por encima de la
+LINEA DEL PELO —dada por su altura en el frente, el lado y la nuca— y se les da
+grosor, asi que ninguno puede flotar ni meterse dentro. El color NO va horneado:
+la malla va en BLANCO y la tiñe el juego con `albedo_color`, o sea que 11 x 5
+colores salen de 10 mallas de ~2.200 caras y ni una textura. Lo pagado:
+· **LAS OREJAS sobresalen mucho mas que el craneo** (medido: |x| 0.25 contra un
+  radio de 0.185), asi que una cascara que las incluya sale con forma de oreja.
+  Se excluyen, y los peinados que las tapan lo hacen con un BOMBO LOCAL a su
+  altura (`_sobre_orejas`). Abrir la melena hasta librarlas pide 1,35 de vuelo y
+  sale **como dos alas mas anchas que los hombros**.
+· **EL VUELO DE LA MELENA ES POR PASO, NO ACUMULADO.** Se llevaba acumulado y se
+  aplicaba encima sobre el anillo anterior —que ya lo traia—, o sea que el ancho
+  crecia con el CUADRADO de los pasos: con 22 pasos la melena salia como una
+  CAPA. Ese mismo fallo eran las 'alas' de las primeras melenas.
+· **UN DESPEINADO NO SE HACE CON CONOS.** Se probo tres veces (nueve finos, seis
+  gordos, y enderezados) y las tres salio un ANILLO DE PUAS alrededor de la
+  coronilla, porque un cono tiene su base y se le ve. Se hace ABOLLANDO la
+  propia cascara (`_revolver`, 9 bultos con caida al cubo): la silueta se rompe
+  sin una sola junta.
+· El flequillo se extruye del PROPIO borde de la mata (`_caida_frente`), no es un
+  bulto pegado: asi cuelga de donde nace el pelo y no se le ve la union.
+
+**Y DOS PEINADOS SALEN DEL REPARTO** (`tools/blender/pelo_de.py`): el RIZADO es
+la mata de Saverio y el ONDULADO la del grumete, extraidas y recalzadas en la
+cabeza del chef (escala por la razon de radios, y lo que quede dentro del craneo
+se saca preguntandole con un rayo). **LOS DOS SALIERON IGUALES la primera vez**,
+el mismo casquete redondo: lo que los distinguia —el rizo— vive en su TEXTURA, y
+aqui la textura se tira (el pelo va en blanco para poder teñirlo) y encima la
+malla se decima. De ahi salen sus dos ajustes, que son los que los separan:
+· **LOS RIZOS SE MODELAN** (`PELO_RIZOS`, 26): bollitos repartidos por una espiral
+  de Fibonacci sobre la mata —que es lo que reparte puntos por una esfera sin que
+  se amontonen—, asi el rizo esta en la GEOMETRIA y sobrevive al decimado. Y el
+  rizado va con mas presupuesto de caras (5.100 contra 2.400) y SEPARADO del
+  craneo, que es lo que le da el volumen.
+· **EL ONDULADO VA PEGADO Y FINO** (separacion 0.010, grosor 0.028). Se inflaron
+  los dos por igual para taparle la calva al rizado y se volvieron a parecer:
+  uno lleva volumen y el otro no, y esa es la diferencia.
+Como se encuentra el pelo:
+· **NO VALE UN UMBRAL DE COLOR CONTRA LA PIEL**: estos modelos traen el SOMBREADO
+  HORNEADO, asi que una mejilla en sombra se aparta mas que cualquier umbral y
+  'pelo' salia el 80% de la cabeza (se probo dos veces, con distancia RGB y con
+  luminancia + cromaticidad). Lo que funciona es INUNDAR DESDE LA CORONILLA —que
+  es pelo por definicion— por caras vecinas mientras el color se parezca al suyo:
+  la inundacion se para sola en el nacimiento del pelo. La tolerancia sale del
+  CONTRASTE entre coronilla y piel de ese personaje, con techo.
+· **El cuello se busca entre el 52% y el 75% del alto**: en una figura con falda
+  la fila mas estrecha de la mitad de abajo es la CINTURA (a Alice le salia al
+  39%) y con eso la 'cabeza' era medio cuerpo.
+· **La piel se mide en la BARBILLA**, lo unico que es piel en todos: por encima
+  hay flequillos, gafas y pañuelos (con la referencia mal, la 'piel' de Miku
+  salia morada).
+· **La BARBA no es pelo de la cabeza**, y es del mismo color y pegada a las
+  patillas: la inundacion se llevaba entera la de Saverio y la de David. Se corta
+  con la unica regla que las separa sin mirar el color — la barba esta DELANTE y
+  BAJA; el pelo o esta arriba, o esta detras.
+· Cai da su PAÑUELO (no pelo), Pablo lo tiene tapado por el sombrero, Nach sale
+  detectado como CALVO —lo es— y a Miku y a Alice el flequillo bajo se les funde
+  con la cara. Los agujeros que deja la inundacion se tapan (`holes_fill`) y la
+  mata se despega del craneo, que ademas es lo que le da VOLUMEN.
+
+**LAS BARBAS SALEN DE LA MISMA HERRAMIENTA, DEL REVES** (`PELO_MODO=barba`): se
+inunda desde la BARBILLA en vez de desde la coronilla. Son SEIS, una por cada
+barba del reparto (decidido por el usuario: 'veo coherente que el personaje que
+se cree pueda tener cualquiera de esas'): bigote (Nach), perilla (el capitan),
+bigote con perilla, barba rala (el pirata), barba corta (Saverio) y barba larga
+(David), mas ninguna. Lo que costo:
+· **LA PIEL SE MIDE EN EL CABALLETE DE LA NARIZ**, no en la barbilla: cuando lo
+  que se busca ES la barba, la barbilla es la barba (a Saverio le salia una
+  'piel' de 0.17). El caballete es piel en todos — un bigote va DEBAJO de la
+  nariz, nunca encima, y los ojos quedan a los lados. Coger el punto mas
+  ADELANTADO tampoco vale: en una cara con bigote poblado, lo que mas
+  sobresale es el bigote.
+· **LA SEMILLA ES LA BARBILLA**, no 'lo que mas se aparta de la piel': eso se iba
+  a los OJOS, que son negro puro, y sacaba una mancha de 200 caras en mitad de
+  la cara.
+· **Y HAY QUE CORTAR POR ARRIBA** (`PELO_BARBA_TOPE`): la barba se junta con el
+  pelo por las PATILLAS, asi que sin tope la inundacion se sube a la cabeza y
+  saca las dos cosas de una pieza.
+· **LA SEMILLA ES LA MAS CERCANA A LA BARBILLA, no 'la mas baja'**: en cuanto se
+  deja bajar la busqueda por debajo del cuello —una barba larga cuelga— el trozo
+  mas bajo que casa de color esta en la ROPA, y salia una mancha del chaleco.
+· **LA DE PABLO NO SE PUEDE SACAR**: bajo el ala de su sombrero su cabeza entera
+  es casi del mismo tono, asi que la inundacion se lleva el 48% de ella con
+  cualquier tolerancia (probado a 0.20, 0.12, 0.09 y 0.06). Su look se arma
+  JUNTANDO las dos piezas que si salen limpias —el bigote de Nach y la perilla
+  del capitan— con `tools/blender/juntar_glb.py`, que ademas deja UN SOLO
+  esqueleto (con varios, el exportador escribe varias pieles y Godot no sabe a
+  cual colgar la pieza).
+· **A los que llevan SOMBRERO la cara les sale en SOMBRA** y el contraste medido
+  no vale —sus dos muestras salen oscuras y saltaba el 'no tiene barba' con
+  barba puesta—: para esos, la tolerancia va a pelo (`PELO_TOL_ABS`).
+· **DONDE CAE CADA PIEZA SE MIDE, no se mira en el render**: la herramienta
+  imprime el tramo que ocupa en fracciones del alto de la cabeza DEL CHEF, y
+  ahi la nariz va de 0.19 a 0.33, los ojos empiezan en 0.51 y la barbilla esta
+  en 0.00. El bigote de Nach aterrizaba en 0.166..0.358 —o sea, POR ENCIMA de
+  la nariz— y se baja con `PELO_SUBE`; la forma final de cada barba la dan
+  `PELO_CORTE` (tramo de altura), `PELO_ANCHO` (|x| maximo, para dejar la
+  perilla solo en el menton) y `PELO_SIN_BIGOTE` (el hueco central, para una
+  barba que no toca ni la boca ni debajo de la nariz).
+· **LO QUE CUELGA POR DEBAJO DE LA BARBILLA NO SE EMPUJA**: el empujon contra el
+  craneo esta pensado para un CASQUETE —se pregunta con un rayo desde el centro
+  de la cabeza y se saca lo que este dentro—, y con una barba LARGA ese rayo
+  apunta hacia abajo, sale por el cuello o por el pecho y devuelve una distancia
+  enorme: la barba de David se abria hacia fuera y salia DESFIGURADA. Por debajo
+  de h 0.03 no hay cabeza que atravesar, cuelga al aire.
+· **`holes_fill` CON `sides=0` NO DESACTIVA EL RELLENO: lo deja SIN LIMITE**, y
+  entonces tapa tambien el borde grande de la pieza con un poligono PLANO. La
+  barba de David salia como una PLANCHA rectangular —'demasiado cuadrada, sin
+  volumen'— y se persiguio en el recorte y en la tolerancia antes de mirar
+  esto. Para no tapar nada, no llamar a la operacion.
+· **LA BARBA LARGA SALIA 'CUADRADA' POR EL RECORTE PROPIO, no por la extraccion**:
+  la de David llega a h -0.77 (media pechera) y el `PELO_CORTE` estaba a -0.30,
+  o sea que le cercenaba mas de la mitad y le dejaba el fondo en una linea
+  recta. Sacada entera es redonda y con volumen. Se perdieron dos rondas
+  mirando la tolerancia; **la comprobacion buena es renderizar la PIEZA SOLA**,
+  que ahi se ve si el problema es la forma o el recorte.
+· **UN BIGOTE SOBRE UNA BARBA GORDA HAY QUE ADELANTARLO** (`JUNTAR_ADELANTE`,
+  0.030 en la barba larga): el bigote va a ras de cara y la barba de David
+  sobresale mucho mas, asi que puesto en su sitio queda DENTRO de ella y no se
+  ve — ni el suyo propio ni el postizo. Pero es una perilla fina: a 0.08 se
+  DESPEGA de la cara y se lee como una pieza suelta. Se le abre ademas un hueco central en
+  la barba para que asome.
+· **Y UNA BARBA LARGA LLEVA UN TOPE DE DESPEGUE** (`PELO_PEGAR_MAX`, 0.05
+  radios) en vez de proyectarse: pegada del todo pierde el volumen, que es
+  justo lo que la hace una barba y no una pintura. Lo que ya esta cerca no se
+  toca y lo que flota se acerca hasta el tope. **La fundida por altura va
+  CORTA** (0.02 a 0.06): con un recorrido de 0.14, la zona que de verdad toca
+  la mejilla —justo encima de la barbilla— recibia el 14% de la correccion y la
+  barba seguia despegada.
+· **UNA BARBA CORTA SE PROYECTA SOBRE LA CARA** (`PELO_PEGAR`): viene de la cara
+  de OTRO personaje, asi que aunque no se meta dentro del craneo hay trozos que
+  quedan DESPEGADOS. Sacar solo lo que entra no basta; hay que pegarla entera.
+  Una barba LARGA no se pega: por debajo de la barbilla no hay cara.
+· **UNA BARBA VA ENTERA A `Head`** (`PELO_PESO=head`): el reparto por altura esta
+  pensado para una melena que cuelga, y la barbilla del chef cae POR DEBAJO de
+  la linea del cuello — sin eso, la barba cogia peso del tronco y se quedaba
+  atras al girar la cabeza.
+**LOS CUATRO TONOS DE PIEL SON CUATRO TEXTURAS DEL MISMO CUERPO**
+(`tools/blender/chef_pieles.py`): cuatro modelos serian cuatro veces los mismos
+50.000 vertices para cambiar un color, asi que el juego le cambia el
+`albedo_texture` al material y se acabo. Tres cosas:
+· **NO SE PINTA DE UN COLOR PLANO**: el sombreado va HORNEADO en la textura, asi
+  que un color liso se lleva por delante las cuencas de los ojos, la sombra de
+  la barbilla y el modelado entero de la cara. Lo que se conserva es la RELACION
+  de brillo de cada texel con la piel media, y esa razon se aplica al tono nuevo
+  (acotada a 1.35, o un brillo especular dispara el tono a blanco).
+· **LA PIEL SE LOCALIZA POR CROMATICIDAD**, no por distancia de color: la
+  cromaticidad no cambia con la sombra, asi que una mejilla en penumbra sigue
+  siendo piel, y la camisa (neutra) y el mandil (azul) se quedan fuera solos. La
+  referencia sale de la CARA, no de una media del atlas.
+· **LA NARIZ ES UNA PIEZA APARTE Y TIENE QUE COMPARTIR EL MATERIAL DEL CUERPO**:
+  apunta al mismo texel de piel, pero su `.glb` trae su propia copia de la
+  imagen — al cambiar de tono, el chef se quedaba con la NARIZ del tono
+  anterior. En Godot se resuelve dandole a la nariz el material del cuerpo.
+**LAS GAFAS SE CONSTRUYEN SOBRE LOS OJOS MEDIDOS** (`tools/blender/chef_gafas.py`):
+no se extraen de Miku ni de nadie — unas gafas son dos aros, un puente y dos
+patillas, y lo unico que importa es que caigan CENTRADAS en los ojos y apoyadas
+en la cara. La montura va en BLANCO y la tiñe el juego, asi que de una malla de
+480 caras salen todas las monturas. Tres medidas que la gobiernan:
+· **EL ARO NO PUEDE PASARSE DE LA MITAD DE LA SEPARACION ENTRE OJOS** o los dos
+  se CRUZAN en mitad de la cara. Como el ojo de estos personajes es un ovalo
+  ALTO, la unica forma de que quepa dentro del cristal es estirar el aro a lo
+  alto (`GAFAS_ALTO` 1.55): con aros redondos el ojo asoma por arriba y por
+  abajo. **OJO CON EL EJE**: el toro se crea girado 90 grados sobre X y esa
+  rotacion NO se aplica, asi que su Y local es la Z del mundo.
+· **LAS PATILLAS SE PONEN POR SUS DOS EXTREMOS**, no con un angulo a ojo: asi
+  salen del canto del aro y mueren en el costado de la cabeza.
+· **Y ESE COSTADO SE MIDE SIN LAS OREJAS**, que sobresalen a |x| 0.24 contra un
+  craneo de 0.18: contandolas, la patilla salia disparada muy por delante de la
+  silueta de la cabeza.
+**LAS PIEZAS VAN PESADAS AL ESQUELETO, NO COLGADAS DEL HUESO DE LA CABEZA**
+(`_pesar`, en los dos scripts). El chef es el que se ve COCINANDO en la cinta y
+se anima con `CharacterAnim`, que gira huesos: una melena que llega a media
+pierna colgada de `Head` barreria el cuerpo en cada cabeceo. El reparto va por
+ALTURA —cabeza arriba, cuello en la transicion y tronco abajo— con una Bezier
+cuadratica (t², 2t(1-t), (1-t)²), que **suma 1 en todo punto**: sin eso, en la
+franja de mezcla la pieza se ENCOGE. Cada `.glb` de pieza se exporta con el
+esqueleto del chef, asi que en Godot su `MeshInstance3D` se cuelga del
+`Skeleton3D` del chef y Godot casa los huesos por NOMBRE.
+**EL MONTAJE EN GODOT (5-9-2026)**: las piezas viven en `assets/models/chef/`
+(22 `.glb` + 4 `.jpg` de piel; los saca `tools/blender/chef_empaquetar.py` de
+`_gen/meshy/chef_piezas`) y el juego las junta en `ChefLook.montar(look)`
+(`scripts/chef_look.gd`, que es tambien el CATALOGO). El aspecto elegido va en
+`GameState.player_look` — {piel, pelo, color, nariz, barba, gafas}, validado al
+cargar contra el catalogo, asi que un guardado viejo cae al chef de serie — y
+se elige en el PERSONALIZADOR (`scripts/chef_editor.gd`), la ventana que abre el
+boton "Personalizar" del cartel de recompensa SOLO en la ficha de tripulacion
+(`editable_name`): despues no se toca. Las flechas de genero del cartel se
+fueron (cambiaban de MODELO, y ahora el cuerpo es uno): el genero va en una fila
+"Cocinero / Cocinera" bajo la recompensa, porque los dialogos lo siguen usando.
+· **LAS PIEZAS PESADAS SE CUELGAN DEL `Skeleton3D` DEL CUERPO, no de un hueso**:
+  se saca el `MeshInstance3D` de la escena de la pieza, se mete bajo el
+  esqueleto del chef con `skeleton = ".."` y Godot casa los huesos POR NOMBRE
+  (el `Skin` que importa del glTF trae los 24 binds con nombre; medido: 0
+  huesos sin casar). Es lo que hace que la melena siga al tronco. Las piezas
+  RIGIDAS (cejas y narices, que `chef_piezas.py` exporta sin esqueleto) van con
+  un `BoneAttachment3D` en `Head`, con la transformada `rest⁻¹ · pieza`.
+· **`find_children` NO INCLUYE AL PROPIO NODO**: el chef se escala por el AABB
+  del CUERPO (meta "cuerpo" en la raiz; con el pelo en la cuenta, un peinado
+  alto encogia al personaje entero), y `level3d._merged_aabb` recorria
+  `find_children` — pasandole el MeshInstance3D la caja salia VACIA, la escala
+  se disparaba y el chef desaparecia de la cinta dejando su mancha de sombra
+  sola. Se cazo en captura, no en la sonda headless (que no mide escalas).
+· **CADA PIEZA TRAIA UN ICOSAEDRO SUELTO** de radio 1 sin material, colado en
+  algun paso de la cadena y copiado de exportacion en exportacion: en Godot
+  habria sido una bola gris del tamaño del personaje. `chef_empaquetar.py` lo
+  tira; hay que mirar el arbol de lo que se exporta, no solo la pieza.
+· **EL CUERPO VA SIN TEXTURA EMBEBIDA** y con el color base a 1.0: su atlas es
+  la piel neutra, que ya viaja aparte, y al desenchufar la imagen el exportador
+  escribe como `baseColorFactor` el valor del socket, que Meshy deja en 0.8 (un
+  chef un 20% mas oscuro que en Blender). La piel se pone SIEMPRE por
+  `albedo_texture` sobre un duplicado del material, y la nariz recibe ese mismo
+  material.
+· **El cuerpo se decima en la importacion a 30.000** (`BUDGETS`, entra a 25.455
+  con la cadena de LOD); las piezas no estan apuntadas a proposito, salen de
+  Blender a 2-7k caras. Texturas de piel a 1024 y Basis, con el `.import`
+  escrito ANTES de la primera importacion, como el resto de la cadena.
+· **LOS HEREDOCS LARGOS SE CORTAN** en esta terminal (~170 lineas): un parche de
+  Python grande va a un archivo en `_gen/` y se ejecuta, no en un `<<'PY'`.
+· El personalizador va en un `CanvasLayer` propio (capa 125) y a
+  `GameState.canvas_size()`: el cartel que lo abre puede ir ESCALADO (en el
+  Perfil) y un hijo suyo heredaria la escala. Su busto es un `SubViewport` con
+  la luz floja del cartel y se encuadra por el CUERPO, no por el pelo.
+· `CharacterAnim` con este rig: humanoide si, brazos si, PIERNAS NO (figurita:
+  miden menos del 32% del alto), que es lo esperado — el chef no anda.
+· Pendiente: retirar `chef_rig.glb` / `chef_fem_rig.glb` / `chef_neutro_rig.glb`
+  y la entrada "chef" de `CharacterData.MODELS` cuando nadie mas los use
+  (`tools/chef_portraits.gd` todavia los lee).
 **DAVID SE MODELA EN BLENDER, SIN PASAR POR MESHY** (`tools/blender/
 modelar_david.py`, pedido por el usuario: "prueba a hacer tú el modelo 3D
 directamente en Blender... a ver si así da menos problemas"). Y da MENOS
@@ -7993,3 +8327,482 @@ de la carta entera, así que piden recalibrar `star_money`.
 2. `--headless --quit-after` en ambas escenas → 0 errores.
 3. Si es visual: helper inyectado → screenshot → revisar → corregir → limpiar helper.
 4. Lanzar el juego para el usuario.
+
+## EL REPARTO v5 ENTRA EN EL JUEGO: ANIMACIONES, RETRATOS Y CHEF (5-9-2026)
+
+Los trece modelos de figurita sustituyen a los low poly en TODO: clientela,
+especiales, retratos 3D del dialogo, Saverio en su puesto y el chef modular.
+Se hizo con sondas de captura (`_gen/cast/`), una hoja por personaje y pose,
+y cada fallo de abajo salio de una captura, no de suponerlo.
+- **LOS RIGS DE MESHY VIENEN ORIENTADOS y todo el codigo de animacion daba
+  por hecho bases identidad.** Dos sitios: `CharacterAnim._rotate_bone`
+  conjuga ahora el eje con la orientacion GLOBAL de reposo del hueso (girar
+  "en X" es girar en la X del ESQUELETO en todos los rigs), y `_arm_ik` se
+  reescribio entera en espacio del esqueleto: dos huesos resueltos en el
+  espacio (angulo del hombro por el triangulo hombro-codo-mano, codo en el
+  plano del POLO), giros GLOBALES respecto al reposo pasados a pose local con
+  la del padre (`_set_global_rot`). La vieja metia un cuaternion global como
+  pose LOCAL del hombro: con Meshy, TODO el reparto sacaba los brazos en cruz
+  al sentarse y al comer. **La muñeca lleva el arco de balanceo puro** del
+  antebrazo (sin torsion) y NO se orienta a `focus`: las manos son bolas.
+- **`arm_range`** (CharacterAnim): recorta cualquier giro de brazo. Lo lleva
+  el KAPPA a 0.45 (`client3d.KAPPA_ARM_RANGE`): su rig de Blender reparte el
+  peso del brazo con el caparazon y a amplitud entera el brazo se ESTIRA en
+  una lamina verde. Y el jefe NO gesticula (`_gesto_poner` lo salta).
+- **`MIN_LEG_FRAC` bajo de 0.32 a 0.18**: las piernas de las figuritas miden
+  del 21 al 38% del alto y con el liston viejo medio reparto no andaba.
+- **GESTOS DE SITUACION** (CharacterAnim + `client3d`, capa `_gesto*`):
+  `impaciente` (brazos cruzados, mira a los lados, golpecitos con el pie;
+  entra en 1,5 s por debajo del 38% de barra, `IMPACIENTE_DESDE`),
+  `saludo` al sentarse (1,3 s; el jefe no), `contento` al terminar un plato
+  (1,1 s, los dos brazos arriba), `negar` (cabeza; disponible, sin enganchar)
+  y `walk_enfadado` para el que se va SIN HABER COMIDO (cabizbajo, hombros
+  encogidos). Todos con `k` 0..1 fundido (`GESTO_FUNDIDO`, 0,25 s): la IK
+  SUSTITUYE la pose del brazo, asi que el objetivo se interpola entre la
+  falda y el gesto; cabeza y tronco ACUMULAN escalados por `k`.
+- **LA SIRENA**: Meshy le metio la melena en el grupo de las muñecas (22.000
+  vertices por lado, hasta la coronilla) y al comer el pelo salia volando en
+  lamina. `tools/blender/pesos_lejos.py` pasa a Head/Spine1 lo que quede a
+  mas de 0.12 del hueso; va en `_lote_acabar2.sh`.
+- **EL KAPPA: EL ARMATURE AL ORIGEN** (`tools/blender/rig_al_origen.py`). Su
+  `Rig` venia a y=+0.5 y una malla con esqueleto se dibuja en espacio del
+  ESQUELETO, no del nodo: la caja acumulada (`_aabb_3d`) salia medio metro por
+  encima de la piel y el retrato del dialogo encuadraba el aire (solo asomaba
+  el plato). El otro medidor (`_probe_cast._aabb`, que no acumula padres)
+  acertaba por casualidad. Con el armature en el origen coinciden todos.
+- **EL DIALOGO, MEDIDO** (sonda `_probe_gigi`, borrada): Gigi a 0.30 del alto
+  de David media 0.42 del retrato y caia en x=-0.55, fuera de cuadro; va a
+  **0.22** en `desvio (-0.165, 0.245, -0.050)` con banda **0.48** para David y
+  Gigi (entran los hombros), y el KAPPA con banda **0.62** (plato arriba y
+  pico muy abajo). `_tick_gigi` leia la ficha por el alias ("gigi" -> String)
+  y reventaba con 'giro': la ficha resuelta va en `r["gigi_cfg"]`.
+- **EL CHEF DE FIGURITA NO LLEGABA A LA MESA**: con brazos del 22% del alto,
+  el punto de trabajo en fracciones de brazo (`CHEF_WORK`) se quedaba en el
+  pecho. Ahora el punto es LA MESA (`chef_work_override`, en espacio del
+  esqueleto, calculado por level3d desde el tablero) y la mesa se acerco de
+  0.92 a **0.58** para que el canto quede a un brazo.
+  · **LOS UTENSILIOS SE COLOCAN POR FOTOGRAMA DESDE EL ESQUELETO**
+    (`_place_chef_tools`), no con un BoneAttachment3D: la base de la muñeca
+    de Meshy (y el arco corto desde su A-pose) dejaba la hoja hacia atras y
+    abajo, dentro del cuerpo. Se MIDIO pintandolo de magenta y contando
+    pixeles: perpendicular al antebrazo, dentro del cuerpo (0 px); hacia +X,
+    tapado por la bola de la mano izquierda; tumbado, 21 px de canto. Hoy la
+    hoja va DE PIE (X lateral, Y arriba, Z filo) hacia -X, fuera por la
+    derecha del chef (46 px). El CAZO, a 25 grados hacia abajo, se metia
+    entero en la mesa (0 px) y a 10 casi (13 px): va HORIZONTAL y a la
+    altura de la muñeca, con el cazo sobre el tablero (112 px).
+- **ICONOS DE CABEZA del HUD regenerados los once** (`tools/head_icons.gd`
+  con `FRAME_F` 0.46 y `HEAD_DROP_F` 0.21 para cabezones; necesita la escena
+  `scenes/tmp_heads.tscn`, que se crea al vuelo y se borra). Los femeninos
+  (`head_*_f`) se BORRARON y `CharacterData.HEADS` ya no los declara: la
+  clientela v5 solo tiene modelo masculino y el icono es la cara que se
+  dibuja. Cai con sombrero tiene el suyo (`head_CS`, via `head()`).
+- **PENDIENTE**: las variantes FEMENINAS de la clientela no existen en v5
+  (todo cae al masculino); `negar` sin enganchar al plato despreciado.
+
+## LAS MANCHAS DE LOS MODELOS ERAN LA DECIMACION, Y EL ARREGLO ES RE-HORNEAR (7-9-2026)
+
+El usuario vio "manchas" y "rugosidad por todo el modelo" en la clientela (la
+captura de la cueva). Se midio por descarte, y conviene recordar el orden:
+- **La textura de Meshy esta limpia** (0,04% de pixeles fuera de la mediana
+  a 4k; la cara y la camisa, recortadas al 100%, sin una mota).
+- **La compresion no era**: Basis ETC1S, UASTC y SIN PERDIDA dan el MISMO
+  render (`_gen/cast/tex_ab.png`, diferencia media 1,2).
+- **Era la DECIMACION de Godot** (`import_hooks/decimate_import.gd`): el atlas
+  de Meshy viene troceado en miles de islas y el simplificador funde vertices
+  a traves de las costuras, asi que las UV se salen de su isla y muestrean los
+  huecos. MEDIDO: 1659 pixeles de mota decimado, 1050 sin decimar, y en
+  captura la cara sale limpia sin decimar y llena de rayas decimada.
+- **El arreglo es `tools/blender/rebake.py`**: SOLDAR (umbral 0.0001; sin
+  soldar, Smart UV hace una isla por parche y el horneado sale una papilla de
+  rombos), decimar en Blender (collapse, conserva los pesos del rig), atlas
+  NUEVO con Smart UV Project (islas grandes, margen 0.012) y HORNEAR la textura
+  original encima (Cycles, selected-to-active, 16 px de dilatacion). Resultado:
+  468 motas, menos que la malla entera. Los trece van a 14.000 caras y 1024 de
+  atlas; `BUDGETS` a 20000 para que Godot NO vuelva a decimar. Va DESPUES de
+  `manos_esfera`/`pesos_lejos`/`rig_al_origen` (la sirena se rehornea desde
+  `_v5_pelo.glb` y el Kappa desde `_v5_origen.glb`, no desde `_listo`).
+- **Y los modelos de Meshy venian con la EMISION encendida** (albedo como
+  emisivo): se iluminaban solos. Re-horneados y sin emision, la luz del
+  retrato del dialogo se quedo corta y se subio (sol 0.80, relleno 0.38,
+  ambiente 0.46).
+
+## EL DIALOGO: SE MIRAN, Y GESTOS POR HUMOR (7-9-2026)
+
+- **El signo del giro estaba al reves**: el modelo mira a +Z y girar +yaw
+  lleva su frente hacia +X (la derecha de la pantalla), asi que el de la
+  IZQUIERDA lleva +yaw. Estuvo al reves y el de la izquierda daba la espalda
+  al otro; David, con su giro "de vuelta" para enseñar el hombro de Gigi, era
+  el unico que salia bien por casualidad (lo vio el usuario). Con el giro
+  bueno, Gigi va en el hombro que mira a camara: en el lado DERECHO se espeja
+  (`_posar_acompanante(..., side)`).
+- **`gesto(mood, t, hacia)`** con la postura de cada humor: `riendo` (se echa
+  atras y el cuerpo ENTERO bota a golpes de carcajada, con los hombros —
+  `_bote` mueve la POSICION del hueso raiz), `sorprendido` (manos junto a las
+  mejillas), `enfadado`/`gritando` (puño en alto agitandose), `triste`
+  (cabizbajo, hombros caidos), `dormido`, `cantando` (vaiven), `guason` y
+  **`punal`**: la PUÑALADA DE PABLO (`punalada`) — la mano del puñal (la
+  izquierda) sale disparada hacia el otro (`hacia`, que DialogueBox pasa segun
+  el lado) y vuelve, con el cuerpo lanzandose detras; sale rapido y vuelve
+  despacio, que es lo que se lee como intento y no como vaiven.
+- Las manos en alto se quedan CERCA de la cara: en el busto (banda 0.42-0.48)
+  mas altas salian del marco como dos bolas sueltas en las esquinas.
+
+## LOS ESCENARIOS EN ESTILO LINK'S AWAKENING (7-9-2026, `scripts/scenery_la.gd`)
+
+Pedido por el usuario: los escenarios con el mismo estilo que las figuritas.
+La cadena, y lo que se aprendio:
+- **Conceptos de NIVEL con Ludo** (`createImage`, image_type `screenshot`,
+  `Stylized 3D`, isometrico, 3:4, augment off) describiendo el diorama de
+  vinilo: `_gen/la_esc/concepto_{isla,puerto,barco,cueva}_*.webp`. Son el
+  objetivo que replica cada `SceneryLA.<escenario>`.
+- **Conceptos de PROP** (`createImage`, image_type `3d`, un objeto sobre
+  blanco, tres cuartos elevado) con el preambulo de estilo y el objeto
+  descrito pieza a pieza. 24 props en cuatro tandas; salen coherentes entre si
+  a la primera. Referencias del usuario que fijan el patron: palmera de tronco
+  escamado con fruto amarillo y hojas gordas, acantilados de bloques
+  redondeados, arena con dunas suaves y madera de deriva, orilla con banda de
+  espuma, hibiscos, arboles de copa apilada, tejados azules, muros de cueva
+  de escamas.
+- **Meshy image-to-3D** (`meshy-t2` smart-topology, 9000 caras, 15 creditos)
+  creando las tareas SIN esperar (`meshy.pide`, ids en
+  `_gen/la_props/tareas_N.json`) y bajandolas despues de una en una con
+  `tools/meshy.py bajar la_<id> <task> --poly 3000` (que hace la cadena entera
+  y el import de Godot: NO se solapa con otras sondas). Los ids llevan prefijo
+  `la_` a proposito: pisar `palmera.glb` habria dejado la textura EXTRAIDA del
+  modelo viejo (la trampa documentada arriba).
+- **Texturas tileables con Ludo** (image_type `texture`): arena, cubierta,
+  muelle, suelo y pared de cueva, goma de cinta. Se comprueban tileadas 2x2
+  antes de elegir. Van a `assets/props/la_*.webp` con `.import` ESCRITO A
+  MANO antes de importar (Basis, tope 1024): el importador las dejaria sin
+  comprimir y `detect_3d` las pasaria a s3tc, que en la web movil no carga.
+- **El mostrador es un anillo biselado de Blender** (`la_mostrador.py`, a
+  escala de mundo: lado 3.6, ancho 1.1, alto 0.8, bisel 0.09) con la madera
+  del muelle en triplanar; la banda de la cinta sigue siendo el shader de
+  siempre con la goma nueva.
+- El mar del nivel pasa al cian saturado de LA (`WATER_COL`/`WATER2_COL`/
+  `FOAM_COL` en `_add_sea`).
+- `SceneryLA.ON` es el interruptor: apagado, level3d monta todo lo de antes.
+
+**EL DECORADO SE COLOCA EN COORDENADAS DE PANTALLA** (`SceneryLA.uw(u, w)`, la
+misma cuenta que `level3d._uw`; segunda tanda del 7-9-2026). La primera tanda
+fue en x/z de mundo y MEDIDO en captura: dos de las cuatro palmeras de la isla
+y el arbol entero caian FUERA de cuadro (u > 4.78), la cabaña y la caseta se
+metian bajo la barra del HUD (solo asomaba la puerta), el mastil con su vela
+tapaba a dos clientes con sus barras y un cañon quedaba cortado por la tabla.
+Las cifras que gobiernan el sitio de todo (camara fija, size 17, 75,3 px/u):
+- Se ve `|u| <= 4.78` y `w` de **-7.8** (el borde de abajo del HUD) a **5.8**
+  (la tabla). El suelo baja 43,5 px por unidad de w y un prop se dibuja hacia
+  ARRIBA desde su base a 61,5 px por unidad de alto, asi que su cima cae en
+  `y = (w + 10.1) * 43.5 - 61.5 * alto` y tiene que quedar por debajo de 100.
+  De ahi que las piezas ALTAS (cabaña, caseta, palmeras, farolas, el arbol)
+  vayan en las esquinas BAJAS o en los flancos, nunca arriba: arriba solo
+  caben rocas, arbustos, barriles y cajas.
+- El boton **"Salir"** ocupa x 20-125, y 110-160: lo que suba por la esquina
+  de arriba a la izquierda se le mete debajo (la copa de la palmera de la isla
+  lo hace, asumido: es HUD y va encima).
+- El pasillo de la clientela es el circulo de radio 3.7 (el decorado va a
+  r >= 4.3) y los dos corredores de entrada van por `|u| < 1` (arriba con
+  w < -3.5, abajo con w > 3.4, donde ademas esta el cubo en (0, 3.42)).
+- **EL MASTIL DEL ABORDAJE VA EN EL CANTO DERECHO, MEDIO FUERA DE CUADRO**
+  (u 4.9): en el centro tapaba clientela, arriba se metia entero bajo el HUD y
+  abajo quedaba DELANTE de los clientes (mas w = mas cerca de la camara = se
+  dibuja encima). En el canto, la vela asoma por el borde como el resto del
+  barco que no cabe. Los cañones van en la borda alta con **yaw 225** (boca
+  hacia ARRIBA en pantalla, o sea fuera de la borda): a 135 apuntaban las dos
+  a la derecha y la de babor miraba al centro de la cubierta.
+- `SceneryLA.prop` admite `tinte` (multiplica la textura): las rocas y las
+  estalagmitas de la cueva van a x1.3 y las estalagmitas x1.45 de alto, o a la
+  luz de la cueva salian como bultos planos.
+- **LOS TINTES DE LA CUEVA SE REHICIERON PARA LA TEXTURA DE LUDO**: la piedra
+  nueva ya es azul oscuro de fabrica (media 42,57,69) y con los tintes de la
+  piedra clara de antes suelo y muros salian NEGROS. El suelo va casi a 1, los
+  muros x1.7 sobre sus tintes (`_muro_cueva` lo aplica solo con `la_cueva`), el
+  sol frio sube de 0.38 a 0.70 (da canto a las rocas) y la emision de los
+  cristales baja de 0.9 a 0.42: a 0.9 el racimo era una losa verde lisa.
+- **LA GOMA DE LA CINTA LLEVA `tint` EN EL SHADER** (`belt_scroll_3d`, x2.0):
+  la textura de Ludo tiene media 43 y en el nivel la banda salia NEGRA en
+  mitad de la pantalla; a gris medio es como va en el concepto.
+- **EL MUELLE SE DESATURO EN LA PROPIA TEXTURA** (`la_muelle.webp`, color x0.72
+  y brillo x1.06; la original en `_gen/la_tex/la_muelle_v1.webp`): tal cual
+  venia, la tarima entera era naranja terracota y no beige de madera al sol.
+- Cada tanda se mira con `tools/_probe_nivel` (cuatro capturas por escenario)
+  y las cuatro juntas en una hoja: los fallos de sitio se ven de golpe.
+
+## LA SEGUNDA VUELTA HACIA EL 9 (7-9-2026, pedido por el usuario: "regenera lo
+## que haga falta, que llegue al 9 cada pieza, y haz todo lo pendiente")
+
+- **DIEZ PROPS MAS, por la misma cadena** (Ludo `3d` sobre blanco → Meshy
+  `meshy-t2` smart-topology 9000 → `tools/meshy.py bajar la_<id> --poly 3000`):
+  `mastil_roto`, `timon` y `farol` para el barco; `roca_cueva` y `estalagmita`
+  REHECHAS (las primeras eran un bulto liso y un cono blando: la roca nueva son
+  lumps apilados con vetas de cristal y la estalagmita un racimo de tres conos
+  anillados) y `seta_cueva` para la cueva; `cartel` y `hierba_alta` para la
+  isla; `caja_pescado` y `ancla` para el puerto. Se lanzan SIN esperar
+  (`_gen/la_props2/lanzar.py`, tandas de cuatro con 30 s) y se bajan cuando
+  terminan (`bajar_todo.py`), que borra ANTES la textura extraida y la
+  importacion de los ids que se reemplazan.
+  · **UN CONCEPTO DE LUDO PUEDE TRAER UN GARABATO SUELTO** (la roca traia un
+    trazo blanco flotando a su derecha): se quita quedandose con la componente
+    conexa mayor del alfa ANTES de mandarlo a Meshy, o sale como pieza suelta.
+  · El barco: el MASTIL ROTO cabe en la borda alta a 1.5 de alto (el techo
+    sin HUD), el timon en la esquina de arriba a la derecha y el farol en el
+    flanco; los cañones se acercan al embarque para dejarles sitio.
+- **LAS CLIENTAS** (`grumete_fem`, `pirata_fem`, `capitan_fem` →
+  `assets/models/<p>_fem_rig.glb`, `CharacterData.MODELS`/`HEADS` con FEMALE y
+  `head_E_f/A_f/G_f`): la variante sale del PROPIO concepto del cliente con
+  `editImage` ("produce the FEMALE VARIANT... as a matching pair for a
+  roster"), en DOS pasadas —la variante, y despues "quita las manos" con las
+  mangas selladas, porque la primera pasada las devuelve SIEMPRE con manos—,
+  y de ahi `rotateSprite` 90/180 → Meshy multi (`_gen/la5/lanzar_fem.py`, que
+  NO llama a `rematar`: deja el rig en `_gen/meshy/<p>_v5_rig.glb` para que
+  siga `_lote_acabar2.sh`) → `_gen/la5/empaquetar_fem.py` (Blender
+  `empaquetar_personaje` + `.import` del grumete sin uid + import + texturas).
+  · **LA URL DE UN ASSET DE LUDO ES EL MD5 DE SU CONTENIDO**
+    (`ludo-assets/api/<md5>.webp`): para recuperar la URL de una imagen ya
+    descargada basta con el md5 del archivo local. Asi se rescataron las
+    vistas frontales de los tres clientes sin volver a generarlas ni meter
+    base64 en el contexto.
+  · **A LA PIRATA, MESHY LE PUSO BARBA**: el concepto editado del hombre
+    conservaba su mandibula ancha y su sombra de barba, y con la trenza al
+    lado el modelo salio barbudo. Dos intentos mas de `editImage` no lo
+    arreglaron (una pasada cambia una cosa y la cara volvia a la del hombre).
+    Lo que funciono: `createImage` desde texto de la figura DESNUDA de rasgos
+    (cara, trenza, parche, pañuelo, muñones) —el generador pierde la ropa si
+    se le pide todo— y despues UNA pasada de `editImage` para VESTIRLA con el
+    traje del pirata. Regla: cuando el concepto base lleva un rasgo que hay
+    que quitar (la barba), es mas barato empezar sin el que quitarlo.
+  · **`import_hooks/decimate_import.gd` NO ADMITE CLAVES REPETIDAS**: las
+    entradas viejas `grumete_fem_rig: 6000` (las low poly) seguian abajo del
+    diccionario y al añadir las nuevas a 20000 el hook dejo de PARSEAR
+    ("Key was already used"): la importacion siguio, sin decimar nada y sin
+    avisar mas que en la consola. Al añadir un presupuesto, `grep` antes.
+- **`negar` ENGANCHADO**: el cliente que deja pasar un plato (dado fallado)
+  niega con la cabeza (`_scan_belt`, el `declined.append` final).
+- **LA SORPRESA ES UNA MANO A LA MEJILLA** (`_mano_a_la_mejilla`), no las dos
+  delante del pecho: con las dos salian como dos bolas pegadas a la barba. El
+  puño de enfado va con el brazo del lado del otro y delante del pecho; la
+  estocada de Pablo cruza a la altura del HOMBRO (a la del pecho la mano se
+  salia del busto). Todo medido en `tools/_probe_dialogo`.
+- **`tools/glb_textura.py`** recomprime la textura embebida de un `.glb`
+  (1024, JPEG 85): los 35 `la_*.glb` pasaron de ~2,7 MB a ~0,5 MB cada uno
+  SOLO en el repositorio (el `.pck` lleva la importacion, que ya iba a
+  256-1024). Copia de los originales en `_gen/la_glb_bak/`. Despues hay que
+  borrar la textura extraida y la importacion y reimportar dos veces (la
+  segunda tras `fix_texture_imports.py`).
+
+## LA INTERFAZ SE MUEVE: `UIFx` Y LA JERARQUIA DEL MENU (7-9-2026, pedido por el
+## usuario: "analiza el UI, comparalo con el mercado y añade animaciones a
+## todos los botones")
+
+La auditoria (19 capturas en `_gen/ui/cap_*.png`, analisis en
+`_gen/ui/analisis_ui.md`) dijo dos cosas: el juego ya tenia el LENGUAJE del
+mercado movil (barra de recursos con "+", barra de nivel, submenu abajo, globo
+rojo, carteles modales) y le faltaban la JERARQUIA y el MOVIMIENTO. Lo que se
+hizo, y por que:
+- **`scripts/ui_fx.gd` es un AUTOLOAD (`UIFx`)** que escucha `node_added` como
+  el clic de `Audio`: TODO `BaseButton` que entra en el arbol se hunde a 0,94
+  en 60 ms al tocarlo y vuelve con rebote elastico (340 ms) al soltarlo, con
+  un toque haptico en el movil (`Input.vibrate_handheld`, que en escritorio
+  no hace nada). Un boton se excluye con `set_meta("no_fx", true)`. A mano:
+  `pop_in` (carteles y fichas: escala 0,86→1 con `TRANS_BACK`), `escalonar`
+  (listas: 30-45 ms entre tarjetas), `latir` (globos y la accion principal),
+  `brillo` (la banda de luz que cruza la placa, shader `ui_brillo`), `bump`
+  (una cifra que cambia), `velar/desvelar`, `sacudir`.
+  · **EL BRILLO VA EN EL VERTEX, NO EN LA UV**: el shader se pone en el
+    NinePatchRect del boton y respeta su alfa (no se sale de la madera); la
+    posicion de la banda sale de `VERTEX` en pixeles y del tamaño del control
+    (uniform `tam`), porque en un 9-slice la UV es la de la textura y la
+    banda salia a trompicones por los tramos estirados.
+  · **UN BOTON QUE LATE DEJA DE LATIR MIENTRAS SE PULSA**: latido y hundido
+    tocan `scale` y el latido se comia el hundido; `_hundir` pausa el latido
+    y `_soltar` lo reanuda al terminar el rebote.
+  · Los tweens cuelgan del nodo que animan (`c.create_tween()`), asi que
+    mueren con el (los carteles se rehacen) y respetan su `process_mode` (los
+    carteles en pausa llevan `PROCESS_MODE_ALWAYS`, y sus pops corren).
+- **AVENTURA ES LA ACCION PRINCIPAL DEL MENU** (`_make_hero_button`): placa
+  de oro (`skin_start_button`), 130 de alto (mas que los 108 que pide su
+  9-slice), icono grande, rotulo en Exo2-Bold 46, brillo, latido de 2% y un
+  SUBTITULO con el escenario al que se va ("Escenario 8 · Arrecife del Ron",
+  el patron del boton PLAY que lleva el nivel). Arcade, Pesca y Tienda pasan a
+  pergaminos de 74 (`MODE_BTN_H2`, e iconos proporcionales al alto). Con los
+  cuatro iguales, el ojo no sabia donde ir (medido en captura contra Royal
+  Match, Cooking Fever y Clash Royale, que llevan UNA accion grande).
+- **EL SUBMENU LLEVA ROTULO** bajo cada icono (`_make_sub_button(icon,
+  action, nombre)`, cuerpo 16 en negrita con contorno): el patron de la barra
+  de navegacion movil es icono + nombre; sin el, un jugador nuevo tenia que
+  probar los cinco. (Estuvo sin rotulo a proposito; se revierte con la
+  auditoria.)
+- **EL REBOTE NO SE VEIA, Y LO DIJO EL USUARIO** ("apenas noto diferencia"): los
+  botones ya tenian un `scale = 1` A PELO en `button_up` (`skin_button` y
+  `add_press_feedback`), que corria en el mismo instante que el tween del
+  rebote y lo dejaba sin recorrido (de 1 a 1). Hoy la ESCALA de un boton
+  tiene UN SOLO DUEÑO, `UIFx` (las dos funciones solo centran el pivote), el
+  hundido baja a 0,91, el rebote va en dos tiempos (se pasa a 1,07 y se
+  asienta con elastico) y las texturas se ACLARAN mientras esta pulsado. Una
+  pestaña que viva a otra escala (Maestrias, 1,06) lo dice con
+  `set_meta("fx_base", ...)`; un boton con tween de escala propio (el de
+  lanzar la caña) se excluye con `no_fx`. **Y UNA ANIMACION SE VERIFICA CON
+  UNA TRAZA, no con una captura fija**: la sonda inyecto un
+  `InputEventScreenTouch` y apunto `scale` por fotograma (0,91 a los dos
+  fotogramas, 1,059 al soltar, 1,000 al noveno) y guardo cuatro fotogramas
+  del boton. La primera version se dio por buena sin medirla y no hacia nada.
+- **LOS BOTONES DEL MENU ENTRAN ESCALONADOS** con el tablon (`_ui_in`, pop a
+  70 ms entre pergaminos y 50 entre accesos), y el subtitulo de Aventura es
+  solo "Escenario N": con el nombre se salia de la placa.
+- **DONDE SE ENGANCHO EL MOVIMIENTO**: el cartel de resultados y las ventanas
+  globales (coleccionable, subida de nivel) entran con `pop_in`; las cartas de
+  potenciador escalonadas DESPUES de `_armar_powerups` (el pop funde hasta el
+  alfa de "todavia no"); la ficha del escenario con pop en vez de fundido; el
+  globo rojo late; los botones de placa de oro (Zarpar, Viajar, Empezar,
+  Continuar) llevan brillo; la cifra del oro del HUD bota al cambiar
+  (`_hud_money_visto`); la receta que vuelve a estar lista bota; las listas de
+  logros, tienda y selector entran escalonadas.
+- **ESTADO VACIO CON DIBUJO** en los mapas del tesoro (el mapa enrollado en
+  grande a media luz, latiendo, con el texto centrado): el mercado no deja
+  una pantalla vacia sin su dibujo.
+- **SUELO TIPOGRAFICO**: los nombres de receta del selector suben de 16 a 18 y
+  los de las fichas de 15 a 17 (a 720 de lienzo, 14 son ~7 pt en un movil).
+- Se comprueba con `tools/_probe_ui` (temporal, borrada): una captura por
+  pantalla y hojas de contacto para mirar todas a la vez.
+
+## LA SEGUNDA TANDA LA Y EL REPASO DEL 7-9-2026 (menu, tienda, cueva, barco)
+
+Pedido por el usuario con capturas en la mano; cada punto se midio en
+captura con sondas (`tools/_probe_ui2` y `tools/_probe_nivel2`, temporales,
+borradas) antes de darlo por bueno.
+- **EL BOTON HEROE NO CABIA**: mide 332 px (el hueco del tablon) y con el
+  icono a 86 y "Aventura" a 46 el rotulo tenia 166 px para 230 de texto. Va
+  con el icono a 62 (`HERO_ICON`), la letra a 38 y el subtitulo "Escenario N"
+  en la banda de abajo de la CARA dorada (a 12 px del borde se montaba sobre
+  el ribete). **El icono de Aventura es un MAPA** (`ic_aventura.png`, Ludo
+  item-icon; la brujula queda en `_gen/la6/ic_aventura_brujula_antes.png`).
+  **EL ARCADE SE FUE DEL MENU** (decidido por el usuario: se retomara con
+  todos los niveles hechos; el modo sigue entero en level3d y el selector).
+  Con tres botones el tablon respiraba mal: separacion 24 y alturas 150/86.
+- **LOS LOGROS TARDABAN 650 ms EN ABRIR PESCA** (cargar noventa iconos) y
+  encima entraban escalonados a 40 ms —la ultima a los cuatro segundos—: se
+  montan las diez primeras tarjetas, se escalonan solo esas y el resto entra
+  por tandas de seis por fotograma (`_construir_resto`, con generacion para
+  invalidar un cambio de pestaña a medias). MEDIDO: 22 ms.
+- **COCINERO / COCINERA ES UN SELECTOR SEGMENTADO** fuera del pergamino
+  (`WantedPoster._build_gender`): carril de madera y una PLACA DE ORO que se
+  desliza a la mitad elegida; `GENDER_H` entra en `panel_size`. **LOS
+  MARGENES DE UN NinePatchRect VAN ANTES QUE SU TALLA**: el minimo es la
+  suma de margenes, y con los 54 de fabrica una placa de 48 salia de 108.
+- **LA TIENDA NO REHACE LA BALDA AL COMPRAR** (`_tarjetas`, se actualiza en
+  el sitio con un bote); comprar suena (`compra`, medido a -3.4 con la
+  sonoridad K contra `monedas`) y manda MONEDAS del boton al monedero
+  (`UIFx.monedas`, el monedero cambia al aterrizar la PRIMERA: esperando a
+  la ultima tardaba mas de un segundo). Una raya separa la balda de los
+  extras (la fila cortada por el scroll se leia como fallo).
+- **TODA VENTANA EMERGENTE ENTRA CON MOVIMIENTO** enganchado en
+  `Audio.ventana` (`UIFx.ventana_abre`): el velo se funde y el cartel —el
+  primer descendiente que no cubre la pantalla— hace pop; espera dos
+  fotogramas con el conjunto invisible porque casi todas las pantallas llaman
+  a `Audio.ventana` ANTES de colgar el contenido. `UIFx.cerrar` para los
+  cierres explicitos (Cancelar/Comprar de la tienda). Si el velo no procesa
+  (arbol en pausa sin ALWAYS) no se anima: mejor seco que invisible.
+- **LAS FIGURITAS TROTAN** (`client3d.MIN_WALK_SPEED` 1.15,
+  `CharacterAnim.walk_period`): con piernas del 21-38% del alto el paso
+  natural daba 0,5-0,7 u/s y la clientela tardaba diez segundos en cruzar.
+  Se acorta el ciclo hasta 0,52 s y, si ni asi, se acepta un pelo de patinaje.
+- **LA GOMA DE LA CINTA DE LUDO ERA UNIFORME A LO LARGO DE X** (perfil de
+  columnas con desviacion 0,5 contra 14,5 por filas), que es justo el eje por
+  el que se desplaza la UV: no habia nada que se moviera. La goma nueva es
+  PROCEDURAL (PIL): ocho segmentos redondeados con surco, `tint` a 1.
+- **LA PAPELERA** es otro modelo (`la_cubo`, cubo de duelas con la raspa y la
+  piel de platano asomando) y va a `h + 1.05`: a 0.62 se metia en la esquina
+  del mostrador (`plate3d.CAIDA` la sigue).
+- **GIGI VA ANCLADA AL HUESO DEL HOMBRO** (`_posar_acompanante` mide el
+  desvio en reposo respecto al hombro mas cercano y `_tick_gigi` lo recoloca
+  cada fotograma desde la pose viva): antes iba a un punto fijo del modelo y
+  al reirse David se quedaba flotando. **LAS MANOS DE DAVID ERAN EL MODELO**,
+  no la animacion: la bola de `manos_esfera` iba al radio del antebrazo (con
+  manga, ancho); a 0,62 quedaba un hueco de manga a la vista y a **0,72** es
+  un muñon dentro del puño (`_gen/meshy/david_v5_listo4.glb` empaquetado).
+- **EL BARCO LA** (`map_barco.glb`, Meshy meshy-7 60k/4k, textura recomprimida
+  a 1024 con `glb_textura.py`: 14 -> 4 MB): SU PROA ES -x, COMO EN EL VIEJO,
+  asi que `SHIP_YAW` sigue en 205. **Se leyo mal la primera vez**: el palo
+  corto de +0.515 se tomo por el de PROA y se puso `SHIP_YAW` a 25 — el barco
+  navego de popa hasta que lo vio el usuario ("modelado al reves"). Lo que
+  dice la geometria, y es lo que hay que mirar: el extremo -x es FINO y BAJO
+  (el bauprés, ±0.06 de manga) y el +x ANCHO (el espejo de popa) con la
+  cubierta del castillo al 37%; el palo corto es el de mesana. `ColVisibles`
+  va con esa proa: farol y huevo en la popa (+x), ancla en la amura (-x),
+  koinobori en la mesana. `MENU_SHIP_SCALE` baja a 2.2 (tapaba la barra de
+  nivel) y la portada bajo `SHIP_W` a 5.06 (los cajones salian mas grandes
+  que el barco). `map_isla/puerto/enemigo/cueva` son los conceptos LA por
+  Meshy (smart-topology, presupuesto 6000).
+- **EL PUESTO DE SAVERIO** (`la_puesto.glb`): el modelo de Meshy traia un
+  toldo de verdad que caia hacia el cliente y con esta camara tapaba al
+  tendero (medido: 33 px por debajo del canto). Ludo no dibujo la marquesina
+  abierta ni a la segunda, asi que se OPERA en Blender
+  (`tools/blender/puesto_marquesina.py`): se quita la tela POR COLOR del
+  atlas (el toldo tiene enves y faldon con normales de Meshy, y por altura
+  se confundian con las baldas), se alargan los postes con un cilindro que
+  hereda el texel de un poste, y se le pone una marquesina nueva, alta por
+  delante, con rayas dibujadas. La TAPA de la estanteria traia pintadas las
+  rayas del toldo (Meshy proyecta desde la vista): sus UV van al texel del
+  tablero. Saverio a 1,75 y la tarima con tinte frio (la textura de Ludo es
+  naranja de fabrica y con el sol de la tienda salia terracota, medido).
+- **LA CUEVA SE MONTA EN BLENDER** (`tools/blender/cueva_escenario.py` ->
+  `la_cueva_escenario.glb`, presupuesto 60000 para que Godot NO decime): 61
+  pedruscos (paredes, esquinas, rocas del suelo y estalagmitas) en (u, w) de
+  pantalla, desplazados con ruido, unidos, decimados a 26k y HORNEADOS con un
+  material procedural (caqui moteado + musgo donde la normal mira arriba) a
+  un atlas de 2048. La primera paleta, mas parda, se iba a negro con la luz
+  de la cueva: va CLARA y el sol LA casi neutro a 1.0 con ambiente 1.25. El
+  suelo es `la_cueva_suelo.webp` procedural (pizarra moteada, tileable por
+  ruido periodico) y la boca lleva el portal TURQUESA (el mar del concepto).
+  Con el .glb, `_scenery_cueva` salta muros, jambas, cascotes, rocas y
+  estalagmitas de Godot; quedan boca, luces, cristales y setas.
+- **EL MAPA SE "BUGGEABA" TOCANDO UN NODO Y "ATRAS" SEGUIDOS** (lo vio el
+  usuario). Tres cosas, medidas con toques inyectados (`tools/_probe_ui2`,
+  temporal): (1) `_select` espera al VIRAJE antes de mover el barco, y si en
+  ese hueco arrancaba `_back_to_menu` el viaje al nodo seguia despues y los
+  dos tweens se peleaban por `ship_px` y la camara — hoy hay una GENERACION
+  (`viaje_gen`): `cancelar_viaje()` la sube (y mata `ship_tween` y
+  `scroll_tween`) y el viaje viejo se descubre caducado al despertar; (2)
+  `_back_to_menu` no cerraba la FICHA (vive fuera de `_map_ui_fade`) y se
+  quedaba abierta sobre el menu; (3) el pop de la ficha escalaba el conjunto
+  ENTERO desde 0.9, o sea que el velo dejaba 36 px sin cubrir por cada canto
+  y un toque en el borde del "Atras" se colaba con la ficha abierta — ahora
+  hace pop solo el pergamino, el velo cubre desde el primer fotograma, y
+  abrir y cerrar comparten UN tween (`_ficha_tw`: un cierre a medias apagaba
+  la ficha recien abierta). MEDIDO: los dos caminos acaban con el barco en
+  el fondeadero, la ficha cerrada y ningun tween vivo.
+- **COMPRAR ES PERDER DINERO Y SE VE ASI** (pedido por el usuario: con las
+  monedas volando AL monedero parecia el cobro de un logro): las monedas
+  SALEN de la moneda del monedero hacia abajo y buscan el articulo comprado
+  (`UIFx.monedas(..., abajo=true)`), el monedero se sacude, un "-N" con la
+  moneda en ROJO cuelga del canto derecho de la caja y se apaga bajando (por
+  la izquierda caia sobre el rotulo de la balda), y la cifra BAJA contando
+  (`_contando`, 0,75 s; `_refresh` no la pisa mientras cuenta). MEDIDO:
+  640 → 633 → 627 → 625 en tres capturas.
+- **EL ICONO DE AVENTURA SE RECORTA A SU MAPA** (Ludo dibujo tres iconitos
+  debajo; se corta por el primer tramo de filas vacias por debajo del 45% y
+  se queda la isla mayor), va a `HERO_ICON` 80 y el rotulo y el subtitulo se
+  acercan un pelo (label -56 / sub -64..-34). **Y UN PNG CAMBIADO NO SE
+  REIMPORTA CON `--quit-after`**: la captura seguia enseñando los iconitos
+  con el png ya limpio (import de las 17:38 contra png de las 19:06); hay
+  que borrar `.godot/imported/<png>-*` y pasar `--headless --import`.
+- **LA TIENDA, AFINADA EN CAPTURA**: el omamori cuelga del canto de la
+  marquesina (flotaba a la izquierda del puesto, en el sitio del puesto
+  viejo), el genero del mostrador a 0.54, y el lado izquierdo del muelle
+  lleva red, cabo y barril en sitios DESPEJADOS contra la captura (72 px por
+  unidad de x a la derecha y 71 por unidad de z a la izquierda; a x -3.3 se
+  salian de pantalla).
+- **LA CUEVA, SEGUNDA PALETA**: con la luz verde de los cristales los
+  pedruscos caqui con musgo se leian como ARBUSTOS (captura con la clientela
+  sentada). La roca va menos amarilla (0.50/0.46/0.36 a 0.68/0.63/0.50) y el
+  musgo mas escaso y apagado (corte 0.44-0.50). Su atlas horneado va a
+  `size_limit` 1024 (al reimportar desde cero el fixer lo dejaba en 256, el
+  del atrezzo, y es el fondo entero). El portal de la boca crece a 3.6×2.8 y
+  va a plena fuerza. Las nubes del menu son ESFERAS APLASTADAS: la caja
+  translucida cruzaba el barco como un cubo de cristal.
+- Notas honestas de esta pasada (capturas en `_gen/ui2b/`): menu 9, perfil
+  8.5, tienda 8.5, logros 8.5, mapa 9, portada 8.5, isla 9, cueva 8.5,
+  dialogo 8.5. Lo que queda por debajo del 9: el genero de la tienda sigue
+  siendo cartelitos planos sobre el tablero, y los cristales de la cueva se
+  leen como bultos verdes mas que como cristal.

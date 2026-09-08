@@ -915,6 +915,10 @@ static func attach_badge(host: Control, count: int, lado := 34.0) -> void:
 	n.add_theme_color_override("font_color", Color(1, 0.97, 0.92))
 	n.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badge.add_child(n)
+	# LATE: un globo quieto es una etiqueta; uno que respira es un reclamo
+	# (Clash Royale, Brawl Stars). El pivote se fija en cuanto tiene tamaño.
+	badge.resized.connect(func() -> void: badge.pivot_offset = badge.size * 0.5, CONNECT_ONE_SHOT)
+	UIFx.latir(badge, 0.10, 1.15)
 
 
 static func set_dimmed(b: Button, dim: bool) -> void:
@@ -958,8 +962,9 @@ static func skin_button(b: Button) -> void:
 		shadow.offset_top = off
 		shadow.offset_right = off * 0.6
 		shadow.offset_bottom = off)
-	b.button_down.connect(func() -> void: b.scale = Vector2(0.965, 0.94))
-	b.button_up.connect(func() -> void: b.scale = Vector2.ONE)
+	# (El hundido y el rebote los pone UIFx, el autoload, para TODOS los
+	# botones: aqui habia un `scale = 1` a pelo en button_up que corria en el
+	# mismo instante que el tween del rebote y lo dejaba sin recorrido.)
 
 
 ## Viste un botón con la CHAPA DE LATÓN de los bonificadores. El rótulo va
@@ -990,10 +995,11 @@ static func skin_perk_button(b: Button) -> void:
 
 ## Hundido al pulsar para botones que NO usan skin_button (los de imagen,
 ## como las flechas de cantidad y de página).
-static func add_press_feedback(b: BaseButton, amount := 0.88) -> void:
+static func add_press_feedback(b: BaseButton, _amount := 0.88) -> void:
+	# HOY NO HACE NADA MAS QUE CENTRAR EL PIVOTE: el hundido y el rebote son
+	# de `UIFx` (autoload) para todos los botones del juego. Se deja la
+	# funcion para no tocar a los cuarenta llamantes.
 	b.resized.connect(func() -> void: b.pivot_offset = b.size / 2.0)
-	b.button_down.connect(func() -> void: b.scale = Vector2(amount, amount))
-	b.button_up.connect(func() -> void: b.scale = Vector2.ONE)
 
 
 ## Hace que un `LineEdit` saque el TECLADO DEL MÓVIL al tocarlo.
@@ -1350,6 +1356,10 @@ func _process(delta: float) -> void:
 	for id in cooldowns:
 		if cooldowns[id] > 0.0:
 			cooldowns[id] = maxf(cooldowns[id] - delta, 0.0)
+			# al llegar a cero, el pergamino BOTA: es el aviso de "ya puedes"
+			# que en un movil se ve con el rabillo del ojo (UIFx.bump)
+			if cooldowns[id] <= 0.0 and buttons.has(id):
+				UIFx.bump(buttons[id], 1.12, 0.32)
 	for id in buttons:
 		var b: Button = buttons[id]
 		var badge: Label = button_badges[id]

@@ -37,6 +37,12 @@ BIG_PREFIXES = (
 ## misma cabeza dentro del juego). El de David a 1024 y el loro, que va
 ## pequeño en su hombro, a 512.
 GRANDES = {"david_toy": "1024", "gigi_toy": "512"}
+## Y TODO EL REPARTO v5 A 1024: cada uno de ellos habla en el dialogo con su
+## retrato 3D a media pantalla (los clientes tambien, ver `RETRATO_3D_QUIEN`).
+for _n in ("grumete", "pirata", "capitan", "pablo", "kappa", "cai", "cai_sombrero",
+           "alice", "miku", "nach", "sirena", "david", "saverio",
+           "grumete_fem", "pirata_fem", "capitan_fem"):
+    GRANDES["%s_rig_" % _n] = "1024"
 
 ## LA PALETA DE KENNEY SE QUEDA EN LOSSLESS, y no es un descuido. Es una
 ## tabla de bandas de color plano que tiñe LOS 72 MODELOS del mundo: comprimir

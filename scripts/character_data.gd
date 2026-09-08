@@ -32,6 +32,13 @@ const GENDER_TITLES := {
 
 ## personaje -> { genero: ruta del modelo RIGUEADO }
 const MODELS := {
+	# EL REPARTO ES EL DE FIGURITAS (Link's Awakening, cadena Ludo -> Meshy ->
+	# Blender, 5-9-2026). Las variantes FEMENINAS de la clientela todavia no
+	# existen en ese estilo: `model()` cae al masculino, que es lo que hay. Las
+	# viejas low poly no se mezclan con las nuevas a proposito (dos estilos en
+	# la misma barra cantan mas que un solo genero).
+	# LAS CLIENTAS (7-9-2026): variante femenina de cada tipo, por la misma
+	# cadena (concepto editado del masculino -> Meshy multi-vista -> Blender).
 	"grumete": {
 		MALE: "res://assets/models/grumete_rig.glb",
 		FEMALE: "res://assets/models/grumete_fem_rig.glb",
@@ -69,9 +76,19 @@ const MODELS := {
 	"cai": {
 		MALE: "res://assets/models/cai_rig.glb",
 	},
-	"chef": {
-		MALE: "res://assets/models/chef_rig.glb",
-		FEMALE: "res://assets/models/chef_fem_rig.glb",
+	# Cai CON EL SOMBRERO DE PAJA: el mismo personaje con el coleccionable
+	# puesto. `model()` lo elige solo cuando el jugador tiene la pieza.
+	"cai_sombrero": {
+		MALE: "res://assets/models/cai_sombrero_rig.glb",
+	},
+	# (El CHEF ya no esta aqui: es modular y lo monta `ChefLook`.)
+	# DAVID y SAVERIO tienen modelo propio para el retrato 3D del dialogo y,
+	# Saverio, para su puesto de la tienda.
+	"david": {
+		MALE: "res://assets/models/david_rig.glb",
+	},
+	"saverio": {
+		MALE: "res://assets/models/saverio_rig.glb",
 	},
 	# ALICE. Un solo modelo para sus DOS papeles: la clienta de su escenario y
 	# la AYUDANTE de cocina en cuanto se enrola. Es la misma persona y el rig es
@@ -99,6 +116,8 @@ const MODELS := {
 
 ## Iconos de cabeza del HUD (tools/head_icons.gd los saca de estos modelos).
 const HEADS := {
+	# (Sin variante femenina: la clientela v5 solo tiene modelo masculino, y
+	# el icono tiene que ser la cara que se dibuja en la barra.)
 	"grumete": { MALE: "res://assets/ui/head_E.png", FEMALE: "res://assets/ui/head_E_f.png" },
 	"pirata": { MALE: "res://assets/ui/head_A.png", FEMALE: "res://assets/ui/head_A_f.png" },
 	"capitan": { MALE: "res://assets/ui/head_G.png", FEMALE: "res://assets/ui/head_G_f.png" },
@@ -106,6 +125,7 @@ const HEADS := {
 	"pablo": { MALE: "res://assets/ui/head_P.png" },
 	"kappa": { MALE: "res://assets/ui/head_K.png" },
 	"cai": { MALE: "res://assets/ui/head_C.png" },
+	"cai_sombrero": { MALE: "res://assets/ui/head_CS.png" },
 	"alice": { MALE: "res://assets/ui/head_AL.png" },
 	"miku": { MALE: "res://assets/ui/head_MI.png" },
 	"nach": { MALE: "res://assets/ui/head_NA.png" },
@@ -119,11 +139,19 @@ const TYPE_TO_WHO := { "E": "grumete", "A": "pirata", "G": "capitan", "V": "vip"
 ## Ruta del modelo de ese personaje en ese género, con caída al masculino si
 ## la variante todavía no está en disco (ver cabecera).
 static func model(who: String, gender: String) -> String:
+	# Cai lleva el sombrero de paja en cuanto el jugador lo tiene (el mismo
+	# criterio que su retrato 2D, ver `DialogueBox._variante_de`).
+	if who == "cai" and GameState.has_collectible("sombrero_paja") \
+			and MODELS.has("cai_sombrero"):
+		return _pick(MODELS, "cai_sombrero", gender)
 	return _pick(MODELS, who, gender)
 
 
 ## Icono de cabeza para el contador de clientes del HUD.
 static func head(who: String, gender: String) -> String:
+	# el mismo criterio que `model()`: Cai con su sombrero de paja
+	if who == "cai" and GameState.has_collectible("sombrero_paja") 			and HEADS.has("cai_sombrero"):
+		return _pick(HEADS, "cai_sombrero", gender)
 	return _pick(HEADS, who, gender)
 
 

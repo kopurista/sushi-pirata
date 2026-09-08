@@ -13,11 +13,13 @@ render_mode specular_disabled;
 uniform sampler2D band_tex : source_color, filter_linear, repeat_enable;
 uniform float repeat_x = 4.0;
 uniform float scroll_tiles = 0.0;
+// tint multiplica la textura (la goma LA viene muy oscura de fabrica).
+uniform vec3 tint = vec3(1.0);
 
 void fragment() {
 	vec2 uv = vec2(UV.x * repeat_x - scroll_tiles, UV.y);
 	vec4 tex = texture(band_tex, uv);
-	ALBEDO = tex.rgb;
+	ALBEDO = tex.rgb * tint;
 	ROUGHNESS = 0.9;
 	METALLIC = 0.0;
 }

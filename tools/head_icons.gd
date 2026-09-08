@@ -13,38 +13,43 @@ extends Node3D
 ## que es el que sale en el juego: los femeninos se sacaban de la version sin
 ## riguear y, al rehacerlos, el icono se quedo con la cara antigua.
 const OUT := {
-	# SOLO el personaje NUEVO en cada pasada: regenerar los demás es jugar a la
-	# lotería de render (salen manchados a veces) y no hay motivo para tocarlos.
-	# La lista completa, por si hay que rehacer alguno:
-	#   "E": "grumete_rig", "A": "pirata_rig", "G": "capitan_rig",
-	#   "E_f": "grumete_fem_rig", "A_f": "pirata_fem_rig",
-	#   "G_f": "capitan_fem_rig", "P": "pablo_rig", "K": "kappa_rig",
-	#   "C": "cai_rig", "AL": "alice_rig", "MI": "miku_rig",
-	#   "NA": "nach_rig",
-	"SI": "sirena_rig",
+	# EL REPARTO v5 ENTERO (5-9-2026: los modelos se rehicieron todos, asi que
+	# esta vez se regeneran todos; en una pasada normal va SOLO el nuevo, que
+	# el render tiene loteria). Las clientas no tienen modelo propio en v5.
+	# "E": "grumete_rig", "A": "pirata_rig", "G": "capitan_rig",
+	# "P": "pablo_rig", "K": "kappa_rig", "C": "cai_rig", "CS": "cai_sombrero_rig",
+	# "AL": "alice_rig", "MI": "miku_rig", "NA": "nach_rig", "SI": "sirena_rig",
+	# LAS CLIENTAS (7-9-2026):
+	# "E_f": "grumete_fem_rig",
+	# "A_f": "pirata_fem_rig", "G_f": "capitan_fem_rig",
+	# (vacio a proposito: en cada pasada se descomenta SOLO el que toque)
 }
 const SIZE := 192
 ## Encuadre en fracciones de la ALTURA TOTAL del personaje, no del hueso de la
 ## cabeza: la distancia Neck->Head cambia muchisimo de un rig a otro (0.05 en
 ## el pirata, 0.16 en el capitan) y encuadrar por ella daba cabezas cortadas en
 ## uno y diminutas en otro. Por altura total salen las tres igual de grandes.
-const FRAME_F := 0.34
+## Figuritas (v5): la cabeza es ~el 40% del alto, asi que el marco es mas
+## ancho que con los low poly de antes (0.34).
+const FRAME_F := 0.46
 ## Ajuste por icono cuando el modelo se sale de la norma: el sombrero de Pablo
 ## es mucho más alto que el del resto y con el encuadre general se le cortaba
 ## por arriba.
 ## El Kappa del rediseño es larguirucho: la cabeza (pico y plato incluidos)
 ## es ~un cuarto del alto, no la mitad del cabezón antiguo.
-const FRAME_OVERRIDE := { "P": 0.44, "K": 0.30, "AL": 0.22, "SI": 0.24 }
+const FRAME_OVERRIDE := { "P": 0.54, "K": 0.50, "CS": 0.60, "SI": 0.50, "G_f": 0.52, "A_f": 0.50 }
 ## Centro del encuadre bajando desde la coronilla (incluye gorro/sombrero).
-const HEAD_DROP_F := 0.13
+const HEAD_DROP_F := 0.21
 ## Ajuste del centro por icono, cuando la coronilla no está donde parece. La
 ## melena de Alice le baja mucho la caja, así que su cara queda MÁS ARRIBA de
 ## lo que dice la regla general.
-const DROP_OVERRIDE := { "AL": 0.10, "SI": 0.08 }
+# La capitana lleva sombrero Y melena: el marco general le dejaba la cara en
+# el tercio de abajo del icono.
+const DROP_OVERRIDE := { "P": 0.25, "K": 0.24, "CS": 0.24, "G_f": 0.27, "A_f": 0.29 }
 ## Y ajuste de LUZ por icono: la piel de Alice es muy pálida y con la luz
 ## general se le quemaba la cara a blanco liso, sin ojos ni boca (la misma
 ## lección que `chef_portraits.gd`, donde las caras claras se pasaban de luz).
-const LIGHT_OVERRIDE := { "AL": 0.5, "SI": 0.55 }
+const LIGHT_OVERRIDE := { "AL": 0.7, "SI": 0.7, "MI": 0.85 }
 
 var _pending: Array = []
 var _t := 0.0

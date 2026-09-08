@@ -273,6 +273,7 @@ const TIME_BONUS := 3
 const TIME_BONUS_BLOCK := 10.0
 var powerups_claimed := 0
 var pending_powerups := 0
+var _hud_money_visto := -1
 ## Clientes que ha metido de regalo "Más clientela" (ver `_leftover_clients`).
 var extras_potenciador := 0
 ## Respiro ANTES de abrir el cartel de potenciador. Se pone al ganar uno y
@@ -456,6 +457,12 @@ var chef_tween: Tween = null
 var chef_prop: Sprite3D
 ## Gesto de cocina en curso del chef: se dispara UNO por evento del jugador
 ## (craft_event), asi que el chef trabaja al ritmo del dedo del usuario.
+## Los utensilios del chef se colocan POR FOTOGRAMA desde el esqueleto (ver
+## _place_chef_tools): el hueso del que cuelgan, el balanceo de reposo del
+## antebrazo y la escala del modelo.
+var chef_tools_skel: Skeleton3D = null
+var chef_fore_rest := Vector3.DOWN
+var chef_tool_scale := 1.0
 var chef_gesture := ""
 var chef_gesture_t := 0.0
 var chef_gesture_dur := 0.4
@@ -1106,8 +1113,12 @@ func _setup_environment() -> void:
 	# escenario con filtro azul.
 	if scenery_kind == "cueva":
 		env.background_color = Color(0.030, 0.040, 0.058)
-		env.ambient_light_color = Color(0.50, 0.57, 0.68)
-		env.ambient_light_energy = 0.90
+		# (0.50, 0.57, 0.68) con la piedra de antes; con el mostrador de madera
+		# clara LA, ese ambiente azul lo volvia verde oliva. Un pelo mas neutro.
+		env.ambient_light_color = Color(0.60, 0.61, 0.70) if SceneryLA.ON else Color(0.50, 0.57, 0.68)
+		# con las paredes caqui de Blender la cueva pedia algo mas de ambiente:
+		# a 0.9 el fondo se iba a negro (visto en captura)
+		env.ambient_light_energy = 1.25 if SceneryLA.ON else 0.90
 	# Ajuste de imagen comun (glow + tonemap + contraste). En la cueva va en
 	# modo "oscuro": sin subir la exposicion y con el glow mas sensible, que es
 	# lo que hace que los cristales sean lo unico que brilla.
@@ -1123,8 +1134,12 @@ func _setup_environment() -> void:
 	if scenery_kind == "cueva":
 		# Una "luna de cueva" muy tenue y azulada: solo marca los relieves para
 		# que la piedra no salga plana; la luz de trabajo la ponen los cristales.
-		sun.light_energy = 0.38
-		sun.light_color = Color(0.58, 0.68, 0.84)
+		# 0.38 con la piedra clara de antes; con las rocas LA (azul oscuro de
+		# fabrica) salian como bultos sin perfil, y el sol frio les da canto.
+		sun.light_energy = 1.0 if SceneryLA.ON else 0.38
+		# con las paredes caqui, el sol frio de antes las volvia verde oscuro:
+		# en LA va casi neutro (medido en captura)
+		sun.light_color = Color(0.86, 0.86, 0.80) if SceneryLA.ON else Color(0.58, 0.68, 0.84)
 	# SIN sombras proyectadas: cada elemento lleva su mancha fija (ver
 	# SceneBackdrop.blob_shadow). Con personajes que se mecen y palmeras de
 	# decenas de piezas, la sombra dinámica bailaba y costaba un pase entero.
@@ -1213,7 +1228,12 @@ func _setup_scenery() -> void:
 		"cueva":
 			_scenery_cueva()
 		"isla":
-			if ISLA_DESDE_GLB and ResourceLoader.exists(ISLA_GLB):
+			# ESTILO LINK'S AWAKENING (7-9-2026): props de Meshy y texturas de
+			# Ludo, montados en `SceneryLA`. Con el interruptor apagado vuelve
+			# la isla de Blender / de codigo de antes.
+			if SceneryLA.ON:
+				SceneryLA.isla(self)
+			elif ISLA_DESDE_GLB and ResourceLoader.exists(ISLA_GLB):
 				_scenery_island_glb()
 			else:
 				_scenery_island()
@@ -1240,6 +1260,11 @@ func _add_sea() -> void:
 	mat.shader = load("res://shaders/water_ww.gdshader")
 	mat.set_shader_parameter("espuma", load("res://assets/map/espuma_ww.webp"))
 	mat.set_shader_parameter("tile", Vector2(90.0, 90.0))
+	if SceneryLA.ON:
+		# el agua de Link's Awakening: cian saturado y espuma casi blanca
+		mat.set_shader_parameter("WATER_COL", Color(0.05, 0.40, 0.76))
+		mat.set_shader_parameter("WATER2_COL", Color(0.10, 0.58, 0.88))
+		mat.set_shader_parameter("FOAM_COL", Color(0.88, 0.98, 1.0))
 	sea.material_override = mat
 	add_child(sea)
 
@@ -1312,6 +1337,11 @@ func _muro_cueva(u: float, w: float, size: Vector3, tex: Texture2D, tinte: Color
 	mi.mesh = caja
 	mi.position = _uw(u, w) + Vector3(0.0, base + size.y * 0.5, 0.0)
 	mi.rotation_degrees = Vector3(0.0, 45.0, tilt)
+	# La pared LA de Ludo es mucho mas oscura que la de antes: sus tintes
+	# (pensados para la piedra clara) se levantan x1.7 para que se lean los
+	# bloques de escama.
+	if SceneryLA.ON and tex.resource_path.contains("la_cueva"):
+		tinte = Color(tinte.r * 1.7, tinte.g * 1.7, tinte.b * 1.75)
 	mi.material_override = _mat_piedra(tex, tinte, 0.45)
 	add_child(mi)
 	return mi
@@ -1320,6 +1350,10 @@ func _muro_cueva(u: float, w: float, size: Vector3, tex: Texture2D, tinte: Color
 func _scenery_cueva() -> void:
 	var suelo_tex: Texture2D = load("res://assets/props/piedra_cueva.webp")
 	var pared_tex: Texture2D = load("res://assets/props/pared_cueva.webp")
+	if SceneryLA.ON and ResourceLoader.exists("res://assets/props/la_cueva_suelo.webp"):
+		suelo_tex = load("res://assets/props/la_cueva_suelo.webp")
+	if SceneryLA.ON and ResourceLoader.exists("res://assets/props/la_cueva_pared.webp"):
+		pared_tex = load("res://assets/props/la_cueva_pared.webp")
 	# SUELO de roca hasta donde alcanza la vista (aquí no hay mar). La textura
 	# va GRANDE —una baldosa cada ~3 u— y de poco contraste a propósito:
 	# estuvo a 6 repeticiones POR UNIDAD y en pantalla se leía como una rejilla.
@@ -1329,12 +1363,16 @@ func _scenery_cueva() -> void:
 	suelo.mesh = plano
 	suelo.position = Vector3(0.0, -0.55, 0.0)
 	suelo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	suelo.material_override = _mat_piedra(suelo_tex, Color(0.24, 0.27, 0.34), 0.34)
+	# En estilo LA la textura de Ludo ya es azul oscuro de fabrica (media
+	# 42,57,69): con los tintes de la piedra vieja salia negra. Van casi a 1.
+	var la := SceneryLA.ON and suelo_tex.resource_path.contains("la_cueva")
+	suelo.material_override = _mat_piedra(suelo_tex,
+		Color(0.9, 0.95, 1.05) if la else Color(0.24, 0.27, 0.34), 0.34)
 	add_child(suelo)
 	_cyl_tex(7.4, 7.8, 0.30, Vector3(0.0, -0.42, 0.0), suelo_tex,
-		Color(0.20, 0.22, 0.28), 0.26)
+		Color(0.62, 0.68, 0.80) if la else Color(0.20, 0.22, 0.28), 0.26)
 	_cyl_tex(6.9, 7.3, 0.28, Vector3(0.0, -0.14, 0.0), suelo_tex,
-		Color(0.30, 0.33, 0.41), 0.30)
+		Color(0.95, 1.0, 1.12) if la else Color(0.30, 0.33, 0.41), 0.30)
 	# MURO DEL FONDO, con el HUECO DE LA ENTRADA justo en medio (u entre -1.8 y
 	# 1.8): ahí es donde aparecen los clientes de la borda de arriba (ENTRY cae
 	# exactamente en u=0), así que salen de la cueva por su boca en vez de
@@ -1343,9 +1381,20 @@ func _scenery_cueva() -> void:
 	# VA EN PIEZAS DESIGUALES, no en dos cajas largas: cada trozo tiene su
 	# ancho, su fondo y su vuelco, así que la pared avanza y retrocede y no
 	# hay ni una arista larga en toda la cueva.
-	for p in [[-8.4, -7.9, 5.4, 9.4, 2.8, 1.5], [-4.7, -7.5, 3.8, 8.6, 2.4, -2.0],
+	# LAS PAREDES EN ESTILO LINK'S AWAKENING (7-9-2026): el .glb de Blender
+	# (`tools/blender/cueva_escenario.py`, pedruscos redondeados caqui con
+	# musgo, horneados). Con el, fuera los muros de caja, las jambas y los
+	# cascotes; se quedan la boca (pasadizo, luz y focos), las rocas, las
+	# estalagmitas, los cristales y las setas, que son del juego.
+	var paredes_la := SceneryLA.ON and ResourceLoader.exists(SceneryLA.CUEVA_GLB)
+	if paredes_la:
+		var paredes: Node3D = (load(SceneryLA.CUEVA_GLB) as PackedScene).instantiate()
+		paredes.name = "CuevaParedes"
+		paredes.add_to_group("no_batch")
+		add_child(paredes)
+	for p in ([] if paredes_la else [[-8.4, -7.9, 5.4, 9.4, 2.8, 1.5], [-4.7, -7.5, 3.8, 8.6, 2.4, -2.0],
 			[-2.2, -8.0, 3.0, 9.2, 3.0, 1.0], [2.2, -7.9, 3.0, 9.0, 2.8, -1.2],
-			[4.8, -7.4, 3.8, 8.4, 2.3, 1.8], [8.4, -7.9, 5.4, 9.4, 2.8, -1.5]]:
+			[4.8, -7.4, 3.8, 8.4, 2.3, 1.8], [8.4, -7.9, 5.4, 9.4, 2.8, -1.5]]):
 		_muro_cueva(float(p[0]), float(p[1]),
 			Vector3(float(p[2]), float(p[3]), float(p[4])), pared_tex,
 			Color(0.82, 0.86, 0.97), -0.6, float(p[5]))
@@ -1353,24 +1402,35 @@ func _scenery_cueva() -> void:
 	# en dos piezas a distinta profundidad. Su cara interior va a |u| = 4.1 (el
 	# ancho visible es 4.78) y arrancan en w = -2.2, que es lo que las deja a la
 	# vista SIN meterse en el rombo del pasillo.
-	for p in [[-6.5, -6.4, 4.8, 9.0, 4.6, 1.2], [-6.9, -3.2, 5.6, 8.4, 3.4, -1.6],
-			[6.5, -6.4, 4.8, 9.0, 4.6, -1.2], [6.9, -3.2, 5.6, 8.4, 3.4, 1.6]]:
+	for p in ([] if paredes_la else [[-6.5, -6.4, 4.8, 9.0, 4.6, 1.2], [-6.9, -3.2, 5.6, 8.4, 3.4, -1.6],
+			[6.5, -6.4, 4.8, 9.0, 4.6, -1.2], [6.9, -3.2, 5.6, 8.4, 3.4, 1.6]]):
 		_muro_cueva(float(p[0]), float(p[1]),
 			Vector3(float(p[2]), float(p[3]), float(p[4])), pared_tex,
 			Color(0.74, 0.78, 0.90), -0.6, float(p[5]))
-	_entrada_cueva(pared_tex)
+	_entrada_cueva(pared_tex, paredes_la)
 	# CASCOTES al pie del muro: sin ellos, la junta pared-suelo es una recta
 	# perfecta de lado a lado y la cueva parece un decorado de cartón.
-	for k in [[-4.4, -6.2, 0.9, 6.0], [-2.9, -6.3, 0.65, -8.0], [2.9, -6.3, 0.7, 7.0],
-			[4.5, -6.1, 0.85, -5.0], [-4.6, -4.9, 0.6, 9.0], [4.7, -4.7, 0.65, -7.0]]:
+	for k in ([] if paredes_la else [[-4.4, -6.2, 0.9, 6.0], [-2.9, -6.3, 0.65, -8.0], [2.9, -6.3, 0.7, 7.0],
+			[4.5, -6.1, 0.85, -5.0], [-4.6, -4.9, 0.6, 9.0], [4.7, -4.7, 0.65, -7.0]]):
 		var cascote := _muro_cueva(float(k[0]), float(k[1]),
 			Vector3(float(k[2]) * 2.2, float(k[2]) * 1.5, float(k[2]) * 1.8),
 			pared_tex, Color(0.70, 0.74, 0.86), -0.55, float(k[3]))
 		cascote.rotation_degrees.y = 45.0 + float(k[0]) * 19.0
 	# ROCAS: la textura de rocas.glb es la roca de las islas AL SOL, gris clara,
 	# y sin oscurecerla parecían montones de nieve.
-	for r in [[-3.5, -4.3, 1.5], [3.3, -4.6, 1.4]]:
+	# (con las paredes de Blender, las rocas y las estalagmitas del suelo
+	# vienen DENTRO del .glb, del mismo caqui: las de Meshy, azul palido,
+	# desentonaban con ellas — visto en captura)
+	for r in ([] if paredes_la else [[-3.5, -4.3, 1.5], [3.3, -4.6, 1.4]]):
 		var pos := _uw(float(r[0]), float(r[1]))
+		if SceneryLA.ON and ResourceLoader.exists("res://assets/models/la_roca_cueva.glb"):
+			# la roca de cueva de Meshy ya es azul oscuro: en vez de
+			# entenebrecerla se LEVANTA (x1.3), que a la luz de la cueva salia
+			# como un bulto plano.
+			SceneryLA.prop(self, "roca_cueva", pos, float(r[2]) * 1.15,
+				float(r[0]) * 53.0 + float(r[1]) * 17.0, Vector2.ZERO,
+				Color(1.3, 1.3, 1.35))
+			continue
 		var rocas := _spawn_model(load("res://assets/models/rocas.glb"),
 			pos, float(r[2]), self)
 		rocas.rotation_degrees.y = float(r[0]) * 53.0 + float(r[1]) * 17.0
@@ -1378,8 +1438,8 @@ func _scenery_cueva() -> void:
 	# ESTALAGMITAS del suelo, cada una con su inclinación. NO hay estalactitas
 	# colgando: sin techo a la vista, unos conos flotando por el borde de arriba
 	# no se leen como nada.
-	for e in [[-2.2, -5.2, 1.5, 5.0], [2.0, -5.3, 1.3, -6.0], [-3.6, 3.6, 1.2, -4.0],
-			[3.7, 3.5, 1.0, 6.0]]:
+	for e in ([] if paredes_la else [[-2.2, -5.2, 1.5, 5.0], [2.0, -5.3, 1.3, -6.0], [-3.6, 3.6, 1.2, -4.0],
+			[3.7, 3.5, 1.0, 6.0]]):
 		_estalagmita(_uw(float(e[0]), float(e[1])), float(e[2]), pared_tex,
 			float(e[3]))
 	# CRISTALES: la luz del sitio. Los cuatro grandes llevan LUZ DE VERDAD.
@@ -1393,6 +1453,25 @@ func _scenery_cueva() -> void:
 			[-4.2, 2.4, 1.5, true], [4.3, 2.2, 1.3, true],
 			[-4.8, -4.9, 0.8, false], [4.6, -4.4, 0.7, false]]:
 		_cristal(float(c[0]), float(c[1]), float(c[2]), bool(c[3]))
+	# SETAS LUMINOSAS (estilo LA) en los huecos que dejan cristales y
+	# estalagmitas, con un pelo de emision cian para que se lean como luz.
+	if SceneryLA.ON and ResourceLoader.exists("res://assets/models/la_seta_cueva.glb"):
+		for st in [[-4.5, 0.4, 0.75, 20.0], [3.0, 4.8, 0.65, 140.0], [4.6, -3.4, 0.6, 260.0],
+				[-2.9, -6.3, 0.55, 80.0]]:
+			var seta := SceneryLA.prop(self, "seta_cueva", _uw(float(st[0]), float(st[1])),
+				float(st[2]), float(st[3]), Vector2.ZERO, Color(1.15, 1.15, 1.15))
+			if seta == null:
+				continue
+			for m in seta.find_children("*", "MeshInstance3D", true, false):
+				var mi3 := m as MeshInstance3D
+				for i in mi3.mesh.get_surface_count():
+					var mat3: Material = mi3.get_active_material(i)
+					if mat3 is StandardMaterial3D:
+						var copia3: StandardMaterial3D = mat3.duplicate()
+						copia3.emission_enabled = true
+						copia3.emission = Color(0.25, 0.85, 0.80)
+						copia3.emission_energy_multiplier = 0.30
+						mi3.set_surface_override_material(i, copia3)
 
 
 ## LA BOCA DE LA CUEVA, en lo alto de la pantalla: el hueco entre las piezas del
@@ -1401,26 +1480,28 @@ func _scenery_cueva() -> void:
 ## VUELCOS distintos: el dintel son seis bloques ladeados a alturas diferentes,
 ## las jambas otras seis y abajo cascotes que rompen la línea del suelo. Por
 ## aquí entran los clientes de la borda de arriba.
-func _entrada_cueva(pared_tex: Texture2D) -> void:
+## Con `solo_luz` (las paredes vienen del .glb de Blender, que ya trae la
+## boca con sus jambas y su dintel) se monta solo el pasadizo y su luz.
+func _entrada_cueva(pared_tex: Texture2D, solo_luz := false) -> void:
 	# Dintel a trozos: cada bloque arranca a su altura, con su vuelco y a su
 	# profundidad, así que el canto de abajo sale dentado y no escalonado.
-	for d in [[-1.20, 0.72, 0.8, -7.7, 11.0], [-0.72, 1.24, 0.65, -7.4, -7.0],
+	for d in ([] if solo_luz else [[-1.20, 0.72, 0.8, -7.7, 11.0], [-0.72, 1.24, 0.65, -7.4, -7.0],
 			[-0.24, 1.62, 0.7, -7.8, 5.0], [0.26, 1.55, 0.65, -7.5, -9.0],
-			[0.74, 1.16, 0.7, -7.9, 8.0], [1.22, 0.66, 0.8, -7.5, -12.0]]:
+			[0.74, 1.16, 0.7, -7.9, 8.0], [1.22, 0.66, 0.8, -7.5, -12.0]]):
 		_muro_cueva(float(d[0]), float(d[3]),
 			Vector3(float(d[2]), 6.0, 2.6), pared_tex,
 			Color(0.78, 0.82, 0.94), float(d[1]), float(d[4]))
 	# Jambas: pilastras ladeadas, tres por lado y a distinta profundidad.
-	for j in [[-1.70, -6.35, 0.95, 2.4, 8.0], [-1.48, -5.95, 0.6, 1.5, -9.0],
+	for j in ([] if solo_luz else [[-1.70, -6.35, 0.95, 2.4, 8.0], [-1.48, -5.95, 0.6, 1.5, -9.0],
 			[-1.62, -7.0, 0.8, 2.0, 5.0],
 			[1.74, -6.35, 1.0, 2.2, -9.0], [1.52, -5.95, 0.55, 1.35, 8.0],
-			[1.66, -7.0, 0.7, 1.8, -6.0]]:
+			[1.66, -7.0, 0.7, 1.8, -6.0]]):
 		_muro_cueva(float(j[0]), float(j[1]),
 			Vector3(float(j[2]), float(j[3]), 1.0), pared_tex,
 			Color(0.72, 0.76, 0.88), -0.6, float(j[4]))
 	# Y cascotes al pie, que quitan la recta del suelo de la boca.
-	for k in [[-1.18, -6.15, 0.75, 1.05, 10.0], [-0.42, -6.25, 0.5, 0.40, -7.0],
-			[1.10, -6.18, 0.68, 0.88, -11.0], [0.45, -6.3, 0.45, 0.32, 8.0]]:
+	for k in ([] if solo_luz else [[-1.18, -6.15, 0.75, 1.05, 10.0], [-0.42, -6.25, 0.5, 0.40, -7.0],
+			[1.10, -6.18, 0.68, 0.88, -11.0], [0.45, -6.3, 0.45, 0.32, 8.0]]):
 		_muro_cueva(float(k[0]), float(k[1]),
 			Vector3(float(k[2]), float(k[3]), 0.7), pared_tex,
 			Color(0.66, 0.70, 0.82), -0.55, float(k[4]))
@@ -1436,7 +1517,7 @@ func _entrada_cueva(pared_tex: Texture2D) -> void:
 	# del túnel: cuanto más atrás, menos se ve por el hueco y más parece niebla.
 	var tarjeta := MeshInstance3D.new()
 	var quad := QuadMesh.new()
-	quad.size = Vector2(3.0, 2.3)
+	quad.size = Vector2(3.6, 2.8) if SceneryLA.ON else Vector2(3.0, 2.3)
 	tarjeta.mesh = quad
 	tarjeta.position = _uw(0.0, -6.85) + Vector3(0.0, 0.55, 0.0)
 	tarjeta.rotation_degrees.y = 45.0
@@ -1444,6 +1525,10 @@ func _entrada_cueva(pared_tex: Texture2D) -> void:
 	mat_p.shader = load("res://shaders/portal_cueva.gdshader")
 	mat_p.set_shader_parameter("fuerza", 0.70)
 	mat_p.set_shader_parameter("borde", 0.50)
+	if SceneryLA.ON:
+		# por la boca se ve el MAR: turquesa, como en el concepto de Ludo
+		mat_p.set_shader_parameter("color", Color(0.42, 0.88, 0.90))
+		mat_p.set_shader_parameter("fuerza", 1.0)
 	tarjeta.material_override = mat_p
 	tarjeta.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(tarjeta)
@@ -1500,6 +1585,13 @@ func _cyl_tex(r_top: float, r_bottom: float, alto: float, pos: Vector3,
 ## las ESTALACTITAS y se fue con ellas: colgadas de un techo que esta cámara
 ## no enseña, eran conos flotando en el borde de arriba.
 func _estalagmita(pos: Vector3, alto: float, tex: Texture2D, tilt := 0.0) -> void:
+	if SceneryLA.ON and ResourceLoader.exists("res://assets/models/la_estalagmita.glb"):
+		# Mas alta (x1.45) y levantada: a la talla de los conos de antes se
+		# perdia contra la pared.
+		var e := SceneryLA.prop(self, "estalagmita", pos, alto * 1.45, pos.x * 37.0,
+			Vector2.ZERO, Color(1.3, 1.3, 1.35))
+		e.rotation_degrees.z = tilt * 0.5
+		return
 	var mi := MeshInstance3D.new()
 	var cono := CylinderMesh.new()
 	cono.top_radius = 0.03
@@ -1525,9 +1617,26 @@ func _cristal(u: float, w: float, alto: float, con_luz: bool) -> void:
 	var pos := _uw(u, w)
 	var color_luz := Color(0.22, 0.88, 0.66)
 	var giro := u * 47.0 + w * 23.0
+	var cristal_la := SceneryLA.ON and ResourceLoader.exists("res://assets/models/la_cristal.glb")
+	if cristal_la:
+		# EL RACIMO DE MESHY (concepto de Ludo): verde de fabrica; se le
+		# enciende la emision para que sea el que alumbra la cueva.
+		var c := SceneryLA.prop(self, "cristal", pos, alto * 1.15, giro)
+		for m in c.find_children("*", "MeshInstance3D", true, false):
+			var mi2 := m as MeshInstance3D
+			for i in mi2.mesh.get_surface_count():
+				var base: Material = mi2.mesh.surface_get_material(i)
+				var mat2: StandardMaterial3D = base.duplicate() if base is StandardMaterial3D else StandardMaterial3D.new()
+				mat2.emission_enabled = true
+				mat2.emission = color_luz
+				# A 0.9 la emision aplanaba el racimo en una losa verde lisa
+				# (se veian pentagonos planos): baja, y las facetas de la
+				# textura vuelven a leerse.
+				mat2.emission_energy_multiplier = 0.42 if con_luz else 0.28
+				mi2.set_surface_override_material(i, mat2)
 	# Racimo: la aguja grande y dos esquirlas apoyadas, cada una con su vuelco.
-	for p in [[Vector2.ZERO, 1.0, 0.0], [Vector2(0.26, 0.10), 0.55, 21.0],
-			[Vector2(-0.22, -0.14), 0.42, -26.0]]:
+	for p in ([] if cristal_la else [[Vector2.ZERO, 1.0, 0.0], [Vector2(0.26, 0.10), 0.55, 21.0],
+			[Vector2(-0.22, -0.14), 0.42, -26.0]]):
 		var off: Vector2 = p[0] * alto
 		var h := alto * float(p[1])
 		var mi := MeshInstance3D.new()
@@ -1684,6 +1793,10 @@ func _scenery_port() -> void:
 	# (el usuario los veia iguales y el puerto no se distinguia).
 	var dock_mat := _wood_mat(DOCK_TEX, Color(0.74, 0.78, 0.80), 0.15)
 	var post_mat := _wood_mat(DOCK_TEX, Color(0.48, 0.50, 0.52), 0.9)
+	if SceneryLA.ON:
+		# tablones claros de Ludo (una tabla cada ~1.3 u) y postes mas oscuros
+		dock_mat = SceneryLA.mat_tex("muelle", Color(1.0, 0.92, 0.78), 0.38, 0.95)
+		post_mat = SceneryLA.mat_tex("muelle", Color(0.62, 0.50, 0.38), 0.9, 0.95)
 	var crate_mat := _wood_mat(CRATE_TEX, Color(0.92, 0.86, 0.74), 1.4)
 	# Tarima GIRADA 45 y recortada, no un cuadrado que llenaba la pantalla:
 	# cubre de sobra el anillo de paso y las dos bordas de entrada, pero deja
@@ -1709,6 +1822,9 @@ func _scenery_port() -> void:
 		var knob := _cyl(0.20, 0.22, 0.14, p + Vector3(0.0, 1.08, 0.0),
 			Color(0.30, 0.22, 0.13))
 		knob.rotation_degrees.y = p.x * 20.0
+	if SceneryLA.ON:
+		SceneryLA.puerto_props(self)
+		return
 	# Norays de amarre con su cabo enrollado.
 	for b in [Vector3(-2.2, 0.0, 6.6), Vector3(5.6, 0.0, -2.0)]:
 		_cyl(0.17, 0.21, 0.5, b + Vector3(0.0, 0.25, 0.0), Color(0.22, 0.20, 0.19))
@@ -1852,6 +1968,10 @@ func _port_warehouse(pos: Vector3, wall_mat: Material, trim_mat: Material) -> vo
 func _scenery_ship() -> void:
 	var deck_mat := _wood_mat(DECK_TEX, Color(0.72, 0.56, 0.38), 0.17)
 	var trim_mat := _wood_mat(DECK_TEX, Color(0.58, 0.42, 0.26), 0.7)
+	if SceneryLA.ON:
+		# tablones oscuros de Ludo (una tabla cada ~1.4 u), regala mas clara
+		deck_mat = SceneryLA.mat_tex("cubierta", Color(1.0, 0.92, 0.82), 0.36, 0.95)
+		trim_mat = SceneryLA.mat_tex("cubierta", Color(1.0, 0.86, 0.70), 0.8, 0.95)
 	var crate_mat := _wood_mat(CRATE_TEX, Color(0.90, 0.82, 0.70), 1.4)
 
 	# Cubierta: UNA losa con la textura de tablones desgastados en vez de 38
@@ -1894,6 +2014,9 @@ func _scenery_ship() -> void:
 	# Escalera de toldilla en el hueco de embarque de ARRIBA: de ahi suben los
 	# clientes de esa borda, en vez de materializarse en mitad de la cubierta.
 	_deck_stairs(ENTRY, trim_mat)
+	if SceneryLA.ON:
+		SceneryLA.barco_props(self)
+		return
 	# Mastil TRONCHADO, sin velas y a media altura. Un palo entero (o incluso
 	# uno roto de 3 m con la vela colgando) se iba por el borde superior de la
 	# pantalla y chocaba con el HUD; el tocon astillado cabe de sobra, no tapa
@@ -2052,13 +2175,20 @@ func _setup_counter_and_belt() -> void:
 	# misma pinta y el mismo movimiento que el resto de la cinta.
 	var seg := BELT_SIDE - BELT_W
 
-	var band_tex: Texture2D = load("res://assets/props/cinta_trad_banda.png")
+	var band_tex: Texture2D = load("res://assets/props/la_cinta.webp") \
+		if SceneryLA.ON and ResourceLoader.exists("res://assets/props/la_cinta.webp") \
+		else load("res://assets/props/cinta_trad_banda.png")
 	band_tile_len = BELT_W * float(band_tex.get_width()) / float(band_tex.get_height())
 	band_mat = ShaderMaterial.new()
 	band_mat.shader = load("res://shaders/belt_scroll_3d.gdshader")
 	band_mat.set_shader_parameter("band_tex", band_tex)
 	band_mat.set_shader_parameter("repeat_x", seg / band_tile_len)
 	band_mat.set_shader_parameter("scroll_tiles", 0.0)
+	# La goma de Ludo es oscurisima (media 43): se levanta a un gris medio,
+	# que es como va la cinta en el concepto (un negro plano se comia el
+	# centro de la pantalla).
+	var tinte_cinta := Vector3(1.0, 1.0, 1.0) if band_tex.resource_path.contains("la_cinta") else Vector3.ONE
+	band_mat.set_shader_parameter("tint", tinte_cinta)
 	# Las esquinas son cuadradas: mismo shader, pero con las repeticiones que
 	# les tocan por su lado.
 	corner_mat = ShaderMaterial.new()
@@ -2066,6 +2196,7 @@ func _setup_counter_and_belt() -> void:
 	corner_mat.set_shader_parameter("band_tex", band_tex)
 	corner_mat.set_shader_parameter("repeat_x", BELT_W / band_tile_len)
 	corner_mat.set_shader_parameter("scroll_tiles", 0.0)
+	corner_mat.set_shader_parameter("tint", tinte_cinta)
 
 	var sides := [
 		[Vector3(0, 0, -h), 0.0, true],
@@ -2073,12 +2204,18 @@ func _setup_counter_and_belt() -> void:
 		[Vector3(0, 0, h), 180.0, true],
 		[Vector3(-h, 0, 0), 90.0, false],
 	]
+	# EL MOSTRADOR: en estilo LA es UN anillo biselado de Blender
+	# (`la_mostrador.glb`, ver SceneryLA.mostrador); si no, las cuatro cajas.
+	var anillo_la := SceneryLA.ON and ResourceLoader.exists("res://assets/models/la_mostrador.glb")
+	if anillo_la:
+		SceneryLA.mostrador(self)
 	for s in sides:
 		var center: Vector3 = s[0]
 		var c_size := Vector3(BELT_SIDE + COUNTER_W, BELT_TOP, COUNTER_W) \
 			if s[2] else Vector3(COUNTER_W, BELT_TOP, BELT_SIDE + COUNTER_W)
-		_box(c_size, center + Vector3(0.0, BELT_TOP * 0.5, 0.0),
-			Color(0.48, 0.33, 0.18))
+		if not anillo_la:
+			_box(c_size, center + Vector3(0.0, BELT_TOP * 0.5, 0.0),
+				Color(0.48, 0.33, 0.18))
 		var b_size := Vector3(seg, 0.04, BELT_W) if s[2] \
 			else Vector3(BELT_W, 0.04, seg)
 		_box(b_size, center + Vector3(0.0, BELT_TOP + 0.02, 0.0),
@@ -2133,7 +2270,13 @@ func _setup_belt_path() -> void:
 ## pantalla). Es justo donde nacen los platos y, con una sola vuelta de cinta,
 ## también donde vuelven a pasar si nadie los ha cogido: ahí caen.
 func _add_trash_bin(h: float) -> void:
-	var c := Vector3(h + 0.62, 0.0, h + 0.62)
+	# FUERA DEL MOSTRADOR: el anillo de la cinta llega a h + 0.55 (mas su
+	# bisel) y a 0.62 el cubo se metia dentro de la esquina de la mesa (lo vio
+	# el usuario). A 1.05 queda pegado al canto sin que nada lo atraviese.
+	var c := Vector3(h + 1.05, 0.0, h + 1.05)
+	if SceneryLA.ON and ResourceLoader.exists("res://assets/models/la_cubo.glb"):
+		SceneryLA.cubo(self, c)
+		return
 	var duela := Color(0.46, 0.33, 0.19)
 	var aro := Color(0.32, 0.34, 0.38)
 	# Cuerpo troncocónico, más ancho arriba.
@@ -2171,6 +2314,14 @@ func _setup_seats() -> void:
 
 
 func _add_stool(pos: Vector3) -> void:
+	if SceneryLA.ON:
+		SceneryLA.taburete(self, pos, STOOL_H + 0.06)
+		return
+	_add_stool_viejo(pos)
+
+
+## El taburete de cajas de antes (y el respaldo si falta el modelo).
+func _add_stool_viejo(pos: Vector3) -> void:
 	_box(Vector3(0.46, 0.09, 0.46), pos + Vector3(0.0, STOOL_H - 0.045, 0.0),
 		Color(0.40, 0.26, 0.15))
 	_box(Vector3(0.11, STOOL_H - 0.09, 0.11),
@@ -2185,14 +2336,22 @@ func _setup_chef() -> void:
 	# ABAJO-IZQUIERDA de la pantalla: se le ve la cara y trabaja de lado, sin
 	# darle la espalda al jugador ni taparse la mesa con el cuerpo.
 	var c_pos := Vector3(-0.45, 0.0, -0.60)
-	var t_pos := c_pos + Vector3(0.0, 0.0, 0.92)
-	_box(Vector3(0.90, 0.78, 0.60), t_pos + Vector3(0.0, 0.39, 0.0),
-		Color(0.40, 0.27, 0.14))
-	_box(Vector3(1.02, 0.07, 0.72), t_pos + Vector3(0.0, 0.815, 0.0),
-		Color(0.62, 0.45, 0.26))
-	chef_pivot = _spawn_model(
-		load(CharacterData.model("chef", GameState.player_gender)),
-		c_pos, CHEF_H, self)
+	# LA MESA VA AL ALCANCE DEL CHEF: con los brazos de la figurita (0.385 u)
+	# a 0.92 el canto de la mesa quedaba a 0.62 del cuerpo y las manos se
+	# apretaban contra el pecho sin llegar. A 0.58 el canto cae a 0.28 y el
+	# punto de trabajo (10 cm dentro de la mesa) queda justo a un brazo.
+	var t_pos := c_pos + Vector3(0.0, 0.0, 0.58)
+	if not (SceneryLA.ON and SceneryLA.mesa_chef(self, t_pos)):
+		_box(Vector3(0.90, 0.78, 0.60), t_pos + Vector3(0.0, 0.39, 0.0),
+			Color(0.40, 0.27, 0.14))
+		_box(Vector3(1.02, 0.07, 0.72), t_pos + Vector3(0.0, 0.815, 0.0),
+			Color(0.62, 0.45, 0.26))
+	# EL CHEF ES MODULAR: cuerpo unico mas las piezas que eligio el jugador
+	# (`ChefLook.montar`). Se escala por el CUERPO, no por el conjunto: con el
+	# pelo dentro de la cuenta, un peinado alto encogia al personaje entero.
+	var chef := ChefLook.montar(GameState.player_look)
+	chef_pivot = _spawn_node(chef, c_pos, CHEF_H, self,
+		chef.get_meta("cuerpo") if chef.has_meta("cuerpo") else chef)
 	chef_pivot.rotation_degrees.y = 0.0
 	_add_blob_shadow(c_pos + Vector3(0.12, 0.02, 0.1), 1.25, 0.85)
 	var skels := chef_pivot.find_children("*", "Skeleton3D", true, false)
@@ -2203,6 +2362,12 @@ func _setup_chef() -> void:
 		else:
 			var inst: Node3D = chef_pivot.get_child(0)
 			_make_chef_tools(skels[0], inst.scale.x)
+			# El punto de trabajo de las manos es LA MESA (su tablero, 10 cm
+			# dentro del canto, para la mano derecha), pasado al espacio del
+			# esqueleto; ver CharacterAnim.chef_work_override.
+			var mesa := t_pos + Vector3(-0.20, 0.85 + 0.03, -0.30 + 0.14)
+			var skel: Skeleton3D = skels[0]
+			chef_anim.chef_work_override = skel.global_transform.affine_inverse() * mesa
 	# El ingrediente/etapa en curso se muestra sobre la mesa del chef.
 	chef_prop = Sprite3D.new()
 	chef_prop.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -2220,17 +2385,23 @@ func _make_chef_tools(skel: Skeleton3D, model_scale: float) -> void:
 	var wrist := chef_anim.bone("R_Wrist")
 	if wrist < 0:
 		return
-	var att := BoneAttachment3D.new()
-	skel.add_child(att)
-	att.bone_name = skel.get_bone_name(wrist)
-
-	# La hoja corre a lo largo de +X local (cruzada respecto al cuerpo): con
-	# +Z apuntaba al frente del chef y desde la camara se veia como un palillo.
+	# LOS UTENSILIOS NO CUELGAN DEL HUESO: SE COLOCAN POR FOTOGRAMA desde el
+	# esqueleto (`_place_chef_tools`). Con un BoneAttachment3D heredaban la
+	# base de la muñeca, y en el rig de Meshy esa base viene ORIENTADA (el
+	# giro alrededor del brazo lo decide el rigger, y la IK de arco corto le
+	# suma otra torsion): medido en el chop, la hoja acababa apuntando hacia
+	# atras y abajo, dentro del cuerpo, y no se veia nunca. Ahora la hoja
+	# corre a lo largo de +X del esqueleto (cruzada respecto al cuerpo; con
+	# +Z se veia como un palillo desde la camara) y gira con el BALANCEO del
+	# antebrazo, medido entre el codo y la muñeca, sin torsion ninguna.
+	chef_tools_skel = skel
+	chef_tool_scale = model_scale
+	var elbow := skel.get_bone_parent(wrist)
+	chef_fore_rest = (skel.get_bone_global_rest(wrist).origin
+		- skel.get_bone_global_rest(elbow).origin).normalized()
 	chef_knife = Node3D.new()
-	att.add_child(chef_knife)
+	skel.add_child(chef_knife)
 	chef_knife.scale = Vector3.ONE / model_scale
-	chef_knife.position = Vector3(0.0, -0.05, 0.0) / model_scale
-	chef_knife.rotation_degrees.y = 90.0
 	_tool_box(chef_knife, Vector3(0.05, 0.06, 0.16), Vector3(0.0, 0.0, -0.055),
 		Color(0.34, 0.21, 0.11))
 	_tool_box(chef_knife, Vector3(0.02, 0.10, 0.34), Vector3(0.0, -0.012, 0.20),
@@ -2238,11 +2409,9 @@ func _make_chef_tools(skel: Skeleton3D, model_scale: float) -> void:
 	chef_knife.visible = false
 
 	chef_ladle = Node3D.new()
-	att.add_child(chef_ladle)
+	skel.add_child(chef_ladle)
 	chef_ladle.scale = Vector3.ONE / model_scale
-	chef_ladle.position = Vector3(0.0, -0.05, 0.0) / model_scale
-	chef_ladle.rotation_degrees.y = 90.0
-	_tool_box(chef_ladle, Vector3(0.038, 0.038, 0.36), Vector3(0.0, 0.0, 0.11),
+	_tool_box(chef_ladle, Vector3(0.05, 0.05, 0.36), Vector3(0.0, 0.0, 0.11),
 		Color(0.46, 0.30, 0.16))
 	var cup := MeshInstance3D.new()
 	var cup_mesh := CylinderMesh.new()
@@ -2270,12 +2439,18 @@ func _tool_box(parent: Node3D, size: Vector3, pos: Vector3, color: Color) -> voi
 
 func _spawn_model(scene: PackedScene, ground_pos: Vector3, target_h: float,
 		parent: Node) -> Node3D:
+	return _spawn_node(scene.instantiate(), ground_pos, target_h, parent)
+
+
+## Lo mismo con un nodo YA instanciado (el chef modular se monta fuera).
+## `medir` es el nodo cuyo AABB fija la escala; sin el, el conjunto entero.
+func _spawn_node(inst: Node3D, ground_pos: Vector3, target_h: float,
+		parent: Node, medir: Node = null) -> Node3D:
 	var pivot := Node3D.new()
 	pivot.position = ground_pos
 	parent.add_child(pivot)
-	var inst: Node3D = scene.instantiate()
 	pivot.add_child(inst)
-	var aabb := _merged_aabb(inst)
+	var aabb := _merged_aabb(medir if medir != null else inst)
 	var s := target_h / maxf(aabb.size.y, 0.0001)
 	inst.scale = Vector3(s, s, s)
 	inst.position = -Vector3(
@@ -2301,7 +2476,13 @@ func _tint_model(root: Node3D, tint: Color) -> Node3D:
 func _merged_aabb(node: Node) -> AABB:
 	var out := AABB()
 	var first := true
-	for m in node.find_children("*", "MeshInstance3D", true, false):
+	# `find_children` NO incluye al propio nodo: medido por el MeshInstance3D
+	# del cuerpo del chef, la caja salia VACIA, la escala se disparaba y el
+	# chef desaparecia de la cinta (quedaba su mancha de sombra sola).
+	var mallas: Array = node.find_children("*", "MeshInstance3D", true, false)
+	if node is MeshInstance3D:
+		mallas.push_front(node)
+	for m in mallas:
 		var a: AABB = m.transform * m.get_aabb()
 		out = a if first else out.merge(a)
 		first = false
@@ -2598,6 +2779,7 @@ func _ask_start() -> void:
 	# `drop` a 0: el desplazamiento de serie sube el rótulo 9 px (ver
 	# `START_TEXT_DROP`) y en este botón, que es alto, se veía descentrado.
 	PrepBoard.skin_start_button(go, 0.0)
+	UIFx.brillo(go, 3.4, 0.45)
 	go.add_theme_font_size_override("font_size", 40)
 	go.pressed.connect(func() -> void:
 		awaiting_start = false
@@ -3082,6 +3264,8 @@ func _skin_panels() -> void:
 		"res://assets/ui/boton_continuar.png", PrepBoard.ICON_BTN_ZONE - 8.0)
 	menu_button.add_theme_font_size_override("font_size", 25)
 	menu_button.text = "Continuar"
+	# la accion principal del cartel lleva el brillo (Repetir es secundario)
+	UIFx.brillo(menu_button, 3.2, 0.45)
 
 
 ## Reacciones del chef a cada gesto del jugador: dispara la animacion de
@@ -3151,6 +3335,53 @@ func _show_chef_tool(tool: String) -> void:
 		chef_ladle.visible = tool == "ladle"
 
 
+## Coloca cuchillo y cazo en la mano derecha del chef con la pose de ESTE
+## fotograma: en la muñeca, un pelin por debajo, con el MANGO a lo largo del
+## antebrazo (codo -> muñeca) y la HOJA horizontal y perpendicular a el
+## (UP x antebrazo: con el brazo al frente, hacia la izquierda del chef).
+## MEDIDO antes de llegar aqui: ni la base de la muñeca ni el arco corto del
+## antebrazo desde su reposo sirven —el reposo es una A-pose que sale hacia
+## atras y afuera, y el arco que la lleva al frente tumba la hoja hacia
+## abajo y atras, dentro del cuerpo—. La base se construye, no se hereda.
+func _place_chef_tools() -> void:
+	if chef_tools_skel == null or chef_anim == null:
+		return
+	var sk := chef_tools_skel
+	var iw := chef_anim.bone("R_Wrist")
+	var ie := sk.get_bone_parent(iw)
+	if iw < 0 or ie < 0:
+		return
+	var wp := sk.get_bone_global_pose(iw).origin
+	var fore := (wp - sk.get_bone_global_pose(ie).origin).normalized()
+	var pos := wp + Vector3(0.0, -0.05, 0.0) / chef_tool_scale
+	var esc := Basis.from_scale(Vector3.ONE / chef_tool_scale)
+	# CUCHILLO: el mango por el antebrazo y la hoja HORIZONTAL cruzada hacia
+	# -X, o sea hacia FUERA por la derecha del chef, donde no hay nada que la
+	# tape. MEDIDO en captura (5-9-2026), pintandolo de magenta: perpendicular
+	# al antebrazo (UP x antebrazo) salia hacia la izquierda-atras y se metia
+	# dentro del cuerpo; hacia +X cruzaba por delante de la barriga y la bola
+	# de la mano IZQUIERDA, a 0,3 u, la tapaba entera.
+	if chef_knife != null:
+		var hoja := -(Vector3.RIGHT - fore * fore.x)
+		if hoja.length() < 0.05:
+			hoja = Vector3.FORWARD
+		hoja = hoja.normalized()
+		# LA HOJA VA DE PIE: se autora con el filo a lo largo de +Z, el alto
+		# de la hoja en Y y el grosor en X. Con Y a lo largo del antebrazo
+		# quedaba TUMBADA (medido: 21 pixeles magenta, una raya de 6 px de
+		# alto) y desde esta camara solo se veia su canto.
+		var lado := Vector3.UP.cross(hoja).normalized()
+		var base := Basis(lado, Vector3.UP, hoja)
+		chef_knife.transform = Transform3D(base * esc, pos)
+	# CAZO: sale de la mano hacia delante, HORIZONTAL y a la altura de la
+	# muñeca, con el cazo sobre el tablero, donde estaria la olla. MEDIDO en
+	# magenta: a 25 grados hacia abajo el cazo caia 13 cm bajo la mano —por
+	# debajo del tablero, que queda a 8 cm de la mano— y se metia ENTERO en
+	# la mesa (0 pixeles); a 10 grados y 5 cm mas bajo, casi (13 px).
+	if chef_ladle != null:
+		chef_ladle.transform = Transform3D(esc, wp)
+
+
 # ------------------------------------------------------------------- bucle
 
 func _process(delta: float) -> void:
@@ -3205,6 +3436,7 @@ func _process(delta: float) -> void:
 				if chef_tool_linger <= 0.0:
 					_show_chef_tool("")
 			chef_anim.idle(_t)
+		_place_chef_tools()
 
 	if ended:
 		# Se esperan 4 s con todo parado (cinta, platos y tabla) para ver a los
@@ -4756,6 +4988,7 @@ func _open_upgrade_choice() -> void:
 	Audio.sfx("potenciador")
 	get_tree().paused = true
 	_animate_powerup_panel()
+	UIFx.escalonar(powerup_options.get_children(), 0.07, 0.8)
 
 
 ## Tarjeta de mejora: mismo formato que las de potenciador (dibujo + título).
@@ -5066,6 +5299,9 @@ func _open_powerup_choice() -> void:
 	get_tree().paused = true
 	_animate_powerup_panel()
 	_armar_powerups()
+	# las tres cartas entran de una en una (despues del armado, que fija su
+	# alfa de "todavia no": el pop funde hasta ESE alfa)
+	UIFx.escalonar(powerup_options.get_children(), 0.07, 0.8)
 
 
 ## ¿Sigue en marcha este potenciador? Los de efecto inmediato nunca lo están.
@@ -5966,6 +6202,9 @@ func _show_results(stars: int, total_money: int, new_recipes: Array) -> void:
 	if exit_button != null:
 		exit_button.visible = false
 	results_panel.visible = true
+	# ENTRA CON POP (UIFx): un cartel que aparece de golpe se lee como un
+	# error de carga; el rebote corto es lo que hace el mercado entero.
+	UIFx.pop_in(results_panel, 0.0, 0.88, 0.34)
 	get_tree().paused = true
 	await _count_up_money(stars)
 	# LA EXPERIENCIA SE LLENA AQUÍ, no en el menú: el jugador está mirando este
@@ -7698,6 +7937,13 @@ func _update_hud() -> void:
 		_place_bar_value(money_bar, money_label, money_meta, _score_money(), meta)
 		_place_bar_value(tip_bar, jar_label, tip_meta, tips_total, umbral)
 		_place_star_marks()
+		# LA CIFRA BOTA al cambiar (UIFx.bump): es el "cha-ching" visual que
+		# lleva todo juego de cocina movil; sin el, cobrar no se sentia.
+		var dinero := _score_money()
+		if dinero != _hud_money_visto:
+			if _hud_money_visto >= 0 and money_label != null:
+				UIFx.bump(money_label, 1.22, 0.28)
+			_hud_money_visto = dinero
 	# Cuenta los que YA HAN VENIDO, no los que se han ido: con los idos el
 	# marcador se quedaba en 0 con la barra llena, que es justo cuando el
 	# jugador quiere saber cuánta clientela le queda por llegar. En los

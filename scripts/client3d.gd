@@ -443,6 +443,24 @@ var extras_recibidos: Array[String] = []
 ## body.position.y, y el giro de orientacion en la raiz.
 var _body: Node3D
 var _anim: CharacterAnim = null
+## --- GESTOS DE SITUACION (5-9-2026) ---------------------------------------
+## Un gesto es una pose de CharacterAnim que se superpone a la espera un rato
+## y se FUNDE al entrar y al salir (`_gesto_k`): el saludo al sentarse y la
+## alegria al terminar un plato. La IMPACIENCIA no dura un rato: crece con la
+## barra baja (`_impaciencia`), brazos cruzados y mirando a los lados. Y el
+## que se va SIN HABER COMIDO anda cabizbajo (`_enfadado`).
+var _gesto := ""
+var _gesto_ultimo := ""    ## el que se esta fundiendo hacia fuera
+var _gesto_t := 0.0        ## lo que le queda al gesto en curso
+var _gesto_k := 0.0        ## fuerza actual (0..1)
+var _impaciencia := 0.0    ## fuerza de la pose impaciente (0..1)
+var _enfadado := false
+const GESTO_FUNDIDO := 4.0      ## por segundo: 0,25 s de fundido
+const IMPACIENTE_DESDE := 0.38  ## fraccion de barra por debajo de la cual se cruza de brazos
+## El KAPPA anima los brazos a MEDIA amplitud (ver CharacterAnim.arm_range):
+## su rig comparte el peso del brazo con el caparazon y un giro entero lo
+## estira en una lamina.
+const KAPPA_ARM_RANGE := 0.45
 var _model_scale := 1.0
 var _height := 1.75
 ## Alto a mano (0 = el del tipo). Lo usa el JEFE: el Kappa mide mas que un
@@ -456,6 +474,15 @@ var _blob: MeshInstance3D = null
 var _t := 0.0                 ## reloj local para respirar/sentado
 var _walk_t := 0.0            ## reloj del ciclo de marcha (solo avanza andando)
 var _eat_t := 0.0             ## reloj del bocado (solo avanza comiendo)
+## LAS FIGURITAS TROTAN (7-9-2026): con piernas del 21-38% del alto, el paso
+## natural del rig daba 0,5-0,7 u/s y la clientela tardaba mas de diez
+## segundos en cruzar la cubierta (lo vio el usuario: "se mueven mucho mas
+## lentamente, demasiado"). Por debajo de MIN_WALK_SPEED se ACORTA EL CICLO
+## de marcha —cadencia de niño, como los muñecos de Link's Awakening— hasta
+## MIN_WALK_PERIOD, y si ni asi llega se acepta un pelo de patinaje antes que
+## un desfile a camara lenta.
+const MIN_WALK_SPEED := 1.15
+const MIN_WALK_PERIOD := 0.52
 var _walk_speed := 1.2
 var _leg := 0
 var _leg_dist := 0.0
@@ -539,11 +566,17 @@ func _spawn_model() -> void:
 		_anim = CharacterAnim.new(skels[0])
 		if not _anim.has_humanoid_bones():
 			_anim = null
+		elif who_override == "kappa":
+			_anim.arm_range = KAPPA_ARM_RANGE
 	# La velocidad sale del propio ciclo de marcha: con ella el pie apoyado
 	# queda clavado en el suelo (cero patinaje). Es mas lenta que la del juego
 	# 2D (~1.2 u/s frente a 2.2), decision tomada a proposito.
 	if _anim != null:
 		_walk_speed = _anim.ground_speed(_model_scale)
+		if _walk_speed > 0.001 and _walk_speed < MIN_WALK_SPEED:
+			_anim.walk_period = clampf(_anim.walk_period * _walk_speed / MIN_WALK_SPEED,
+				MIN_WALK_PERIOD, CharacterAnim.WALK_PERIOD)
+			_walk_speed = maxf(_anim.ground_speed(_model_scale), MIN_WALK_SPEED)
 
 
 func _merged_aabb(node: Node) -> AABB:
@@ -848,6 +881,7 @@ func _process(delta: float) -> void:
 		State.ARRIVING:
 			_advance_route(delta)
 		State.WAITING:
+			_tick_gestos(delta)
 			_pose_sit_idle()
 			# "patience_freeze" (unagi): la barra se congela unos segundos y no
 			# baja nada. Se tiñe de azul para que se vea que está parada.
@@ -923,7 +957,10 @@ func _advance_route(delta: float) -> void:
 	_walk_t += delta
 	if _anim != null:
 		_anim.reset()
-		_anim.walk(_walk_t)
+		if _enfadado:
+			_anim.walk_enfadado(_walk_t)
+		else:
+			_anim.walk(_walk_t)
 		_body.position.y = _anim.walk_bob(_walk_t, _model_scale)
 	_leg_dist += _walk_speed * delta
 	while _leg < route.size() - 1:
@@ -965,6 +1002,9 @@ func _seat() -> void:
 	seated.emit()
 	rotation_degrees.y = seat_yaw
 	_sit_on_stool()
+	# Recien sentado saluda al cocinero (el jefe no: entra a lo suyo).
+	if not boss:
+		_gesto_poner("saludo", 1.3)
 	_place_bars()
 	_patience_bar.visible = true
 
@@ -1009,10 +1049,48 @@ func _pose_sit_idle() -> void:
 	if _anim != null:
 		_anim.reset()
 		_anim.sit_idle(_t)
+		# Los gestos van ENCIMA de la pose sentada (sus brazos la sustituyen,
+		# su cabeza acumula), fundidos por _gesto_k.
+		var g := _gesto if _gesto != "" else _gesto_ultimo
+		if _gesto_k > 0.001 and g != "":
+			match g:
+				"saludo":
+					_anim.saludo(_t, _gesto_k, true)
+				"contento":
+					_anim.contento(_t, _gesto_k)
+				"negar":
+					_anim.negar(_t, _gesto_k)
+		elif _impaciencia > 0.001 and not boss and not atontado:
+			_anim.impaciente(_t, _impaciencia)
 		# El atontado del canto gira la cabeza hacia lo lejos (ACUMULA sobre
 		# la pose sentada, por eso va despues de sit_idle).
 		if atontado:
 			_anim.embobado(_t)
+
+
+func _gesto_poner(nombre: String, dura: float) -> void:
+	# El JEFE no gesticula: el Kappa tiene su propio teatro (guion) y, con el
+	# brazo a media amplitud, un brazo en alto le estira la malla igualmente.
+	if _anim == null or boss:
+		return
+	_gesto = nombre
+	_gesto_ultimo = nombre
+	_gesto_t = dura
+
+
+func _tick_gestos(delta: float) -> void:
+	if _gesto != "":
+		_gesto_t -= delta
+		if _gesto_t <= 0.0:
+			_gesto = ""
+	_gesto_k = move_toward(_gesto_k, 1.0 if _gesto != "" else 0.0, GESTO_FUNDIDO * delta)
+	# La impaciencia entra despacio (1,5 s) y solo con la barra ya baja; con
+	# la paciencia retenida o congelada no hay prisa que enseñar.
+	var quiere := 0.0
+	if patience_max > 0.0 and patience / patience_max < IMPACIENTE_DESDE \
+			and not patience_hold and patience_frozen <= 0.0:
+		quiere = 1.0
+	_impaciencia = move_toward(_impaciencia, quiere, 0.7 * delta)
 
 
 # ------------------------------------------------------------ coger platos
@@ -1193,6 +1271,10 @@ func _scan_belt(snack_only: bool = false) -> void:
 			patience = maxf(patience - patience_max * RIESGO_DESPRECIO, 0.0)
 			patience_bar_update()
 		declined.append(pid)
+		# EL DESPRECIO SE VE: el que deja pasar un plato NIEGA con la cabeza
+		# (el gesto de situacion `negar`, que estaba escrito y sin enganchar).
+		if not snack_only:
+			_gesto_poner("negar", 0.9)
 
 
 ## Picoteo cogido MIENTRAS come otro plato: RELLENA LA BARRA DE COMER (alarga
@@ -1758,6 +1840,8 @@ func _finish_plate() -> void:
 	# sombrero se cuentan de por vida; a 20, GameState suelta el coleccionable.
 	if who_override == "grumete_sombrero":
 		GameState.bump_stat("fed_sombrero")
+	# Plato terminado: un gesto de gusto antes de volver a mirar la cinta.
+	_gesto_poner("contento", 1.1)
 	var tip := _roll_plate_tip()
 	tips_earned += tip
 	plate_served.emit(current_price, tip)
@@ -1917,6 +2001,7 @@ func _leave() -> void:
 		if nodo != null and is_instance_valid(nodo):
 			nodo.create_tween().tween_property(nodo, "modulate:a", 0.0, 0.3)
 	_body.position.y = 0.0
+	_enfadado = vacio
 	_walk_out()
 
 

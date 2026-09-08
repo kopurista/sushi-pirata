@@ -79,6 +79,9 @@ var player_name: String = ""
 ## panel inferior se voltea en espejo para que el pulgar derecho no tape las
 ## instrucciones ni tenga que estirarse hasta la tabla.
 var player_hand: String = "R"
+## El ASPECTO del chef —piel, peinado, color, nariz, barba y gafas—, elegido en
+## la ficha de tripulación y fijo para toda la partida (ver `ChefLook`).
+var player_look: Dictionary = ChefLook.por_defecto()
 
 
 func right_handed() -> bool:
@@ -2845,6 +2848,7 @@ func save_game() -> void:
 		"player_gender": player_gender,
 		"player_hand": player_hand,
 		"player_name": player_name,
+		"player_look": player_look,
 		"tutorial_done": tutorial_done,
 		"shop_intro_done": shop_intro_done,
 		"extras_done": extras_done,
@@ -2963,6 +2967,8 @@ func load_game() -> void:
 		player_gender = CharacterData.MALE
 	player_name = str(parsed.get("player_name", ""))
 	player_hand = str(parsed.get("player_hand", "L"))
+	# Un guardado anterior al chef modular no trae aspecto: cae al de serie.
+	player_look = ChefLook.validar(parsed.get("player_look", {}))
 	# Las estadísticas viajan como números sueltos; "last_day" es texto.
 	stats = {}
 	var stat_dict: Dictionary = parsed.get("stats", {})
@@ -3157,11 +3163,13 @@ func reset_progress() -> void:
 	var keep_name := player_name
 	var keep_gender := player_gender
 	var keep_hand := player_hand
+	var keep_look := player_look.duplicate()
 	_new_game()
 	settings = keep
 	player_name = keep_name
 	player_gender = keep_gender
 	player_hand = keep_hand
+	player_look = keep_look
 	save_game()
 
 
@@ -3177,6 +3185,7 @@ func _new_game() -> void:
 	# DIESTRA por defecto: es la mano dominante de la mayoria, y en la ficha
 	# de tripulacion sale ya marcada para que no haya que elegir nada.
 	player_hand = "R"
+	player_look = ChefLook.por_defecto()
 	# Un pequeño botín de bienvenida para las primeras compras en la tienda.
 	money = 50
 	rice = RICE_START

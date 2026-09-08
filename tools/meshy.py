@@ -86,11 +86,29 @@ def pide(ruta: str, datos: dict | None = None, metodo: str = "") -> dict:
     req.add_header("Authorization", "Bearer " + clave())
     if datos is not None:
         req.add_header("Content-Type", "application/json")
-    try:
-        with urllib.request.urlopen(req, timeout=120) as r:
-            return json.loads(r.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        sys.exit("HTTP %d en %s\n%s" % (e.code, url, e.read().decode("utf-8")))
+    # LA API CONTESTA "202 CON EL CUERPO VACIO" CUANDO SE LE PIDE DEMASIADO
+    # SEGUIDO, y ahi no hay JSON que leer: un lote de trece personajes se quedo
+    # en tres, y los otros diez murieron con un JSONDecodeError que no decia
+    # nada de nada. No es un fallo de la peticion —la misma vuelve a funcionar
+    # sola al rato, comprobado con el saldo—, asi que se reintenta con espera
+    # creciente en vez de darla por perdida.
+    espera = 20
+    for _intento in range(6):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                crudo = r.read().decode("utf-8").strip()
+            if crudo:
+                return json.loads(crudo)
+            print("  [meshy] respuesta vacia (HTTP 202), reintento en %ds" % espera)
+        except urllib.error.HTTPError as e:
+            if e.code not in (429, 500, 502, 503, 504):
+                sys.exit("HTTP %d en %s\n%s" % (e.code, url, e.read().decode("utf-8")))
+            print("  [meshy] HTTP %d, reintento en %ds" % (e.code, espera))
+        except (urllib.error.URLError, TimeoutError) as e:
+            print("  [meshy] red: %s, reintento en %ds" % (e, espera))
+        time.sleep(espera)
+        espera = min(espera * 2, 180)
+    sys.exit("La API no responde con contenido tras 6 intentos: %s" % url)
 
 
 def esperar(ruta: str, task_id: str) -> dict:
@@ -233,14 +251,65 @@ def cmd_imagen(a) -> None:
     # encaja con los presupuestos de este proyecto (800-9.000). OJO: la API lo
     # RECHAZA con ai_model "latest" (HTTP 400: "smart-topology requires
     # ai_model meshy-t1 or meshy-t2"), asi que va emparejado con meshy-t2.
-    tid = pide("/openapi/v1/image-to-3d", {
+    # Con --alta se pide MESHY-7 a maxima densidad en vez de la topologia
+    # inteligente: `smart-topology` tiene tope de 15.000 triangulos y en una
+    # pieza con filo (el puñal de Pablo) devolvio una cuña facetada.
+    cuerpo = {
         "image_url": uri, "ai_model": "meshy-t2",
         "model_type": "smart-topology",
         "target_polycount": min(max(a.poly * 3, 4000), 15000),
         "should_remesh": True, "topology": "triangle",
         "enable_pbr": False, "texture_resolution": "2k",
-    })["result"]
+    }
+    if getattr(a, "alta", False):
+        cuerpo.pop("model_type")
+        cuerpo.update({"ai_model": "meshy-7",
+                       "target_polycount": getattr(a, "poly_crudo", 60000),
+                       "texture_resolution": getattr(a, "textura", "4k"),
+                       "remove_lighting": True})
+    tid = pide("/openapi/v1/image-to-3d", cuerpo)["result"]
     r = esperar("/openapi/v1/image-to-3d", tid)
+    _bajar_y_rematar(a.id, r, a.poly, a.rig)
+
+
+def cmd_multi(a) -> None:
+    """Varias VISTAS del mismo personaje (frente, lado, espalda).
+
+    Con una sola imagen Meshy tiene que inventarse la profundidad y el modelo
+    sale APLANADO —el torso como una plancha y la barba como una cuna—, que es
+    lo que le paso al primer David. Dandole el giro completo, el volumen sale
+    de verdad. Cuesta 30 creditos en vez de 15, mas 5 del rig.
+
+    OJO: multi-image NO admite `smart-topology`, asi que aqui va con el modelo
+    normal (meshy-7 / latest) y el remallado por `target_polycount`.
+    """
+    uris = []
+    for ruta in a.imagenes:
+        img = Path(ruta)
+        if not img.is_file():
+            sys.exit("No existe %s" % img)
+        tipo = mimetypes.guess_type(img.name)[0] or "image/png"
+        uris.append("data:%s;base64,%s"
+                    % (tipo, base64.b64encode(img.read_bytes()).decode("ascii")))
+    print("Multi-image-to-3D desde %d vistas: %s"
+          % (len(uris), ", ".join(Path(x).name for x in a.imagenes)))
+    # CALIDAD MAXIMA (decidido por el usuario): el modelo sale lo mas denso y
+    # con la textura mas fina que da Meshy, y se rebaja DESPUES en Blender. La
+    # cuenta que lo justifica: los retratos 2D de David son 48 PNG y 25 MB; su
+    # modelo 3D con textura de 1024 pesa 1,5 MB y cubre todos los humores y
+    # las variantes a la vez. Aunque el crudo pese cuatro veces mas, sigue
+    # saliendo a cuenta. `remove_lighting` es lo que quita las MANCHAS
+    # horneadas en cara y cuerpo que salieron en el Kappa, la Sirena y Alice.
+    tid = pide("/openapi/v1/multi-image-to-3d", {
+        "image_urls": uris, "ai_model": "meshy-7",
+        "target_polycount": a.poly_crudo,
+        "should_remesh": True, "topology": "triangle",
+        "should_texture": True, "enable_pbr": False,
+        "texture_resolution": a.textura,
+        "image_enhancement": True, "remove_lighting": True,
+        "pose_mode": "a-pose" if a.rig else "",
+    })["result"]
+    r = esperar("/openapi/v1/multi-image-to-3d", tid)
     _bajar_y_rematar(a.id, r, a.poly, a.rig)
 
 
@@ -270,9 +339,28 @@ def _bajar_y_rematar(mid: str, res: dict, poly: int, rig: bool) -> None:
     rematar(mid, crudo, poly)
 
 
+def cmd_riguear(a) -> None:
+    """Riguea una tarea que YA existe (su modelo esta generado).
+
+    Hace falta cuando el rig del lote fallo —a Meshy le cuesta un CABEZON y
+    contesta "Pose estimation failed"— y no se quiere pagar otra vez la
+    generacion entera, que son 30 creditos contra los 5 del rig.
+    """
+    print("Rigging de la tarea %s" % a.tarea)
+    tid = pide("/openapi/v1/rigging", {
+        "input_task_id": a.tarea, "height_meters": 1.7,
+    })["result"]
+    rr = esperar("/openapi/v1/rigging", tid)
+    url = (rr.get("result") or {}).get("rigged_character_glb_url", "")
+    if url == "":
+        sys.exit("El rigging no devolvio .glb")
+    crudo = descargar(url, CRUDOS / ("%s_rig.glb" % a.id))
+    rematar(a.id + "_rig", crudo, a.poly)
+
+
 def cmd_estado(a) -> None:
-    for ruta in ["/openapi/v1/image-to-3d", "/openapi/v2/text-to-3d",
-            "/openapi/v1/rigging", "/openapi/v1/remesh"]:
+    for ruta in ["/openapi/v1/image-to-3d", "/openapi/v1/multi-image-to-3d",
+            "/openapi/v2/text-to-3d", "/openapi/v1/rigging", "/openapi/v1/remesh"]:
         try:
             r = pide("%s/%s" % (ruta, a.task))
         except SystemExit:
@@ -328,8 +416,29 @@ def main() -> int:
     q.add_argument("id")
     q.add_argument("imagen")
     q.add_argument("--poly", type=int, default=POLY_DEF)
+    q.add_argument("--alta", action="store_true",
+                   help="meshy-7 a maxima densidad en vez de smart-topology")
+    q.add_argument("--poly-crudo", type=int, default=60000)
+    q.add_argument("--textura", default="4k", choices=["2k", "4k", "8k"])
     q.add_argument("--rig", action="store_true")
     q.set_defaults(fn=cmd_imagen)
+
+    q = sub.add_parser("multi")
+    q.add_argument("id")
+    q.add_argument("imagenes", nargs="+")
+    q.add_argument("--poly", type=int, default=POLY_DEF,
+                   help="presupuesto del hook de decimado en Godot")
+    q.add_argument("--poly-crudo", type=int, default=100000,
+                   help="triangulos que se le piden a Meshy (100-300000)")
+    q.add_argument("--textura", default="4k", choices=["2k", "4k", "8k"])
+    q.add_argument("--rig", action="store_true")
+    q.set_defaults(fn=cmd_multi)
+
+    q = sub.add_parser("riguear")
+    q.add_argument("id")
+    q.add_argument("tarea")
+    q.add_argument("--poly", type=int, default=POLY_DEF)
+    q.set_defaults(fn=cmd_riguear)
 
     q = sub.add_parser("estado")
     q.add_argument("task")

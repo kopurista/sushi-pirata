@@ -401,6 +401,7 @@ func _paint_tabs() -> void:
 		PrepBoard.set_dimmed(b, not activa)
 		b.pivot_offset = b.size * 0.5
 		b.scale = Vector2(1.06, 1.06) if activa else Vector2.ONE
+		b.set_meta("fx_base", b.scale)
 
 
 ## Las CINCO tarjetas del arbol abierto, en dos columnas.

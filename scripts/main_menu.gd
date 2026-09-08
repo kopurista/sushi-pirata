@@ -81,7 +81,9 @@ const OFFSCREEN := 1500.0
 const FICHA_ARMADO := 0.9
 ## En el menú el barco es el protagonista y se ve mucho más grande que como
 ## ficha del mapa.
-const MENU_SHIP_SCALE := 2.75
+## 2.2 con el barco LA (7-9-2026): a 2.75 tapaba la barra de nivel y las
+## velas se salian por arriba de la pantalla (medido en captura).
+const MENU_SHIP_SCALE := 2.2
 ## Tienda: dónde acaba el muelle (u), lo que navega el barco a su encuentro y
 ## dónde queda el encuadre al cerrar el zoom (px de mapa; 85.3 px = 1 u).
 ## Calibrado para que en el zoom quepan el barco entero Y el muelle: el barco
@@ -124,6 +126,13 @@ const WHEEL_SIZE := 172.0
 ## Alto y rollos del pergamino de los botones de modo (boton_pergamino.png,
 ## exportado a 96 con los rollos midiendo ~46 en el PNG).
 const MODE_BTN_H := 96.0
+## Los tres modos SECUNDARIOS (Arcade, Pesca, Tienda) van mas bajos que la
+## accion principal, y esta mas alta que los 108 que pide su 9-slice.
+const MODE_BTN_H2 := 86.0
+const HERO_BTN_H := 150.0
+## Icono del boton heroe: lado y distancia al canto izquierdo.
+const HERO_ICON := 80.0
+const HERO_ICON_X := 22.0
 const MODE_BTN_ROLL := 46
 const WHEEL_PEEK := 86.0
 
@@ -1538,10 +1547,14 @@ func _setup_clouds() -> void:
 		for p in [Vector3(0, 0, 0), Vector3(0.85, -0.14, 0.2),
 				Vector3(-0.8, -0.16, -0.16), Vector3(0.14, 0.26, -0.1)]:
 			var mi := MeshInstance3D.new()
-			var box := BoxMesh.new()
-			box.size = Vector3(1.5, 0.5, 1.15) if p == Vector3.ZERO \
-					else Vector3(1.05, 0.4, 0.85)
-			mi.mesh = box
+			# BULTOS REDONDOS y aplastados, no cajas: la caja translucida se
+			# leia como un cubo de cristal cruzando el barco (visto en captura)
+			var bulto := SphereMesh.new()
+			bulto.radius = 0.80 if p == Vector3.ZERO else 0.56
+			bulto.height = bulto.radius * 1.25
+			bulto.radial_segments = 18
+			bulto.rings = 9
+			mi.mesh = bulto
 			mi.position = p
 			mi.material_override = mat
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -1835,7 +1848,8 @@ func _setup_menu_ui() -> void:
 		alto_panel * MENU_PANEL_INNER.position.y)
 	box.size = Vector2(MENU_PANEL_W * MENU_PANEL_INNER.size.x,
 		alto_panel * MENU_PANEL_INNER.size.y)
-	box.add_theme_constant_override("separation", 14)
+	# con TRES botones (sin el Arcade) el tablon quedaba medio vacio: mas aire
+	box.add_theme_constant_override("separation", 24)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	menu_panel.add_child(box)
 	button_box = box
@@ -1843,23 +1857,23 @@ func _setup_menu_ui() -> void:
 	# (El ANCLA pintada que adornaba el pie del tablón se retiró al entrar el
 	# cuarto pergamino: la Pesca ocupa ahora esa franja.)
 
-	aventura_btn = _make_mode_button("Aventura", "ic_aventura", 96, 42,
+	# JERARQUIA (7-9-2026, patron de todo el mercado movil): UNA accion
+	# principal grande y con brillo —Aventura, en la placa de oro— y los otros
+	# tres modos en pergaminos mas bajos debajo. Con los cuatro iguales, el
+	# ojo no sabia donde ir.
+	aventura_btn = _make_hero_button("Aventura", "ic_aventura",
 		func() -> void: _go_adventure())
 	box.add_child(aventura_btn)
-	var arcade_btn := _make_mode_button("Arcade", "ic_arcade", 96, 42,
-		func() -> void: _go_arcade())
-	box.add_child(arcade_btn)
-	# El Arcade se gana venciendo al jefe del nivel 10: hasta entonces el
-	# botón queda apagado (pulsarlo explica cómo abrirlo).
-	if not GameState.arcade_unlocked():
-		arcade_btn.modulate = Color(0.52, 0.52, 0.52)
-	var fish_btn := _make_mode_button("Pesca", "ic_pesca", 96, 42,
+	# (EL ARCADE SE RETIRO DEL MENU el 7-9-2026, pedido por el usuario: se
+	# retomara cuando esten hechos todos los niveles. El modo sigue entero en
+	# level3d y en el selector; solo no hay boton que lleve a el.)
+	var fish_btn := _make_mode_button("Pesca", "ic_pesca", MODE_BTN_H2, 34,
 		func() -> void: _go_fishing())
 	box.add_child(fish_btn)
 	# La pesca se gana superando el nivel 5: hasta entonces, apagada con aviso.
 	if not GameState.fishing_unlocked():
 		fish_btn.modulate = Color(0.52, 0.52, 0.52)
-	var shop_btn := _make_mode_button("Tienda", "ic_tienda", 96, 42,
+	var shop_btn := _make_mode_button("Tienda", "ic_tienda", MODE_BTN_H2, 34,
 		func() -> void: _go_shop())
 	box.add_child(shop_btn)
 	# La tienda no existe hasta que David presenta a Saverio, al superar el
@@ -1867,7 +1881,7 @@ func _setup_menu_ui() -> void:
 	if not GameState.shop_unlocked():
 		shop_btn.modulate = Color(0.52, 0.52, 0.52)
 	# (Inventario ya no está aquí: vive en el SUBMENÚ de abajo. El menú se
-	# queda con los CUATRO modos: Aventura, Arcade, Pesca y Tienda.)
+	# queda con los TRES modos: Aventura, Pesca y Tienda.)
 
 	_setup_submenu()
 	_setup_resource_bar(GameState.safe_top())
@@ -3057,15 +3071,15 @@ func _setup_submenu() -> void:
 	# Las MAESTRÍAS no tienen icono aquí: su acceso es la BARRA DE NIVEL del
 	# centro del menú (`_setup_level_bar`), que además enseña el progreso.
 	for def in [
-			["ic_logros", func() -> void: _go_achievements()],
-			["ic_recetario", func() -> void: _go_recipes()],
-			["ic_inventario", func() -> void: _go_inventory()],
-			["ic_perfil", func() -> void: _go_profile()],
+			["ic_logros", func() -> void: _go_achievements(), "Logros"],
+			["ic_recetario", func() -> void: _go_recipes(), "Recetario"],
+			["ic_inventario", func() -> void: _go_inventory(), "Colección"],
+			["ic_perfil", func() -> void: _go_profile(), "Perfil"],
 			# LOS BONIFICADORES YA NO ESTÁN AQUÍ (pedido por el usuario): su
 			# acceso vive en el submenú del MAPA, que es donde se usan, y no
 			# aparece hasta tener el primero (`level_select3d.SUBMENU_BOTONES`).
-			["ic_opciones", func() -> void: _go_options()]]:
-		var sub := _make_sub_button(str(def[0]), def[1])
+			["ic_opciones", func() -> void: _go_options(), "Opciones"]]:
+		var sub := _make_sub_button(str(def[0]), def[1], str(def[2]))
 		row.add_child(sub)
 		# GLOBO ROJO sobre Logros: medallas conseguidas y aún sin reclamar.
 		if str(def[0]) == "ic_logros":
@@ -3082,7 +3096,7 @@ func _attach_badge(host: Control, count: int) -> void:
 
 ## Un acceso del submenú: el icono solo, centrado, sin tablón propio (la barra
 ## es el fondo de los cinco).
-func _make_sub_button(icon: String, action: Callable) -> Control:
+func _make_sub_button(icon: String, action: Callable, nombre := "") -> Control:
 	var b := Button.new()
 	b.set_meta("snd", "submenu")
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3093,10 +3107,30 @@ func _make_sub_button(icon: String, action: Callable) -> Control:
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.texture = load("res://assets/ui/%s.png" % icon)
 	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
-	ic.offset_top = 8.0
-	ic.offset_bottom = -8.0
+	ic.offset_top = 4.0
+	# CON ROTULO (7-9-2026): el patron de la barra de navegacion movil es
+	# icono + nombre. Estuvo sin el ("los iconos se explican solos") y un
+	# jugador nuevo tenia que probar los cinco para saber que hacia cada uno.
+	ic.offset_bottom = -30.0 if nombre != "" else -8.0
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(ic)
+	if nombre != "":
+		var l := Label.new()
+		l.text = nombre
+		l.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		l.offset_top = -30.0
+		l.offset_bottom = -6.0
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		l.add_theme_font_size_override("font_size", 16)
+		l.add_theme_color_override("font_color", Color(1.0, 0.93, 0.78))
+		l.add_theme_color_override("font_outline_color", Color(0.13, 0.07, 0.02))
+		l.add_theme_constant_override("outline_size", 6)
+		var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+		if negrita != null:
+			l.add_theme_font_override("font", negrita)
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(l)
 	b.pressed.connect(action)
 	PrepBoard.add_press_feedback(b, 0.9)
 	return b
@@ -3133,10 +3167,88 @@ func _stop_logo_idle() -> void:
 ## MODE_BTN_H, con margen vertical CERO — la regla de los botones con icono).
 ## El icono va PINTADO en el papel (versión a tinta, pequeña) y el rótulo en
 ## tinta oscura con sombra, como escrito a pincel.
+## LA ACCION PRINCIPAL DEL MENU: placa de oro (la misma de "¡Zarpar!"), el
+## icono grande a la izquierda, rotulo en negrita, y el BRILLO y el LATIDO de
+## `UIFx`, que es lo que la senala como el boton que hay que pulsar.
+func _make_hero_button(text: String, icon: String, action: Callable) -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(0, HERO_BTN_H)
+	b.set_meta("snd", "modo")
+	PrepBoard.skin_start_button(b, 0.0)
+	UIFx.brillo(b, 3.4, 0.45)
+	b.pressed.connect(action)
+	# MEDIDAS CONTADAS, no a ojo: el boton mide 332 px de ancho (el hueco del
+	# tablon) y con el icono a 86 y la letra a 46 el rotulo "Aventura" tenia
+	# 166 px para 230 de texto y se salia de la placa (lo vio el usuario).
+	# Icono a 62, rotulo a 38 en negrita (~176 px) y 210 px de hueco.
+	var icon_rect := TextureRect.new()
+	icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon_rect.texture = load("res://assets/ui/%s.png" % icon)
+	icon_rect.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	icon_rect.offset_left = HERO_ICON_X
+	icon_rect.offset_right = HERO_ICON_X + HERO_ICON
+	icon_rect.offset_top = (HERO_BTN_H - HERO_ICON) * 0.5
+	icon_rect.offset_bottom = -(HERO_BTN_H - HERO_ICON) * 0.5
+	icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon_rect.set_meta("sin_brillo", true)
+	b.add_child(icon_rect)
+	var label := Label.new()
+	label.text = text
+	label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	label.offset_left = HERO_ICON_X + HERO_ICON + 4.0
+	label.offset_right = -26.0
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 38)
+	# la letra de la placa: tinta oscura con reborde claro (ver skin_start_button)
+	label.add_theme_color_override("font_color", Color(0.32, 0.16, 0.05))
+	label.add_theme_color_override("font_outline_color", Color(1, 0.93, 0.68))
+	label.add_theme_constant_override("outline_size", 6)
+	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
+	if negrita != null:
+		label.add_theme_font_override("font", negrita)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(label)
+	# EL SUBTITULO DICE A DONDE SE VA (patron del boton PLAY del mercado, que
+	# lleva el nivel en curso): "Escenario 8 · Arrecife del Ron". Es lo que
+	# convierte "Aventura" en una promesa concreta.
+	var destino := last_open_port()
+	var puerto: Dictionary = CampaignData.get_port(destino)
+	if not puerto.is_empty():
+		# El rotulo ocupa la banda de ARRIBA de la placa y el subtitulo la de
+		# abajo, las dos dentro de la cara dorada: la placa lleva un ribete de
+		# ~14 px por cada canto, y el subtitulo, puesto a 12 del borde, se
+		# montaba sobre el ribete (lo vio el usuario).
+		label.offset_top = 20.0
+		label.offset_bottom = -56.0
+		var sub := Label.new()
+		# SOLO EL NUMERO: con el nombre ("Ancladero del Norte") el rotulo media
+		# 300 px y se salia de la placa por la derecha (lo vio el usuario).
+		sub.text = "Escenario %d" % (CampaignData.port_index(destino) + 1)
+		sub.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		sub.offset_left = HERO_ICON_X + HERO_ICON + 4.0
+		sub.offset_right = -26.0
+		sub.offset_top = -64.0
+		sub.offset_bottom = -34.0
+		sub.clip_text = true
+		sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		sub.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		sub.add_theme_font_size_override("font_size", 20)
+		sub.add_theme_color_override("font_color", Color(0.38, 0.20, 0.06))
+		sub.add_theme_color_override("font_outline_color", Color(1, 0.93, 0.68))
+		sub.add_theme_constant_override("outline_size", 5)
+		sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(sub)
+	UIFx.brillo(b, 2.8, 0.8)
+	UIFx.latir(b, 0.035, 1.6)
+	return b
+
+
 func _make_mode_button(text: String, icon: String, _height: int,
 		font_size: int, action: Callable) -> Button:
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(0, MODE_BTN_H)
+	b.custom_minimum_size = Vector2(0, _height)
 	# Los CUATRO pergaminos de modo tienen su propio sonido, distinto del de
 	# los accesos de la barra de abajo (ver `Audio.FAMILIAS`).
 	b.set_meta("snd", "modo")
@@ -3161,9 +3273,9 @@ func _make_mode_button(text: String, icon: String, _height: int,
 	# pergamino, no cabalgando el botón como el emblema de antes.
 	icon_rect.set_anchors_preset(Control.PRESET_LEFT_WIDE)
 	icon_rect.offset_left = MODE_BTN_ROLL + 6.0
-	icon_rect.offset_right = MODE_BTN_ROLL + 6.0 + 54.0
-	icon_rect.offset_top = 17.0
-	icon_rect.offset_bottom = -17.0
+	icon_rect.offset_right = MODE_BTN_ROLL + 6.0 + float(_height) * 0.56
+	icon_rect.offset_top = float(_height) * 0.18
+	icon_rect.offset_bottom = -float(_height) * 0.18
 	icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(icon_rect)
 
@@ -3330,6 +3442,10 @@ func _back_to_menu() -> void:
 	if leaving:
 		return
 	leaving = true
+	# un viaje a un nodo recien tocado se cancela (ver `viaje_gen`) y su ficha
+	# se cierra: no entra en `_map_ui_fade` y se quedaba abierta sobre el menu
+	cancelar_viaje()
+	_cerrar_ficha()
 	_map_ui_fade(false)
 	map_visible = false
 	in_menu = true
@@ -3379,32 +3495,8 @@ func _back_to_menu() -> void:
 		_place_resources(false, true))
 
 
-## ARCADE: el barco se va por la derecha y deja SOLO EL MAR de fondo; el
-## selector de recetas entrará desde arriba.
-func _go_arcade() -> void:
-	if leaving:
-		return
-	if not GameState.arcade_unlocked():
-		_show_locked_notice("El Arcade sin fin se abre al vencer al Kappa\nen %s."
-			% _donde_se_abre(GameState.ARCADE_PORT))
-		return
-	leaving = true
-	_sonar_zarpe()
-	GameState.mode = "test"
-	GameState.current_port = ""
-	GameState.selected_recipes = []
-	_ui_out()
-	_sky_out(0.75)
-	# Se mueve el barco en píxeles de mapa y la cámara se queda quieta: al
-	# final del viaje, en pantalla solo queda el agua.
-	var tw := create_tween()
-	tw.tween_property(self, "ship_px", ship_px + Vector2(OFFSCREEN, 0.0), 0.85) \
-			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	# El cambio de escena va por el fundido del autoload: el velo SOBREVIVE a la
-	# carga, que es lo único que tapa los fotogramas grises del motor.
-	tw.tween_callback(func() -> void:
-		GameState.transition = "arcade"
-		GameState.fade_to_scene("res://scenes/prep_screen.tscn", 0.3, 0.45))
+## (ARCADE: su boton se retiro del menu el 7-9-2026, pedido por el usuario;
+## `_go_arcade` se fue con el. El modo sigue en level3d para cuando vuelva.)
 
 
 ## Aviso de modo bloqueado: pergamino centrado que aparece con un bote, se
@@ -4100,9 +4192,6 @@ func _ver_premio_dia(n: int, padre: Control) -> void:
 			ok.disabled = false)
 	caja.add_child(ok)
 	Audio.ventana(caja)
-	caja.scale = Vector2(0.8, 0.8)
-	caja.create_tween().tween_property(caja, "scale", Vector2.ONE, 0.24) \
-		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func _show_daily_reward(dado: Dictionary, velo: Control, panel: Control,
@@ -4506,6 +4595,18 @@ func _ui_in(con_recursos := true, con_nivel := true) -> void:
 	ui_tween.tween_property(submenu_bar, "position:y", home_sub_y, 0.55) \
 			.set_delay(0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	ui_tween.tween_property(menu_panel, "position:y", home_box_y, 0.6) 			.set_delay(0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	# LOS BOTONES ENTRAN ESCALONADOS con el tablon (UIFx): cada pergamino da
+	# su pop 70 ms despues del anterior, y los accesos de la barra igual.
+	if button_box != null:
+		var i := 0
+		for hijo in button_box.get_children():
+			UIFx.pop_in(hijo, 0.42 + i * 0.07, 0.8, 0.3)
+			i += 1
+	if submenu_bar != null and submenu_bar.get_child_count() > 1:
+		var j := 0
+		for acceso in submenu_bar.get_child(1).get_children():
+			UIFx.pop_in(acceso, 0.3 + j * 0.05, 0.7, 0.28)
+			j += 1
 	if con_recursos:
 		for caja in [ingot_box, money_box, rice_box]:
 			if caja != null:

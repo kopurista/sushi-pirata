@@ -110,10 +110,29 @@ func _rellenar() -> void:
 	# --- LOS ABIERTOS
 	var abiertos: Array = GameState.treasure_open
 	if abiertos.is_empty() and GameState.treasure_maps <= 0:
-		lista.add_child(_rotulo("Todavía no tienes ningún mapa"))
+		# ESTADO VACIO CON DIBUJO (7-9-2026): el mapa enrollado en grande y a
+		# media luz. Un tablon con solo dos frases se leia como una pantalla
+		# rota, y el mercado no deja nunca una pantalla vacia sin su dibujo.
+		var cc := CenterContainer.new()
+		cc.custom_minimum_size = Vector2(0, 250)
+		cc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var dibujo := TextureRect.new()
+		dibujo.texture = load("res://assets/ui/ic_mapa_tesoro.png")
+		dibujo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		dibujo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		dibujo.custom_minimum_size = Vector2(220, 220)
+		dibujo.modulate = Color(1, 1, 1, 0.62)
+		cc.add_child(dibujo)
+		lista.add_child(cc)
+		UIFx.latir(dibujo, 0.03, 2.4)
+		var rot := _rotulo("Todavía no tienes ningún mapa")
+		rot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lista.add_child(rot)
 		var p := _parrafo("Los encontrarás en los cofres de la **pesca**, en "
 			+ "el **bonus diario** y en manos de algún cliente. Cada uno trae "
 			+ "una misión y su recompensa.")
+		# centrado bajo el dibujo (el resto de la lista va a la izquierda)
+		p.text = "[center]" + p.text + "[/center]"
 		lista.add_child(p)
 		return
 	if not abiertos.is_empty():

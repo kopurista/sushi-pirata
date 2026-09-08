@@ -18,10 +18,15 @@ extends RefCounted
 const R_HAT := SceneBackdrop.R_HAT
 const D_HAT := SceneBackdrop.D_HAT
 
-const WOOD := "res://assets/props/madera_muelle.webp"
+## ESTILO LINK'S AWAKENING (7-9-2026): la tarima con los tablones claros de
+## Ludo y los props de Meshy (farola, cajas, barriles, norays) en vez de los
+## low poly de antes, que eran los unicos que quedaban del estilo viejo en la
+## portada (lo vio el usuario).
+const WOOD := "res://assets/props/la_muelle.webp"
 
-## Huella del barco del MENÚ: SHIP_FOOT (2.3) x MENU_SHIP_SCALE (2.75).
-const SHIP_W := 6.3
+## Huella del barco del MENÚ: SHIP_FOOT (2.3) x MENU_SHIP_SCALE (2.2, desde el
+## barco LA; con los 6.3 de antes los cajones salian mas grandes que el barco).
+const SHIP_W := 5.06
 
 ## Muelle: corre a lo ANCHO de la pantalla (eje R_HAT), detrás del barco.
 ## El barco queda amarrado por delante, en el agua.
@@ -54,9 +59,11 @@ static func build(root: Node3D, a: Vector3) -> Node3D:
 
 	# El entarimado va ATENUADO: la madera clara del muelle, a plena luz del
 	# sol del menu (1.15 + ambiente 0.95), salia como una banda BLANCA plana.
-	var tablon := _wood(Vector3(8.0, 3.0, 1.0), Color(0.80, 0.75, 0.68))
-	var piedra := _mat(Color(0.56, 0.54, 0.50))
-	var piedra_osc := _mat(Color(0.44, 0.42, 0.39))
+	# tablones LA: una tabla cada ~1.3 u, sin atenuar (la textura ya viene
+	# tostada y a plena luz del menu sale como en el nivel del puerto)
+	var tablon := _wood(Vector3(PIER_LEN / 1.3, PIER_DEPTH / 1.3, 1.0), Color(1.0, 0.94, 0.82))
+	var piedra := _mat(Color(0.62, 0.60, 0.56))
+	var piedra_osc := _mat(Color(0.48, 0.46, 0.43))
 
 	# Entarimado y zócalo de piedra. Girados 45° para quedar paralelos al
 	# borde de la pantalla con la cámara isométrica: alineados con los ejes
@@ -73,10 +80,10 @@ static func build(root: Node3D, a: Vector3) -> Node3D:
 			+ D_HAT * -(PIER_OFF + PIER_DEPTH * 0.5)
 	_box(port, Vector3(0.9, 1.35, PIER_DEPTH + 0.5),
 		fin + Vector3(0, 0.675, 0), piedra_osc, 45.0)
-	_noray(port, fin + Vector3(0, 1.35, 0))
+	_noray(port, fin + Vector3(0, 1.35, 0), SHIP_W)
 
 	# Pilotes de madera asomando por el canto del agua.
-	var pilote := _wood(Vector3(1.0, 1.0, 1.0), Color(0.78, 0.72, 0.62))
+	var pilote := _wood(Vector3(1.0, 1.0, 1.0), Color(0.62, 0.50, 0.38))
 	var canto := a + D_HAT * -PIER_OFF
 	var r := PIER_MID - PIER_LEN * 0.5 + 1.0
 	while r < PIER_END - 0.4:
@@ -86,7 +93,7 @@ static func build(root: Node3D, a: Vector3) -> Node3D:
 	# Norays sobre el entarimado, cerca del canto.
 	for i in [-4.0, 0.2, 4.4]:
 		_noray(port, a + R_HAT * (PIER_MID + i)
-			+ D_HAT * -(PIER_OFF + 0.55) + Vector3(0, PIER_TOP, 0))
+			+ D_HAT * -(PIER_OFF + 0.55) + Vector3(0, PIER_TOP, 0), SHIP_W)
 
 	# LO QUE SE VE, COLOCADO CONTRA LA PANTALLA, no contra el muelle. En la
 	# portada el logotipo ocupa el centro-arriba (x 150..570 de 720): lo que
@@ -97,11 +104,11 @@ static func build(root: Node3D, a: Vector3) -> Node3D:
 	var deck := PIER_TOP
 
 	# Farola a la IZQUIERDA del logotipo, pegada al borde de la pantalla...
-	_prop(port, "res://assets/models/farola.glb",
+	_prop(port, _la("farola", "farola"),
 		a + R_HAT * -3.3 + D_HAT * -(PIER_OFF + PIER_DEPTH - 0.55)
 		+ Vector3(0, deck, 0), LAMP_H, 45.0)
 	# ...y otra en el machón del FINAL: entra en cuadro durante el zarpe.
-	_prop(port, "res://assets/models/farola.glb",
+	_prop(port, _la("farola", "farola"),
 		a + R_HAT * (PIER_END - 0.6) + D_HAT * -(PIER_OFF + PIER_DEPTH - 0.55)
 		+ Vector3(0, deck, 0), LAMP_H, 45.0)
 
@@ -112,15 +119,33 @@ static func build(root: Node3D, a: Vector3) -> Node3D:
 		[3.8, 1.5, 0.0, CRATE_H * 0.92, -8.0],
 		[5.2, 1.4, 0.0, CRATE_H, 30.0],
 	]:
-		_prop(port, "res://assets/models/caja.glb",
+		_prop(port, _la("caja", "caja"),
 			a + R_HAT * float(s[0]) + D_HAT * -(PIER_OFF + float(s[1]))
 			+ Vector3(0, deck + float(s[2]), 0),
-			float(s[3]), float(s[4]), CAJA_TINTE)
+			float(s[3]), float(s[4]),
+			Color.WHITE if _hay_la("caja") else CAJA_TINTE)
 	for b in [[-3.9, 2.1, 20.0], [3.3, 2.2, -35.0], [4.6, 1.0, 5.0]]:
-		_prop(port, "res://assets/models/barril.glb",
+		_prop(port, _la("barril", "barril"),
 			a + R_HAT * float(b[0]) + D_HAT * -(PIER_OFF + float(b[1]))
 			+ Vector3(0, deck, 0), BARREL_H, float(b[2]))
+	# y una red y un cabo, que son lo que hace muelle de pescadores
+	_prop(port, _la("red", ""), a + R_HAT * 1.2 + D_HAT * -(PIER_OFF + 2.3)
+		+ Vector3(0, deck, 0), SHIP_W * 0.12, 20.0)
+	_prop(port, _la("cuerda", ""), a + R_HAT * -1.6 + D_HAT * -(PIER_OFF + 1.0)
+		+ Vector3(0, deck, 0), SHIP_W * 0.05, 0.0, SceneryLA.CABO)
 	return port
+
+
+## La version LA de un prop si existe (`la_<id>.glb`); si no, la de siempre.
+static func _la(id: String, viejo: String) -> String:
+	var ruta := "res://assets/models/la_%s.glb" % id
+	if ResourceLoader.exists(ruta):
+		return ruta
+	return "res://assets/models/%s.glb" % viejo if viejo != "" else ""
+
+
+static func _hay_la(id: String) -> bool:
+	return ResourceLoader.exists("res://assets/models/la_%s.glb" % id)
 
 
 # ------------------------------------------------------------- constructores
@@ -169,8 +194,12 @@ static func _cyl(port: Node3D, radius: float, h: float, pos: Vector3,
 	port.add_child(mi)
 
 
-## Noray de hierro: bolardo bajo con su tapa, a escala del muelle.
-static func _noray(port: Node3D, pos: Vector3) -> void:
+## Noray de hierro: bolardo bajo con su tapa, a escala del muelle. Con el
+## modelo LA (`la_noray.glb`) va el de Meshy, a escala del barco.
+static func _noray(port: Node3D, pos: Vector3, ship_w := 0.0) -> void:
+	if ship_w > 0.0 and _hay_la("noray"):
+		_prop(port, _la("noray", ""), pos, ship_w * 0.085, 45.0)
+		return
 	var hierro := _mat(Color(0.24, 0.23, 0.26), 0.6)
 	_cyl(port, 0.17, 0.44, pos + Vector3(0, 0.22, 0), hierro)
 	_cyl(port, 0.23, 0.11, pos + Vector3(0, 0.46, 0), hierro)

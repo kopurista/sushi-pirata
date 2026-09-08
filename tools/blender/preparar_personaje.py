@@ -29,7 +29,12 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 _a = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 GLB = os.path.abspath(_a[0])
 DEST = os.path.abspath(_a[1])
-OJOS_JSON = os.path.abspath(_a[2]) if len(_a) > 2 else ""
+# El tercer argumento es el JSON de `quitar_ojos.py`. Con "-" (o sin él) NO se
+# pintan ojos: desde el 3-9-2026 el concepto va CON ojos y Meshy los modela,
+# porque el personaje gesticula con los BRAZOS y la cara no cambia nunca.
+_j = _a[2] if len(_a) > 2 else "-"
+PONER_OJOS = _j != "-"
+OJOS_JSON = os.path.abspath(_j) if PONER_OJOS else ""
 
 # Sitio del ojo, en fracciones del ALTO DE LA CABEZA. Medido sobre el primer
 # plano de la cara despejando contra la proyección de la cámara.
@@ -178,16 +183,18 @@ def lente(signo: float):
     return o
 
 
-ojos = [lente(1.0), lente(-1.0)]
-
-# unir las lentes a la malla (conservan sus grupos de vértices, o sea el skin)
-bpy.ops.object.select_all(action="DESELECT")
-for o in ojos:
-    o.select_set(True)
-malla.select_set(True)
-bpy.context.view_layer.objects.active = malla
-bpy.ops.object.join()
-print("[pir] ojos unidos: %d materiales" % len(malla.data.materials))
+if PONER_OJOS:
+    ojos = [lente(1.0), lente(-1.0)]
+    # unir las lentes a la malla (conservan sus grupos de vértices, o sea el skin)
+    bpy.ops.object.select_all(action="DESELECT")
+    for o in ojos:
+        o.select_set(True)
+    malla.select_set(True)
+    bpy.context.view_layer.objects.active = malla
+    bpy.ops.object.join()
+    print("[pir] ojos unidos: %d materiales" % len(malla.data.materials))
+else:
+    print("[pir] sin ojos que poner: los trae el propio modelo")
 
 # --- huesos al esquema del juego ---------------------------------------------
 ren = 0

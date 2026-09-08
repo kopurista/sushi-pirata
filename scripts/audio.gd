@@ -183,6 +183,9 @@ const FAMILIAS := {
 	# El cliente que PAGA. Va al 85% de velocidad (ver `TONO`).
 	"moneda": [NI_ + "pago.ogg"],
 	"monedas": [IF_ + "Coins - Small Pile - 1.ogg"],
+	# LA COMPRA en la tienda: otro puñado de monedas, distinto del de los
+	# logros (pedido por el usuario: no habia ningun sonido de comprar).
+	"compra": [IF_ + "compra.ogg"],
 	"tesoro": [IF_ + "Coins - Large Pile - 1.ogg"],
 	# El cobro de TODOS los logros de golpe, al 60% de velocidad.
 	"monedas_todo": [IF_ + "monedas_todo.ogg"],
@@ -355,7 +358,7 @@ const VOL := {
 	"sirena_canto": -8.8, "sirena_aviso": -13.4,
 	"guardar": 2.3, "habilidad": 8.4, "levelup": 8.2,
 	"listo": -0.0, "logro": 10.2, "mantener": 18.7,
-	"modo": 5.3, "moneda": -1.8, "monedas": 1.3,
+	"modo": 5.3, "moneda": -1.8, "monedas": 1.3, "compra": -3.4,
 	"monedas_todo": -2.4, "ok": -0.8, "pantalla": 0.6,
 	"perfecto": 8.2, "potenciador": 8.4, "premio": -4.7,
 	"quemado": 7.5, "recurso": -0.8, "recurso_off": -0.8,
@@ -705,6 +708,10 @@ func loops_off() -> void:
 ## `tree_exiting` no hay forma de que a un camino se le olvide el sonido.
 func ventana(nodo: Node, abre := "recurso",
 		cierra := "recurso_off") -> void:
+	# TODA VENTANA EMERGENTE ENTRA CON MOVIMIENTO (7-9-2026, pedido por el
+	# usuario: "aparecen de golpe"). Se engancha aqui porque por aqui pasan
+	# las diecisiete: el velo se funde y su cartel entra con un pop.
+	UIFx.ventana_abre(nodo)
 	if _mudo:
 		return
 	sfx(abre)

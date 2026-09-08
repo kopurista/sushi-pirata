@@ -199,11 +199,30 @@ if mats_pelo:
             for vi in poly.vertices:
                 es_pelo[vi] = True
     barba &= es_pelo
+# Y SI "LA BARBA" SALE ENORME, ES QUE NO HAY BARBA. Sin material de pelo que
+# la acote, la regla geometrica se queda con todo lo que sobresalga por delante
+# del pecho, y en el KAPPA eso es su BARRIGA: 25.678 vertices pegados a la
+# cabeza al 92%, asi que al girarla se le desgarraba el cuerpo entero.
+if barba.sum() > 0.20 * int((V[:, 2] > z_cadera).sum()):
+    print("[rig] 'barba' de %d vertices: demasiada, se descarta" % int(barba.sum()))
+    barba[:] = False
 k_head = np.maximum(k_head, np.where(barba, 0.92, 0.0))
 k_head[de_ropa] = 0.0
 # 3) los brazos no tocan el tronco: solo desde la mitad de su separación
 fuera = suave(np.abs(V[:, 0]), brazo_x * 0.55, brazo_x * 0.85)
 W[:, brazos] *= fuera[:, None]
+# 3b) Y CUANDO EL BRAZO ROZA EL CUERPO, EL LIMITE ES LA DISTANCIA AL HUESO, no
+# la coordenada x. Al KAPPA los brazos le caen pegados al CAPARAZON, que llega
+# al mismo |x|, asi que el filtro de arriba no separa nada y al girar el hombro
+# se llevaba media concha: la malla salia desgarrada. Con BRAZO_R (en unidades
+# del modelo) el hueso solo manda sobre la carne que tiene alrededor.
+BRAZO_R = float(os.environ.get("BRAZO_R", "0"))
+if BRAZO_R > 0:
+    # LA CAIDA VA ANCHA: con la banda estrecha el brazo se separa de golpe de
+    # su vecino y la superficie se DESGARRA en tiras. Ancha, el costado del
+    # cuerpo acompaña un poco al brazo, que es lo que hace un muñeco de vinilo.
+    W[:, brazos] *= 1.0 - suave(D[:, brazos], BRAZO_R * 0.6, BRAZO_R * 2.4)
+    print("[rig] brazos acotados a %.3f del hueso" % BRAZO_R)
 
 # 4) la MANO entera va a su muñeca, sin repartir: es lo que deja girarla sola
 k_mano = np.zeros(len(V), dtype=np.float32)

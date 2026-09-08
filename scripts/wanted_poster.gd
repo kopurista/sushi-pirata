@@ -25,13 +25,6 @@ const PrepBoard := preload("res://scripts/prep_board.gd")
 const SHEET_TEX := "res://assets/ui/wanted_hoja.png"
 const COIN_TEX := "res://assets/ui/wanted_moneda.png"
 const QUILL_TEX := "res://assets/ui/wanted_pluma.png"
-## La MISMA punta de flecha que la caja de diálogo usa para "toca para seguir",
-## y su espejo exacto (lo genera `build_wanted` de tools/ui2_prep.py, igual que
-## ic_mano_der sale de ic_mano_izq).
-const ARROW_R := "res://assets/ui/ic_siguiente.png"
-const ARROW_L := "res://assets/ui/ic_siguiente_esp.png"
-const ARROW_SIZE := Vector2(86, 86)
-
 const TINTA := Color(0.24, 0.15, 0.08)
 
 ## El cartel se monta de DOS maneras:
@@ -48,6 +41,11 @@ const SHEET_RATIO := 806.0 / 600.0
 ## Lo que ocupa el bloque de la mano dominante, debajo de la hoja (con el
 ## rótulo "Zurda"/"Diestra" bajo cada dibujo).
 const HANDS_H := 182.0
+## El bloque de COCINERO / COCINERA, entre la hoja y las manos: rotulo mas el
+## selector segmentado.
+const GENDER_H := 100.0
+const GEN_SEG_W := 340.0
+const GEN_SEG_H := 58.0
 
 
 ## Lo que mide el cartel montado de una manera o de la otra. Las pantallas que
@@ -59,7 +57,7 @@ static func panel_size(con_tablon := true) -> Vector2:
 	var ancho: float = SHEET_W_BOARD if con_tablon else SHEET_W_PLAIN
 	var pad: Vector2 = BOARD_PAD if con_tablon else Vector2.ZERO
 	return Vector2(ancho + pad.x * 2.0,
-		pad.y * 2.0 + ancho * SHEET_RATIO + HANDS_H)
+		pad.y * 2.0 + ancho * SHEET_RATIO + GENDER_H + HANDS_H)
 
 ## Hueco de la FOTO dentro de la hoja, en FRACCIONES de la hoja. Medido sobre
 ## el PNG generado (x 104..546, y 216..505 de 648x864) con el barrido de
@@ -81,9 +79,6 @@ const CAM_BAND := 0.40
 ## la coronilla casi toque el marco, pero NO a cero: el AABB es el del bind y la
 ## pose real puede sacar la cabeza un poco por encima.
 const CAM_AIR := 0.035
-## Lo que se desplaza el modelo al cambiar de personaje, en anchos de encuadre.
-const SLIDE_OUT := 1.15
-const SLIDE_TIME := 0.30
 ## Los modelos ya miran hacia +Z, que es de donde mira la cámara: NO hay que
 ## girarlos. Con los 180º que parecían lo lógico salían de espaldas.
 const MODEL_YAW := 0.0
@@ -100,6 +95,15 @@ const BOUNTY_SEP := "."
 
 var g_draft: String = CharacterData.MALE
 var hand_draft: String = "R"
+## El aspecto del chef en borrador (ver `ChefLook`). Solo se edita en la ficha
+## de tripulación; en el Perfil se enseña el guardado y no hay forma de tocarlo.
+var look_draft: Dictionary = ChefLook.por_defecto()
+var _editor: ChefEditor = null
+var _gender_btns: Array[Button] = []
+## La placa de oro que marca el genero elegido (se desliza entre las dos
+## mitades del selector) y el propio selector.
+var _gen_placa: Control = null
+var _gen_seg: Control = null
 
 var _sheet: TextureRect = null
 var _viewport: SubViewport = null
@@ -109,7 +113,6 @@ var _anim: CharacterAnim = null
 var _t := 0.0
 ## Ancho visible del encuadre, en unidades de mundo (lo deja `_frame_camera`).
 var _frame_w := 1.0
-var _sliding := false
 var _name_edit: LineEdit = null
 var _hands: Array[Button] = []
 var _quill: TextureRect = null
@@ -121,6 +124,7 @@ signal edited
 func _ready() -> void:
 	g_draft = GameState.player_gender
 	hand_draft = GameState.player_hand
+	look_draft = ChefLook.validar(GameState.player_look)
 	custom_minimum_size = panel_size(show_board)
 	size = panel_size(show_board)
 	_build()
@@ -161,6 +165,7 @@ func _build() -> void:
 	_build_photo()
 	_build_name()
 	_build_bounty()
+	_build_gender()
 	_build_hands()
 
 
@@ -205,88 +210,58 @@ func _build_photo() -> void:
 
 	_swap_model()
 
-	# Flechas: la MISMA punta de flecha de la caja de diálogo (`ic_siguiente`) y
-	# su espejo, no un botón de madera. Van sobre los cantos de la foto, sin
-	# tablón detrás, para no taparle la cara al personaje.
-	for der in [false, true]:
-		var b := Button.new()
-		b.custom_minimum_size = ARROW_SIZE
-		b.size = ARROW_SIZE
-		var y := _sheet.position.y + r.position.y + r.size.y * 0.5 \
-				- ARROW_SIZE.y * 0.5
-		var x := _sheet.position.x + r.position.x - ARROW_SIZE.x * 0.62
-		if der:
-			x = _sheet.position.x + r.position.x + r.size.x - ARROW_SIZE.x * 0.38
-		b.position = Vector2(x, y)
-		for st in ["normal", "hover", "pressed", "disabled", "focus"]:
-			b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
-		var ic := TextureRect.new()
-		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		ic.texture = load(ARROW_R if der else ARROW_L)
-		ic.set_anchors_preset(Control.PRESET_FULL_RECT)
-		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		b.add_child(ic)
-		# Hundido al pulsar, como el resto de botones del juego.
-		PrepBoard.add_press_feedback(b, 0.84)
-		b.pressed.connect(func() -> void: _cycle_gender(1 if der else -1))
-		add_child(b)
-
-
-## Cambia de personaje con una transición de CARRUSEL: el que estaba se va por
-## un lado y el nuevo entra por el otro. El recorte sale gratis: el SubViewport
-## solo dibuja lo que cae dentro del marco de la foto, así que el modelo
-## "desaparece por el borde" sin necesidad de máscara ninguna.
-func _cycle_gender(paso: int) -> void:
-	if _sliding or _model_root == null:
+	# LAS FLECHAS DE LOS LADOS SE FUERON con el chef modular: cambiaban de
+	# modelo, y ahora el cuerpo es uno solo y el aspecto se elige en el
+	# PERSONALIZADOR. El genero, que siguen usando los dialogos, va en su
+	# propia fila bajo la recompensa (`_build_gender`).
+	if not editable_name:
 		return
-	var i := CharacterData.PLAYER_GENDERS.find(g_draft)
-	var n: int = CharacterData.PLAYER_GENDERS.size()
-	g_draft = CharacterData.PLAYER_GENDERS[posmod(i + paso, n)]
-	_sliding = true
-
-	var viejo := _model_root
-	# El nuevo se monta CENTRADO (el encuadre se calcula con él en el eje, o la
-	# cámara se iría detrás del desplazamiento) y luego se aparta al lado.
-	_swap_model(false)
-	var salto := _slide_dist()
-	_model_root.position.x = paso * salto
-	viejo.position.x = 0.0
-
-	var tw := create_tween().set_parallel(true)
-	tw.tween_property(viejo, "position:x", -paso * salto, SLIDE_TIME) \
-			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-	tw.tween_property(_model_root, "position:x", 0.0, SLIDE_TIME) \
-			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-	tw.chain().tween_callback(viejo.queue_free)
-	tw.chain().tween_callback(func() -> void: _sliding = false)
-
-	_refresh()
-	edited.emit()
+	# El boton del personalizador, cabalgando el canto de abajo de la foto:
+	# solo en la ficha de tripulacion, que el aspecto no se cambia despues.
+	var b := Button.new()
+	b.text = "Personalizar"
+	b.size = Vector2(236.0, 46.0)
+	b.position = Vector2(
+		_sheet.position.x + r.position.x + (r.size.x - b.size.x) * 0.5,
+		_sheet.position.y + r.position.y + r.size.y - b.size.y * 0.55)
+	PrepBoard.skin_small_button(b)
+	PrepBoard.add_press_feedback(b)
+	b.add_theme_font_size_override("font_size", 24)
+	b.pressed.connect(_abrir_editor)
+	add_child(b)
 
 
-## Lo que hay que apartar un modelo para que salga del encuadre. Sale del ancho
-## visible, que lo deja calculado `_frame_camera`.
-func _slide_dist() -> float:
-	return _frame_w * SLIDE_OUT
+## Abre el PERSONALIZADOR encima del cartel. Va en un CanvasLayer propio, por
+## encima de la capa de la interfaz que lo abre, y a pantalla completa aunque
+## el cartel vaya escalado (en el Perfil lo va).
+func _abrir_editor() -> void:
+	if _editor != null:
+		return
+	var capa := CanvasLayer.new()
+	capa.layer = 125
+	add_child(capa)
+	_editor = ChefEditor.new()
+	_editor.look = look_draft.duplicate()
+	_editor.cerrado.connect(func() -> void:
+		look_draft = ChefLook.validar(_editor.look)
+		_editor = null
+		capa.queue_free()
+		_swap_model()
+		edited.emit())
+	capa.add_child(_editor)
 
 
-## Monta el modelo del género elegido. Con `soltar_viejo` en false NO se lleva
-## por delante el que había: durante el carrusel los dos conviven un momento y
-## del viejo se encarga el tween.
+## Monta el chef con el aspecto en borrador. Con `soltar_viejo` en false NO se
+## lleva por delante el que habia (lo dejo el carrusel de generos, hoy sin uso).
 func _swap_model(soltar_viejo := true) -> void:
 	if _model_root != null and soltar_viejo:
 		_model_root.queue_free()
 	_model_root = null
-	var ruta := CharacterData.model("chef", g_draft)
-	if ruta == "" or not ResourceLoader.exists(ruta):
-		return
-	var esc: PackedScene = load(ruta)
-	if esc == null:
+	if not ResourceLoader.exists(ChefLook.DIR + "chef_cuerpo.glb"):
 		return
 	_model_root = Node3D.new()
 	_viewport.add_child(_model_root)
-	var m: Node3D = esc.instantiate()
+	var m: Node3D = ChefLook.montar(look_draft)
 	m.rotation_degrees = Vector3(0.0, MODEL_YAW, 0.0)
 	_model_root.add_child(m)
 
@@ -312,7 +287,12 @@ func _swap_model(soltar_viejo := true) -> void:
 
 ## Coloca la cámara a partir del AABB REAL del modelo, no a ojo (ver CAM_FOV).
 func _frame_camera() -> void:
-	var caja := _merged_aabb(_model_root)
+	# Por el CUERPO, no por el conjunto: un peinado alto no puede mover el
+	# encuadre de la cara.
+	var medir: Node = _model_root
+	if _model_root.get_child_count() > 0 and _model_root.get_child(0).has_meta("cuerpo"):
+		medir = _model_root.get_child(0).get_meta("cuerpo")
+	var caja := _merged_aabb(medir)
 	if caja.size.y <= 0.0:
 		return
 	var banda: float = caja.size.y * CAM_BAND
@@ -460,7 +440,7 @@ func _build_hands() -> void:
 	titulo.text = "¿Con qué mano empuñas el cuchillo?"
 	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	titulo.position = Vector2(50.0,
-		_sheet.position.y + _sheet.size.y + 4.0)
+		_sheet.position.y + _sheet.size.y + GENDER_H + 4.0)
 	titulo.size = Vector2(size.x - 100.0, 32.0)
 	titulo.add_theme_font_size_override("font_size", 24)
 	titulo.add_theme_color_override("font_color", TINTA)
@@ -512,10 +492,114 @@ func _build_hands() -> void:
 	_refresh()
 
 
+## COCINERO / COCINERA: un SELECTOR SEGMENTADO bajo la hoja —FUERA del
+## cartel de recompensa, como la mano— y no dos palabras sueltas dentro del
+## pergamino. La elegida va sobre una PLACA DE ORO que se DESLIZA de una mitad
+## a la otra; la que no, en letra crema sobre la madera. Antes las dos iban en
+## tinta y la elegida solo se distinguia por un atenuado (dicho por el usuario:
+## "no queda clara cual es la eleccion escogida"). El genero ya no cambia el
+## modelo (el cuerpo es uno), pero los dialogos lo siguen usando.
+func _build_gender() -> void:
+	var titulo := Label.new()
+	titulo.text = "¿Cocinero o cocinera?"
+	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	titulo.position = Vector2(50.0, _sheet.position.y + _sheet.size.y + 4.0)
+	titulo.size = Vector2(size.x - 100.0, 32.0)
+	titulo.add_theme_font_size_override("font_size", 24)
+	titulo.add_theme_color_override("font_color", TINTA)
+	titulo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(titulo)
+
+	var seg := Control.new()
+	seg.size = Vector2(GEN_SEG_W, GEN_SEG_H)
+	seg.position = Vector2((size.x - GEN_SEG_W) * 0.5, titulo.position.y + 36.0)
+	add_child(seg)
+	_gen_seg = seg
+	# El carril: el tablon de madera de siempre, con el margen del 9-slice
+	# encogido a su alto (la misma regla que `skin_button`).
+	var carril := PrepBoard.make_nine_patch(PrepBoard.BUTTON_TEX, PrepBoard.BUTTON_MARGIN)
+	var m := int(GEN_SEG_H * 0.44)
+	for np in [carril]:
+		np.patch_margin_left = m
+		np.patch_margin_top = m
+		np.patch_margin_right = m
+		np.patch_margin_bottom = m
+	seg.add_child(carril)
+	# La placa de oro (la de "¡Zarpar!"), UN solo nodo que viaja a la mitad
+	# elegida: asi el cambio se ve como un deslizamiento y no como dos
+	# botones que se encienden y se apagan.
+	var placa := PrepBoard.make_nine_patch(PrepBoard.START_TEX, PrepBoard.START_MARGIN)
+	placa.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	# LOS MARGENES ANTES QUE LA TALLA: el minimo de un NinePatchRect es la
+	# suma de sus margenes, y con los 54 de fabrica una placa de 48 de alto
+	# se quedaba en 108 (medido: salia el doble de alta y pisaba las manos).
+	var mp := int((GEN_SEG_H - 10.0) * 0.44)
+	placa.patch_margin_left = mp
+	placa.patch_margin_top = mp
+	placa.patch_margin_right = mp
+	placa.patch_margin_bottom = mp
+	placa.position = Vector2(5.0, 5.0)
+	placa.size = Vector2(GEN_SEG_W * 0.5 - 10.0, GEN_SEG_H - 10.0)
+	seg.add_child(placa)
+	_gen_placa = placa
+	var gorda := load("res://fonts/static/Exo2-Bold.ttf")
+	var i := 0
+	for g in CharacterData.PLAYER_GENDERS:
+		var b := Button.new()
+		b.text = str(CharacterData.GENDER_TITLES.get(g, g))
+		b.position = Vector2(GEN_SEG_W * 0.5 * i, 0.0)
+		b.size = Vector2(GEN_SEG_W * 0.5, GEN_SEG_H)
+		b.set_meta("g", g)
+		for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+			b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+		b.add_theme_font_size_override("font_size", 25)
+		b.add_theme_constant_override("outline_size", 6)
+		if gorda != null:
+			b.add_theme_font_override("font", gorda)
+		b.pressed.connect(func() -> void:
+			if g_draft == str(g):
+				return
+			g_draft = str(g)
+			_refresh()
+			edited.emit())
+		_gender_btns.append(b)
+		seg.add_child(b)
+		i += 1
+	_refresh_genero(false)
+
+
+## Coloca la placa bajo el genero elegido y pinta cada rotulo segun le toque:
+## tinta oscura sobre el oro, crema sobre la madera.
+func _refresh_genero(animar := true) -> void:
+	if _gen_placa == null:
+		return
+	var i := CharacterData.PLAYER_GENDERS.find(g_draft)
+	if i < 0:
+		i = 0
+	var destino := Vector2(5.0 + GEN_SEG_W * 0.5 * i, 5.0)
+	if animar:
+		var tw := _gen_placa.create_tween()
+		tw.tween_property(_gen_placa, "position", destino, 0.22) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	else:
+		_gen_placa.position = destino
+	for b in _gender_btns:
+		var elegido: bool = b.get_meta("g") == g_draft
+		for col in ["font_color", "font_pressed_color", "font_hover_color",
+				"font_focus_color", "font_hover_pressed_color"]:
+			b.add_theme_color_override(col,
+				Color(0.32, 0.16, 0.05) if elegido else Color(1.0, 0.95, 0.84))
+		b.add_theme_color_override("font_outline_color",
+			Color(1.0, 0.93, 0.68) if elegido else Color(0.30, 0.17, 0.07))
+		if elegido and animar:
+			UIFx.bump(b, 1.10, 0.24)
+
+
 func _refresh() -> void:
 	for b in _hands:
 		b.modulate = Color.WHITE if b.get_meta("h") == hand_draft \
 				else Color(0.5, 0.5, 0.52)
+	_refresh_genero()
 
 
 ## ¿Está el cartel relleno? (el nombre es lo único que puede faltar).
@@ -534,10 +618,14 @@ func aplicar() -> void:
 		GameState.player_name = nombre()
 	GameState.player_gender = g_draft
 	GameState.player_hand = hand_draft
+	# El aspecto solo se fija en la ficha de tripulacion; despues no se toca.
+	if editable_name:
+		GameState.player_look = ChefLook.validar(look_draft)
 
 
 ## ¿Hay algo distinto de lo que ya está guardado? (Opciones lo usa para saber
 ## si "Aplicar cambios" tiene que estar encendido.)
 func hay_cambios() -> bool:
 	return g_draft != GameState.player_gender \
-			or hand_draft != GameState.player_hand
+			or hand_draft != GameState.player_hand \
+			or (editable_name and look_draft != ChefLook.validar(GameState.player_look))

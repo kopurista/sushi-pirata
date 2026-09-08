@@ -79,7 +79,11 @@ const MIN_LIMB_FRAC := 0.15
 ## media carne del cuerpo: el KAPPA (27%) salia con una cuna verde enorme
 ## detras, tanto andando como sentado. Un rig asi conserva sus piernas como se
 ## modelaron y anda solo con el vaiven del cuerpo y los brazos.
-const MIN_LEG_FRAC := 0.32
+## BAJADO DE 0.32 A 0.18 con el reparto de figuritas (5-9-2026): sus piernas
+## miden del 21% al 38% del alto —son cabezones a proposito— y con el liston
+## viejo la mitad del reparto se quedaba sin andar y sin sentarse. El liston
+## sigue existiendo por el Kappa (15.6%), que si se desfigura al doblarlas.
+const MIN_LEG_FRAC := 0.18
 const ARM_SWING := 22.0       ## balanceo de hombro (opuesto a su pierna)
 const ELBOW_BEND := 16.0      ## flexion fija de codo, da naturalidad
 ## La clavicula mueve el hombro entero, no solo el brazo: acompaña al brazo
@@ -158,10 +162,16 @@ const LOOK_DOWN_F := 0.80
 
 var _skel: Skeleton3D
 var _idx := {}                ## nombre de hueso -> indice, solo los existentes
+## Orientacion GLOBAL DE REPOSO de cada hueso (ver _rotate_bone).
+var _grest := {}
 var _legs := {}               ## "L"/"R" -> geometria de reposo de esa pierna
 var _fingers := {}            ## "L"/"R" -> indices de los huesos de los dedos
 
 # Medidas de ESTE personaje, sacadas de su esqueleto en _measure().
+## Duracion del ciclo de marcha DE ESTE RIG. Sale de WALK_PERIOD, y el cliente
+## la ACORTA cuando las piernas son tan cortas que el paso natural no llega a
+## la velocidad minima (ver client3d.MIN_WALK_SPEED): las figuritas trotan.
+var walk_period := WALK_PERIOD
 var _leg_len := 1.0           ## muslo + espinilla
 var legs_ok := true           ## si las piernas se pueden animar (ver arriba)
 var _arm_len := 1.0           ## brazo + antebrazo
@@ -178,6 +188,14 @@ var grab_clearance := 0.0
 ## Grados que hay que recoger el brazo de ESTE personaje para dejarlo a
 ## IDLE_ARM_SPREAD del costado (0 si ya lo tiene pegado).
 var arm_tuck := 0.0
+## RECORRIDO DE LOS BRAZOS (0..1): multiplica CUALQUIER giro de hombro, codo y
+## muñeca, los de angulo fijo y los de la IK. Existe por el KAPPA: su rig (el
+## de Blender, `riggear.py`) reparte el peso del brazo con el caparazon en una
+## banda ancha —hace falta, o la malla se desgarra en tiras— y con un giro
+## entero el brazo se ESTIRA en una lamina verde. A media amplitud el desgarro
+## no se ve y el gesto se sigue leyendo. Lo pone quien monta al personaje.
+var arm_range := 1.0
+var _arm_bones := {}          ## indices de los huesos de brazo (para arm_range)
 ## Si los huesos del brazo forman un brazo de verdad (ver _measure).
 var arms_ok := false
 
@@ -186,6 +204,7 @@ func _init(skeleton: Skeleton3D) -> void:
 	_skel = skeleton
 	for i in _skel.get_bone_count():
 		_idx[_skel.get_bone_name(i)] = i
+		_grest[i] = _skel.get_bone_global_rest(i).basis.get_rotation_quaternion()
 	# El auto-rig NO siempre nombra los huesos: de cinco personajes solo uno
 	# salio con nombres anatomicos y el resto con bone_0, bone_1... Asi que la
 	# anatomia se deduce de la FORMA del esqueleto y se registra bajo los
@@ -195,6 +214,10 @@ func _init(skeleton: Skeleton3D) -> void:
 	for side in ["L", "R"]:
 		_cache_leg(side)
 		_cache_fingers(side)
+		for n in ["Clavicle", "Collar", "Shoulder", "Elbow", "Wrist"]:
+			var k := "%s_%s" % [side, n]
+			if _idx.has(k):
+				_arm_bones[_idx[k]] = true
 	_measure()
 
 
@@ -311,7 +334,7 @@ func bone(logical_name: String) -> int:
 
 ## Ciclo de marcha. `t` es tiempo en segundos; el ciclo se repite solo.
 func walk(t: float) -> void:
-	var cycle := fmod(t / WALK_PERIOD, 1.0)
+	var cycle := fmod(t / walk_period, 1.0)
 	var bob := _bob_rig(cycle)
 	# Las dos piernas hacen lo mismo con media vuelta de diferencia.
 	_leg(&"L", cycle, bob)
@@ -335,7 +358,7 @@ func walk(t: float) -> void:
 ## Desplazamiento vertical del cuerpo durante la marcha, en unidades de mundo.
 ## Lo aplica quien llama, sobre el pivote del personaje.
 func walk_bob(t: float, model_scale: float) -> float:
-	return _bob_rig(fmod(t / WALK_PERIOD, 1.0)) * model_scale
+	return _bob_rig(fmod(t / walk_period, 1.0)) * model_scale
 
 
 ## Velocidad de avance en unidades de mundo por segundo. Sale del propio paso:
@@ -343,7 +366,7 @@ func walk_bob(t: float, model_scale: float) -> float:
 ## que avanzar exactamente eso en ese tiempo. Con esta velocidad el pie que pisa
 ## queda CLAVADO en el suelo; con cualquier otra, resbala.
 func ground_speed(model_scale: float) -> float:
-	return stride * model_scale / (STANCE_FRAC * WALK_PERIOD)
+	return stride * model_scale / (STANCE_FRAC * walk_period)
 
 
 ## Distancia recorrida desde t=0, en unidades de mundo.
@@ -480,12 +503,20 @@ func bite(t: float) -> void:
 ## distancia total queda en ~0.9 brazos: cerca de la extension completa la IK
 ## del codo se vuelve inestable (misma leccion que la rodilla al andar).
 const CHEF_WORK := Vector3(0.24, -0.32, 0.78)
+## EL PUNTO DE TRABAJO PUEDE VENIR DE FUERA, en espacio del esqueleto y para
+## la mano DERECHA (la izquierda lo espeja en X): con los brazos de figurita
+## (un 22% del alto) las fracciones de brazo de CHEF_WORK dejaban las manos
+## pegadas al pecho, lejos de la mesa. level3d lo calcula desde la MESA real.
+var chef_work_override := Vector3.ZERO
 const CHEF_LEAN := 5.0        ## inclinacion del tronco al trabajar
 const CHEF_LOOK := 12.0       ## el cuello baja: mira lo que hace
 
 
 func _chef_work(side: String) -> Vector3:
 	var m := 1.0 if side == "L" else -1.0
+	if chef_work_override != Vector3.ZERO:
+		return Vector3(-m * chef_work_override.x, chef_work_override.y,
+			chef_work_override.z)
 	var sh := _rest(_idx["%s_Shoulder" % side])
 	return Vector3(m * CHEF_WORK.x * _arm_len, sh.y + CHEF_WORK.y * _arm_len,
 		sh.z + CHEF_WORK.z * _arm_len)
@@ -608,28 +639,159 @@ func sit_idle(t: float) -> void:
 ## mientras dice esa frase, y va ENCIMA de `idle`. Un modelo no tiene los doce
 ## gestos de un dibujo; tiene cinco o seis posturas, y lo que las distingue de
 ## verdad es hacia dónde mira la cabeza y cuánto se echa el tronco.
-func gesto(mood: String, t: float) -> void:
+func gesto(mood: String, t: float, hacia := 1.0) -> void:
 	match mood:
 		"hablando", "explicando", "loro":
 			_pitch("Head", 1.5 + 1.2 * sin(t * 1.7))
-		"feliz", "riendo":
+		"feliz":
 			_pitch("Head", -5.0 + 1.6 * sin(t * 8.0))
 			_roll("Head", 5.0)
 			_pitch("Spine1", -2.5)
+			_bote(0.010 * absf(sin(t * 5.0)))
+		"riendo":
+			# LA RISA (pedido por el usuario para David): se echa hacia atras
+			# y el CUERPO ENTERO sube y baja a golpes de carcajada, con los
+			# hombros subiendo en cada una y la cabeza atras.
+			var golpe := absf(sin(t * 7.0))
+			_pitch("Spine1", -8.0 - 3.0 * golpe)
+			_pitch("Spine2", -4.0)
+			_pitch("Head", -12.0 + 5.0 * golpe)
+			_roll("Head", 3.0 * sin(t * 3.7))
+			_encoger(9.0 * golpe)
+			_bote(0.035 * golpe)
 		"sorprendido", "loro_sorpresa", "mira_loro":
-			_pitch("Head", -8.0)
-			_pitch("Spine1", -3.5)
-		"enfadado", "furioso", "colerico", "gritando", "loro_grito", "punal":
-			_pitch("Head", 6.0)
-			_pitch("Spine1", 4.5)
+			# se echa atras de golpe y las dos manos suben, abiertas
+			_pitch("Head", -9.0)
+			_pitch("Spine1", -6.0)
+			# las manos suben junto a las mejillas, no por encima de la cabeza:
+			# en el busto del dialogo, mas altas se salian del marco y quedaban
+			# dos bolas sueltas en las esquinas
+			_mano_a_la_mejilla(t, hacia)
+		"enfadado", "furioso", "colerico", "gritando", "loro_grito":
+			# se echa hacia delante, y el puño derecho en alto se agita
+			_pitch("Head", 6.0 + 2.0 * sin(t * 9.0))
+			_pitch("Spine1", 6.0)
 			_yaw("Head", 2.0 * sin(t * 6.0))
-		"triste", "callado", "dormido", "loro_resignado":
-			_pitch("Head", 8.0)
+			_puno_en_alto(t, hacia)
+		"triste", "callado", "loro_resignado":
+			# cabizbajo y con los hombros caidos, respirando despacio
+			_pitch("Head", 9.0 + 1.0 * sin(t * 1.1))
 			_roll("Head", 4.0)
-			_pitch("Spine1", 3.0)
+			_pitch("Spine1", 4.0)
+			_encoger(-5.0)
+		"dormido":
+			_pitch("Head", 14.0 + 2.0 * sin(t * 0.9))
+			_pitch("Spine1", 5.0)
+			_bote(0.006 * sin(t * 0.9))
 		"cantando":
 			_pitch("Head", -10.0)
 			_roll("Head", 5.0 * sin(t * 2.0))
+			_yaw("Spine1", 4.0 * sin(t * 1.3))
+			_bote(0.010 * sin(t * 2.0))
+		"guason":
+			# ladea la cabeza hacia el otro, socarron
+			_roll("Head", 8.0 * hacia)
+			_yaw("Head", 6.0 * hacia)
+			_pitch("Spine1", -2.0)
+		"punal":
+			punalada(t, hacia)
+
+
+## LA PUÑALADA DE PABLO (pedido por el usuario): la mano del puñal —la
+## IZQUIERDA, que es donde lo lleva— sale disparada hacia el otro personaje
+## (`hacia`: +1 si esta a la derecha, -1 a la izquierda) y vuelve, una y otra
+## vez, con el cuerpo lanzandose detras y girando hacia el. Sale rapido y
+## vuelve despacio, que es lo que se lee como un intento y no como un vaiven.
+func punalada(t: float, hacia := 1.0) -> void:
+	var u := fmod(t * 1.5, 1.0)
+	var k := smoothstep(0.0, 1.0, minf(u / 0.22, 1.0)) * (1.0 - smoothstep(0.55, 1.0, u))
+	_pitch("Spine1", 9.0 * k)
+	_yaw("Spine1", -14.0 * hacia * k)
+	_pitch("Head", 4.0 * k)
+	_yaw("Head", -8.0 * hacia * k)
+	_bote(-0.012 * k)
+	if not arms_ok or not _idx.has("L_Shoulder"):
+		return
+	var sh := _rest(_idx["L_Shoulder"])
+	# armado: la mano junto al pecho; estocada: CRUZANDO EL PECHO hacia el
+	# otro, a su altura. Estuvo hacia arriba y adelante (0.30 / 0.95) y con
+	# un brazo del 9% del alto la mano se quedaba junto a la cara con la hoja
+	# apuntando al cielo (medido en captura): la estocada se lee cuando la
+	# hoja apunta AL OTRO, o sea de lado.
+	# Y a la altura del HOMBRO (y 0.28): a la del pecho la mano se salia por
+	# debajo del encuadre de busto y del puñal solo asomaba la punta.
+	var armado := sh + Vector3(0.10 * _arm_len, 0.05 * _arm_len, 0.45 * _arm_len)
+	var estocada := sh + Vector3(0.95 * hacia * _arm_len, 0.28 * _arm_len, 0.40 * _arm_len)
+	var mano := armado.lerp(estocada, k)
+	_arm_ik("L", mano, mano + Vector3(hacia, 0.1, 0.8) * _arm_len)
+
+
+## SORPRESA: una sola mano (la del lado del otro) sube a la mejilla, con el
+## codo por delante del pecho —asi se ve el brazo que la sostiene—, y la otra
+## se abre un poco hacia fuera. Las dos manos a la vez, delante del pecho,
+## salian como dos bolas pegadas a la barba (medido en captura).
+func _mano_a_la_mejilla(t: float, hacia := 1.0) -> void:
+	var side := "L" if hacia > 0.0 else "R"
+	var otro := "R" if hacia > 0.0 else "L"
+	if not arms_ok or not _idx.has("%s_Shoulder" % side):
+		return
+	var m := 1.0 if side == "L" else -1.0
+	var sh := _rest(_idx["%s_Shoulder" % side])
+	var tiembla := 0.03 * sin(t * 9.0)
+	var mejilla := sh + Vector3((0.05 * m) * _arm_len, (0.55 + tiembla) * _arm_len,
+		0.62 * _arm_len)
+	_arm_ik(side, mejilla, mejilla + Vector3(0.2 * m, 0.2, 1.0) * _arm_len)
+	if _idx.has("%s_Shoulder" % otro):
+		var mo := -m
+		var sh2 := _rest(_idx["%s_Shoulder" % otro])
+		var fuera := sh2 + Vector3(0.55 * mo * _arm_len, -0.35 * _arm_len, 0.40 * _arm_len)
+		_arm_ik(otro, fuera, fuera + Vector3(0.5 * mo, 0.0, 1.0) * _arm_len)
+
+
+## Las dos manos suben, abiertas, DELANTE del pecho (sorpresa). A los lados
+## de la cabeza (alto 0.40, fuera 0.16) salian como dos bolas sueltas junto a
+## las orejas, con el brazo escondido tras el cabezon: en estas figuritas la
+## mano solo se lee como mano cuando se ve el brazo que la sostiene.
+func _manos_arriba(alto: float, fuera: float, k := 1.0, delante := 0.35) -> void:
+	if not arms_ok or not _idx.has("L_Shoulder") or not _idx.has("R_Shoulder"):
+		return
+	for side in ["L", "R"]:
+		var m := 1.0 if side == "L" else -1.0
+		var sh := _rest(_idx["%s_Shoulder" % side])
+		var arriba := sh + Vector3(m * fuera * _arm_len, alto * _arm_len, delante * _arm_len)
+		var desde := _rest(_idx["%s_Wrist" % side])
+		_arm_ik(side, desde.lerp(arriba, k), arriba)
+
+
+## El puño en alto, agitandose (enfado). Va con el brazo del lado del OTRO
+## (`hacia`) y DELANTE del pecho: con el derecho y hacia arriba salia una bola
+## suelta por fuera de la cabeza, en el canto del retrato, y el brazo que la
+## sostenia quedaba escondido.
+func _puno_en_alto(t: float, hacia := 1.0) -> void:
+	var side := "L" if hacia > 0.0 else "R"
+	if not arms_ok or not _idx.has("%s_Shoulder" % side):
+		return
+	var sh := _rest(_idx["%s_Shoulder" % side])
+	var agita := sin(t * 11.0)
+	var puno := sh + Vector3((0.20 + 0.08 * agita) * hacia * _arm_len,
+		(0.32 + 0.06 * agita) * _arm_len, 0.80 * _arm_len)
+	_arm_ik(side, puno, puno + Vector3(0.0, 0.4, 1.0) * _arm_len)
+
+
+## Sube (positivo) o deja caer (negativo) los dos hombros, en grados.
+func _encoger(deg: float) -> void:
+	_roll("L_Clavicle", deg)
+	_roll("R_Clavicle", -deg)
+
+
+## Desplaza el cuerpo ENTERO en vertical (fraccion del alto del rig): el
+## bote de la risa, el saltito de la alegria. Va por la POSICION del hueso
+## raiz, que arrastra a todos los demas.
+func _bote(dy: float) -> void:
+	var i: int = _idx.get("Pelvis", -1)
+	if i < 0:
+		return
+	_skel.set_bone_pose_position(i, _skel.get_bone_pose_position(i) + Vector3(0.0, dy, 0.0))
 
 
 ## MOVIMIENTO DE HABLA: se suma a la postura del humor MIENTRAS el personaje
@@ -686,6 +848,91 @@ func embobado(t: float) -> void:
 	_pitch("Head", -7.0)
 
 
+# --- GESTOS DE SITUACION (5-9-2026) -------------------------------------------
+## Lo que un cliente hace ademas de esperar, comer y andar. Todos reciben `k`
+## (0..1), la fuerza con la que se aplican, y quien llama la FUNDE en los dos
+## sentidos: con un corte en seco los brazos saltan de la falda a la cara en
+## un fotograma. Los brazos van por la IK (que SUSTITUYE la pose del brazo, asi
+## que el objetivo se interpola entre el sitio de reposo y el del gesto); la
+## cabeza y el tronco ACUMULAN sobre la pose de debajo, escalados por `k`.
+
+## IMPACIENTE: sentado, con los brazos CRUZADOS sobre el pecho, mirando a un
+## lado y a otro en busca del cocinero y dando golpecitos con el pie. Va
+## despues de `sit_idle`, y su fuerza la sube quien llama segun la barra baja.
+func impaciente(t: float, k := 1.0) -> void:
+	if k <= 0.001:
+		return
+	if arms_ok and _idx.has("R_Shoulder"):
+		var sh := _rest(_idx["R_Shoulder"])
+		var pecho := Vector3(0.0, sh.y - 0.45 * _arm_len, sh.z + 0.60 * _arm_len)
+		# la izquierda (+X) cruza a la derecha, y la derecha va encima
+		var cruz_l := pecho + Vector3(-0.30 * _arm_len, 0.0, 0.0)
+		var cruz_r := pecho + Vector3(0.30 * _arm_len, 0.06 * _arm_len, 0.05 * _arm_len)
+		var lap_r := Vector3(-hand_lap.x, hand_lap.y, hand_lap.z)
+		_arm_ik("L", hand_lap.lerp(cruz_l, k), pecho)
+		_arm_ik("R", lap_r.lerp(cruz_r, k), pecho)
+	_yaw("Head", (26.0 * sin(t * 1.15) + 6.0) * k)
+	_pitch("Head", 3.0 * k)
+	_pitch("Spine1", -3.5 * k)
+	_pitch("R_Ankle", 14.0 * maxf(0.0, sin(t * 7.0)) * k)
+
+
+## SALUDO: la mano derecha arriba, agitandola. `sentado` decide de donde parte
+## la mano (de la falda o de colgar al costado).
+func saludo(t: float, k := 1.0, sentado := true) -> void:
+	if k <= 0.001 or not arms_ok or not _idx.has("R_Shoulder"):
+		return
+	var sh := _rest(_idx["R_Shoulder"])
+	var arriba := sh + Vector3(-0.30 * _arm_len + 0.25 * _arm_len * sin(t * 10.0),
+		0.85 * _arm_len, 0.30 * _arm_len)
+	var desde := Vector3(-hand_lap.x, hand_lap.y, hand_lap.z) if sentado \
+		else _rest(_idx["R_Wrist"])
+	_arm_ik("R", desde.lerp(arriba, k), arriba)
+	_roll("Head", -6.0 * k)
+	_pitch("Head", -4.0 * k)
+
+
+## CONTENTO: los dos brazos arriba con un botecito y la cabeza echada atras.
+## Sentado (va tras `sit_idle`): es la alegria de un plato que gusto.
+func contento(t: float, k := 1.0) -> void:
+	if k <= 0.001:
+		return
+	if arms_ok and _idx.has("L_Shoulder") and _idx.has("R_Shoulder"):
+		var sh_l := _rest(_idx["L_Shoulder"])
+		var sh_r := _rest(_idx["R_Shoulder"])
+		var bote := 0.12 * _arm_len * sin(t * 12.0)
+		var up_l := sh_l + Vector3(0.45 * _arm_len, 0.70 * _arm_len + bote, 0.35 * _arm_len)
+		var up_r := sh_r + Vector3(-0.45 * _arm_len, 0.70 * _arm_len + bote, 0.35 * _arm_len)
+		var lap_r := Vector3(-hand_lap.x, hand_lap.y, hand_lap.z)
+		_arm_ik("L", hand_lap.lerp(up_l, k), up_l)
+		_arm_ik("R", lap_r.lerp(up_r, k), up_r)
+	_pitch("Head", -8.0 * k)
+	_pitch("Spine1", -3.0 * k)
+	_roll("Head", 4.0 * sin(t * 6.0) * k)
+
+
+## NEGAR: la cabeza dice que no (el plato que pasa de largo). Sobre cualquier
+## pose.
+func negar(t: float, k := 1.0) -> void:
+	if k <= 0.001:
+		return
+	_yaw("Head", 16.0 * sin(t * 11.0) * k)
+	_pitch("Head", 2.0 * k)
+
+
+## ENFADADO ANDANDO: el que se va sin haber probado bocado sale cabizbajo,
+## encogido de hombros y meneando la cabeza. Sustituye a `walk`.
+func walk_enfadado(t: float, k := 1.0) -> void:
+	walk(t)
+	if k <= 0.001:
+		return
+	_pitch("Head", 9.0 * k)
+	_yaw("Head", 14.0 * sin(t * 6.5) * k)
+	_pitch("Spine1", 5.0 * k)
+	for side in ["L", "R"]:
+		_pitch("%s_Clavicle" % side, -6.0 * k)
+
+
 ## Coloca la MANO de ese brazo sobre un punto del espacio del esqueleto,
 ## resolviendo hombro y codo. Es el mismo problema de dos huesos que la
 ## pierna, pero en el espacio: la pierna solo cabecea, mientras que el brazo
@@ -698,61 +945,88 @@ func _arm_ik(side: String, target: Vector3, focus: Vector3) -> void:
 	for n in names:
 		if not _idx.has(n):
 			return
-	var sh := _skel.get_bone_global_rest(_idx[names[0]]).origin
-	var el := _skel.get_bone_global_rest(_idx[names[1]]).origin
-	var wr := _skel.get_bone_global_rest(_idx[names[2]]).origin
+	var i_sh: int = _idx[names[0]]
+	var i_el: int = _idx[names[1]]
+	var i_wr: int = _idx[names[2]]
+	var sh := _skel.get_bone_global_rest(i_sh).origin
+	var el := _skel.get_bone_global_rest(i_el).origin
+	var wr := _skel.get_bone_global_rest(i_wr).origin
 	var l1 := sh.distance_to(el)
 	var l2 := el.distance_to(wr)
-
-	var to_target := target - sh
-	var d: float = clampf(to_target.length(), absf(l1 - l2) + 0.01, l1 + l2 - 0.005)
-	# Cuanto hay que doblar el codo respecto a tenerlo estirado, para que el
-	# brazo mida justo lo que hay hasta el objetivo.
-	var bend := acos(clampf((d * d - l1 * l1 - l2 * l2) / (2.0 * l1 * l2), -1.0, 1.0))
-	# El codo dobla hacia delante: en este rig eso es girar en X negativo.
-	var elbow_rot := Quaternion(Vector3(1, 0, 0), -bend)
-	_skel.set_bone_pose_rotation(_idx[names[1]],
-		_skel.get_bone_rest(_idx[names[1]]).basis.get_rotation_quaternion() * elbow_rot)
-
-	# Con el codo ya doblado, se gira el hombro para que la muñeca caiga
-	# encima del objetivo.
-	var wrist_bent := (el - sh) + elbow_rot * (wr - el)
-	var aim := Quaternion(wrist_bent.normalized(), to_target.normalized())
-
-	# Aim deja libre el giro del brazo ALREDEDOR del eje hombro-mano, y por su
-	# cuenta lo resuelve por el camino corto, que manda el codo hacia dentro
-	# del cuerpo. Aqui se fija a donde tiene que apuntar el codo: hacia fuera
-	# y hacia abajo, como en un brazo humano. Girar sobre ese eje no mueve la
-	# mano, asi que el objetivo se sigue cumpliendo.
-	var axis := to_target.normalized()
-	var out := 1.0 if side == "L" else -1.0
-	var pole := (Vector3(out * ELBOW_OUT, -1.0, ELBOW_FWD)).normalized()
-	var elbow_now := (aim * (el - sh))
-	var cur := (elbow_now - axis * elbow_now.dot(axis))
-	var want := (pole - axis * pole.dot(axis))
-	if cur.length() > 0.0001 and want.length() > 0.0001:
-		cur = cur.normalized()
-		want = want.normalized()
-		var ang := atan2(cur.cross(want).dot(axis), cur.dot(want))
-		aim = Quaternion(axis, ang) * aim
-
-	_skel.set_bone_pose_rotation(_idx[names[0]],
-		_skel.get_bone_rest(_idx[names[0]]).basis.get_rotation_quaternion() * aim)
-
-	# La muñeca no se deja como la deje el brazo: se orienta para que los dedos
-	# miren al punto indicado. Si no, la mano conserva la orientacion de brazo
-	# colgando y llega de lado a la boca.
-	var wrist_i: int = _idx[names[2]]
-	var elbow_q := _skel.get_bone_global_pose(_idx[names[1]]).basis \
-		.orthonormalized().get_rotation_quaternion()
-	var wrist_pos := _skel.get_bone_global_pose(wrist_i).origin
-	var look := focus - wrist_pos
-	if look.length() < 0.001:
-		_skel.set_bone_pose_rotation(wrist_i, elbow_q.inverse())
+	if l1 < 0.0001 or l2 < 0.0001:
 		return
-	# En reposo los dedos salen de la muñeca hacia abajo (-Y).
-	var hand_aim := Quaternion(Vector3(0, -1, 0), look.normalized())
-	_skel.set_bone_pose_rotation(wrist_i, elbow_q.inverse() * hand_aim)
+	# El hombro se mide DONDE ESTA AHORA (el tronco respira y se inclina al
+	# sentarse) y el objetivo va en espacio del esqueleto: la mano llega al
+	# mismo punto aunque el pecho se haya movido.
+	var sh_now := _skel.get_bone_global_pose(i_sh).origin
+	var to_target := target - sh_now
+	if to_target.length() < 0.0001:
+		return
+	var d: float = clampf(to_target.length(), absf(l1 - l2) + 0.01, l1 + l2 - 0.005)
+	var axis := to_target.normalized()
+	# DOS HUESOS, RESUELTOS EN EL ESPACIO: el angulo del hombro sale del
+	# triangulo hombro-codo-mano, y el codo cae en el plano que forman la linea
+	# hombro-objetivo y el POLO (hacia fuera y abajo, como un codo humano).
+	var cos_a := clampf((l1 * l1 + d * d - l2 * l2) / (2.0 * l1 * d), -1.0, 1.0)
+	var sin_a := sqrt(maxf(1.0 - cos_a * cos_a, 0.0))
+	var out := 1.0 if side == "L" else -1.0
+	var pole := Vector3(out * ELBOW_OUT, -1.0, ELBOW_FWD).normalized()
+	var perp := pole - axis * pole.dot(axis)
+	if perp.length() < 0.001:
+		perp = Vector3(out, 0.0, 0.0) - axis * (axis.x * out)
+	perp = perp.normalized()
+	var elbow_pos := sh_now + axis * (l1 * cos_a) + perp * (l1 * sin_a)
+	var hand_pos := sh_now + axis * d
+	var u1 := (elbow_pos - sh_now).normalized()
+	var u2 := (hand_pos - elbow_pos).normalized()
+	# LOS GIROS SON GLOBALES RESPECTO AL REPOSO (arco corto) y se convierten a
+	# la pose local de cada hueso contando con la de su padre. La version
+	# anterior metia el cuaternion global como pose LOCAL del hombro, que solo
+	# vale con bases identidad (los rigs de Ludo): con los de Meshy, todo el
+	# reparto sacaba los brazos en cruz al sentarse. `arm_range` recorta el
+	# recorrido (ver la variable).
+	var r1 := _arc((el - sh).normalized(), u1)
+	r1 = Quaternion.IDENTITY.slerp(r1, arm_range)
+	_set_global_rot(i_sh, r1 * _grest[i_sh])
+	var fore := (r1 * (wr - el)).normalized()
+	var r2 := _arc(fore, u2)
+	r2 = Quaternion.IDENTITY.slerp(r2, arm_range)
+	_set_global_rot(i_el, r2 * r1 * _grest[i_el])
+	# LA MUÑECA VA CON EL GIRO DE BALANCEO PURO: el arco corto que lleva el
+	# antebrazo del reposo a donde esta ahora, SIN torsion. Dejandola colgar
+	# del codo heredaba la torsion arbitraria que los dos arcos cortos meten
+	# alrededor del eje del brazo, y lo que cuelga de la mano —el cuchillo y
+	# el cazo del chef, el puñal de Pablo— salia apuntando hacia atras y
+	# abajo. Las manos son BOLAS, asi que `focus` (adonde miran los dedos) no
+	# tiene nada que orientar; se deja el parametro por si vuelve un rig con
+	# dedos.
+	var fore_ahora := (r2 * r1 * (wr - el)).normalized()
+	_set_global_rot(i_wr, _arc((wr - el).normalized(), fore_ahora) * _grest[i_wr])
+	var _ignorado := focus
+
+
+## Arco corto de `a` a `b` (unitarios), con el caso antiparalelo resuelto.
+func _arc(a: Vector3, b: Vector3) -> Quaternion:
+	return arco_corto(a, b)
+
+
+static func arco_corto(a: Vector3, b: Vector3) -> Quaternion:
+	if a.dot(b) < -0.9999:
+		var ax := a.cross(Vector3.UP)
+		if ax.length() < 0.001:
+			ax = a.cross(Vector3.RIGHT)
+		return Quaternion(ax.normalized(), PI)
+	return Quaternion(a, b)
+
+
+## Deja el hueso `i` con la orientacion GLOBAL `q` (espacio del esqueleto),
+## descontando la pose ACTUAL de su padre.
+func _set_global_rot(i: int, q: Quaternion) -> void:
+	var p := _skel.get_bone_parent(i)
+	var pq := Quaternion.IDENTITY
+	if p >= 0:
+		pq = _skel.get_bone_global_pose(p).basis.orthonormalized().get_rotation_quaternion()
+	_skel.set_bone_pose_rotation(i, pq.inverse() * q)
 
 
 ## Devuelve todos los huesos a su pose de reposo.
@@ -1230,9 +1504,25 @@ func _rotate(bone: String, axis: Vector3, deg: float) -> void:
 ## encoge), y sustituyendo, el segundo borraba al primero en silencio. Como
 ## reset() deja la pose en reposo al empezar cada fotograma, la primera
 ## llamada parte siempre del reposo.
+## Gira el hueso `deg` grados alrededor de `axis`, que es un eje DEL ESQUELETO
+## (X = de lado, Y = arriba, Z = al frente), no del hueso.
+##
+## EL EJE SE CONJUGA CON LA ORIENTACION DE REPOSO DEL HUESO. Los rigs de Ludo
+## traian todas las bases en identidad, asi que "girar en X local" era girar
+## en X del esqueleto y el codigo de arriba se escribio contando con ello. Los
+## rigs de Meshy (el reparto de figuritas) vienen ORIENTADOS: la Y de cada
+## hueso corre a lo largo del miembro y su giro alrededor de ese eje (el
+## "roll") lo decide el rigger. Girando en local, "cabecear" el hombro lo
+## movia hacia delante en un modelo y hacia el lado en otro — Cai y Miku se
+## quedaban en cruz en reposo mientras al grumete le bajaban los brazos.
+## Con la conjugacion, el mismo angulo hace lo mismo en todos; y para un rig
+## con bases identidad la formula se reduce exactamente a la de antes.
 func _rotate_bone(i: int, axis: Vector3, deg: float) -> void:
-	_skel.set_bone_pose_rotation(i,
-		_skel.get_bone_pose_rotation(i) * Quaternion(axis, deg_to_rad(deg)))
+	if _arm_bones.has(i):
+		deg *= arm_range
+	var g: Quaternion = _grest.get(i, Quaternion.IDENTITY)
+	var local := g.inverse() * Quaternion(axis, deg_to_rad(deg)) * g
+	_skel.set_bone_pose_rotation(i, _skel.get_bone_pose_rotation(i) * local)
 
 
 func _translate(bone: String, offset: Vector3) -> void:

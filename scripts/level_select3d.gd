@@ -161,6 +161,13 @@ const ENTRADA_VIAJE := 1.05
 const TOQUE_QUIETO := 18.0
 ## Mientras dura, ni se toca otro nodo ni se vuelve a cambiar de mar.
 var cambiando_mar := false
+## Generacion del viaje en curso. `_select` espera al viraje ANTES de mover el
+## barco, y si en ese hueco se pulsaba "Atras" (que arranca su propio viaje al
+## fondeadero) el viaje al nodo seguia despues y los dos tweens se peleaban
+## por `ship_px` y por la camara (lo vio el usuario: "se buggea"). Quien
+## interrumpa un viaje sube la generacion y el viaje viejo se descubre
+## caducado al despertar.
+var viaje_gen := 0
 ## EL CARTEL QUE ESTÁ POR GIRAR durante una travesía (el mar al que lleva, o 0
 ## si no hay ninguno). Nace enseñando la cara de ANTES y lo voltea el barco al
 ## pasar por debajo; sin esto, `_refrescar_carteles` lo dejaría ya volteado al
@@ -260,6 +267,10 @@ const BOCA_ANCHO := 0.60
 const BOCA_ALTO := 0.44
 const SHIP_FOOT := 2.3
 ## Orientación base del barco (navega hacia la parte alta del mapa).
+## 205 con el barco LA: su PROA es -x como en el viejo (el bauprés es el
+## extremo -x, fino y bajo; el palo corto de +x es el de MESANA, junto al
+## castillo de popa). Se probo con 25 dando por hecho que el palo corto era el
+## de proa, y el barco iba de popa (lo vio el usuario: "modelado al reves").
 const SHIP_YAW := 205.0
 
 var cam: Camera3D
@@ -2550,6 +2561,7 @@ func _build_ficha() -> Control:
 	# rotulo (ver `skin_start_button`): a esta altura la placa llena el
 	# rectangulo del boton, asi que "Viajar" se centra en el.
 	PrepBoard.skin_start_button(sail_button, 0.0)
+	UIFx.brillo(sail_button, 3.4, 0.45)
 	var gorda := load("res://fonts/static/Exo2-Bold.ttf")
 	if gorda != null:
 		sail_button.add_theme_font_override("font", gorda)
@@ -2624,21 +2636,38 @@ func _ver_seccion(caja: Control, on: bool) -> void:
 var _ficha_abierta_ms := 0
 
 
+## El tween de abrir/cerrar la ficha: UNO solo. Abrir con un cierre a medias
+## dejaba al cierre apagar la ficha recien abierta (su callback llegaba
+## despues), y cerrar con la apertura a medias las dejaba peleando por el alfa.
+var _ficha_tw: Tween = null
+
+
 func _abrir_ficha() -> void:
 	if map_info_panel == null:
 		return
 	_ficha_abierta_ms = Time.get_ticks_msec()
+	if _ficha_tw != null and _ficha_tw.is_valid():
+		_ficha_tw.kill()
 	map_info_panel.visible = true
 	map_info_panel.modulate.a = 0.0
-	create_tween().tween_property(map_info_panel, "modulate:a", 1.0, 0.18)
+	map_info_panel.scale = Vector2.ONE
+	_ficha_tw = create_tween()
+	_ficha_tw.tween_property(map_info_panel, "modulate:a", 1.0, 0.16)
+	# EL POP ES DEL PERGAMINO, NO DEL VELO: escalando el conjunto entero desde
+	# 0.9, el velo dejaba una franja de 36 px sin cubrir por cada canto y un
+	# toque en el borde del "Atras" se colaba por ahi con la ficha abierta.
+	if ficha_panel != null and is_instance_valid(ficha_panel):
+		UIFx.pop_in(ficha_panel, 0.0, 0.9, 0.28)
 
 
 func _cerrar_ficha() -> void:
 	if map_info_panel == null or not map_info_panel.visible:
 		return
-	var tw := create_tween()
-	tw.tween_property(map_info_panel, "modulate:a", 0.0, 0.14)
-	tw.tween_callback(func() -> void: map_info_panel.visible = false)
+	if _ficha_tw != null and _ficha_tw.is_valid():
+		_ficha_tw.kill()
+	_ficha_tw = create_tween()
+	_ficha_tw.tween_property(map_info_panel, "modulate:a", 0.0, 0.14)
+	_ficha_tw.tween_callback(func() -> void: map_info_panel.visible = false)
 
 
 func _stat_label(parent: VBoxContainer) -> Label:
@@ -3233,6 +3262,9 @@ func _select(id: String, animate: bool) -> void:
 		# mar nuevo montado y con ESTE escenario como destino.
 		cambiar_de_mar(suyo, id)
 		return
+	# con el mapa ya yendose al menu, un toque en un nodo no arranca nada
+	if animate and not map_visible:
+		return
 	selected_id = id
 	# Se recuerda para cuando se vuelva de otra pantalla (ver
 	# `_puerto_de_partida`).
@@ -3270,8 +3302,10 @@ func _select(id: String, animate: bool) -> void:
 	# PRIMERO VIRA Y LEVANTA EL VIENTO, y solo entonces navega (pedido por el
 	# usuario). La fuerza sale de la DISTANCIA: un salto al escenario de al lado
 	# es una brisa y una travesía larga, un vendaval.
+	viaje_gen += 1
+	var gen := viaje_gen
 	await virar_a(target - ship_px, _fuerza_de(dist))
-	if not is_inside_tree():
+	if not is_inside_tree() or gen != viaje_gen:
 		return
 	Audio.sfx_suave("barco_mover", 0.0, minf(dur * 0.35, 0.35),
 		randf_range(0.86, 1.16), dur, randf_range(0.45, 1.30))
@@ -3284,6 +3318,17 @@ func _select(id: String, animate: bool) -> void:
 	ship_tween.finished.connect(enderezar_rumbo.bind(VIRAJE),
 		CONNECT_ONE_SHOT)
 	_scroll_to(CampaignData.map_pos(id))
+
+
+## Cancela el viaje a un nodo que este en marcha (o esperando su viraje).
+func cancelar_viaje() -> void:
+	viaje_gen += 1
+	if ship_tween != null:
+		ship_tween.kill()
+		ship_tween = null
+	if scroll_tween != null:
+		scroll_tween.kill()
+		scroll_tween = null
 
 
 ## PRIMERA VISITA AL MAPA: David explica los tres tipos de nivel y ata al

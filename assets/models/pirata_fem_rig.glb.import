@@ -3,7 +3,7 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://c0smpxv2tex8s"
+uid="uid://br74igawk75hw"
 path="res://.godot/imported/pirata_fem_rig.glb-121529a8e3c461b1cd0d6d1756c8a618.scn"
 
 [deps]
@@ -23,7 +23,7 @@ nodes/root_scale=1.0
 nodes/import_as_skeleton_bones=false
 nodes/use_name_suffixes=true
 nodes/use_node_type_suffixes=true
-meshes/ensure_tangents=true
+meshes/ensure_tangents=false
 meshes/generate_lods=false
 meshes/create_shadow_meshes=false
 meshes/light_baking=1

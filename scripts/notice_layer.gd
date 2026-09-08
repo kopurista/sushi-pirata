@@ -220,6 +220,7 @@ func _show_collectible(item: Dictionary) -> void:
 	panel.size = Vector2(panel_w, panel_h)
 	panel.pivot_offset = panel.size * 0.5
 	root.add_child(panel)
+	UIFx.pop_in(panel, 0.06, 0.85, 0.32)
 	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
 		PrepBoard.PANEL_MARGIN))
 
@@ -359,6 +360,7 @@ func _show_level_up(data: Dictionary) -> void:
 	panel.size = Vector2(panel_w, panel_h)
 	panel.pivot_offset = panel.size * 0.5
 	root.add_child(panel)
+	UIFx.pop_in(panel, 0.06, 0.85, 0.32)
 	panel.add_child(PrepBoard.make_nine_patch(PrepBoard.PANEL_TEX,
 		PrepBoard.PANEL_MARGIN))
 

@@ -12,7 +12,7 @@ signal discarded(recipe_id: String)
 const MAX_LAPS := 1
 ## Cuánto se desplaza el plato hacia la basura al caer (diagonal hacia fuera y
 ## abajo). Con ROTATION_NONE el sistema local del PathFollow es el del mundo.
-const CAIDA := Vector3(0.62, -0.34, 0.62)
+const CAIDA := Vector3(1.05, -0.30, 1.05)
 ## Huella horizontal del modelo del plato (la tabla de madera), igual que en
 ## el resto de la cinta.
 const DISH_FOOT := 0.62

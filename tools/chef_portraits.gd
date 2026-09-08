@@ -46,7 +46,7 @@ func _render(gender: String) -> void:
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(vp)
 
-	var path := CharacterData.model("chef", gender)
+	var path := ChefLook.DIR + "chef_cuerpo.glb"
 	var inst: Node3D = (load(path) as PackedScene).instantiate()
 	vp.add_child(inst)
 

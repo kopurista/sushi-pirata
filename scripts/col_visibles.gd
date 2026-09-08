@@ -53,31 +53,42 @@ const CALAVERA_TEX := "res://assets/ui/calavera_vacio.png"
 ## (sonda de vértices): el mástil sube en x≈0.098 del centro y el AABB mide
 ## 1.00 × 0.897 × 0.376. Todo lo demás se coloca en fracciones de eso, así
 ## que vale a cualquier escala del barco.
-const MASTIL_X := 0.0986
+## EL BARCO ES OTRO DESDE EL 7-9-2026 (`map_barco.glb` en estilo Link's
+## Awakening, concepto de Ludo por Meshy) y TODO ESTO SE VOLVIO A MEDIR con
+## una sonda de vertices sobre el .glb crudo (unidades del modelo, 1.889 de
+## eslora, 1.868 de alto, 1.182 de manga): el palo mayor esta en x +0.03 y
+## corona en lo mas alto; el palo de PROA en x +0.515 y corona al 80%; la
+## PROA es -x (el bauprés: el extremo -x es fino, ±0.06 de manga, y bajo;
+## el +x es ancho: el espejo de popa) y el palo corto de +x es el de MESANA,
+## junto al castillo de popa. Se creyo al principio que era el de proa y el
+## barco navego de popa hasta que lo vio el usuario. La cubierta principal es
+## un plano al 19% del alto, la del castillo de popa (+x) al 37% y la borda
+## al 39%; el costado llega a z 0.59 a media eslora y a 0.34 en la amura.
+const MASTIL_X := 0.03
 ## LA CUBIERTA, MEDIDA (no a ojo): las caras hacia arriba del casco caen en
 ## y de modelo -0.18, o sea la fraccion 0.298 del alto. Todo lo que se APOYE
 ## en el barco va aqui — el primer intento puso el huevo y el cañon a ojo y
 ## salieron FLOTANDO delante del casco (dicho por el usuario).
-const CUBIERTA := 0.298
+const CUBIERTA := 0.192
 ## La cubierta del CASTILLO DE POPA, mas alta que la de proa. MEDIDA con el
 ## mapa de caras hacia arriba: entre x 0.45 y 0.50 sale plana a y -0.080 para
 ## todas las z, que es el unico tramo de popa donde la cubierta es CONTINUA
 ## (mas adelante la parten el palo y las escaleras).
-const POPA_CUBIERTA := 0.409
+const POPA_CUBIERTA := 0.375
 ## La cubierta A MEDIA ESLORA, que va entre la de proa y la de popa: y de
 ## modelo -0.12. Es donde se apoya el cañon.
-const MEDIA_CUBIERTA := 0.365
+const MEDIA_CUBIERTA := 0.192
 ## La ANDANA BAJA: la franja BAJA del costado (y de modelo -0.32). Medida
 ## contra la captura, no a ojo: a la altura de la borda el arpon se recortaba
 ## contra el CIELO por encima del casco, que es justo lo contrario de estar
 ## tendido en la andana.
-const ANDANA := 0.208
+const ANDANA := 0.30
 ## Y LA BORDA, el canto de arriba del costado: lo que se apoye en la CUBIERTA
 ## queda TAPADO por el propio casco desde esta camara (medido: a media eslora
 ## el costado llega a z 0.16 y la cubierta esta a 0.08), asi que el cañon va
 ## montado sobre la borda, con la boca asomando por fuera.
-const BORDA := 0.365
-const ALTO_MESH := 0.897
+const BORDA := 0.395
+const ALTO_MESH := 1.868
 
 
 ## Cuelga del barco del mapa los adornos de las piezas YA conseguidas. El
@@ -168,11 +179,11 @@ static func _koinobori(pivot: Node3D, s: float, alto: float) -> void:
 	# EL ANCLAJE es el tope del palo de PROA (y +0.354 = alto*0.855, medido con
 	# sonda de vértices); el pez vuela POR DELANTE, hacia la proa, con los
 	# cabos tendidos en medio.
-	var ancla := Vector3(-0.100 * s, alto * 0.855, 0.0)
+	var ancla := Vector3(0.515 * s, alto * 0.80, 0.04 * s)
 	# EL PEZ VUELA APARTADO DEL PALO, no pegado a él: con la boca casi
 	# tocando el anclaje los cabos no se veían y volvía a parecer clavado.
 	# Medido en captura: con 0.145 el vano era de 0.05·s y no se leía.
-	var p := _prop(pivot, ancla + Vector3(-0.255 * s, 0.020 * s, 0.0), 12.0, 2.4)
+	var p := _prop(pivot, ancla + Vector3(0.255 * s, 0.020 * s, 0.0), 12.0, 2.4)
 	p.name = "ColKoinobori"
 	# EN CARTEL QUE SIEMPRE MIRA A LA CAMARA (billboard por el eje Y). El
 	# timon GIRA EL BARCO, y con el paño clavado a la jarcia bastaba un cuarto
@@ -199,7 +210,7 @@ static func _koinobori(pivot: Node3D, s: float, alto: float) -> void:
 	# volaba de morro CONTRA el viento de sus propias velas. `ColProp` lo
 	# arregla volteando la textura segun donde caiga la proa (-x en el modelo).
 	p.veleta_mat = m
-	p.veleta_dir = Vector3(-1.0, 0.0, 0.0)
+	p.veleta_dir = Vector3(1.0, 0.0, 0.0)
 	p.veleta_cara = cara
 	p.veleta_semi = ancho * 0.5
 	# LOS HILOS cuelgan del BARCO, no del pez: su anclaje no se mece con él.
@@ -230,7 +241,7 @@ static func _farol_fantasma(pivot: Node3D, s: float, alto: float) -> void:
 	# ya fuera del casco, que llega a 0.50.
 	var p := Node3D.new()
 	p.name = "ColFarol"
-	p.position = Vector3(0.545 * s, alto * 0.300, -0.020 * s)
+	p.position = Vector3(0.92 * s, alto * 0.40, 0.0)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var hierro := _mat(Color(0.15, 0.14, 0.13))
@@ -334,7 +345,7 @@ static func _arpon(pivot: Node3D, s: float, alto: float) -> void:
 	# entendia que fuera un arpon ni por que estaba ahi.
 	var p := Node3D.new()
 	p.name = "ColArpon"
-	p.position = Vector3(0.18 * s, alto * ANDANA, 0.185 * s)
+	p.position = Vector3(0.18 * s, alto * ANDANA, 0.60 * s)
 	# El cilindro nace con su eje en +Y; girando 90º en Z pasa a -X, o sea
 	# que la punta mira a PROA.
 	p.rotation_degrees.z = 90.0
@@ -449,7 +460,7 @@ static func _ancla(pivot: Node3D, s: float, alto: float) -> Node3D:
 	# comparte amura, y se veian montados uno sobre otro.
 	# Mas ARRIMADA al costado (pedido por el usuario): a 0.135 se veia
 	# despegada del casco, como flotando al lado.
-	p.position = Vector3(-0.295 * s, alto * 0.185, 0.103 * s)
+	p.position = Vector3(-0.66 * s, alto * 0.22, 0.34 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var m := (load("res://assets/models/ancla_pirata.glb") as PackedScene) 		.instantiate()
@@ -489,7 +500,7 @@ static func _canon(pivot: Node3D, s: float, alto: float) -> Node3D:
 	# mismos rayos dan 0.236, que es la cubierta de verdad. O sea que el
 	# medidor contesta "la primera superficie que hay debajo", no "el suelo":
 	# hay que leerlo desde una altura que ya este por debajo del aparejo.
-	p.position = Vector3(0.0, alto * 0.238, 0.090 * s)
+	p.position = Vector3(0.10 * s, alto * BORDA, 0.50 * s)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var m := (load("res://assets/models/canon_barco.glb") as PackedScene) 		.instantiate()
@@ -525,7 +536,7 @@ static func _huevo(pivot: Node3D, s: float, alto: float) -> void:
 	# Corrido a POPA y a la banda: donde estaba, los OBENQUES del palo de
 	# mesana lo atravesaban (dicho por el usuario). Mas atras del palo ya no
 	# hay jarcia que lo cruce.
-	p.position = Vector3(0.465 * s, alto * POPA_CUBIERTA, -0.055 * s)
+	p.position = Vector3(0.60 * s, alto * POPA_CUBIERTA, 0.0)
 	p.add_to_group("no_batch")
 	pivot.add_child(p)
 	var huevo := MeshInstance3D.new()

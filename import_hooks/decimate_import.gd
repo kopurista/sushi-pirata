@@ -21,6 +21,162 @@ extends EditorScenePostImport
 
 ## Triángulos máximos por modelo (nombre de archivo sin extensión).
 const BUDGETS := {
+	# Paredes de la cueva (Blender, ya decimadas y horneadas): NO decimar.
+	"la_cueva_escenario": 60000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_puesto": 5000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_ancla": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_caja_pescado": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_hierba_alta": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_cartel": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_seta_cueva": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_farol": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_timon": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_mastil_roto": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_arbusto": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_arbol": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_mesa_chef": 2500,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_cubo": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_red": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_caseta": 3500,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_coco": 1500,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_tronco": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_hibisco": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_roca_cueva": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_cristal": 2000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_estalagmita": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_cuerda": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_canon": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_barandilla": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_mastil": 4000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_noray": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_farola": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_cabana": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_taburete": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_caja": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_barril": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_roca": 3000,
+	# Entrado por Meshy (tools/meshy.py).
+	"la_palmera": 3000,
+	"david_rig": 20000,
+	"saverio_rig": 20000,
+	"cai_sombrero_rig": 20000,
+	"grumete_fem_rig": 20000,
+	"pirata_fem_rig": 20000,
+	"capitan_fem_rig": 20000,
+	"capitan_rig": 20000,
+	"pirata_rig": 20000,
+	"grumete_rig": 20000,
+	# 24k porque es el que mas habla y mas cerca se ve.
+	# del dialogo ocupan media pantalla; 14-16k conserva la cara. David va a
+	# EL REPARTO v5 YA VIENE DECIMADO Y RE-HORNEADO DE BLENDER (tools/blender/rebake.py,
+	# 7-9-2026): 14.000 caras con atlas limpio. El tope va POR ENCIMA a proposito:
+	# decimar aqui volvia a fundir vertices a traves de las costuras del atlas y
+	# llenaba las caras de rayas claras.
+	# EL REPARTO v5 (figuritas): en la cinta van pequeños, pero en el retrato
+	# EL CHEF MODULAR (assets/models/chef): solo se decima el CUERPO, que llega
+	# de Meshy a 100k. Las piezas (pelo, barbas, nariz, cejas, gafas) ya salen
+	# de Blender a 2-7k caras y no estan apuntadas a proposito.
+	"chef_cuerpo": 30000,
+	# Entrado por Meshy (tools/meshy.py).
+	"chef_v5_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"miku_v6_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"punal_pablo3": 4000,
+	# Entrado por Meshy (tools/meshy.py).
+	"punal_pablo2": 1500,
+	# Entrado por Meshy (tools/meshy.py).
+	"kappa_v5_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"pablo_v6_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"saverio_v5_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"sirena_v5_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"punal_pablo": 1500,
+	# Entrado por Meshy (tools/meshy.py).
+	"alice_v5_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"pirata_v5_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"caisombrero_v5_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"grumete_v5_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"nach_v5_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"cai_v5_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"miku_v5_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"david_v5_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"pablo_v5_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"capitan_v5_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"sirena_v4_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"kappa_v4_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"nach_v4_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"miku_v4_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"alice_v4_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"cai_sombrero_v4_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"cai_v4_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"pablo_v4_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"saverio_v4_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"capitan_v4_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"pirata_v4_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"grumete_v4_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"david_v4_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"david6_rig": 12000,
+	# Entrado por Meshy (tools/meshy.py).
+	"david5_rig": 12000,
 	# Entrado por Meshy (tools/meshy.py).
 	# Entrado por Meshy (tools/meshy.py).
 	# Entrado por Meshy (tools/meshy.py).
@@ -86,26 +242,23 @@ const BUDGETS := {
 	# del faro esparcidas por la roca gris, además de perder enteros un
 	# pantalán y sus cajas. A 8.000 (la cadena de LOD cae en ~7.700) se ven
 	# igual que sin decimar.
-	"map_isla": 8000,
-	"map_puerto": 8000,
-	"map_cueva": 8000,
-	"map_enemigo": 8000,
-	"map_barco": 8000,
+	"map_isla": 6000,
+	"map_puerto": 6000,
+	"map_cueva": 6000,
+	"map_enemigo": 6000,
+	"map_barco": 12000,
 	# Personajes: el chef y los clientes rondan los 6.000, estos venían a 19.500.
 	"tendero": 6000,
 	"chef_neutro_rig": 6000,
 	"chef_fem_rig": 6000,
-	"grumete_fem_rig": 6000,
-	"pirata_fem_rig": 6000,
-	"capitan_fem_rig": 6000,
 	"vip_fem_rig": 6000,
-	"pablo_rig": 6000,
-	"kappa_rig": 6000,
-	"cai_rig": 6000,
-	"alice_rig": 6000,
-	"miku_rig": 6000,
-	"nach_rig": 6000,
-	"sirena_rig": 6000,
+	"pablo_rig": 20000,
+	"kappa_rig": 20000,
+	"cai_rig": 20000,
+	"alice_rig": 20000,
+	"miku_rig": 20000,
+	"nach_rig": 20000,
+	"sirena_rig": 20000,
 	"maki_aguacate_mejorado": 2500,
 	# Tanda del mar 2 (24-8-2026).
 	"tsukemono": 2500,

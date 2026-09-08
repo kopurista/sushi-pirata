@@ -181,6 +181,7 @@ func _ready() -> void:
 		for id in ids:
 			grid.add_child(_build_card(id, board_script))
 		sections.add_child(grid)
+		UIFx.escalonar(grid.get_children(), 0.03, 0.9)
 	_add_top_bar(board_script)
 	# CON LA CARTA CERRADA NO SE ELIGE NADA: el subtitulo de siempre ("elige
 	# las recetas...") mandaba a hacer algo que la pantalla no deja hacer.
@@ -465,7 +466,7 @@ func _build_perk_card(id: String, board_script: GDScript) -> Button:
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	name_l.add_theme_font_size_override("font_size", 16)
+	name_l.add_theme_font_size_override("font_size", 18)
 	# GRABADO sobre el latón: letra oscura con reborde claro. En crema, como
 	# sobre la madera, se perdía en la chapa.
 	name_l.add_theme_color_override("font_color", Color(0.20, 0.10, 0.02))
@@ -588,6 +589,8 @@ func _skin_start_button(board_script: GDScript) -> void:
 	# Placa de ORO, no el tablón de siempre: es el botón que arranca la partida
 	# y tiene que destacar por encima de todo lo demás de la pantalla.
 	board_script.skin_start_button(start_button)
+	# la accion principal de la pantalla lleva el BRILLO de UIFx
+	UIFx.brillo(start_button, 3.4, 0.45)
 	# Este SÍ zarpa, pero su sonido lo pone `_on_start_pressed` (campanas más
 	# el casco crujiendo): sin esto sonarían las campanas dos veces.
 	start_button.set_meta("snd", "")
@@ -1222,7 +1225,7 @@ func _ficha_resumen(id: String) -> Control:
 	nom.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	nom.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	nom.custom_minimum_size = Vector2(0, 38)
-	nom.add_theme_font_size_override("font_size", 15)
+	nom.add_theme_font_size_override("font_size", 17)
 	nom.add_theme_constant_override("line_spacing", -6)
 	nom.add_theme_color_override("font_color", Color(0.30, 0.17, 0.05))
 	var negrita: Font = load("res://fonts/static/Exo2-Bold.ttf")

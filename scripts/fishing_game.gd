@@ -400,6 +400,8 @@ func _setup_ui() -> void:
 	# juego encima. Sustituye al viejo texto latiente.
 	var negrita := load("res://fonts/static/Exo2-Bold.ttf")
 	cast_btn = Button.new()
+	# respira con su propio tween de escala: fuera del hundido general de UIFx
+	cast_btn.set_meta("no_fx", true)
 	for bst in ["normal", "hover", "pressed", "disabled", "focus"]:
 		cast_btn.add_theme_stylebox_override(bst, StyleBoxEmpty.new())
 	cast_btn.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
