@@ -6872,6 +6872,40 @@ Lo que se aprendió y sigue valiendo por si se retoma:
   `import_hooks/` (el post-import de decimado) va en `exclude_filter` del preset
   de export: extiende `EditorScenePostImport`, que no existe fuera del editor.
 
+## PUBLICAR LA WEB: EL REPOSITORIO `sushi-pirata-web` (no la rama gh-pages)
+
+El juego se prueba en el móvil en **`kopurista.github.io/sushi-pirata-web/`**,
+que sirve la rama `main` del repositorio `kopurista/sushi-pirata-web` (clon
+local en `Desktop/GODOT/sushi-pirata-web`) a través de su workflow de Actions
+(`.github/workflows/pages.yml`, que NO se puede borrar: sin él nadie publica).
+La rama `gh-pages` de `sushi-pirata` (`kopurista.github.io/sushi-pirata/`)
+también existe y lleva la lista de sonidos, pero NO es la que mira el usuario
+—se publicó ahí una vez y el usuario no vio nada nuevo—. El ciclo:
+
+    Godot_v4.7.1-stable_win64_console.exe --headless --path .         --export-release "sushi" "sushiBeta/sushi3d/index.html"
+    cp sushiBeta/sushi3d/index.* ../sushi-pirata-web/ && git -C ../sushi-pirata-web add -A         && git -C ../sushi-pirata-web commit -m "Build web <fecha>" && git -C ../sushi-pirata-web push
+    gh run list -R kopurista/sushi-pirata-web   (y comprobar CACHE_VERSION en el
+    index.service.worker.js servido, que es lo que dice si la versión nueva está)
+
+**EL PESO SE MIDE DENTRO DEL PROPIO `.pck`**, parseando su tabla de archivos
+(formato v4: `GDPC`, versión, 4.7.1, flags, `file_base` u64, `dir_offset` u64,
+16 u32 reservados; en `dir_offset` va la cuenta y las entradas con ruta,
+offset, tamaño, md5 y flags). Sumando `.godot/imported` a pelo se cuenta
+también lo que ya no está en el juego. MEDIDO el 8-9-2026: 91,9 MB, de los
+que 45 eran `assets/models` (13 texturas horneadas de personajes a 1024 =
+10 MB, más los `.scn`), 9,3 la interfaz (6,1 sin pérdida), 5,9 la música,
+3,9 el mapa. Lo que se recortó, y por qué así: la CLIENTELA a `size_limit`
+512 (se ve a tamaño de cinta; en la caja de diálogo sigue leyéndose, medido)
+y los personajes con nombre a 1024; los 48 sprites e iconos de la interfaz que
+seguían sin pérdida a WebP 0.9 (los 9-slice y marcos siguen sin pérdida: su
+borde se estira); fuera las texturas extraídas HUÉRFANAS (`kappa_rig_Image_0`,
+`pablo_rig_base_color`: el glb ya embebe otra imagen y Godot no las borra) y
+los puñales de Pablo a `assets/models/source` (los usa Blender, no el juego).
+Resultado **83,6 MB**. GitHub avisa a partir de 50 MB por archivo y **bloquea
+a 100**: el `.pck` va a 84 y el `.wasm` a 39,5, así que antes de meter más
+modelos hay que volver a pasar esta cuenta. La música va a ~104 kbps y no
+compensa tocarla.
+
 ## Probar en el móvil: el SERVICE WORKER se queda con la versión vieja
 
 El juego se prueba en el iPhone como **build web** (GitHub Pages), y la
